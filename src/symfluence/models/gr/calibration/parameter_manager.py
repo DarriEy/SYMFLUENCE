@@ -11,17 +11,18 @@ Handles GR parameter bounds, normalization, and configuration updates.
 Since GR doesn't use parameter files but receives them via config/runner,
 this manager simply prepares the parameters for the GRRunner.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('GR')
+@R.parameter_managers.add('GR')
 class GRParameterManager(BaseParameterManager):
     """Handles GR parameter bounds, normalization, and configuration updates."""
 
@@ -152,7 +153,7 @@ class GRParameterManager(BaseParameterManager):
             return {name: val for name, val in zip(param_names, param_final)}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Could not load initial parameters from Rdata: {e}")
+            self.logger.debug(f"Could not load initial parameters from Rdata: {e}", exc_info=True)
             return None
 
     def _get_default_initial_values(self) -> Dict[str, float]:

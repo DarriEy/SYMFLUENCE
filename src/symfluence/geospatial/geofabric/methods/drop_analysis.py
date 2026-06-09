@@ -9,6 +9,7 @@ determine optimal stream thresholds based on geomorphological principles.
 
 Extracted from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -103,7 +104,7 @@ class DropAnalysisMethod(ConfigMixin):
                                         'mean_drop': float(parts[2])
                                     })
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Drop analysis failed for threshold {threshold}: {str(e)}")
+                    self.logger.warning(f"Drop analysis failed for threshold {threshold}: {str(e)}", exc_info=True)
                     continue
 
             if len(drop_data) < 3:
@@ -120,7 +121,7 @@ class DropAnalysisMethod(ConfigMixin):
             return optimal_threshold
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error in drop analysis: {str(e)}")
+            self.logger.error(f"Error in drop analysis: {str(e)}", exc_info=True)
             return None
 
     def _find_optimal_threshold(self, drop_data: List[Dict]) -> float:

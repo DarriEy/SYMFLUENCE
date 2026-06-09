@@ -16,6 +16,8 @@ Sub-modules:
 - definitions_generator: Default parameter file generation
 - fire_generator: WMFire fire spread input generation
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Tuple
@@ -23,8 +25,8 @@ from typing import Tuple
 import geopandas as gpd
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.rhessys.climate_generator import RHESSysClimateGenerator
 from symfluence.models.rhessys.definitions_generator import RHESSysDefinitionsGenerator
 from symfluence.models.rhessys.fire_generator import RHESSysFireGenerator
@@ -34,7 +36,7 @@ from symfluence.models.rhessys.worldfile_generator import RHESSysWorldfileGenera
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("RHESSys")
+@R.preprocessors.add("RHESSys")
 class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a RHESSys model run.
@@ -240,7 +242,7 @@ class RHESSysPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("RHESSys preprocessing complete.")
             return True
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"RHESSys preprocessing failed: {e}")
+            logger.error(f"RHESSys preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False

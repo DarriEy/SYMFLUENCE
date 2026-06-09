@@ -6,15 +6,16 @@ HYPE Model Visualizer.
 
 Provides model-specific visualization registration for HYPE.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('HYPE')
+@R.visualizers.add('HYPE')
 def visualize_hype(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize HYPE model outputs.
@@ -32,4 +33,4 @@ def visualize_hype(reporting_manager: Any, config: Dict[str, Any], project_dir: 
         # For now, timeseries_results covers the streamflow comparison which is the primary goal.
 
     except Exception as e:  # noqa: BLE001 — model execution resilience
-        logger.error(f"Error during HYPE visualization: {str(e)}")
+        logger.error(f"Error during HYPE visualization: {str(e)}", exc_info=True)

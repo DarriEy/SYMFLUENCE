@@ -14,15 +14,16 @@ NetCDF-Fortran and MPI libraries. The default build produces the
 wrf_hydro.exe executable with NoahMP LSM for distributed hydrological
 simulations.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('wrfhydro')
+@R.build_instructions.add('wrfhydro')
 def get_wrfhydro_build_instructions():
     """
     Get WRF-Hydro build instructions.

@@ -16,6 +16,8 @@ GRDC features:
 Data access requires registration at:
 https://portal.grdc.bafg.de/
 """
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -100,7 +102,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
                     self.logger.warning(f"No data retrieved for station {station_id}")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Failed to download station {station_id}: {e}")
+                self.logger.error(f"Failed to download station {station_id}: {e}", exc_info=True)
 
         if not downloaded_files:
             raise RuntimeError("Failed to download any GRDC data")
@@ -151,7 +153,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
             )
             auth_response.raise_for_status()
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GRDC API authentication failed: {e}")
+            self.logger.warning(f"GRDC API authentication failed: {e}", exc_info=True)
             return None
 
         # Request data
@@ -178,7 +180,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
             return self._standardize_dataframe(df)
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GRDC API download failed: {e}")
+            self.logger.warning(f"GRDC API download failed: {e}", exc_info=True)
             return None
 
     def _download_public(
@@ -234,7 +236,7 @@ class GRDCAcquirer(BaseAcquisitionHandler):
             return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"GRDC public access failed: {e}")
+            self.logger.warning(f"GRDC public access failed: {e}", exc_info=True)
             return None
 
     def _standardize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:

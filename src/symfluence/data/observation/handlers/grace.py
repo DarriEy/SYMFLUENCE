@@ -7,6 +7,7 @@ GRACE total water storage observation handler.
 Provides acquisition and preprocessing of GRACE/GRACE-FO satellite data
 for total water storage anomaly validation with adaptive basin extraction.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional
@@ -76,27 +77,9 @@ class GRACEHandler(BaseObservationHandler):
         """Process GRACE data for the current domain."""
         self.logger.info(f"Processing GRACE TWS for domain: {self.domain_name}")
 
-        # Load basin shapefile - resolve 'default' to standard location
-        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
-        if catchment_path_cfg == 'default' or not catchment_path_cfg:
-            catchment_path = self.project_shapefiles_dir / "catchment"
-        else:
-            catchment_path = Path(catchment_path_cfg)
-
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
-        if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{self.domain_name}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, default='GRUs')}.shp"
-
-        basin_shp = catchment_path / catchment_name
-        if not basin_shp.exists():
-            # Search subdirectories for the shapefile
-            found = list(catchment_path.rglob(catchment_name))
-            if found:
-                basin_shp = found[0]
-                self.logger.info(f"Found basin shapefile in subdirectory: {basin_shp}")
-            else:
-                raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")
-
+        # GRACE TWS averaging needs a basin polygon. The shared resolver handles
+        # the nested discretization layout and river_basins fallback.
+        basin_shp = self._resolve_catchment_shapefile(required=True)
         basin_gdf = gpd.read_file(basin_shp)
         basin_area_km2 = self._calculate_area(basin_gdf)
         self.logger.info(f"Basin area: {basin_area_km2:.1f} km²")

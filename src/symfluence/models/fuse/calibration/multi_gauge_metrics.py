@@ -12,6 +12,7 @@ compatibility. New code should import directly from the shared module.
 The FUSE-specific :func:`ensure_gauge_segment_mapping` helper remains
 defined here.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

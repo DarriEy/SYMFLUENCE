@@ -6,6 +6,7 @@ Configuration management command handlers for SYMFLUENCE CLI.
 
 This module implements handlers for configuration file management and validation.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path

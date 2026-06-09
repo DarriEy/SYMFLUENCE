@@ -8,6 +8,7 @@ Executes MODFLOW 6 (mf6) from a prepared simulation directory.
 MODFLOW 6 reads mfsim.nam from the current working directory to
 discover all model packages and input files.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -17,13 +18,13 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("MODFLOW")
+@R.runners.add("MODFLOW")
 class MODFLOWRunner(BaseModelRunner):
     """
     Runs MODFLOW 6 via direct mf6 invocation.

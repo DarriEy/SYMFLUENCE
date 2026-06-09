@@ -6,6 +6,7 @@ MizuRoute Model Optimizer.
 
 Implements the BaseModelOptimizer for the MizuRoute routing model.
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -148,5 +149,5 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading MizuRoute results: {e}")
+            self.logger.error(f"Error reading MizuRoute results: {e}", exc_info=True)
             return {}

@@ -3,6 +3,7 @@ Tests for FUSE model utilities.
 
 Tests FUSE-specific utility functions including mizuRoute conversion.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

@@ -4,11 +4,12 @@ Tests for Model Result Extractors.
 Verifies that model-specific result extraction adapters are properly
 registered and provide expected interfaces.
 """
+from __future__ import annotations
 
 import pytest
 
+from symfluence.core.registries import R
 from symfluence.models.base import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 
 class TestResultExtractorRegistration:
@@ -16,37 +17,37 @@ class TestResultExtractorRegistration:
 
     def test_summa_extractor_registered(self):
         """SUMMA extractor should be registered."""
-        extractor = ModelRegistry.get_result_extractor('SUMMA')
+        extractor = R.result_extractors.get('SUMMA')('SUMMA')
         assert extractor is not None
         assert isinstance(extractor, ModelResultExtractor)
 
     def test_mizuroute_extractor_registered(self):
         """mizuRoute extractor should be registered."""
-        extractor = ModelRegistry.get_result_extractor('MIZUROUTE')
+        extractor = R.result_extractors.get('MIZUROUTE')('MIZUROUTE')
         assert extractor is not None
         assert isinstance(extractor, ModelResultExtractor)
 
     def test_ngen_extractor_registered(self):
         """NGEN extractor should be registered."""
-        extractor = ModelRegistry.get_result_extractor('NGEN')
+        extractor = R.result_extractors.get('NGEN')('NGEN')
         assert extractor is not None
         assert isinstance(extractor, ModelResultExtractor)
 
     def test_hype_extractor_registered(self):
         """HYPE extractor should be registered."""
-        extractor = ModelRegistry.get_result_extractor('HYPE')
+        extractor = R.result_extractors.get('HYPE')('HYPE')
         assert extractor is not None
         assert isinstance(extractor, ModelResultExtractor)
 
     def test_gr_extractor_registered(self):
         """GR extractor should be registered."""
-        extractor = ModelRegistry.get_result_extractor('GR')
+        extractor = R.result_extractors.get('GR')('GR')
         assert extractor is not None
         assert isinstance(extractor, ModelResultExtractor)
 
     def test_list_result_extractors(self):
         """Should be able to list all registered extractors."""
-        extractors = ModelRegistry.list_result_extractors()
+        extractors = R.result_extractors.keys()
         assert isinstance(extractors, list)
         assert 'SUMMA' in extractors
         assert 'MIZUROUTE' in extractors
@@ -56,9 +57,9 @@ class TestResultExtractorRegistration:
 
     def test_has_result_extractor(self):
         """Should correctly check if model has extractor."""
-        assert ModelRegistry.has_result_extractor('SUMMA') is True
-        assert ModelRegistry.has_result_extractor('MIZUROUTE') is True
-        assert ModelRegistry.has_result_extractor('NONEXISTENT') is False
+        assert ('SUMMA' in R.result_extractors) is True
+        assert ('MIZUROUTE' in R.result_extractors) is True
+        assert ('NONEXISTENT' in R.result_extractors) is False
 
 
 class TestSUMMAExtractor:
@@ -66,7 +67,7 @@ class TestSUMMAExtractor:
 
     def test_summa_provides_file_patterns(self):
         """SUMMA extractor should provide file patterns."""
-        extractor = ModelRegistry.get_result_extractor('SUMMA')
+        extractor = R.result_extractors.get('SUMMA')('SUMMA')
         patterns = extractor.get_output_file_patterns()
 
         assert isinstance(patterns, dict)
@@ -76,7 +77,7 @@ class TestSUMMAExtractor:
 
     def test_summa_provides_variable_names(self):
         """SUMMA extractor should provide variable names."""
-        extractor = ModelRegistry.get_result_extractor('SUMMA')
+        extractor = R.result_extractors.get('SUMMA')('SUMMA')
         var_names = extractor.get_variable_names('streamflow')
 
         assert isinstance(var_names, list)
@@ -84,12 +85,12 @@ class TestSUMMAExtractor:
 
     def test_summa_requires_unit_conversion(self):
         """SUMMA should indicate unit conversion needed for streamflow."""
-        extractor = ModelRegistry.get_result_extractor('SUMMA')
+        extractor = R.result_extractors.get('SUMMA')('SUMMA')
         assert extractor.requires_unit_conversion('streamflow') is True
 
     def test_summa_spatial_aggregation_method(self):
         """SUMMA should indicate spatial aggregation method."""
-        extractor = ModelRegistry.get_result_extractor('SUMMA')
+        extractor = R.result_extractors.get('SUMMA')('SUMMA')
         method = extractor.get_spatial_aggregation_method('streamflow')
         assert method == 'weighted'
 
@@ -99,7 +100,7 @@ class TestMizuRouteExtractor:
 
     def test_mizuroute_provides_file_patterns(self):
         """mizuRoute extractor should provide file patterns."""
-        extractor = ModelRegistry.get_result_extractor('MIZUROUTE')
+        extractor = R.result_extractors.get('MIZUROUTE')('MIZUROUTE')
         patterns = extractor.get_output_file_patterns()
 
         assert isinstance(patterns, dict)
@@ -108,7 +109,7 @@ class TestMizuRouteExtractor:
 
     def test_mizuroute_provides_variable_names(self):
         """mizuRoute extractor should provide variable names."""
-        extractor = ModelRegistry.get_result_extractor('MIZUROUTE')
+        extractor = R.result_extractors.get('MIZUROUTE')('MIZUROUTE')
         var_names = extractor.get_variable_names('streamflow')
 
         assert isinstance(var_names, list)
@@ -116,7 +117,7 @@ class TestMizuRouteExtractor:
 
     def test_mizuroute_no_unit_conversion(self):
         """mizuRoute outputs are already in m³/s."""
-        extractor = ModelRegistry.get_result_extractor('MIZUROUTE')
+        extractor = R.result_extractors.get('MIZUROUTE')('MIZUROUTE')
         assert extractor.requires_unit_conversion('streamflow') is False
 
 
@@ -125,7 +126,7 @@ class TestNGENExtractor:
 
     def test_ngen_provides_file_patterns(self):
         """NGEN extractor should provide file patterns."""
-        extractor = ModelRegistry.get_result_extractor('NGEN')
+        extractor = R.result_extractors.get('NGEN')('NGEN')
         patterns = extractor.get_output_file_patterns()
 
         assert isinstance(patterns, dict)
@@ -134,7 +135,7 @@ class TestNGENExtractor:
 
     def test_ngen_provides_variable_names(self):
         """NGEN extractor should provide variable names."""
-        extractor = ModelRegistry.get_result_extractor('NGEN')
+        extractor = R.result_extractors.get('NGEN')('NGEN')
         var_names = extractor.get_variable_names('streamflow')
 
         assert isinstance(var_names, list)
@@ -146,7 +147,7 @@ class TestHYPEExtractor:
 
     def test_hype_provides_file_patterns(self):
         """HYPE extractor should provide file patterns."""
-        extractor = ModelRegistry.get_result_extractor('HYPE')
+        extractor = R.result_extractors.get('HYPE')('HYPE')
         patterns = extractor.get_output_file_patterns()
 
         assert isinstance(patterns, dict)
@@ -155,7 +156,7 @@ class TestHYPEExtractor:
 
     def test_hype_provides_variable_names(self):
         """HYPE extractor should provide variable names."""
-        extractor = ModelRegistry.get_result_extractor('HYPE')
+        extractor = R.result_extractors.get('HYPE')('HYPE')
         var_names = extractor.get_variable_names('streamflow')
 
         assert isinstance(var_names, list)
@@ -167,7 +168,7 @@ class TestGRExtractor:
 
     def test_gr_provides_file_patterns(self):
         """GR extractor should provide file patterns."""
-        extractor = ModelRegistry.get_result_extractor('GR')
+        extractor = R.result_extractors.get('GR')('GR')
         patterns = extractor.get_output_file_patterns()
 
         assert isinstance(patterns, dict)
@@ -176,7 +177,7 @@ class TestGRExtractor:
 
     def test_gr_provides_variable_names(self):
         """GR extractor should provide variable names."""
-        extractor = ModelRegistry.get_result_extractor('GR')
+        extractor = R.result_extractors.get('GR')('GR')
         var_names = extractor.get_variable_names('streamflow')
 
         assert isinstance(var_names, list)
@@ -189,7 +190,7 @@ class TestExtractorInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'MIZUROUTE', 'NGEN', 'HYPE', 'GR'])
     def test_extractor_has_required_methods(self, model_name):
         """All extractors should implement required interface methods."""
-        extractor = ModelRegistry.get_result_extractor(model_name)
+        extractor = R.result_extractors.get(model_name)(model_name)
 
         assert hasattr(extractor, 'get_output_file_patterns')
         assert hasattr(extractor, 'get_variable_names')
@@ -200,7 +201,7 @@ class TestExtractorInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'MIZUROUTE', 'NGEN', 'HYPE', 'GR'])
     def test_extractor_methods_are_callable(self, model_name):
         """All extractor methods should be callable."""
-        extractor = ModelRegistry.get_result_extractor(model_name)
+        extractor = R.result_extractors.get(model_name)(model_name)
 
         assert callable(extractor.get_output_file_patterns)
         assert callable(extractor.get_variable_names)
@@ -211,7 +212,7 @@ class TestExtractorInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'MIZUROUTE', 'NGEN', 'HYPE', 'GR'])
     def test_extractor_returns_expected_types(self, model_name):
         """Extractors should return expected types."""
-        extractor = ModelRegistry.get_result_extractor(model_name)
+        extractor = R.result_extractors.get(model_name)(model_name)
 
         # get_output_file_patterns should return dict
         patterns = extractor.get_output_file_patterns()

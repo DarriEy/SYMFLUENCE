@@ -11,6 +11,7 @@ The original monolithic attributeProcessor class has been split into specialized
 processors (ElevationProcessor, SoilProcessor, etc.) in the attribute_processors
 subpackage, but this compatibility wrapper maintains the original interface.
 """
+from __future__ import annotations
 
 import warnings
 

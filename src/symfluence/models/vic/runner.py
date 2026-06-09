@@ -6,15 +6,16 @@ VIC Model Runner.
 
 Executes the VIC model using prepared input files.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('VIC')
+@R.runners.add('VIC')
 class VICRunner(BaseModelRunner):
     """Runner for the VIC model (image or classic driver)."""
 

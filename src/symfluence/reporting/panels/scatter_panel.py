@@ -6,6 +6,7 @@ Scatter plot panel for model comparison visualizations.
 
 Renders scatter plots comparing observations vs simulated values.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List
 

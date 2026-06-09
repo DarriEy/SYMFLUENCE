@@ -8,12 +8,14 @@ Worker implementation for FUSE model optimization.
 Thin orchestrator delegating to focused modules for parameter application,
 model execution, metrics calculation, and file manager updates.
 """
+from __future__ import annotations
 
 import logging
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import (
     resolve_fuse_id,
@@ -44,7 +46,6 @@ from symfluence.models.fuse.calibration.parameter_application import (
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
 from symfluence.models.utilities.routing_decider import RoutingDecider
 from symfluence.optimization.multi_gauge.metrics import MultiGaugeMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 # Suppress xarray FutureWarning about timedelta64 decoding
@@ -56,7 +57,7 @@ warnings.filterwarnings('ignore',
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('FUSE')
+@R.workers.add('FUSE')
 class FUSEWorker(BaseWorker):
     """
     Worker for FUSE model calibration.
@@ -540,7 +541,7 @@ class FUSEWorker(BaseWorker):
             self.logger.error(f"Multi-gauge file not found: {e}")
             return {'kge': self.penalty_score}
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in multi-gauge metrics calculation: {e}")
+            self.logger.error(f"Error in multi-gauge metrics calculation: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     def _find_topology_path(self, settings_dir: Any) -> Optional[Path]:

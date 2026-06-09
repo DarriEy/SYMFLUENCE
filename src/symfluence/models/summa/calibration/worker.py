@@ -7,18 +7,19 @@ SUMMA Worker
 Worker implementation for SUMMA model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('SUMMA')
+@R.workers.add('SUMMA')
 class SUMMAWorker(BaseWorker):
     """
     Worker for SUMMA model calibration.
@@ -111,7 +112,7 @@ class SUMMAWorker(BaseWorker):
             return self._apply_parameters_direct(params, settings_dir, kwargs.get('config', {}))
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying SUMMA parameters: {e}")
+            self.logger.error(f"Error applying SUMMA parameters: {e}", exc_info=True)
             return False
 
     def _apply_parameters_direct(
@@ -156,7 +157,7 @@ class SUMMAWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in direct parameter application: {e}")
+            self.logger.error(f"Error in direct parameter application: {e}", exc_info=True)
             return False
 
     def run_model(
@@ -221,6 +222,16 @@ class SUMMAWorker(BaseWorker):
             if not success:
                 return False
 
+            # Coupled land-only mode: when SUMMA is the upstream model in a coupled chain whose
+            # routing is owned by a downstream model (e.g. dRoute), emit runoff only and let the
+            # downstream model route. The coupled worker sets ``skip_routing`` for non-objective
+            # models. This path is never taken in standalone SUMMA calibration (the flag is absent),
+            # so the existing SUMMA -> mizuRoute coupling is unchanged.
+            if kwargs.get('skip_routing'):
+                self.logger.info(
+                    "SUMMA coupled land-only mode: skipping mizuRoute (downstream model routes runoff)")
+                return True
+
             # Run routing if needed
             if self.needs_routing(config):
                 # Respect explicit routing output directories from callers
@@ -262,7 +273,7 @@ class SUMMAWorker(BaseWorker):
             return self._run_summa_direct(config, settings_dir, output_dir)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running SUMMA: {e}")
+            self.logger.error(f"Error running SUMMA: {e}", exc_info=True)
             return False
 
     def _run_summa_direct(
@@ -310,7 +321,7 @@ class SUMMAWorker(BaseWorker):
             return result.returncode == 0
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in direct SUMMA execution: {e}")
+            self.logger.error(f"Error in direct SUMMA execution: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -385,7 +396,7 @@ class SUMMAWorker(BaseWorker):
             return self._calculate_metrics_direct(output_dir, config)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating SUMMA metrics: {e}")
+            self.logger.error(f"Error calculating SUMMA metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     # =========================================================================
@@ -498,7 +509,7 @@ class SUMMAWorker(BaseWorker):
             self.logger.error(f"Multi-gauge file not found: {e}")
             return {'kge': self.penalty_score}
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in multi-gauge metrics calculation: {e}")
+            self.logger.error(f"Error in multi-gauge metrics calculation: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     def _ensure_gauge_mapping(
@@ -647,7 +658,7 @@ class SUMMAWorker(BaseWorker):
             }
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in direct metrics calculation: {e}")
+            self.logger.error(f"Error in direct metrics calculation: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     @staticmethod

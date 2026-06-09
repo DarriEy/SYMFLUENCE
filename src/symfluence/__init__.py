@@ -33,6 +33,8 @@ For CLI usage:
 # explicitly register conda's Library\bin via os.add_dll_directory().
 # Also sets GDAL_DATA if a conda environment is detected.
 # ============================================================================
+from __future__ import annotations
+
 import os as _os
 import sys as _sys
 

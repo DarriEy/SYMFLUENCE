@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """TUI service modules."""
+from __future__ import annotations
 
 from .calibration_data import CalibrationDataService
 from .data_dir import DataDirService

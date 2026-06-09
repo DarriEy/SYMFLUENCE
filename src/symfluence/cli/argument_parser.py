@@ -18,6 +18,7 @@ Categories:
     - agent: AI assistant interface
     - doctor: System diagnostics
 """
+from __future__ import annotations
 
 import argparse
 from typing import List, Optional
@@ -685,6 +686,10 @@ For more help on a specific command:
         )
         launch_parser.add_argument('--port', type=int, default=5006,
                                    help='Server port (default: 5006)')
+        launch_parser.add_argument('--address', type=str, default='127.0.0.1', metavar='HOST',
+                                   help='Interface to bind (default: 127.0.0.1, local only). '
+                                        'A non-loopback value such as 0.0.0.0 exposes the GUI '
+                                        'on the network.')
         launch_parser.add_argument('--no-browser', action='store_true', dest='no_browser',
                                    help='Do not auto-open a browser tab')
         launch_parser.add_argument('--demo', type=str, default=None, metavar='NAME',

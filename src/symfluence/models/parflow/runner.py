@@ -8,6 +8,7 @@ Executes the ParFlow binary from a prepared simulation directory.
 ParFlow reads its .pfidb database file and writes .pfb binary output.
 Rainfall forcing is applied via OverlandFlow BC in the .pfidb (monthly cycle).
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -18,13 +19,13 @@ from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.mpi_utils import find_mpirun
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("PARFLOW", method_name="run_parflow")
+@R.runners.add("PARFLOW", runner_method="run_parflow")
 class ParFlowRunner(BaseModelRunner):
     """
     Runs ParFlow via direct parflow invocation.

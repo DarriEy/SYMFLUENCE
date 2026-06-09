@@ -7,6 +7,7 @@ Binary/tool management command handlers for SYMFLUENCE CLI.
 This module implements handlers for external tool installation and validation,
 plus a pass-through ``exec_binary()`` for running bundled binaries directly.
 """
+from __future__ import annotations
 
 import subprocess
 import sys
@@ -345,15 +346,21 @@ class BinaryCommands(BaseCommand):
         service = BinaryService()
 
         # --- 1. npm-installed binaries ---
+        # The npm bundle stages binaries under canonical names (the tool key,
+        # e.g. `summa`) rather than the source-install filename (default_exe,
+        # `summa_sundials.exe`), so try the canonical name first. (#156 G6)
         npm_bin_dir = service.detect_npm_binaries()
         if npm_bin_dir is not None:
             tools_defs = get_external_tools_definitions()
             tool_def = tools_defs.get(tool_name)
+            exe_candidates = [tool_name]
             if tool_def is not None:
-                exe_name = tool_def.get("default_exe", tool_name)
+                exe_candidates.append(tool_def.get("default_exe", tool_name))
+            for exe_name in dict.fromkeys(c for c in exe_candidates if c):
                 candidate = npm_bin_dir / exe_name
                 if candidate.is_file():
                     binary_path = candidate
+                    break
 
         # --- 2. Source installs ($SYMFLUENCE_DATA_DIR/<suffix>/<exe>) ---
         if binary_path is None:

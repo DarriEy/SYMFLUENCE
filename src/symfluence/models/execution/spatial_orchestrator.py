@@ -27,6 +27,7 @@ Usage:
             if self.requires_routing():
                 output = self.route_model_output(output)
 """
+from __future__ import annotations
 
 import shutil
 import subprocess
@@ -41,6 +42,7 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import GeospatialError, ModelExecutionError
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.models.spatial_modes import SpatialMode
 
 
@@ -557,7 +559,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error(f"Routing failed: {e}")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}")
+            self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}", exc_info=True)
             return None
 
     def _run_mizuroute(
@@ -606,7 +608,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("mizuRoute runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"mizuRoute execution failed: {e}")
+            self.logger.error(f"mizuRoute execution failed: {e}", exc_info=True)
             return None
 
     def _create_mizuroute_control_file(self, model_name: str) -> None:
@@ -646,7 +648,7 @@ class SpatialOrchestrator(ABC):
         except ImportError:
             self.logger.warning("MizuRoutePreProcessor not available - skipping control file creation")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error creating mizuRoute control file: {e}")
+            self.logger.error(f"Error creating mizuRoute control file: {e}", exc_info=True)
 
     def _run_troute(
         self,
@@ -676,7 +678,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("t-route runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"t-route execution failed: {e}")
+            self.logger.error(f"t-route execution failed: {e}", exc_info=True)
             return None
 
     def _run_droute(
@@ -707,7 +709,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error("dRoute runner not available")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"dRoute execution failed: {e}")
+            self.logger.error(f"dRoute execution failed: {e}", exc_info=True)
             return None
 
     # =========================================================================
@@ -727,15 +729,20 @@ class SpatialOrchestrator(ABC):
         import geopandas as gpd
 
         if shapefile_path is None:
-            catchment_name = self._get_config_value(
-                lambda: None, default='default', dict_key='CATCHMENT_SHP_NAME')
-            if catchment_name == 'default':
-                discretization = self._get_config_value(
-                    lambda: self.config.domain.discretization, default='catchment')
-                catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-            shapefile_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
+            shapefile_path = find_basin_shapefile(
+                self.project_dir / 'shapefiles',
+                self.domain_name,
+                self._get_config_value(
+                    lambda: self.config.domain.definition_method, default='lumped',
+                    dict_key='DOMAIN_DEFINITION_METHOD'),
+                self._get_config_value(
+                    lambda: self.config.domain.experiment_id, default='run_1',
+                    dict_key='EXPERIMENT_ID'),
+                include_river_basins=False,
+                logger=self.logger,
+            )
 
-        if not shapefile_path.exists():
+        if shapefile_path is None or not shapefile_path.exists():
             self.logger.warning(f"Shapefile not found: {shapefile_path}")
             return 1
 
@@ -763,7 +770,7 @@ class SpatialOrchestrator(ABC):
             self.logger.error(f"Missing expected column in shapefile: {e}")
             return 1
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}")
+            self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}", exc_info=True)
             return 1
 
     def normalize_spatial_output(

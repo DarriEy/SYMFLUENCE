@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to MESH format.
 MESH uses CLASS (Canadian Land Surface Scheme) which requires specific
 meteorological variables.
 """
+from __future__ import annotations
 
 from typing import Dict, List
 

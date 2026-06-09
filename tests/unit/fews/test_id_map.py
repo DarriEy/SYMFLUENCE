@@ -1,4 +1,5 @@
 """Tests for FEWS variable ID mapper."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

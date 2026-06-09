@@ -10,6 +10,7 @@ requiring inheritance from ``BaseModelRunner`` et al.
 ``@runtime_checkable`` enables ``isinstance()`` checks in registry code if
 desired, but the primary purpose is static type-checking and documentation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable

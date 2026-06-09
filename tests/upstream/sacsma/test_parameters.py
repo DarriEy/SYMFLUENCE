@@ -1,4 +1,5 @@
 """Tests for SAC-SMA + Snow-17 parameter definitions."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

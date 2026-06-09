@@ -15,6 +15,7 @@ Standard CFIF units (SI-based):
     - Specific humidity: kg kg-1
     - Wind speed: m s-1
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, Union
 

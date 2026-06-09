@@ -7,17 +7,18 @@ mHM Parameter Manager
 Handles mHM parameter bounds, normalization, and Fortran namelist file updates.
 Parameters are updated using regex-based parsing of .nml files.
 """
+from __future__ import annotations
 
 import logging
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('MHM')
+@R.parameter_managers.add('MHM')
 class MHMParameterManager(BaseParameterManager):
     """Handles mHM parameter bounds, normalization, and namelist updates.
 
@@ -229,7 +230,7 @@ class MHMParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating mHM namelist: {e}")
+            self.logger.error(f"Error updating mHM namelist: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -317,7 +318,7 @@ class MHMParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _get_default_initial_values(self) -> Dict[str, float]:
@@ -355,5 +356,5 @@ class MHMParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying namelists to {worker_settings_dir}: {e}")
+            self.logger.error(f"Error copying namelists to {worker_settings_dir}: {e}", exc_info=True)
             return False

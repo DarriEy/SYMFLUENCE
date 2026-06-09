@@ -27,6 +27,7 @@ Architecture:
                 ├── CFUSEWorker   (C++/PyTorch FUSE)
                 └── HBVWorker     (JAX-based HBV)
 """
+from __future__ import annotations
 
 import logging
 from abc import abstractmethod
@@ -440,11 +441,20 @@ class InMemoryModelWorker(BaseWorker):
                 shp_files = list(catchment_dir.rglob(pattern))
                 if shp_files:
                     gdf = gpd.read_file(shp_files[0])
-                    area_cols = [c for c in gdf.columns if 'area' in c.lower()]
-                    if area_cols:
-                        total_area_m2 = gdf[area_cols[0]].sum()
+                    # Prefer canonical m² columns. LamaH-Ice shapefiles ship an
+                    # `area_calc` column already in km², which the legacy
+                    # first-match logic blindly divided by 1e6, producing a
+                    # 1,000,000× too-small area and KGE = 1 − √2 across every
+                    # j-stack run.
+                    preferred = ['GRU_area', 'HRU_area', 'AREA_M2', 'area_m2']
+                    chosen = next((c for c in preferred if c in gdf.columns), None)
+                    if chosen is None:
+                        area_cols = [c for c in gdf.columns if 'area' in c.lower()]
+                        chosen = area_cols[0] if area_cols else None
+                    if chosen:
+                        total_area_m2 = gdf[chosen].sum()
                         self._catchment_area_km2 = float(total_area_m2) / 1e6
-                        self.logger.info(f"Catchment area from shapefile: {self._catchment_area_km2:.2f} km²")
+                        self.logger.info(f"Catchment area from shapefile column '{chosen}': {self._catchment_area_km2:.2f} km²")
                         return self._catchment_area_km2
         except (FileNotFoundError, ValueError, AttributeError) as e:
             self.logger.debug(f"Could not read catchment area from shapefile: {e}")

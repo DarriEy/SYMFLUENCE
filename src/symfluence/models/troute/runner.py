@@ -11,6 +11,7 @@ Supports two modes:
 
 The built-in mode is used as fallback when troute is not installed.
 """
+from __future__ import annotations
 
 import logging
 import sys
@@ -22,8 +23,8 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
 def _check_troute_available() -> bool:
@@ -40,7 +41,7 @@ def _check_troute_available() -> bool:
         return False
 
 
-@ModelRegistry.register_runner('TROUTE', method_name='run_troute')
+@R.runners.add('TROUTE', runner_method='run_troute')
 class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
     """
     A standalone runner for the t-route model.

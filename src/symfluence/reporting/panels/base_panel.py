@@ -6,6 +6,7 @@ Base panel class for model comparison visualizations.
 
 Provides a common interface and shared utilities for all panel types.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

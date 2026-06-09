@@ -7,6 +7,7 @@ Project command handlers for SYMFLUENCE CLI.
 This module implements handlers for the project command category,
 including initialization and pour point setup.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path

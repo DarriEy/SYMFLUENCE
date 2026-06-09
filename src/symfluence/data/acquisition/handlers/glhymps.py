@@ -23,6 +23,7 @@ References:
 Configuration:
     GLHYMPS_VERSION: '2.0' (default) or '1.0'
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path
@@ -193,7 +194,8 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
 
                 self.logger.info("Download complete, extracting...")
                 with zipfile.ZipFile(zip_path, 'r') as zf:
-                    zf.extractall(cache_dir)
+                    from symfluence.core.archive_extraction import safe_zip_extract
+                    safe_zip_extract(zf, cache_dir)
 
                 zip_path.unlink(missing_ok=True)
 

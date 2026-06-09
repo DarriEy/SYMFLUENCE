@@ -24,6 +24,7 @@ References:
       2.94 million reaches. Water Resources Research, 55, 6499-6516
     - Yamazaki et al. (2019). MERIT Hydro. Water Resources Research, 55, 5053-5073
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path
@@ -190,7 +191,8 @@ class MERITBasinsAcquirer(BaseAcquisitionHandler, RetryMixin):
 
                 self.logger.info(f"Extracting {description}")
                 with zipfile.ZipFile(zip_path, 'r') as zf:
-                    zf.extractall(output_dir)
+                    from symfluence.core.archive_extraction import safe_zip_extract
+                    safe_zip_extract(zf, output_dir)
 
                 self.logger.info(f"Downloaded and extracted {description}")
             finally:

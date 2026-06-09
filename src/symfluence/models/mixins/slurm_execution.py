@@ -6,6 +6,7 @@
 Provides SLURM script generation, job submission, monitoring, GRU-parallel
 execution, and unified execute_in_mode dispatch.
 """
+from __future__ import annotations
 
 import os
 import shutil

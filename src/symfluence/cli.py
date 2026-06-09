@@ -7,6 +7,7 @@ This module is retained so imports such as ``from symfluence import cli``
 continue to work in tests and external automation. The canonical command-line
 entrypoint is ``symfluence.main_cli:main``.
 """
+from __future__ import annotations
 
 from symfluence.main_cli import main as _main
 

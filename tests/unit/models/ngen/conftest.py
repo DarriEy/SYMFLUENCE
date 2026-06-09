@@ -1,4 +1,5 @@
 """Shared fixtures for NGEN model tests."""
+from __future__ import annotations
 
 import json
 import shutil

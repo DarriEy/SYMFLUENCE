@@ -1,4 +1,5 @@
 """Tests for SAC-SMA soil moisture accounting model (dual-backend)."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

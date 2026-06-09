@@ -11,16 +11,17 @@ Provides calibration target classes specifically designed for SUMMA model output
 SUMMA is the default model for the base StreamflowEvaluator, so these targets
 primarily provide explicit naming and registration for consistency with other models.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import ETEvaluator, SnowEvaluator, StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_calibration_target('SUMMA', 'streamflow')
+@R.calibration_targets.add('SUMMA_STREAMFLOW')
 class SUMMAStreamflowTarget(StreamflowEvaluator):
     """SUMMA-specific streamflow calibration target.
 
@@ -57,7 +58,7 @@ class SUMMAStreamflowTarget(StreamflowEvaluator):
         self.logger.debug("SUMMAStreamflowTarget initialized")
 
 
-@OptimizerRegistry.register_calibration_target('SUMMA', 'snow')
+@R.calibration_targets.add('SUMMA_SNOW')
 class SUMMASnowTarget(SnowEvaluator):
     """SUMMA-specific snow calibration target.
 
@@ -87,7 +88,7 @@ class SUMMASnowTarget(SnowEvaluator):
         self.logger.debug("SUMMASnowTarget initialized")
 
 
-@OptimizerRegistry.register_calibration_target('SUMMA', 'et')
+@R.calibration_targets.add('SUMMA_ET')
 class SUMMAETTarget(ETEvaluator):
     """SUMMA-specific evapotranspiration calibration target.
 

@@ -5,18 +5,20 @@
 mHM model postprocessor.
 
 Handles extraction and processing of mHM model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('MHM')
-class MHMPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('MHM')
+class MHMPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the mHM model.
 
@@ -130,6 +132,6 @@ class MHMPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting mHM streamflow: {str(e)}")
+            self.logger.error(f"Error extracting mHM streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None

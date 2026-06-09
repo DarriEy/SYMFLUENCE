@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM (Community Water Model) — IIASA Global Hydrological Model."""
+from __future__ import annotations
+
 from .config import CWatMConfigAdapter
 from .extractor import CWatMResultExtractor
 from .postprocessor import CWatMPostProcessor
@@ -18,11 +20,14 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "CWATM",
-    preprocessor=CWatMPreProcessor,
-    runner=CWatMRunner,
-    result_extractor=CWatMResultExtractor,
-    config_adapter=CWatMConfigAdapter,
-    build_instructions_module="symfluence.models.cwatm.build_instructions",
-)
+
+def register() -> None:
+    """Register CWATM components with the unified registry."""
+    model_manifest(
+        "CWATM",
+        preprocessor=CWatMPreProcessor,
+        runner=CWatMRunner,
+        result_extractor=CWatMResultExtractor,
+        config_adapter=CWatMConfigAdapter,
+        build_instructions_module="symfluence.models.cwatm.build_instructions",
+    )

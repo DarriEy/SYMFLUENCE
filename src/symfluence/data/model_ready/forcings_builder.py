@@ -8,6 +8,7 @@ Symlinks (or copies) basin-averaged forcing NetCDF files into
 ``data/model_ready/forcings/`` and enriches them with CF-1.8 global
 attributes and per-variable source metadata.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -162,4 +163,4 @@ class ForcingsStoreBuilder:
                                     var.setncattr(ak, av)
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                logger.warning("Could not enrich metadata for %s: %s", src_file.name, e)
+                logger.warning("Could not enrich metadata for %s: %s", src_file.name, e, exc_info=True)

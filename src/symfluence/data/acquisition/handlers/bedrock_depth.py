@@ -24,6 +24,7 @@ References:
 Configuration:
     BDTICM_CONVERT_UNITS: Convert from cm to m (default: True)
 """
+from __future__ import annotations
 
 from pathlib import Path
 

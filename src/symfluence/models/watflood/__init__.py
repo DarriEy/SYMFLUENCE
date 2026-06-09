@@ -22,6 +22,8 @@ References:
     Kouwen, N. (2018): WATFLOOD/WATROUTE Hydrological Model Routing
     & Flood Forecasting System. University of Waterloo.
 """
+from __future__ import annotations
+
 from .config import WATFLOODConfigAdapter
 from .extractor import WATFLOODResultExtractor
 from .postprocessor import WATFLOODPostProcessor
@@ -39,14 +41,17 @@ __all__ = [
 # Register all WATFLOOD components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "WATFLOOD",
-    preprocessor=WATFLOODPreProcessor,
-    runner=WATFLOODRunner,
-    result_extractor=WATFLOODResultExtractor,
-    config_adapter=WATFLOODConfigAdapter,
-    build_instructions_module="symfluence.models.watflood.build_instructions",
-)
+
+def register() -> None:
+    """Register WATFLOOD components with the unified registry."""
+    model_manifest(
+        "WATFLOOD",
+        preprocessor=WATFLOODPreProcessor,
+        runner=WATFLOODRunner,
+        result_extractor=WATFLOODResultExtractor,
+        config_adapter=WATFLOODConfigAdapter,
+        build_instructions_module="symfluence.models.watflood.build_instructions",
+    )
 
 # Register calibration components
 try:

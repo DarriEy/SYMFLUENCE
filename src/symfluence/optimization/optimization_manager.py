@@ -7,6 +7,7 @@ Coordinates calibration runs by selecting algorithms and model-specific
 optimizers. Keeps orchestration lean; algorithm details and examples are in
 ``docs/source/calibration`` and optimizer pages.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -14,12 +15,20 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
+from symfluence.core.constants import SupportedModels
 from symfluence.core.registries import R
 from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.optimization_results_manager import OptimizationResultsManager
 
 if TYPE_CHECKING:
     pass
+
+
+# Models whose "calibration" is internal training (gradient descent during the
+# run step), not an external DDS/PSO parameter search. They register no
+# optimizer/worker and are skipped by the registry calibration path. Canonical
+# definition lives in SupportedModels so the sensitivity-analysis path shares it.
+_SELF_TRAINING_MODELS = SupportedModels.SELF_TRAINING
 
 
 class OptimizationManager(BaseManager):
@@ -315,6 +324,21 @@ class OptimizationManager(BaseManager):
                     if not hydrological_models:
                         return None
 
+            # Skip external optimization for self-training models (ML).
+            # LSTM/GNN learn their weights during the run step (run_lstm/run_gnn)
+            # via gradient descent — there are no physical parameters for the
+            # DDS/PSO loop to calibrate, so they register no optimizer/worker.
+            self_training = [m for m in hydrological_models if m in _SELF_TRAINING_MODELS]
+            if self_training:
+                self.logger.info(
+                    "Skipping external optimization for %s — these models train "
+                    "internally during run_model; no parameter calibration is performed.",
+                    ', '.join(self_training),
+                )
+                hydrological_models = [m for m in hydrological_models if m not in _SELF_TRAINING_MODELS]
+                if not hydrological_models:
+                    return None
+
             # Detect coupled groundwater calibration — when a GROUNDWATER_MODEL
             # is configured alongside the land-surface model, route to the
             # COUPLED_GW optimizer so that GW parameters (K, SY, etc.) are
@@ -328,6 +352,21 @@ class OptimizationManager(BaseManager):
                 self.logger.info(
                     "Using COUPLED_GW calibration pipeline "
                     "(GROUNDWATER_MODEL: MODFLOW detected)"
+                )
+            # Detect coupled routing calibration — when a *calibratable* routing
+            # model (one exposing a registered parameter manager, e.g. DROUTE) is
+            # configured alongside the land model, route to the generic COUPLED
+            # optimizer so the routing parameters join the calibration space and
+            # the land->routing run goes through the dCoupler graph. (mizuRoute /
+            # t-route expose no parameter manager and so stay land-only here.)
+            elif self._coupled_routing_requested():
+                routing_model = str(self._get_config_value(
+                    lambda: self.config.model.routing_model, '', dict_key='ROUTING_MODEL'
+                )).split(',')[0].strip().upper()
+                hydrological_models = ['COUPLED']
+                self.logger.info(
+                    "Using COUPLED calibration pipeline "
+                    f"(calibratable routing model {routing_model} detected)"
                 )
 
             results = []
@@ -357,6 +396,26 @@ class OptimizationManager(BaseManager):
             import traceback
             self.logger.error(traceback.format_exc())
             return None
+
+    def _coupled_routing_requested(self) -> bool:
+        """True when a calibratable dCoupler routing model is coupled to the land model.
+
+        A routing model is "calibratable" when it exposes a registered parameter manager (e.g.
+        DROUTE). mizuRoute / t-route route but expose no parameter manager, so they stay land-only.
+        Honours an explicit ``CALIBRATE_ROUTING`` opt-out.
+        """
+        routing_model = str(self._get_config_value(
+            lambda: self.config.model.routing_model, '', dict_key='ROUTING_MODEL'
+        )).split(',')[0].strip().upper()
+        if not routing_model or routing_model in ('', 'NONE', 'N/A'):
+            return False
+        if R.parameter_managers.get(routing_model) is None:
+            return False
+        calibrate = self._get_config_value(
+            lambda: self.config.calibration.calibrate_routing, default=True,
+            dict_key='CALIBRATE_ROUTING',
+        )
+        return bool(calibrate)
 
     def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
         """

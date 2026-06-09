@@ -7,19 +7,20 @@ RHESSys Model Optimizer
 RHESSys-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with RHESSys.
 """
+from __future__ import annotations
 
 import logging
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import RHESSysWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('RHESSys')
+@R.optimizers.add('RHESSys')
 class RHESSysModelOptimizer(BaseModelOptimizer):
     """
     RHESSys-specific optimizer using the unified BaseModelOptimizer framework.
@@ -136,5 +137,5 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
                 config=self.config
             )
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying parameters for final evaluation: {e}")
+            self.logger.error(f"Error applying parameters for final evaluation: {e}", exc_info=True)
             return False

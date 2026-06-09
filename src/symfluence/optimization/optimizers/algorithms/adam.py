@@ -23,6 +23,7 @@ References:
     Kingma, D.P. and Ba, J. (2015). Adam: A Method for Stochastic Optimization.
     In Proceedings of the 3rd International Conference on Learning Representations (ICLR).
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

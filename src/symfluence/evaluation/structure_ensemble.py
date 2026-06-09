@@ -11,6 +11,7 @@ This module provides the abstract base class for performing Structure Ensemble A
 It coordinates running a model with different structural configurations (decisions)
 and evaluating their performance.
 """
+from __future__ import annotations
 
 import csv
 import itertools

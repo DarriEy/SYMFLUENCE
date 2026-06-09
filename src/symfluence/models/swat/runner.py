@@ -12,17 +12,18 @@ At run time the runner assembles a working directory by copying
 settings from ``settings/SWAT/`` and forcing from
 ``data/forcing/SWAT_input/`` into the simulation output directory.
 """
+from __future__ import annotations
 
 import os
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('SWAT')
+@R.runners.add('SWAT')
 class SWATRunner(BaseModelRunner):
     """Runner for the SWAT model."""
 

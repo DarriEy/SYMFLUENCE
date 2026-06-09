@@ -8,16 +8,17 @@ Executes CLM5 (cesm.exe) with prepared namelists and input files.
 At runtime, CIME is bypassed -- cesm.exe is invoked directly from
 the run directory where namelists are placed.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('CLM')
+@R.runners.add('CLM')
 class CLMRunner(BaseModelRunner):
     """Runner for CLM5 via direct cesm.exe invocation."""
 

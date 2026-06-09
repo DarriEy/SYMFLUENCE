@@ -2,15 +2,16 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB calibration optimizer."""
+from __future__ import annotations
 
 import configparser
 from pathlib import Path
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_optimizer('PCRGLOBWB')
+@R.optimizers.add('PCRGLOBWB')
 class PCRGLOBWBModelOptimizer(BaseModelOptimizer):
     """Optimizer for PCR-GLOBWB model calibration."""
 

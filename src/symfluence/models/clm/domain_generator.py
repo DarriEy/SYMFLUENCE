@@ -52,19 +52,10 @@ class CLMDomainGenerator:
         if shapefile_path and shapefile_path != 'default':
             shapefile = Path(shapefile_path)
         else:
-            shapefile = (
-                self.pp.project_dir / 'shapefiles' / 'catchment'
-                / f'{self.pp.domain_name}_catchment.shp'
-            )
+            # Shared resolver: nested layout, casing drift, river_basins fallback.
+            shapefile = self.pp._find_basin_shapefile()
 
-        if not shapefile.exists():
-            for pattern in ['**/*catchment*.shp', '**/*.shp']:
-                shps = list(self.pp.project_dir.glob(pattern))
-                if shps:
-                    shapefile = shps[0]
-                    break
-
-        if shapefile.exists():
+        if shapefile is not None and shapefile.exists():
             import geopandas as gpd
             gdf = gpd.read_file(shapefile)
             if gdf.crs and gdf.crs.to_epsg() != 4326:

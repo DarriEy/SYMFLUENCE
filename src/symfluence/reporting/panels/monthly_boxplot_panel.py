@@ -6,6 +6,7 @@ Monthly boxplot panel for model comparison visualizations.
 
 Renders monthly distribution boxplots for observations and models.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List
 

@@ -9,6 +9,7 @@ discretization, forcing, calibration, etc.).  All methods use the
 ``@skip_if_not_diagnostic()`` decorator so they are no-ops when diagnostic
 mode is disabled.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional

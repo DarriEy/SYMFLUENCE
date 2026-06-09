@@ -45,6 +45,7 @@ Usage:
     # Get bounds for a list of parameters
     bounds = registry.get_bounds_for_params(['MBASE', 'MFMAX', 'maxsmc'])
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -178,16 +179,8 @@ class ParameterBoundsRegistry:
         'tscale': ParameterInfo(3600, 172800, 's', 'Time scale parameter', 'routing'),
     }
 
-    # ========================================================================
-    # DROUTE ROUTING PARAMETERS
-    # ========================================================================
-    DROUTE_PARAMS: Dict[str, ParameterInfo] = {
-        'velocity': ParameterInfo(0.1, 5.0, 'm/s', 'Base flow velocity', 'routing'),
-        'diffusivity': ParameterInfo(100.0, 5000.0, 'm²/s', 'Diffusion coefficient for diffusive wave routing', 'routing'),
-        'muskingum_k': ParameterInfo(0.1, 24.0, 'hours', 'Muskingum storage constant', 'routing'),
-        'muskingum_x': ParameterInfo(0.0, 0.5, '-', 'Muskingum weighting factor', 'routing'),
-        'manning_n': ParameterInfo(0.01, 0.1, '-', "Manning's roughness coefficient", 'routing'),
-    }
+    # NOTE: dRoute routing parameter bounds now live in the external ``droute`` package
+    # (droute.calibration.bounds) — the model package owns its own bounds (JAX-model pattern).
 
     # ========================================================================
     # FIRE (IGNACIO FBP) PARAMETERS
@@ -682,7 +675,6 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.HECHMS_PARAMS)
         self._all_params.update(self.TOPMODEL_PARAMS)
         self._all_params.update(self.SACSMA_PARAMS)
-        self._all_params.update(self.DROUTE_PARAMS)
         self._all_params.update(self.FIRE_PARAMS)
         self._all_params.update(self.XINANJIANG_PARAMS)
         self._all_params.update(self.GSFLOW_PARAMS)
@@ -1088,17 +1080,6 @@ def get_vic_bounds() -> Dict[str, Dict[str, float]]:
         'bulk_density', 'snow_rough',
     ]
     return get_registry().get_bounds_for_params(vic_params)
-
-
-def get_droute_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all dRoute routing parameter bounds.
-
-    Returns:
-        Dictionary mapping dRoute param_name -> {'min': float, 'max': float, 'transform': str}
-    """
-    droute_params = ['velocity', 'diffusivity', 'muskingum_k', 'muskingum_x', 'manning_n']
-    return get_registry().get_bounds_for_params(droute_params)
 
 
 def get_ignacio_bounds() -> Dict[str, Dict[str, float]]:

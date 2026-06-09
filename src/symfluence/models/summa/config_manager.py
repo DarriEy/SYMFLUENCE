@@ -9,6 +9,8 @@ file creation and management for SUMMA model runs.
 """
 
 # Standard library imports
+from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +24,8 @@ if TYPE_CHECKING:
 import netCDF4 as nc4
 import numpy as np
 import xarray as xr
+
+from symfluence.core.exceptions import ConfigValidationError
 
 # SYMFLUENCE imports
 from symfluence.core.path_resolver import PathResolverMixin
@@ -306,13 +310,13 @@ class SummaConfigManager(PathResolverMixin):
         try:
             experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
             if not experiment_id:
-                raise ValueError("EXPERIMENT_ID is missing from configuration")
+                raise ConfigValidationError("EXPERIMENT_ID is missing from configuration")
 
             sim_start, sim_end = self._get_simulation_times()
 
             filemanager_name = self._get_config_value(lambda: self.config.model.summa.filemanager, dict_key='SETTINGS_SUMMA_FILEMANAGER')
             if not filemanager_name:
-                raise ValueError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
+                raise ConfigValidationError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
 
             filemanager_path = self.setup_dir / filemanager_name
 
@@ -541,7 +545,7 @@ class SummaConfigManager(PathResolverMixin):
                 self.logger.debug(f"Read {num_gru} GRU IDs from attributes file")
         except Exception as e:  # noqa: BLE001 — model execution resilience
             # Fallback: use hruIds as gruIds (one GRU per HRU)
-            self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.")
+            self.logger.warning(f"Could not read gruId from {attr_path}: {e}. Using HRU IDs as GRU IDs.", exc_info=True)
             gru_ids = forcing_hruIds
             num_gru = len(gru_ids)
 

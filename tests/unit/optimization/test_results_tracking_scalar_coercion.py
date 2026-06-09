@@ -17,6 +17,7 @@ array-like parameter values to scalars before storing them, so the
 serialised history only contains numeric values. The model path
 (where the arrays are needed) is untouched.
 """
+from __future__ import annotations
 
 import csv
 from pathlib import Path

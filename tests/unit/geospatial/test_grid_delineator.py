@@ -7,6 +7,7 @@ Tests grid-based domain delineation including:
 - D8 flow direction extraction
 - Native grid creation (Phase 2)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch

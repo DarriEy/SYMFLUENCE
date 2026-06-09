@@ -28,6 +28,7 @@ Example:
     >>> ts_panel.render(ax1, {'results_df': df, 'obs_series': obs, 'model_cols': cols})
     >>> fdc_panel.render(ax2, {'results_df': df, 'obs_series': obs, 'model_cols': cols})
 """
+from __future__ import annotations
 
 from symfluence.reporting.panels.base_panel import BasePanel
 from symfluence.reporting.panels.fdc_panel import FDCPanel

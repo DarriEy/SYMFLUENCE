@@ -6,19 +6,20 @@ Noah-MP Model Optimizer.
 
 Noah-MP-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .parameter_manager import NoahMPParameterManager  # noqa: F401 — trigger registration
 from .worker import NoahMPWorker  # noqa: F401 — Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('NOAHMP')
+@R.optimizers.add('NOAHMP')
 class NoahMPModelOptimizer(BaseModelOptimizer):
     """
     Noah-MP-specific optimizer using the unified BaseModelOptimizer framework.

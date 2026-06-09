@@ -39,6 +39,7 @@ References:
     - Friedl et al. (2019). MODIS Collection 6 land cover product
       Remote Sensing of Environment, 224, 400-414
 """
+from __future__ import annotations
 
 from pathlib import Path
 

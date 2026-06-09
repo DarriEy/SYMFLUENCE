@@ -31,6 +31,8 @@ References:
 
     https://github.com/PSUmodeling/MM-PIHM
 """
+from __future__ import annotations
+
 from .config import PIHMConfigAdapter
 from .extractor import PIHMResultExtractor
 from .plotter import PIHMPlotter
@@ -52,9 +54,12 @@ __all__ = [
 # decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "PIHM",
-    config_adapter=PIHMConfigAdapter,
-    plotter=PIHMPlotter,
-    build_instructions_module="symfluence.models.pihm.build_instructions",
-)
+
+def register() -> None:
+    """Register PIHM components with the unified registry."""
+    model_manifest(
+        "PIHM",
+        config_adapter=PIHMConfigAdapter,
+        plotter=PIHMPlotter,
+        build_instructions_module="symfluence.models.pihm.build_instructions",
+    )

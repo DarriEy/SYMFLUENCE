@@ -7,6 +7,8 @@ SWAT Sub-basin File Generator
 Generates sub-basin (.sub), HRU (.hru), groundwater (.gw), management (.mgt),
 and soil (.sol) files required by SWAT.
 """
+from __future__ import annotations
+
 import logging
 
 from .parameters import DEFAULT_PARAMS

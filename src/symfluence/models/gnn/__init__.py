@@ -6,6 +6,7 @@
 Combines LSTM temporal processing with directed-graph spatial propagation
 along the river network DAG for distributed streamflow forecasting.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,9 @@ from typing import TYPE_CHECKING
 _LAZY_IMPORTS = {
     'GNNRunner': ('.runner', 'GNNRunner'),
     'GNNPreProcessor': ('.preprocessor', 'GNNPreProcessor'),
-    'GNNPostprocessor': ('.postprocessor', 'GNNPostprocessor'),
+    'GNNPostProcessor': ('.postprocessor', 'GNNPostProcessor'),
+    # Deprecated pre-1.0 spelling (RTI item 23) — use GNNPostProcessor.
+    'GNNPostprocessor': ('.postprocessor', 'GNNPostProcessor'),
 }
 
 
@@ -37,17 +40,20 @@ from symfluence.core.registry import model_manifest
 from .config import GNNConfigAdapter
 from .extractor import GNNResultExtractor
 
-model_manifest(
-    "GNN",
-    config_adapter=GNNConfigAdapter,
-    result_extractor=GNNResultExtractor,
-)
+
+def register() -> None:
+    """Register GNN components with the unified registry."""
+    model_manifest(
+        "GNN",
+        config_adapter=GNNConfigAdapter,
+        result_extractor=GNNResultExtractor,
+    )
 
 
 if TYPE_CHECKING:
-    from .postprocessor import GNNPostprocessor
+    from .postprocessor import GNNPostProcessor
     from .preprocessor import GNNPreProcessor
     from .runner import GNNRunner
 
 
-__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor']
+__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostProcessor']

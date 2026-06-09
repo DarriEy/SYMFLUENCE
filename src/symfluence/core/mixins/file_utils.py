@@ -6,6 +6,7 @@ File utilities mixin for SYMFLUENCE modules.
 
 Provides standard file and directory operations.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional, Union

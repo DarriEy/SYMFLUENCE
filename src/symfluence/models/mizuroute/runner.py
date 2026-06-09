@@ -7,6 +7,7 @@ MizuRoute Model Runner.
 Manages the execution of the mizuRoute routing model.
 Refactored to use the Unified Model Execution Framework.
 """
+from __future__ import annotations
 
 import logging
 import traceback
@@ -17,11 +18,11 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
+@R.runners.add('MIZUROUTE', runner_method='run_mizuroute')
 class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
     """
     A class to run the mizuRoute model.
@@ -191,7 +192,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.error("This indicates the upstream model output is incomplete or corrupted")
                 self.logger.error("Please verify the model run completed successfully and produced valid output")
                 ds.close()
-                raise ValueError(f"Empty time dimension in model output: {runoff_filepath}")
+                raise ModelExecutionError(f"Empty time dimension in model output: {runoff_filepath}")
 
             self.logger.debug(f"Time range: {time_values.min()} to {time_values.max()}")
 
@@ -452,7 +453,7 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.warning("Could not determine dimensions to sync.")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error syncing control file dimensions: {e}")
+            self.logger.error(f"Error syncing control file dimensions: {e}", exc_info=True)
 
     def run_mizuroute(self):
         """

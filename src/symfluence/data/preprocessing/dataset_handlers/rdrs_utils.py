@@ -7,6 +7,7 @@ RDRS Dataset Handler for SYMFLUENCE
 This module provides the RDRS-specific implementation for forcing data processing.
 It handles RDRS variable mappings, unit conversions, grid structure, and shapefile creation.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -280,7 +281,7 @@ class RDRSHandler(BaseDatasetHandler):
                         ds = self.open_dataset(file)
                         datasets.append(ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error opening RDRS file {file}: {str(e)}")
+                        self.logger.error(f"Error opening RDRS file {file}: {str(e)}", exc_info=True)
 
                 if not datasets:
                     self.logger.warning(f"No valid RDRS datasets for {year}-{month:02d}")
@@ -293,7 +294,7 @@ class RDRSHandler(BaseDatasetHandler):
                         processed_ds = self.process_dataset(ds)
                         processed_datasets.append(processed_ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error processing RDRS dataset: {str(e)}")
+                        self.logger.error(f"Error processing RDRS dataset: {str(e)}", exc_info=True)
 
                 if not processed_datasets:
                     self.logger.warning(f"No processed RDRS datasets for {year}-{month:02d}")

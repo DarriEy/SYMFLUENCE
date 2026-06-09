@@ -29,6 +29,7 @@ References:
     Brown, R. D. and B. Brasnett (2010). Canadian Meteorological Centre (CMC) Daily
     Snow Depth Analysis Data, Version 1. Boulder, CO USA. NASA NSIDC DAAC.
 """
+from __future__ import annotations
 
 import time
 from pathlib import Path

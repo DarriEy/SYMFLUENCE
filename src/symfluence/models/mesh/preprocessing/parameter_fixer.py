@@ -13,6 +13,7 @@ Facade that coordinates MESH parameter file fixes via composed helpers:
 Also retains hydrology, reservoir, forcing, and lumped-output methods
 directly (they don't belong to any single helper).
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -332,7 +333,7 @@ class MESHParameterFixer(ConfigMixin):
                     f.write('\n'.join(new_lines))
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to add WF_R2: {e}")
+            self.logger.warning(f"Failed to add WF_R2: {e}", exc_info=True)
 
     def fix_missing_hydrology_params(self) -> None:
         """Verify and pre-populate hydrology parameters for MESH."""
@@ -381,7 +382,7 @@ class MESHParameterFixer(ConfigMixin):
                     f.write(content)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to verify hydrology parameters: {e}")
+            self.logger.warning(f"Failed to verify hydrology parameters: {e}", exc_info=True)
 
     # ==================================================================
     # Reservoir
@@ -402,7 +403,7 @@ class MESHParameterFixer(ConfigMixin):
                             max_ireach = int(np.max(valid_vals))
                         self.logger.debug(f"Max IREACH from DDB: {max_ireach}")
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.debug(f"Could not read IREACH from DDB: {e}")
+                self.logger.debug(f"Could not read IREACH from DDB: {e}", exc_info=True)
 
         try:
             if max_ireach == 0:
@@ -430,7 +431,7 @@ class MESHParameterFixer(ConfigMixin):
                         f.write("0\n")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix reservoir file: {e}")
+            self.logger.warning(f"Failed to fix reservoir file: {e}", exc_info=True)
 
     # ==================================================================
     # Lumped outputs
@@ -473,7 +474,7 @@ class MESHParameterFixer(ConfigMixin):
                 self.logger.info("Configured outputs_balance.txt for lumped mode (daily RFF csv)")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to configure lumped outputs: {e}")
+            self.logger.warning(f"Failed to configure lumped outputs: {e}", exc_info=True)
 
     # ==================================================================
     # Safe forcing
@@ -615,7 +616,7 @@ class MESHParameterFixer(ConfigMixin):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.warning(f"Failed to create safe forcing: {e}")
+            self.logger.warning(f"Failed to create safe forcing: {e}", exc_info=True)
             self.logger.debug(traceback.format_exc())
 
     def _get_time_window(self) -> Optional[Tuple]:

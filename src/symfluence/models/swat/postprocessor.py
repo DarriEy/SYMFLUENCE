@@ -5,23 +5,25 @@
 SWAT model postprocessor.
 
 Handles extraction and processing of SWAT model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 
 SWAT outputs streamflow in output.rch as fixed-width text with columns
 including RCH, GIS, MON, AREAkm2, FLOW_OUTcms, etc.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('SWAT')
-class SWATPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('SWAT')
+class SWATPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the SWAT model.
 
@@ -90,7 +92,7 @@ class SWATPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting SWAT streamflow: {str(e)}")
+            self.logger.error(f"Error extracting SWAT streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 
@@ -203,5 +205,5 @@ class SWATPostProcessor(StandardModelPostprocessor):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error parsing output.rch: {e}")
+            self.logger.error(f"Error parsing output.rch: {e}", exc_info=True)
             return None

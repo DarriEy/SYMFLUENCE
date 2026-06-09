@@ -5,8 +5,9 @@
 WRF-Hydro model postprocessor.
 
 Handles extraction and processing of WRF-Hydro model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -14,12 +15,13 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('WRFHYDRO')
-class WRFHydroPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('WRFHYDRO')
+class WRFHydroPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the WRF-Hydro model.
 
@@ -137,7 +139,7 @@ class WRFHydroPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}")
+            self.logger.error(f"Error extracting WRF-Hydro streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 

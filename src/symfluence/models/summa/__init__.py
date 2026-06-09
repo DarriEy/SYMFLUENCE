@@ -42,7 +42,7 @@ Spatial Structure:
 Key Components:
     SummaPreProcessor: Forcing preparation, attributes, trial parameters
     SummaRunner: Model execution with parallel support (summa_actors)
-    SUMMAPostprocessor: Output extraction and NetCDF processing
+    SUMMAPostProcessor: Output extraction and NetCDF processing
     SummaStructureAnalyzer: Decision ensemble analysis
     SummaForcingProcessor: Forcing file preparation
     SummaConfigManager: Configuration file generation
@@ -65,7 +65,7 @@ Typical Workflow:
     3. Generate attributes and trial parameters via managers
     4. Create file manager and decision files
     5. Execute SUMMA (serial or parallel) via SummaRunner
-    6. Extract results and analyze decisions via SUMMAPostprocessor
+    6. Extract results and analyze decisions via SUMMAPostProcessor
 
 Limitations and Considerations:
     - Requires SUMMA executable (compiled with Sundials solver recommended)
@@ -74,11 +74,12 @@ Limitations and Considerations:
     - Large domains benefit from parallel execution (summa_actors)
     - Some decision combinations may be incompatible or unstable
 """
+from __future__ import annotations
 
 from .attributes_manager import SummaAttributesManager
 from .config_manager import SummaConfigManager
 from .forcing_processor import SummaForcingProcessor
-from .postprocessor import SUMMAPostprocessor
+from .postprocessor import SUMMAPostProcessor
 from .preprocessor import SummaPreProcessor
 from .runner import SummaRunner
 from .structure_analyzer import SummaStructureAnalyzer
@@ -87,7 +88,7 @@ from .visualizer import visualize_summa
 __all__ = [
     'SummaPreProcessor',
     'SummaRunner',
-    'SUMMAPostprocessor',
+    'SUMMAPostProcessor',
     'SummaStructureAnalyzer',
     'SummaForcingProcessor',
     'SummaConfigManager',
@@ -101,11 +102,17 @@ from .config import SUMMAConfigAdapter
 from .extractor import SUMMAResultExtractor
 from .plotter import SUMMAPlotter
 
-model_manifest(
-    "SUMMA",
-    config_adapter=SUMMAConfigAdapter,
-    result_extractor=SUMMAResultExtractor,
-    decision_analyzer=SummaStructureAnalyzer,
-    plotter=SUMMAPlotter,
-    build_instructions_module="symfluence.models.summa.build_instructions",
-)
+
+def register() -> None:
+    """Register SUMMA components with the unified registry."""
+    model_manifest(
+        "SUMMA",
+        config_adapter=SUMMAConfigAdapter,
+        result_extractor=SUMMAResultExtractor,
+        decision_analyzer=SummaStructureAnalyzer,
+        plotter=SUMMAPlotter,
+        build_instructions_module="symfluence.models.summa.build_instructions",
+    )
+
+# Deprecated pre-1.0 spelling (RTI item 23) — use SUMMAPostProcessor.
+SUMMAPostprocessor = SUMMAPostProcessor

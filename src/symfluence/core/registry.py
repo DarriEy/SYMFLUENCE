@@ -46,61 +46,6 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class _RegistryProxy(dict):
-    """Dict-like proxy that reads from a :class:`Registry` instance.
-
-    Used as a backward-compatibility shim so that code which accesses
-    ``OldRegistry._internal_dict`` (e.g. ``'SUMMA' in ComponentRegistry._preprocessors``)
-    continues to work after Phase 4 removed the real dicts.
-
-    The proxy is read-only from the ``dict`` interface — writes go nowhere.
-    All reads are forwarded to the underlying ``Registry``.
-    """
-
-    def __init__(self, registry: "Registry") -> None:
-        # Do NOT call super().__init__() with data — keep the real dict empty.
-        super().__init__()
-        object.__setattr__(self, "_registry", registry)
-
-    # --- read operations proxied to Registry ---
-    def __contains__(self, key: object) -> bool:
-        return key in self._registry  # type: ignore[operator]
-
-    def __getitem__(self, key: str) -> Any:
-        return self._registry[key]
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._registry.get(key, default)
-
-    def keys(self):  # type: ignore[override]
-        return self._registry.keys()
-
-    def values(self):  # type: ignore[override]
-        return [v for _, v in self._registry.items()]
-
-    def items(self):  # type: ignore[override]
-        return self._registry.items()
-
-    def __iter__(self) -> Iterator:
-        return iter(self._registry)
-
-    def __len__(self) -> int:
-        return len(self._registry)
-
-    def __repr__(self) -> str:
-        return dict(self._registry.items()).__repr__()
-
-    def __bool__(self) -> bool:
-        return len(self._registry) > 0
-
-    # --- write operations are no-ops (R.* is the source of truth) ---
-    def __setitem__(self, key: str, value: Any) -> None:
-        pass  # silently ignored — use R.* directly
-
-    def __delitem__(self, key: str) -> None:
-        pass
-
-
 class _LazyEntry:
     """Sentinel wrapping an import path for deferred resolution."""
 
@@ -454,6 +399,20 @@ def model_manifest(
     runner_meta: Dict[str, Any] = {}
     if runner_method:
         runner_meta["runner_method"] = runner_method
+
+    # Bridge an adapter-provided config schema into R.config_schemas when no
+    # explicit schema is given. The ModelConfig validator resolves typed
+    # model configs from R.config_schemas; plugins that register only a
+    # config_adapter (e.g. the JAX models) would otherwise be absent there, so
+    # config.model.<model> is never built and the plugin silently runs on schema
+    # defaults instead of the user's settings.
+    if config_schema is None and config_adapter is not None:
+        # Best-effort: a malformed adapter must not break model registration
+        # (which runs at import time). Narrow to realistic adapter failures.
+        try:
+            config_schema = config_adapter(model_name).get_config_schema()
+        except (TypeError, AttributeError, ValueError, RuntimeError, ImportError):
+            config_schema = None
 
     _pairs: list[tuple[Registry, str, Any, Dict[str, Any]]] = [
         (R.preprocessors,          model_name, preprocessor,          {}),

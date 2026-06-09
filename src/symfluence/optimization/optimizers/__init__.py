@@ -45,6 +45,8 @@ Migration from legacy code:
 
 # New architecture - recommended
 # Algorithm implementations (pure, model-agnostic)
+from __future__ import annotations
+
 from symfluence.optimization.optimizers.algorithms import (
     DDSAlgorithm,
     DEAlgorithm,

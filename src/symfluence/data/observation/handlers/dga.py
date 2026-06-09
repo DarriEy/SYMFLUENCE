@@ -25,6 +25,7 @@ Configuration:
     STREAMFLOW_DATA_PROVIDER: 'DGA'
     DOWNLOAD_DGA_DATA: True (default, downloads from PANGAEA if not cached)
 """
+from __future__ import annotations
 
 import io
 import zipfile

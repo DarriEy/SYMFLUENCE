@@ -6,6 +6,7 @@ Geometry Validator
 
 Validates and repairs geometries in GeoDataFrames.
 """
+from __future__ import annotations
 
 import logging
 
@@ -61,7 +62,7 @@ class GeometryValidator:
                     return geom
 
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error repairing geometry: {e}")
+                    self.logger.warning(f"Error repairing geometry: {e}", exc_info=True)
                     return geom
 
             return geom

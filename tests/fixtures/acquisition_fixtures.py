@@ -6,9 +6,11 @@ Provides reusable mock factories for testing data acquisition handlers:
 - MockResponseFactory: Create HTTP response mocks
 - MockSessionFactory: Create mock requests.Session with response mapping
 """
+from __future__ import annotations
 
 import io
 import logging
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -34,7 +36,7 @@ class MockConfigFactory:
     default_end: str = "2020-01-31"
 
     # Default data directory
-    default_data_dir: str = "/tmp/symfluence_test"
+    default_data_dir: str = field(default_factory=tempfile.gettempdir)
 
     @classmethod
     def create(
@@ -88,7 +90,7 @@ class MockConfigFactory:
 
             # Required SymfluenceConfig fields
             "SYMFLUENCE_DATA_DIR": base_data_dir,
-            "SYMFLUENCE_CODE_DIR": "/tmp/symfluence_code",
+            "SYMFLUENCE_CODE_DIR": str(Path(tempfile.gettempdir()) / "symfluence_code"),
             "EXPERIMENT_ID": "test_run",
             "DOMAIN_DEFINITION_METHOD": "lumped",
             "SUB_GRID_DISCRETIZATION": "lumped",

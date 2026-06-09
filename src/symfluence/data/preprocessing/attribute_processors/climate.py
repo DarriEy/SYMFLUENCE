@@ -11,6 +11,7 @@ Handles climate data processing including:
 - Seasonality metrics (Walsh & Lawler, Markham indices)
 - Aridity classification
 """
+from __future__ import annotations
 
 import os
 import pickle  # nosec B403 - used for trusted local cache files

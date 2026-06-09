@@ -11,6 +11,7 @@ Handles generation of model-specific configuration files for NextGen Framework:
 
 Extracted from NgenPreProcessor to improve modularity and testability.
 """
+from __future__ import annotations
 
 import json
 import sys

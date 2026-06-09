@@ -28,6 +28,8 @@ References:
     Fowler, K.J.A., et al. (2021). CAMELS-AUS. ESSD, 13(8), 3847-3867.
     Coxon, G., et al. (2020). CAMELS-GB. ESSD, 12(4), 2459-2483.
 """
+from __future__ import annotations
+
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional

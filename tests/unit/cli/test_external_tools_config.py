@@ -7,12 +7,35 @@ Regression tests for external build-tool registrations.
 Pins reproducibility-critical properties (e.g. TauDEM pinned to a tagged
 release) so that accidental reversions to floating HEAD are caught in CI.
 """
+from __future__ import annotations
 
 import pytest
 
-from symfluence.cli.external_tools_config import get_external_tools_definitions
+from symfluence.cli.external_tools_config import (
+    _import_model_build_instructions,
+    get_external_tools_definitions,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
+
+
+def test_extracted_models_not_in_hardcoded_build_instructions_list():
+    """cfuse and droute were extracted to standalone pip packages (issue #150).
+
+    They register their build instructions via the ``symfluence.plugins``
+    entry-point group, not the in-tree ``model_modules`` list.  Listing the
+    removed in-tree modules made every ``symfluence binary`` invocation log a
+    spurious "Failed to load build instructions" warning.  Pin them out.
+    """
+    import inspect
+
+    src = inspect.getsource(_import_model_build_instructions)
+    for removed in ('symfluence.models.cfuse.build_instructions',
+                    'symfluence.models.droute.build_instructions'):
+        assert removed not in src, (
+            f"{removed} was removed in-tree; it must not be hardcoded in the "
+            "model_modules list (it registers via the symfluence.plugins group)."
+        )
 
 
 def test_taudem_pinned_to_release_tag():

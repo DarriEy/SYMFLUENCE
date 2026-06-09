@@ -1,4 +1,5 @@
 """Integration tests for project wizard."""
+from __future__ import annotations
 
 import os
 import tempfile

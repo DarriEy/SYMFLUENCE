@@ -65,6 +65,7 @@ Limitations and Considerations:
     - KWT and DW schemes are slower but more accurate than IRF
     - Lake/reservoir routing requires additional configuration
 """
+from __future__ import annotations
 
 from .mixins import MizuRouteConfigMixin
 from .preprocessor import MizuRoutePreProcessor
@@ -82,12 +83,15 @@ from symfluence.core.registry import model_manifest
 from .config import MizuRouteConfigAdapter
 from .extractor import MizuRouteResultExtractor
 
-model_manifest(
-    "MIZUROUTE",
-    config_adapter=MizuRouteConfigAdapter,
-    result_extractor=MizuRouteResultExtractor,
-    preprocessor=MizuRoutePreProcessor,
-    runner=MizuRouteRunner,
-    runner_method="run_mizuroute",
-    build_instructions_module="symfluence.models.mizuroute.build_instructions",
-)
+
+def register() -> None:
+    """Register MIZUROUTE components with the unified registry."""
+    model_manifest(
+        "MIZUROUTE",
+        config_adapter=MizuRouteConfigAdapter,
+        result_extractor=MizuRouteResultExtractor,
+        preprocessor=MizuRoutePreProcessor,
+        runner=MizuRouteRunner,
+        runner_method="run_mizuroute",
+        build_instructions_module="symfluence.models.mizuroute.build_instructions",
+    )

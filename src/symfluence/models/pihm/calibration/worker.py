@@ -7,6 +7,7 @@ PIHM Worker
 Worker implementation for PIHM model optimization.
 Handles parameter application, PIHM execution, and metric calculation.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -18,12 +19,12 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('PIHM')
+@R.workers.add('PIHM')
 class PIHMWorker(BaseWorker):
     """
     Worker for PIHM model calibration.
@@ -58,7 +59,7 @@ class PIHMWorker(BaseWorker):
             return pm.update_model_files(params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying PIHM parameters: {e}")
+            self.logger.error(f"Error applying PIHM parameters: {e}", exc_info=True)
             return False
 
     def run_model(
@@ -174,7 +175,7 @@ class PIHMWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"PIHM execution error: {e}")
+            self.logger.error(f"PIHM execution error: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -237,7 +238,7 @@ class PIHMWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating PIHM metrics: {e}")
+            self.logger.error(f"Error calculating PIHM metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     @staticmethod

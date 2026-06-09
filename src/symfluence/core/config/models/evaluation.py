@@ -8,6 +8,7 @@ Contains configuration classes for observation data sources:
 StreamflowConfig, SNOTELConfig, FluxNetConfig, USGSGWConfig, SMAPConfig,
 GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent EvaluationConfig.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 

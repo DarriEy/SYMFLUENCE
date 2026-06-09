@@ -4,8 +4,9 @@
 """
 FUSE (Framework for Understanding Structural Errors) model postprocessor.
 
-Simplified implementation using StandardModelPostprocessor.
+Simplified implementation using StandardModelPostProcessor.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict
@@ -13,12 +14,13 @@ from typing import Any, Dict
 import numpy as np
 import xarray as xr
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('FUSE')
-class FUSEPostprocessor(StandardModelPostprocessor):
+@R.postprocessors.add('FUSE')
+class FUSEPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for FUSE model outputs.
 
@@ -124,7 +126,7 @@ class FUSEPostprocessor(StandardModelPostprocessor):
                         # Variable doesn't have param_set but dataset does
                         selections['param_set'] = 0
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not auto-detect param_set: {e}, defaulting to 0")
+            self.logger.debug(f"Could not auto-detect param_set: {e}, defaulting to 0", exc_info=True)
             selections['param_set'] = 0
 
         return selections

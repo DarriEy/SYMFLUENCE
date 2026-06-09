@@ -7,6 +7,7 @@ GR model postprocessor.
 Handles extraction and processing of GR (GR4J/CemaNeige) simulation results.
 Supports both lumped and distributed modes.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -14,8 +15,9 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseModelPostProcessor
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 
 # Optional R/rpy2 support - only needed for GR models
@@ -38,8 +40,8 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
     localconverter = None
 
 
-@ModelRegistry.register_postprocessor('GR')
-class GRPostprocessor(BaseModelPostProcessor):
+@R.postprocessors.add('GR')
+class GRPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for GR (GR4J/CemaNeige) model outputs.
     Handles extraction and processing of simulation results.

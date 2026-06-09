@@ -11,6 +11,7 @@ Provides I/O monitoring for different operating systems:
 
 All monitors provide a consistent interface for the SystemIOProfiler.
 """
+from __future__ import annotations
 
 import logging
 import os

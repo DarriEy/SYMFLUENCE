@@ -5,6 +5,7 @@ Verifies that the Daymet handler correctly converts bounding boxes to the
 native Lambert Conformal Conic projection and subsets data accordingly,
 instead of downloading full North American continental files.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, PropertyMock, patch

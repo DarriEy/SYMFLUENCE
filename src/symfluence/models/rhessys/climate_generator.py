@@ -10,6 +10,7 @@ Extracted from RHESSysPreprocessor for better organization and testability.
 RHESSys uses text-based climate files with format:
     year month day hour value
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime
@@ -418,7 +419,7 @@ class RHESSysClimateGenerator:
 
                 return rh
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not calculate relative humidity: {e}")
+                self.logger.warning(f"Could not calculate relative humidity: {e}", exc_info=True)
         return None
 
     def _process_radiation(

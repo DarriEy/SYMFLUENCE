@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow model calibration components."""
+from __future__ import annotations
+
 from .optimizer import WflowModelOptimizer
 from .parameter_manager import WflowParameterManager
 from .worker import WflowWorker

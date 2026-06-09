@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB Model Preprocessor."""
+from __future__ import annotations
+
 import configparser
 import math
 import shutil
@@ -13,8 +15,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 _OPENDAP_BASE = (
     "https://opendap.4tu.nl/thredds/dodsC/data2/"
@@ -22,7 +24,7 @@ _OPENDAP_BASE = (
 )
 
 
-@ModelRegistry.register_preprocessor("PCRGLOBWB")
+@R.preprocessors.add("PCRGLOBWB")
 class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Prepares inputs for a PCR-GLOBWB 2.0 model run.
 

@@ -66,6 +66,8 @@ References:
 
     https://github.com/UW-Hydro/VIC
 """
+from __future__ import annotations
+
 from .config import VICConfigAdapter
 from .extractor import VICResultExtractor
 from .postprocessor import VICPostProcessor
@@ -83,14 +85,17 @@ __all__ = [
 # Register all VIC components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "VIC",
-    preprocessor=VICPreProcessor,
-    runner=VICRunner,
-    result_extractor=VICResultExtractor,
-    config_adapter=VICConfigAdapter,
-    build_instructions_module="symfluence.models.vic.build_instructions",
-)
+
+def register() -> None:
+    """Register VIC components with the unified registry."""
+    model_manifest(
+        "VIC",
+        preprocessor=VICPreProcessor,
+        runner=VICRunner,
+        result_extractor=VICResultExtractor,
+        config_adapter=VICConfigAdapter,
+        build_instructions_module="symfluence.models.vic.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

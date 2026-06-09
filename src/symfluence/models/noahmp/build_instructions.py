@@ -2,10 +2,12 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Noah-MP (noah-owp-modular) build instructions for SYMFLUENCE."""
-from symfluence.cli.services import BuildInstructionsRegistry
+from __future__ import annotations
+
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('noahmp')
+@R.build_instructions.add('noahmp')
 def get_noahmp_build_instructions():
     """Get Noah-MP standalone install instructions.
 

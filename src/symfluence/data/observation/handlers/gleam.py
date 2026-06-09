@@ -7,6 +7,7 @@ GLEAM evapotranspiration observation handler.
 Provides acquisition and preprocessing of GLEAM ET products for
 evapotranspiration model validation and multivariate calibration.
 """
+from __future__ import annotations
 
 import tarfile
 import zipfile
@@ -117,11 +118,13 @@ class GLEAMETHandler(BaseObservationHandler):
         if archive_path.suffix in {".tar", ".gz", ".tgz"} or archive_path.name.endswith(".tar.gz"):
             with tarfile.open(archive_path, "r:*") as tar:
                 # nosec B202 - Extracting from trusted GLEAM data archive
-                tar.extractall(path=target_dir, filter='data')
+                from symfluence.core.archive_extraction import safe_tar_extract
+                safe_tar_extract(tar, target_dir)
             return
         if archive_path.suffix == ".zip":
             with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(path=target_dir)  # nosec B202 - Extracting from trusted GLEAM data archive
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, target_dir)
 
     def _select_et_variable(self, ds: xr.Dataset) -> Optional[str]:
         preferred = self._get_config_value(lambda: None, default=None, dict_key='ET_VARIABLE_NAME')

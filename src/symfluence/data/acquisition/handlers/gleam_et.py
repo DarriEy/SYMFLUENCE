@@ -30,6 +30,7 @@ References:
     Miralles et al. (2011): Global land-surface evaporation. Hydrology and
     Earth System Sciences.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -219,7 +220,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
                             local_file.unlink()
                         continue
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.debug(f"Error downloading {remote_path}: {e}")
+                        self.logger.debug(f"Error downloading {remote_path}: {e}", exc_info=True)
                         if local_file.exists() and local_file.stat().st_size == 0:
                             local_file.unlink()
                         continue
@@ -230,7 +231,7 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
             sftp.close()
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"SFTP connection error: {e}")
+            self.logger.error(f"SFTP connection error: {e}", exc_info=True)
         finally:
             ssh.close()
 

@@ -1,6 +1,9 @@
 """Tests for WATFLOOD calibration components."""
+from __future__ import annotations
 
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestWATFLOODCalibrationRegistration:
@@ -8,18 +11,15 @@ class TestWATFLOODCalibrationRegistration:
 
     def test_optimizer_registered(self):
         from symfluence.models.watflood.calibration import WATFLOODModelOptimizer  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'WATFLOOD' in OptimizerRegistry._optimizers
+        assert 'WATFLOOD' in R.optimizers
 
     def test_worker_registered(self):
         from symfluence.models.watflood.calibration import WATFLOODWorker  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'WATFLOOD' in OptimizerRegistry._workers
+        assert 'WATFLOOD' in R.workers
 
     def test_parameter_manager_registered(self):
         from symfluence.models.watflood.calibration import WATFLOODParameterManager  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'WATFLOOD' in OptimizerRegistry._parameter_managers
+        assert 'WATFLOOD' in R.parameter_managers
 
 
 class TestWATFLOODParameterBounds:

@@ -19,6 +19,7 @@ IMS Snow Overview:
 Output Format:
     CSV with columns: datetime, sca_fraction
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -130,7 +131,7 @@ class IMSSnowHandler(BaseObservationHandler):
             try:
                 ds = self._open_dataset(nc_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to open {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to open {nc_file.name}: {e}", exc_info=True)
                 continue
 
             with ds:

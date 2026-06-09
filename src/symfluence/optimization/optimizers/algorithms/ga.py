@@ -14,6 +14,7 @@ Reference:
     Holland, J.H. (1975). Adaptation in Natural and Artificial Systems.
     University of Michigan Press.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

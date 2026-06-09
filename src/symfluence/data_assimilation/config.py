@@ -6,6 +6,7 @@ Data assimilation configuration.
 
 Re-exports from the core config module for convenience.
 """
+from __future__ import annotations
 
 from symfluence.core.config.models.state_config import (
     DataAssimilationConfig,

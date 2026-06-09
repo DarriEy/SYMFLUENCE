@@ -7,6 +7,8 @@ WSC Observation Handlers
 Provides handlers for Water Survey of Canada (WSC) streamflow data.
 Supports both local HYDAT SQLite database extraction and web API acquisition.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
@@ -77,6 +79,17 @@ class WSCStreamflowHandler(BaseObservationHandler):
         # Only fall through to HYDAT when the user explicitly disabled
         # download (treating WSC as a local-data path).
         if download_enabled:
+            # Idempotency guard (mirrors the GRACE handler): acquire() is
+            # invoked twice in a single process_observed_data() run — once
+            # by AcquisitionService.acquire_observations() and again in the
+            # registry processing loop. Reuse the already-downloaded raw CSV
+            # instead of re-hitting the GeoMet API, unless force_download.
+            force_download = self._get_config_value(
+                lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'
+            )
+            if raw_file.exists() and not force_download:
+                self.logger.info(f"Using existing WSC data: {raw_file}")
+                return raw_file
             self.logger.debug("Calling _download_from_geomet")
             return self._download_from_geomet(station_id, raw_file)
 

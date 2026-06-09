@@ -11,6 +11,8 @@ Handles generation of WMFire (Wildfire Module) inputs for RHESSys, including:
 
 Extracted from RHESSysPreProcessor for modularity.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -72,7 +74,7 @@ class RHESSysFireGenerator:
                 if len(catchment_gdf) > 0:
                     use_geospatial = True
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load catchment for fire grids: {e}")
+            logger.warning(f"Could not load catchment for fire grids: {e}", exc_info=True)
 
         if use_geospatial:
             self._setup_geospatial_fire_grids(
@@ -163,10 +165,10 @@ class RHESSysFireGenerator:
                     dem_grid.to_geotiff(fire_dir / "dem_grid.tif")
                     logger.info("GeoTIFF outputs written for visualization")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    logger.warning(f"Could not write GeoTIFF outputs: {e}")
+                    logger.warning(f"Could not write GeoTIFF outputs: {e}", exc_info=True)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Geospatial grid generation failed: {e}, falling back to simple grid")
+            logger.warning(f"Geospatial grid generation failed: {e}, falling back to simple grid", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
             # Fall back to simple grid generation
@@ -347,7 +349,7 @@ class RHESSysFireGenerator:
         except ImportError:
             logger.debug("FireDefGenerator not available, using fallback")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"FireDefGenerator failed: {e}, using fallback")
+            logger.warning(f"FireDefGenerator failed: {e}, using fallback", exc_info=True)
 
         # Fallback: Generate fire.def manually
         # Fire defaults content based on RHESSys WMFire construct_fire_defaults.c

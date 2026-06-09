@@ -2,6 +2,8 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow Worker."""
+from __future__ import annotations
+
 import re
 import shutil
 import subprocess
@@ -11,12 +13,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 
-@OptimizerRegistry.register_worker('WFLOW')
+@R.workers.add('WFLOW')
 class WflowWorker(BaseWorker):
     """Worker for Wflow model calibration."""
 

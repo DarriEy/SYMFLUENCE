@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Model Preprocessor."""
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -13,11 +14,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_preprocessor("LISFLOOD")
+@R.preprocessors.add("LISFLOOD")
 class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """Prepares inputs for a LISFLOOD model run."""
 

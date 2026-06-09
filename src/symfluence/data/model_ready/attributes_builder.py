@@ -9,6 +9,7 @@ and writes a single grouped NetCDF4 file at
 ``data/model_ready/attributes/{domain}_attributes.nc`` with groups for
 topology, terrain, soil, landcover, climate, and hydrogeology.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -359,7 +360,7 @@ class AttributesNetCDFBuilder:
             grp.setncatts(meta.to_netcdf_attrs())
             return True
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not build climate group: %s", e)
+            logger.debug("Could not build climate group: %s", e, exc_info=True)
             return False
 
     def _build_hydrogeology_group(self, root) -> bool:
@@ -390,7 +391,7 @@ class AttributesNetCDFBuilder:
             grp.setncatts(meta.to_netcdf_attrs())
             return True
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not build hydrogeology group: %s", e)
+            logger.debug("Could not build hydrogeology group: %s", e, exc_info=True)
             return False
 
     def _build_csv_group(self, root, group_name: str, subdir: str) -> bool:
@@ -474,5 +475,5 @@ class AttributesNetCDFBuilder:
             import geopandas as gpd
             return gpd.read_file(path)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not read %s: %s", path, e)
+            logger.debug("Could not read %s: %s", path, e, exc_info=True)
             return None

@@ -7,6 +7,7 @@ HYPE Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.hype.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.hype.calibration.targets import HYPEStreamflowTarget
 

@@ -10,6 +10,7 @@ Tests the JAX transfer function framework:
 
 Note: Tests that require JAX/jFUSE are skipped if those packages are not installed.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -19,20 +20,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# Check for jFUSE/JAX availability
+# jFUSE/JAX availability — detect by importing what the tests actually use.
+# (jFUSE no longer exports the top-level HAS_JAX/HAS_JFUSE flags this guard used
+# to read, which silently skipped the whole module even when jFUSE was installed.)
 try:
-    from jfuse import HAS_JAX as _HAS_JAX
-    from jfuse import HAS_JFUSE as _HAS_JFUSE
-    HAS_JFUSE = _HAS_JFUSE and _HAS_JAX
+    import jax.numpy as jnp
+    from jfuse.fuse.state import NUM_PARAMETERS, PARAM_BOUNDS, PARAM_NAMES
+    HAS_JFUSE = True
 except ImportError:
     HAS_JFUSE = False
-
-if HAS_JFUSE:
-    try:
-        import jax.numpy as jnp
-        from jfuse.fuse.state import NUM_PARAMETERS, PARAM_BOUNDS, PARAM_NAMES
-    except ImportError:
-        HAS_JFUSE = False
 
 # Skip entire module if jFUSE is not available
 pytestmark = [

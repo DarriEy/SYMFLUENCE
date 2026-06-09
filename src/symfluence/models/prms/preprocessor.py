@@ -9,6 +9,8 @@ Handles preparation of PRMS model inputs including:
 - Parameter file (params.dat) with HRU definitions and soil parameters
 - Data file (data.dat) with forcing time series
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -17,13 +19,13 @@ from typing import Tuple
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("PRMS")
+@R.preprocessors.add("PRMS")
 class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a PRMS model run.
@@ -92,7 +94,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"PRMS preprocessing failed: {str(e)}")
+            logger.error(f"PRMS preprocessing failed: {str(e)}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
             return False

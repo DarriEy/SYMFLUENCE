@@ -2,15 +2,18 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM model postprocessor."""
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('CWATM')
-class CWatMPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('CWATM')
+class CWatMPostProcessor(StandardModelPostProcessor):
     """Postprocessor for CWatM.
 
     CWatM outputs discharge in NetCDF or TSS format.

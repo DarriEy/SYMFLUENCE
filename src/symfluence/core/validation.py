@@ -7,6 +7,7 @@ Validation utilities for SYMFLUENCE.
 Provides standardized validation helpers for configuration, files, directories,
 geospatial data, NetCDF files, and numeric parameters.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -182,6 +183,64 @@ def validate_bounding_box(
             )
 
     return bbox
+
+
+def parse_pour_point_coords(
+    value: Union[str, Sequence[str], None],
+    context: str = "POUR_POINT_ADDITIONAL_COORDS",
+) -> List[tuple]:
+    """
+    Parse one or more ``'lat/lon'`` pour point coordinate pairs.
+
+    Accepts a single ``'lat/lon'`` string, a comma/semicolon-separated string of
+    pairs (e.g. ``'51.1/-115.5, 51.4/-116.0'``), or a sequence of ``'lat/lon'``
+    strings (a YAML list). Each pair is validated against geographic bounds.
+
+    Args:
+        value: The raw config value (string, list of strings, or None).
+        context: Name of the config key, used in error messages.
+
+    Returns:
+        List of ``(lat, lon)`` float tuples in input order. Empty if ``value`` is
+        None/blank.
+
+    Raises:
+        ConfigurationError: If any pair is malformed or out of range.
+    """
+    if value is None:
+        return []
+
+    # Normalize to a flat list of 'lat/lon' tokens.
+    if isinstance(value, str):
+        tokens = value.replace(';', ',').split(',')
+    else:
+        tokens = []
+        for item in value:
+            tokens.extend(str(item).replace(';', ',').split(','))
+
+    pairs: List[tuple] = []
+    for token in tokens:
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            lat_str, lon_str = token.split('/')
+            lat, lon = float(lat_str), float(lon_str)
+        except ValueError:
+            raise ConfigurationError(
+                f"{context} entry must be 'lat/lon' format, got '{token}'"
+            ) from None
+        if not (-90 <= lat <= 90):
+            raise ConfigurationError(
+                f"{context} latitude {lat} out of range [-90, 90] (entry '{token}')"
+            )
+        if not (-180 <= lon <= 180):
+            raise ConfigurationError(
+                f"{context} longitude {lon} out of range [-180, 180] (entry '{token}')"
+            )
+        pairs.append((lat, lon))
+
+    return pairs
 
 
 # =============================================================================

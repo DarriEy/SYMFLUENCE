@@ -10,6 +10,8 @@ Handles preparation of mHM model inputs including:
 - Directory structure setup
 - Grid and morphological input preparation
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -21,14 +23,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("MHM")
+@R.preprocessors.add("MHM")
 class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a mHM model run.
@@ -123,7 +125,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"mHM preprocessing failed: {e}")
+            logger.error(f"mHM preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -183,7 +185,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         # Defaults
         return {
@@ -211,7 +213,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_ds = self._load_forcing_data()
             self._write_mhm_forcing(forcing_ds, start_date, end_date)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load forcing data: {e}, using synthetic")
+            logger.warning(f"Could not load forcing data: {e}, using synthetic", exc_info=True)
             self._generate_synthetic_forcing(start_date, end_date)
 
     def _load_forcing_data(self) -> xr.Dataset:
@@ -883,7 +885,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     f"Loaded {n_obs} observed streamflow values for gauge file"
                 )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load observed streamflow: {e}")
+            logger.warning(f"Could not load observed streamflow: {e}", exc_info=True)
 
         if values is None:
             values = np.full(n_days, -9999.0)

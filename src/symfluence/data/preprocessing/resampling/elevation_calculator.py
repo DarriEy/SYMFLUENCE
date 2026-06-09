@@ -6,6 +6,7 @@ Elevation Calculator
 
 Calculates elevation statistics for geometries using DEM data.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -72,7 +73,7 @@ class ElevationCalculator:
                         gdf_projected = gdf.to_crs(dem_crs)
                         self.logger.info("CRS reprojection successful")
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                        self.logger.error(f"Failed to reproject CRS: {str(e)}", exc_info=True)
                         self.logger.warning("Using original CRS - elevation calculation may fail")
                         gdf_projected = gdf.copy()
                 else:
@@ -112,7 +113,7 @@ class ElevationCalculator:
                         if idx < 5:
                             self.logger.debug(
                                 f"Error calculating elevation for geometry {idx}: {str(e)}"
-                            )
+                            , exc_info=True)
 
             valid_count = sum(1 for elev in elevations if elev != -9999.0)
             self.logger.info(
@@ -120,7 +121,7 @@ class ElevationCalculator:
             )
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error in elevation calculation: {str(e)}")
+            self.logger.error(f"Error in elevation calculation: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
 

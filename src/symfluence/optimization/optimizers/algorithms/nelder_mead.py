@@ -25,6 +25,7 @@ Reference:
     with adaptive parameters. Computational Optimization and Applications,
     51(1), 259-277.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 

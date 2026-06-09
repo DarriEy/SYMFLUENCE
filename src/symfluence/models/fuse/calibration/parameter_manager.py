@@ -10,6 +10,7 @@ FUSE Parameter Manager - FIXED for NetCDF Index Issues
 This version fixes the "Index exceeds dimension bound" error by ensuring
 proper parameter file structure and indexing.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -18,9 +19,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import netCDF4 as nc
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 # Mapping of FUSE decisions to the parameters they require for meaningful calibration.
 # If a decision is active but its required params are not being calibrated, the model
@@ -43,7 +44,7 @@ DECISION_REQUIRED_PARAMS = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('FUSE')
+@R.parameter_managers.add('FUSE')
 class FUSEParameterManager(BaseParameterManager):
     """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
 
@@ -317,7 +318,7 @@ class FUSEParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating FUSE constraints file: {e}")
+            self.logger.error(f"Error updating FUSE constraints file: {e}", exc_info=True)
             return False
 
     # Note: get_initial_parameters() is already defined below and matches the signature
@@ -358,7 +359,7 @@ class FUSEParameterManager(BaseParameterManager):
                                 self.logger.debug(f"  ✓ {file_path.name} parameter indexing OK")
 
                             except Exception as e:  # noqa: BLE001 — calibration resilience
-                                self.logger.error(f"  ERROR: Cannot access parameter set 0 in {file_path.name}: {str(e)}")
+                                self.logger.error(f"  ERROR: Cannot access parameter set 0 in {file_path.name}: {str(e)}", exc_info=True)
                                 # Try to fix the file
                                 if self._fix_parameter_file_indexing(file_path):
                                     self.logger.info(f"  ✓ Fixed parameter indexing in {file_path.name}")
@@ -373,7 +374,7 @@ class FUSEParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error verifying parameter files: {str(e)}")
+            self.logger.error(f"Error verifying parameter files: {str(e)}", exc_info=True)
             return False
 
     def _fix_parameter_file_indexing(self, file_path: Path) -> bool:
@@ -410,7 +411,7 @@ class FUSEParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to fix {file_path.name}: {str(e)}")
+            self.logger.error(f"Failed to fix {file_path.name}: {str(e)}", exc_info=True)
             return False
 
     def _get_default_parameter_value(self, param_name: str) -> float:
@@ -465,7 +466,7 @@ class FUSEParameterManager(BaseParameterManager):
                                 self.logger.debug(f"[param write] {p}: {before} -> {after}")
                                 changed += (abs(after - before) > 1e-10)
                             except Exception as e:  # noqa: BLE001 — calibration resilience
-                                self.logger.error(f"Error updating parameter {p}: {str(e)}")
+                                self.logger.error(f"Error updating parameter {p}: {str(e)}", exc_info=True)
                                 return False
                         else:
                             self.logger.error(f"[param write] {p} NOT FOUND in {target_file}")
@@ -483,11 +484,11 @@ class FUSEParameterManager(BaseParameterManager):
                 return True
 
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"NetCDF error updating {target_file}: {str(e)}")
+                self.logger.error(f"NetCDF error updating {target_file}: {str(e)}", exc_info=True)
                 return False
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating parameter file: {str(e)}")
+            self.logger.error(f"Error updating parameter file: {str(e)}", exc_info=True)
             return False
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
@@ -517,7 +518,7 @@ class FUSEParameterManager(BaseParameterManager):
                 return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {str(e)}")
+            self.logger.error(f"Error reading initial parameters: {str(e)}", exc_info=True)
             return self._get_default_initial_values()
 
     def _get_default_initial_values(self) -> Dict[str, float]:
@@ -571,7 +572,7 @@ class FUSEParameterManager(BaseParameterManager):
                     decision_key = parts[1]
                     active_decisions[decision_key] = decision_value
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Could not parse decisions file: {e}")
+            self.logger.debug(f"Could not parse decisions file: {e}", exc_info=True)
             return warnings_list
 
         calibrated_params = set(self.fuse_params)

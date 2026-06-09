@@ -21,6 +21,13 @@ import netCDF4 as nc4
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.path_resolver import (
+    find_basin_shapefile,
+    find_catchment_subfile,
+    find_river_basins_shapefile,
+)
+
 if TYPE_CHECKING:
     from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
 
@@ -33,7 +40,7 @@ def _create_easymore_instance():
         return easymore.Easymore()
     if hasattr(easymore, "easymore"):
         return easymore.easymore()
-    raise AttributeError("easymore module does not expose an Easymore class")
+    raise ModelExecutionError("easymore module does not expose an Easymore class")
 
 
 class MizuRouteRemapGenerator:
@@ -73,8 +80,18 @@ class MizuRouteRemapGenerator:
             weights = self.pp.subcatchment_weights
             gru_ids = self.pp.subcatchment_gru_ids
         else:
-            # Fallback: load from delineated catchments shapefile
-            catchment_path = self.pp.project_dir / 'shapefiles' / 'catchment' / f"{self.pp.domain_name}_catchment_delineated.shp"
+            # Fallback: load from delineated catchments shapefile (nested layout)
+            catchment_path = find_catchment_subfile(
+                self.pp.project_dir / 'shapefiles',
+                self.pp.domain_definition_method,
+                self.pp.experiment_id,
+                f"{self.pp.domain_name}_catchment_delineated.shp",
+                logger=self.pp.logger,
+            )
+            if catchment_path is None:
+                raise ModelExecutionError(
+                    f"Delineated catchment shapefile not found for {self.pp.domain_name}"
+                )
             shp_catchments = gpd.read_file(catchment_path)
             weights = shp_catchments['avg_subbas'].values
         remap_name = self.pp.mizu_remap_file
@@ -233,19 +250,16 @@ class MizuRouteRemapGenerator:
             self.create_area_weighted_remap_file()  # Changed from create_equal_weight_remap_file
             return
 
-        hm_catchment_path = Path(self.pp._get_config_value(
+        hm_path_cfg = self.pp._get_config_value(
             lambda: self.pp.config.paths.catchment_path, default='default'
-        ))
-        hm_catchment_name = self.pp._get_config_value(
+        )
+        hm_name_cfg = self.pp._get_config_value(
             lambda: self.pp.config.paths.catchment_name, default='default'
         )
-        if hm_catchment_name == 'default':
-            hm_catchment_name = f"{self.pp.domain_name}_HRUs_{self.pp.sub_grid_discretization}.shp"
-
-        rm_catchment_path = Path(self.pp._get_config_value(
+        rm_path_cfg = self.pp._get_config_value(
             lambda: self.pp.config.paths.river_basins_path, default='default'
-        ))
-        rm_catchment_name = self.pp._get_config_value(
+        )
+        rm_name_cfg = self.pp._get_config_value(
             lambda: self.pp.config.paths.river_basins_name, default='default'
         )
 
@@ -268,19 +282,26 @@ class MizuRouteRemapGenerator:
             remap_name = "remap_file.nc"
             self.pp.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
 
-        if hm_catchment_path == 'default':
-            hm_catchment_path = self.pp.project_dir / 'shapefiles/catchment'
+        # Resolve the hydrologic-model catchment (HRUs) and routing-model basins
+        # via the shared finders (nested layout + casing drift), honouring any
+        # explicit CATCHMENT_PATH / RIVER_BASINS_PATH overrides.
+        shapefiles_dir = self.pp.project_dir / 'shapefiles'
+        hm_shapefile = find_basin_shapefile(
+            shapefiles_dir, self.pp.domain_name,
+            self.pp.domain_definition_method, self.pp.experiment_id,
+            explicit_path=hm_path_cfg, explicit_name=hm_name_cfg,
+            include_river_basins=False, required=True, logger=self.pp.logger,
+        )
+        if rm_path_cfg and rm_path_cfg != 'default' and rm_name_cfg and rm_name_cfg != 'default':
+            rm_shapefile = Path(rm_path_cfg) / rm_name_cfg
         else:
-            hm_catchment_path = Path(hm_catchment_path)
-
-        if rm_catchment_path == 'default':
-            rm_catchment_path = self.pp.project_dir / 'shapefiles/catchment'
-        else:
-            rm_catchment_path = Path(rm_catchment_path)
+            rm_shapefile = find_river_basins_shapefile(
+                shapefiles_dir, self.pp.domain_name, required=True, logger=self.pp.logger,
+            )
 
         # Load shapefiles
-        hm_shape = gpd.read_file(hm_catchment_path / hm_catchment_name)
-        rm_shape = gpd.read_file(rm_catchment_path / rm_catchment_name)
+        hm_shape = gpd.read_file(hm_shapefile)
+        rm_shape = gpd.read_file(rm_shapefile)
 
         # Create intersection
         esmr_obj = _create_easymore_instance()

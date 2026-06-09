@@ -11,6 +11,7 @@ Provides shared infrastructure for all model preprocessing modules including:
 - Common directory structure
 - Settings file copying
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
@@ -195,7 +196,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
                         )
                         return
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not locate base settings: {e}")
+                self.logger.warning(f"Could not locate base settings: {e}", exc_info=True)
                 return
 
         if source_dir is not None and not source_dir.exists():
@@ -377,7 +378,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         try:
             return pd.to_datetime(start_raw), pd.to_datetime(end_raw)
         except Exception as exc:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Unable to parse simulation time window: {exc}")
+            self.logger.warning(f"Unable to parse simulation time window: {exc}", exc_info=True)
             return None
 
     def subset_to_simulation_time(
@@ -403,7 +404,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         try:
             subset = ds.sel(time=slice(start_time, end_time))
         except Exception as exc:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Unable to subset {label} to simulation window: {exc}")
+            self.logger.warning(f"Unable to subset {label} to simulation window: {exc}", exc_info=True)
             return ds
 
         if len(subset.time) == 0:
@@ -447,7 +448,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
             try:
                 aligned[name] = ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
             except Exception as exc:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not align {name} to time period: {exc}")
+                self.logger.warning(f"Could not align {name} to time period: {exc}", exc_info=True)
                 aligned[name] = ds
 
         return aligned, time_index

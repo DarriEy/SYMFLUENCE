@@ -25,6 +25,7 @@ References:
       and Its Mapping to HydroATLAS
     - https://data.geoglows.org/
 """
+from __future__ import annotations
 
 from pathlib import Path
 

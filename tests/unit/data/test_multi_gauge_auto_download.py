@@ -11,6 +11,7 @@ uses — never triggered the download. Move the trigger to
 observation acquisition time regardless of which optimiser the user
 picks.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

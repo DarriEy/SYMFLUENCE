@@ -10,6 +10,7 @@ SUMMA Structure Analyzer
 This module implements the Structure Ensemble Analysis for the SUMMA model,
 often coupled with mizuRoute for routing.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -19,6 +20,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ConfigValidationError, FileOperationError, ModelExecutionError
 from symfluence.evaluation.metrics import kge, kge_prime, mae, nse, rmse
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 
@@ -98,7 +100,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             RuntimeError: If routing is not configured but mizuroute_runner is accessed
         """
         if not self._needs_routing():
-            raise RuntimeError(
+            raise ConfigValidationError(
                 "MizuRoute runner requested but routing is not configured. "
                 "Check ROUTING_MODEL, DOMAIN_DEFINITION_METHOD, and ROUTING_DELINEATION settings."
             )
@@ -134,7 +136,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         """
         if not self.model_decisions_path.exists():
             self.logger.error(f"SUMMA model decisions file not found: {self.model_decisions_path}")
-            raise FileNotFoundError(f"Could not find {self.model_decisions_path}")
+            raise FileOperationError(f"Could not find {self.model_decisions_path}")
 
         decision_keys = list(self.decision_options.keys())
         with open(self.model_decisions_path, 'r', encoding='utf-8') as f:
@@ -261,7 +263,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             obs_file_path = Path(obs_file_path)
 
         if not obs_file_path.exists():
-            raise FileNotFoundError(f"Missing observation file: {obs_file_path}")
+            raise FileOperationError(f"Missing observation file: {obs_file_path}")
 
         dfObs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
         if 'discharge_cms' in dfObs.columns:
@@ -319,7 +321,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             if var_name not in ds_sel.variables:
                 routed = [v for v in ds_sel.variables if 'routedRunoff' in v]
                 if not routed:
-                    raise KeyError(f"No routedRunoff variable found in {sim_file_path}")
+                    raise ModelExecutionError(f"No routedRunoff variable found in {sim_file_path}")
                 var_name = routed[0]
 
             sim_df = ds_sel[var_name].to_dataframe().reset_index()
@@ -334,7 +336,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         candidates = sorted(summa_dir.glob(f"{self.experiment_id}*.nc"))
         candidates = [p for p in candidates if 'day' not in p.stem]
         if not candidates:
-            raise FileNotFoundError(
+            raise FileOperationError(
                 f"No SUMMA output under {summa_dir} and mizuRoute output also unavailable — "
                 "cannot compute streamflow metrics. Either enable routing "
                 "(ROUTING_MODEL: mizuRoute with a routed domain) or ensure the "
@@ -343,7 +345,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
         with xr.open_dataset(candidates[0]) as ds:
             if 'averageRoutedRunoff' not in ds:
-                raise KeyError(
+                raise ModelExecutionError(
                     f"averageRoutedRunoff not in {candidates[0]}; "
                     "native SUMMA fallback needs it."
                 )

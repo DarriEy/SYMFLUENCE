@@ -74,6 +74,7 @@ References:
     - Model-Agnostic Framework: https://github.com/CH-Earth/ModelAgnosticFramework
     - MAF Documentation: Extensive README and examples in MAF repository
 """
+from __future__ import annotations
 
 import subprocess
 import sys

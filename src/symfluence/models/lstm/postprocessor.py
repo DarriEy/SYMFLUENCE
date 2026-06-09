@@ -5,8 +5,9 @@
 LSTM Model Postprocessor.
 
 Handles result saving, visualization, and metric calculation for the LSTM model.
-Migrated to extend StandardModelPostprocessor for extract_streamflow (Phase 1.4).
+Migrated to extend StandardModelPostProcessor for extract_streamflow (Phase 1.4).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, cast
@@ -15,17 +16,17 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
-from symfluence.models.base import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
+from symfluence.models.base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('LSTM')
-class LSTMPostprocessor(StandardModelPostprocessor):
+@R.postprocessors.add('LSTM')
+class LSTMPostProcessor(StandardModelPostProcessor):
     """
     Handles postprocessing for the LSTM model.
 
-    Extends StandardModelPostprocessor for standard streamflow extraction,
+    Extends StandardModelPostProcessor for standard streamflow extraction,
     while keeping custom save_results() for LSTM's dual-mode output format.
 
     Attributes:
@@ -76,7 +77,7 @@ class LSTMPostprocessor(StandardModelPostprocessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}")
+            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

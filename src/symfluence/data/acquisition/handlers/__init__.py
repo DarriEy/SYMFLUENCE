@@ -4,6 +4,7 @@
 """
 Acquisition handlers for various datasets.
 """
+from __future__ import annotations
 
 import importlib as _importlib
 import logging as _logging

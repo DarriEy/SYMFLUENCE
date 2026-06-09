@@ -7,6 +7,7 @@ Rich-based prompt wrappers for SYMFLUENCE project wizard.
 This module provides interactive prompt functionality using the rich library,
 with support for help text panels, validation retry, and various input types.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

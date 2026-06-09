@@ -28,6 +28,7 @@ Usage:
     handler = VariableHandler(config, logger, 'ERA5', 'SUMMA')
     ds = handler.process_forcing_data(ds)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

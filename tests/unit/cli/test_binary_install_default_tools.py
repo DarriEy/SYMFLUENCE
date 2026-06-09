@@ -16,6 +16,7 @@ pyproject.toml deps and are NOT binaries; LSTM is PyTorch-only;
 GR4J uses airGR via rpy2. Those are called out in the help text but
 not in this list.
 """
+from __future__ import annotations
 
 import pytest
 

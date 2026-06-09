@@ -6,6 +6,7 @@ Job scheduler service for SLURM and other HPC schedulers.
 
 Handles job script generation, submission, and monitoring.
 """
+from __future__ import annotations
 
 import os
 import shlex

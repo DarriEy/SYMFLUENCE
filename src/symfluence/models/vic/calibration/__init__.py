@@ -8,6 +8,7 @@ This module provides:
 - VICParameterManager: Handles VIC parameter bounds and updates
 - VICWorker: Worker for VIC model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import VICModelOptimizer
 from .parameter_manager import VICParameterManager

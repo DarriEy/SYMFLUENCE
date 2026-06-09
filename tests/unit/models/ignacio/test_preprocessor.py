@@ -1,6 +1,9 @@
 """Tests for IGNACIO preprocessor."""
+from __future__ import annotations
 
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestIGNACIOPreProcessorImport:
@@ -40,6 +43,5 @@ class TestIGNACIOOptimizerRegistration:
 
     def test_optimizer_registered(self):
         from symfluence.models.ignacio.calibration.optimizer import IGNACIOModelOptimizer
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry.is_registered('IGNACIO')
-        assert OptimizerRegistry.get_optimizer('IGNACIO') is IGNACIOModelOptimizer
+        assert ('IGNACIO' in R.optimizers)
+        assert R.optimizers.get('IGNACIO') is IGNACIOModelOptimizer

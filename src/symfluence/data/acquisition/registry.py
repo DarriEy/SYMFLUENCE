@@ -9,6 +9,8 @@ Uses standardized BaseRegistry pattern with lowercase key normalization.
 
 Phase 4 delegation shim: all state lives in ``R.acquisition_handlers``.
 """
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Type, Union
 

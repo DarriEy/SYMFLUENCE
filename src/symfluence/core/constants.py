@@ -7,6 +7,7 @@ Physical constants and unit conversion factors for SYMFLUENCE.
 Centralizes all hardcoded constants to eliminate duplication and
 improve maintainability across the codebase.
 """
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
@@ -433,43 +434,30 @@ class UnitDetectionThresholds:
 
 
 class SupportedModels:
+    """Validity check for model names, derived from the component registry.
+
+    A model is "supported" once it has been registered with the framework via
+    an entry point / ``model_manifest`` (RTI review item 18). Registration is
+    therefore the whitelist: this no longer hardcodes a model list. The former
+    sibling lists (models with a forcing adapter / plotter / preset) were
+    likewise hardcoded and drifted from reality; those call sites now derive the
+    set directly (``symfluence.models.model_packages_with`` for submodule-based
+    discovery, or ``R.plotters`` for already-registered plotters).
     """
-    Registry of supported model names for dynamic imports.
 
-    Centralizes the whitelist of valid model names to prevent arbitrary
-    code execution via dynamic imports. All model names must be listed
-    here before they can be imported dynamically.
-    """
-
-    # Core hydrological models
-    ALL: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys',
-        'lstm', 'gnn', 'mizuroute', 'hbv'
-    )
-    """All models supported by SYMFLUENCE."""
-
-    # Models with forcing adapters
-    WITH_FORCING_ADAPTER: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys'
-    )
-    """Models that have forcing adapter modules."""
-
-    # Models with visualization plotters
-    WITH_PLOTTERS: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'ngen', 'lstm'
-    )
-    """Models with registered visualization plotters."""
-
-    # Models with initialization presets
-    WITH_PRESETS: Tuple[str, ...] = (
-        'summa', 'fuse', 'hype', 'gr', 'ngen'
-    )
-    """Models that have initialization preset modules."""
+    #: Models whose "calibration" is internal training (gradient descent during
+    #: the run step), not an external DDS/PSO parameter search. They register no
+    #: optimizer/worker and have no calibrated parameters, so both the calibration
+    #: and sensitivity-analysis paths skip them rather than reporting a failure.
+    SELF_TRAINING = frozenset({'LSTM', 'GNN'})
 
     @classmethod
     def is_valid(cls, model_name: str) -> bool:
-        """Check if a model name is in the supported whitelist."""
-        return model_name.lower() in cls.ALL
+        """Return True if *model_name* is a model registered with the framework."""
+        from symfluence.core.registries import R
+
+        key = model_name.upper()
+        return key in R.runners or key in R.config_schemas
 
 
 class ConfigKeys:
@@ -558,6 +546,14 @@ class ConfigKeys:
 
     POUR_POINT_COORDS = 'POUR_POINT_COORDS'
     """Pour point coordinates [lat, lon]."""
+
+    POUR_POINT_ADDITIONAL_COORDS = 'POUR_POINT_ADDITIONAL_COORDS'
+    """Additional interior outlet coordinates (semidistributed/distributed only).
+
+    One or more 'lat/lon' pairs written into the outlets shapefile alongside
+    POUR_POINT_COORDS so TauDEM breaks the stream network at each, forcing
+    subbasin/GRU boundaries to align with interior gauges.
+    """
 
     # Forcing configuration
     FORCING_DATASET = 'FORCING_DATASET'

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Deprecated shim — UnifiedModelExecutor is now equivalent to SpatialOrchestrator."""
+from __future__ import annotations
 
 from .model_executor import ExecutionMode, ExecutionResult, ModelExecutor, SlurmJobConfig
 from .spatial_orchestrator import RoutingConfig, RoutingModel, SpatialConfig, SpatialMode, SpatialOrchestrator

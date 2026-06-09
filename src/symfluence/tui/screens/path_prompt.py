@@ -4,6 +4,7 @@
 """
 Reusable modal prompt for entering a filesystem path.
 """
+from __future__ import annotations
 
 from typing import Optional
 

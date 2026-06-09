@@ -10,6 +10,7 @@ Metrics Calculation for SUMMA Workers
 This module contains functions for calculating calibration metrics
 in worker processes, supporting multi-target optimization.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

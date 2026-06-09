@@ -7,6 +7,7 @@ Processor for calculating and managing hydrological performance metrics.
 This module centralizes metrics calculation logic, supporting different
 evaluation periods (calibration, validation) and multiple data formats.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Optional, Tuple

@@ -26,6 +26,7 @@ Usage:
     env = get_worker_environment()
     subprocess.run(cmd, env=env)
 """
+from __future__ import annotations
 
 import gc
 import logging

@@ -27,6 +27,7 @@ References:
       for the Next Generation (NextGen) Hydrologic Modeling Framework
     - https://github.com/CIROH-UA/NGIAB_data_preprocess
 """
+from __future__ import annotations
 
 import sqlite3
 import tarfile

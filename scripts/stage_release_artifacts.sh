@@ -756,8 +756,23 @@ if [ "$OS_BUNDLE" = "Darwin" ]; then
     print_success "Dependency bundling complete ($BUNDLE_ROUND rounds)"
 
 elif [ "$OS_BUNDLE" = "Linux" ]; then
-    # Linux: bundle non-system shared libraries (e.g. from conda, /opt, etc.)
+    # Linux: bundle the FULL recursive closure of non-system shared libraries so
+    # the tarball is self-contained on a clean distro.
+    #
+    # The previous approach excluded everything under /usr/lib and then
+    # force-bundled a hardcoded allowlist (libnetcdf, libcurl, ...). That missed
+    # transitive deps that live in system paths but are NOT guaranteed present on
+    # the target distro — e.g. libcurl-gnutls pulls libxml2/libssh/libldap/
+    # liblber/librtmp/libpsl, none of which were bundled, so the binaries failed
+    # to load on Debian/RHEL. (#156 G6 release-pipeline finding.)
+    #
+    # Correct policy: bundle EVERY resolved dependency except the core
+    # glibc/loader set, which must always come from the host (bundling libc/libm/
+    # ld-linux would break the dynamic linker). The round loop re-scans newly
+    # bundled libs so the transitive closure is pulled in.
     if command -v ldd >/dev/null 2>&1; then
+        # Core glibc/loader libraries — never bundle these.
+        SYSTEM_LIB_RE='^(linux-vdso|ld-linux.*|libc|libm|libdl|libpthread|librt|libresolv|libutil|libnsl|libanl|libBrokenLocale|libmvec)\.so'
         BUNDLE_ROUND=0
         BUNDLE_CHANGED=1
         while [ $BUNDLE_CHANGED -eq 1 ]; do
@@ -770,34 +785,73 @@ elif [ "$OS_BUNDLE" = "Linux" ]; then
                 [ -L "$elf" ] && continue
                 file "$elf" | grep -q "ELF" || continue
 
-                # Find non-system dependencies
-                DEPS="$(ldd "$elf" 2>/dev/null | grep '=>' | awk '{print $3}' \
-                    | grep -vE '^(/usr/lib|/lib/|/lib64/)' \
-                    || true)"
-
-                # Also force-bundle specific libs that live in system paths
-                # but aren't universally available across Linux distros
-                FORCE_BUNDLE="libopenblas|liblapack|libgfortran|libgomp|libquadmath|libnetcdf|libnetcdff|libhdf5|libhdf5_hl|libsz|libaec|libcurl|libz"
-                FORCE_DEPS="$(ldd "$elf" 2>/dev/null | grep '=>' | awk '{print $3}' \
-                    | grep -E "($FORCE_BUNDLE)" \
-                    || true)"
-                DEPS="$(printf '%s\n%s' "$DEPS" "$FORCE_DEPS" | sort -u | grep -v '^$' || true)"
-
-                for dep in $DEPS; do
+                # Every resolved dependency path (column 3 of "name => /path (0x..)").
+                while IFS= read -r dep; do
                     [ -z "$dep" ] && continue
                     dep_basename="$(basename "$dep")"
-                    [ -f "lib/$dep_basename" ] && continue
 
-                    if [ -f "$dep" ]; then
-                        cp -L "$dep" "lib/$dep_basename"
-                        chmod +x "lib/$dep_basename"
-                        BUNDLE_CHANGED=1
-                        print_success "Bundled $dep_basename (from $dep)"
+                    # Skip the core glibc/loader libs (must come from the host).
+                    if printf '%s' "$dep_basename" | grep -qE "$SYSTEM_LIB_RE"; then
+                        continue
                     fi
-                done
+
+                    [ -f "lib/$dep_basename" ] && continue
+                    [ -f "$dep" ] || continue
+
+                    cp -L "$dep" "lib/$dep_basename"
+                    chmod +x "lib/$dep_basename"
+                    BUNDLE_CHANGED=1
+                    print_success "Bundled $dep_basename (from $dep)"
+                done < <(ldd "$elf" 2>/dev/null | awk '/=>/ && $3 ~ /^\// {print $3}')
             done
         done
         print_success "Dependency bundling complete ($BUNDLE_ROUND rounds)"
+    fi
+
+elif printf '%s' "$OS_BUNDLE" | grep -qiE 'mingw|msys|cygwin'; then
+    # Windows: bundle the recursive closure of non-system DLLs NEXT TO the .exe
+    # files (Windows resolves DLLs from the executable's own directory), so the
+    # tarball runs on a machine without MSYS2/mingw-w64 installed. ntldd -R walks
+    # the dependency tree; we skip Windows system DLLs (kernel32, msvcrt, api-ms-*,
+    # ...) and the MS-MPI runtime (provided by the separately-installed MS-MPI),
+    # bundling everything else (libgfortran, libstdc++, libnetcdf, libgcc_s, ...).
+    _ntldd="$(command -v ntldd || echo /c/msys64/mingw64/bin/ntldd.exe)"
+    if [ -x "$_ntldd" ] || command -v ntldd >/dev/null 2>&1; then
+        # System DLLs that always come from Windows itself — never bundle.
+        WIN_SYS_DLL_RE='^(kernel32|kernelbase|ntdll|msvcrt|user32|advapi32|ws2_32|shell32|ole32|oleaut32|gdi32|crypt32|secur32|bcrypt|rpcrt4|sechost|combase|ucrtbase|dbghelp|version|imm32|setupapi|userenv|iphlpapi|dnsapi|winmm|comdlg32|comctl32|powrprof|psapi|wsock32|mpr|wldap32|msmpi|api-ms-.*|ext-ms-.*)\.dll$'
+        # `ntldd -R` already emits the FULL recursive closure, so a single pass
+        # over the ORIGINAL staged binaries is sufficient. (A re-scanning round
+        # loop is O(n^2) over GDAL's ~100-DLL closure and effectively hangs.)
+        # Collect the union of resolved DLL paths first, then copy uniques once.
+        _orig_bins=$(ls bin/*.exe bin/*.dll lib/*.dll 2>/dev/null || true)
+        _seen_dlls=" "
+        for exe in $_orig_bins; do
+            [ -f "$exe" ] || continue
+            while IFS= read -r dep; do
+                [ -z "$dep" ] && continue
+                dep_base="$(basename "$dep")"
+                case "$_seen_dlls" in *" $dep_base "*) continue ;; esac
+                _seen_dlls="$_seen_dlls$dep_base "
+                printf '%s' "$dep_base" | grep -qiE "$WIN_SYS_DLL_RE" && continue
+                [ -f "bin/$dep_base" ] && continue
+                dep_unix="$dep"
+                case "$dep" in
+                    [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep" 2>/dev/null || echo "$dep")" ;;
+                esac
+                [ -f "$dep_unix" ] || continue
+                # Only bundle DLLs we shipped (under the mingw-w64/msys tree).
+                case "$dep_unix" in
+                    */msys64/*|*/mingw64/*|*/ucrt64/*) ;;
+                    *) continue ;;
+                esac
+                cp -L "$dep_unix" "bin/$dep_base"
+                chmod +x "bin/$dep_base"
+                print_success "Bundled $dep_base"
+            done < <("$_ntldd" -R "$exe" 2>/dev/null | awk '/=>/ {print $3}')
+        done
+        print_success "DLL bundling complete"
+    else
+        print_warning "ntldd not found — Windows DLLs not bundled (binaries may not relocate)"
     fi
 fi
 
@@ -902,12 +956,21 @@ elif [ "$OS_TYPE" = "Linux" ]; then
             print_success "$binary_name: set RPATH to \$ORIGIN/../lib"
         done
 
-        for lib in lib/*.so; do
+        # Match versioned sonames too (libnetcdf.so.18, libnetcdff.so.7, the
+        # bundled curl deps, ...). The old `lib/*.so` glob only caught unversioned
+        # names like libsumma.so, leaving every bundled SYSTEM library with an
+        # empty RPATH — so a transitively-needed lib (e.g. libnetcdff -> libnetcdf)
+        # fell back to system paths and failed on a clean machine. They all live
+        # in the same dir, so $ORIGIN is correct for each.
+        for lib in lib/*.so lib/*.so.*; do
             [ -f "$lib" ] || continue
+            [ -L "$lib" ] && continue
+            file "$lib" | grep -q "ELF" || continue
             lib_name="$(basename "$lib")"
 
-            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
-            print_success "$lib_name: set RPATH to \$ORIGIN"
+            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null \
+                && print_success "$lib_name: set RPATH to \$ORIGIN" \
+                || print_warning "$lib_name: patchelf --set-rpath failed"
         done
     else
         print_warning "patchelf not available — skipping Linux RPATH fix"

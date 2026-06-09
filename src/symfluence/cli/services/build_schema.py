@@ -7,6 +7,7 @@ Build instruction schema and validation for SYMFLUENCE external tools.
 Defines the standard structure for tool build instructions and provides
 validation utilities. This module is lightweight and has no heavy dependencies.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 

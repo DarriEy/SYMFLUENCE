@@ -23,6 +23,8 @@ an eco-hydrological model. International Journal of Wildland Fire. 26(8): 706-71
 """
 
 # Import core classes
+from __future__ import annotations
+
 from .fire_def_generator import (
     FireDefGenerator,
     FireDefParameters,
@@ -42,11 +44,14 @@ from .ignition import (
 )
 from .postprocessor import WMFirePostProcessor
 
-# Import build instructions to register with BuildInstructionsRegistry
-try:
-    from . import build_instructions  # noqa: F401
-except ImportError:
-    pass
+
+def register() -> None:
+    """Register WMFire components with the unified registry."""
+    # Import build instructions to register with BuildInstructionsRegistry
+    try:
+        from . import build_instructions  # noqa: F401
+    except ImportError:
+        pass
 
 __all__ = [
     # Grid management

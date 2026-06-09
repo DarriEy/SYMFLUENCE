@@ -6,6 +6,8 @@ SMHI Observation Handlers
 
 Provides handlers for Swedish Meteorological and Hydrological Institute (SMHI) streamflow data.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd

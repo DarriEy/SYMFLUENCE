@@ -4,6 +4,8 @@
 """
 SYMFLUENCE Command-Line Interface Package
 """
+from __future__ import annotations
+
 import sys
 
 from .argument_parser import CLIParser

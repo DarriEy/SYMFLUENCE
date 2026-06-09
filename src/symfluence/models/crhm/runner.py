@@ -7,16 +7,17 @@ CRHM Model Runner.
 Executes the CRHM (Cold Regions Hydrological Model) using prepared input files.
 CRHM is driven by a .prj project file and reads forcing from a .obs file.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('CRHM')
+@R.runners.add('CRHM')
 class CRHMRunner(BaseModelRunner):
     """Runner for the CRHM model."""
 

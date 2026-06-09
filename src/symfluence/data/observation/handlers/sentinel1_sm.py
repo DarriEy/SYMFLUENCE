@@ -8,6 +8,8 @@ Processes Sentinel-1 SAR-derived soil moisture data for hydrological
 modeling. Sentinel-1 provides high-resolution (~1 km) soil moisture
 estimates that complement coarser passive microwave products.
 """
+from __future__ import annotations
+
 import zipfile
 from pathlib import Path
 from typing import List, Optional
@@ -103,7 +105,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['soil_moisture'].extend(data['soil_moisture'])
                     results['backscatter_vv'].extend(data.get('backscatter_vv', [np.nan] * len(data['datetime'])))
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         # Process ZIP files (raw S1 products)
         for zip_file in zip_files:
@@ -114,7 +116,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                     results['soil_moisture'].extend(data.get('soil_moisture', [np.nan] * len(data['datetime'])))
                     results['backscatter_vv'].extend(data['backscatter_vv'])
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {zip_file.name}: {e}")
+                self.logger.warning(f"Failed to process {zip_file.name}: {e}", exc_info=True)
 
         if not results['datetime']:
             self.logger.warning("No Sentinel-1 data could be processed")
@@ -140,28 +142,13 @@ class Sentinel1SMHandler(BaseObservationHandler):
         return output_file
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
-        """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
-        if catchment_path_cfg == 'default' or not catchment_path_cfg:
-            catchment_path = self.project_dir / "shapefiles" / "catchment"
-        else:
-            catchment_path = Path(catchment_path_cfg)
+        """Load the catchment shapefile for spatial masking.
 
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
-
-        basin_shp = catchment_path / catchment_name
-        if not basin_shp.exists():
-            for pattern in [f"{self.domain_name}*.shp", "*.shp"]:
-                matches = list(catchment_path.glob(pattern))
-                if matches:
-                    basin_shp = matches[0]
-                    break
-
-        if basin_shp.exists():
-            return gpd.read_file(basin_shp)
-
-        self.logger.warning("Catchment shapefile not found, using bounding box")
-        return None
+        Delegates to the shared resolver, which handles the nested
+        discretization layout and river_basins fallback. Returns None when
+        no basin is found (callers fall back to the bounding box).
+        """
+        return self._load_catchment_gdf()
 
     def _process_netcdf(
         self,
@@ -246,7 +233,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
                 }
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to process ZIP {zip_file}: {e}")
+            self.logger.warning(f"Failed to process ZIP {zip_file}: {e}", exc_info=True)
             return None
 
     def _find_variable(self, ds: xr.Dataset, candidates: List[str]) -> Optional[str]:
@@ -329,5 +316,5 @@ class Sentinel1SMHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading Sentinel-1 data: {e}")
+            self.logger.error(f"Error loading Sentinel-1 data: {e}", exc_info=True)
             return None

@@ -11,6 +11,7 @@ Daymet provides: tmax, tmin, prcp, srad, vp, dayl, swe
 Daymet does NOT provide: longwave radiation, pressure, specific humidity, wind speed.
 These are estimated from available variables when possible.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -319,7 +320,7 @@ class DaymetHandler(BaseDatasetHandler):
                     ds = self.open_dataset(f)
                     var_datasets.append(ds)
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Error opening {f}: {e}")
+                    self.logger.warning(f"Error opening {f}: {e}", exc_info=True)
 
             if not var_datasets:
                 self.logger.warning(f"No valid Daymet datasets for year {year}")
@@ -345,7 +346,7 @@ class DaymetHandler(BaseDatasetHandler):
                 self.logger.info(f"Saved processed Daymet forcing: {out_file}")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error processing Daymet data for {year}: {e}")
+                self.logger.error(f"Error processing Daymet data for {year}: {e}", exc_info=True)
             finally:
                 for ds in var_datasets:
                     ds.close()

@@ -8,6 +8,7 @@ Provides specialized plotting capabilities for analyzing data distributions,
 spatial coverage, temporal availability, and missing data patterns. Used
 throughout SYMFLUENCE workflows to validate data quality at each processing stage.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional

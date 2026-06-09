@@ -10,6 +10,7 @@ that stage.  On subsequent runs the orchestrator compares the stored
 hash with the current config — if they differ the stage is re-executed
 even when its output files already exist.
 """
+from __future__ import annotations
 
 import hashlib
 import json

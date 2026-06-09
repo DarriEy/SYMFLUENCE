@@ -7,6 +7,7 @@ Mixin for building xarray datasets with standard coordinate patterns.
 Provides utilities for creating forcing datasets with consistent coordinate
 structures, attributes, and variable handling across model preprocessors.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 

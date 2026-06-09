@@ -14,6 +14,7 @@ for a lumped single-cell basin:
   - Streamflow obs        (_str.tb0)
   - Directory structure   (basin/, event/, raing/, tempg/, strfw/, results/, debug/)
 """
+from __future__ import annotations
 
 import calendar
 import logging
@@ -76,7 +77,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"WATFLOOD preprocessing failed: {e}")
+            logger.error(f"WATFLOOD preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -867,7 +868,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info(f"Wrote {len(months)} streamflow .tb0 files")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not generate streamflow .tb0: {e}")
+            logger.warning(f"Could not generate streamflow .tb0: {e}", exc_info=True)
 
     def _find_observation_file(self):
         """Find observation streamflow file."""

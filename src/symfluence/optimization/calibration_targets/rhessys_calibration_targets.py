@@ -7,6 +7,7 @@ RHESSYS Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.rhessys.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.rhessys.calibration.targets import RHESSysStreamflowTarget
 

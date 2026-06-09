@@ -13,13 +13,15 @@ This module defines how to build SUMMA from source, including:
 SUMMA (Structure for Unifying Multiple Modeling Alternatives) is a
 land surface model that uses SUNDIALS for solving differential equations.
 """
+from __future__ import annotations
 
 import sys
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('summa')
+@R.build_instructions.add('summa')
 def get_summa_build_instructions():
     """
     Get SUMMA build instructions.
@@ -31,7 +33,15 @@ def get_summa_build_instructions():
         Dictionary with complete build configuration for SUMMA.
     """
     common_env = get_common_build_environment()
-    _libext = 'dylib' if sys.platform == 'darwin' else 'so'
+    # libsumma extension by platform: macOS .dylib, Linux .so, Windows .a —
+    # mingw-w64 links libsumma as a static archive into summa_sundials.exe
+    # rather than a shared object.
+    if sys.platform == 'darwin':
+        _libext = 'dylib'
+    elif sys.platform.startswith('win'):
+        _libext = 'a'
+    else:
+        _libext = 'so'
 
     return {
         'description': 'Structure for Unifying Multiple Modeling Alternatives (with SUNDIALS)',
@@ -177,20 +187,24 @@ esac
 # The Fortran interface takes integer(C_LONG) for mxsteps:
 #   - Linux LP64:   C_LONG = 8 bytes -> need int(max_steps, kind=8)
 #   - Windows LLP64: C_LONG = 4 bytes -> upstream int(max_steps) is correct
+# The IDA file is spelled "summaSolv4ida.f90" (no 'e'); glob defensively so a
+# rename/typo can't silently skip the patch (the previous fixed name had an
+# extra 'e' and never matched, so Windows kept the fatal kind=8 mismatch).
+_IDA_F90=$(ls build/source/engine/summaSolv*4ida.f90 2>/dev/null | head -1)
 case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
         # Windows: C_LONG=4; undo kind=8 if present from a previous build
-        if grep -q 'int(max_steps, kind=8)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
-            echo "Patching summaSolve4ida.f90: removing kind=8 (Windows C_LONG=4)"
-            sed -i 's/int(max_steps, kind=8)/int(max_steps)/g' build/source/engine/summaSolve4ida.f90
+        if [ -n "$_IDA_F90" ] && grep -q 'int(max_steps, kind=8)' "$_IDA_F90" 2>/dev/null; then
+            echo "Patching $(basename "$_IDA_F90"): removing kind=8 (Windows C_LONG=4)"
+            sed -i 's/int(max_steps, kind=8)/int(max_steps)/g' "$_IDA_F90"
         fi
         ;;
     *)
         # Linux/macOS: C_LONG=8; add kind=8 if not already present
-        if grep -q 'int(max_steps)' build/source/engine/summaSolve4ida.f90 2>/dev/null && \
-           ! grep -q 'int(max_steps, kind=8)' build/source/engine/summaSolve4ida.f90 2>/dev/null; then
-            echo "Patching summaSolve4ida.f90: int(max_steps) -> int(max_steps, kind=8)"
-            _sed_i 's/int(max_steps)/int(max_steps, kind=8)/g' build/source/engine/summaSolve4ida.f90
+        if [ -n "$_IDA_F90" ] && grep -q 'int(max_steps)' "$_IDA_F90" 2>/dev/null && \
+           ! grep -q 'int(max_steps, kind=8)' "$_IDA_F90" 2>/dev/null; then
+            echo "Patching $(basename "$_IDA_F90"): int(max_steps) -> int(max_steps, kind=8)"
+            _sed_i 's/int(max_steps)/int(max_steps, kind=8)/g' "$_IDA_F90"
         fi
         ;;
 esac
@@ -323,7 +337,7 @@ cmake -S build -B cmake_build \
   -DNETCDF_FORTRAN_PATH="${NETCDF_FORTRAN:-/usr}" \
   -DNetCDF_ROOT="${NETCDF:-/usr}" \
   -DCMAKE_Fortran_COMPILER="$FC" \
-  -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none $_SUMMA_STATIC_LIBGCC" \
+  -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none -fallow-argument-mismatch $_SUMMA_STATIC_LIBGCC" \
   $_SUMMA_LINKER_FLAGS \
   $SUMMA_EXTRA_CMAKE
 
@@ -333,8 +347,9 @@ cmake --build cmake_build --target all -j ${NCORES:-4}
 # Stage libsumma into lib/ so the binary can find it via RPATH.
 # On macOS CMake produces .dylib; on Linux .so.
 case "$(uname -s)" in
-    Darwin) _libext="dylib" ;;
-    *)      _libext="so" ;;
+    Darwin)               _libext="dylib" ;;
+    MSYS*|MINGW*|CYGWIN*) _libext="a" ;;   # static libsumma.a, linked into exe
+    *)                    _libext="so" ;;
 esac
 _libname="libsumma.$_libext"
 

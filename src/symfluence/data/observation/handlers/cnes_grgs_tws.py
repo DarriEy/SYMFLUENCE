@@ -8,6 +8,7 @@ Provides acquisition and preprocessing of CNES/GRGS RL05 regularized
 spherical harmonic GRACE solutions for TWS validation. Unlike mascon
 solutions, these are already stabilized and require no post-processing.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

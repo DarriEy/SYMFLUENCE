@@ -7,6 +7,8 @@ SNOTEL Observation Handler
 Provides cloud acquisition and processing for SNOTEL (Snow Telemetry) data
 via the NRCS AWDB (Air-Water Database) API.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd

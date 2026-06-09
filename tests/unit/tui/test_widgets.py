@@ -1,4 +1,5 @@
 """Tests for TUI widget modules."""
+from __future__ import annotations
 
 import asyncio
 from datetime import datetime

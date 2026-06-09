@@ -14,6 +14,7 @@ Conservative caching approach:
 - Limited TTL (30 days default)
 - LRU eviction when cache exceeds size limit
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -297,7 +298,7 @@ class RawForcingCache:
             except (OSError, IOError) as e:
                 logger.warning(f"Could not read cache metadata at {meta_file}: {e}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                logger.warning(f"Unexpected error reading cache metadata at {meta_file}: {e}")
+                logger.warning(f"Unexpected error reading cache metadata at {meta_file}: {e}", exc_info=True)
 
         return {
             "cache_root": str(self.cache_root),
@@ -380,7 +381,7 @@ class RawForcingCache:
             except (OSError, IOError) as e:
                 logger.warning(f"Could not read/remove cache metadata at {meta_file}: {e}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                logger.warning(f"Unexpected error processing cache metadata at {meta_file}: {e}")
+                logger.warning(f"Unexpected error processing cache metadata at {meta_file}: {e}", exc_info=True)
                 meta_file.unlink(missing_ok=True)
 
         # Sort by age (oldest first)

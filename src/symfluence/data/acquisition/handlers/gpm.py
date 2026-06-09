@@ -28,6 +28,7 @@ Data Access:
     Primary: GES DISC OPeNDAP/HTTPS subsetting
     Fallback: CMR granule-by-granule download
 """
+from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
@@ -116,7 +117,7 @@ class GPMIMERGAcquirer(BaseAcquisitionHandler):
             self._download_via_opendap(product, out_nc)
             return output_dir
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"OPeNDAP download failed: {e}, trying CMR granule download")
+            self.logger.warning(f"OPeNDAP download failed: {e}, trying CMR granule download", exc_info=True)
 
         # Fallback to CMR granule download
         return self._download_via_cmr(product, output_dir)
@@ -201,7 +202,7 @@ class GPMIMERGAcquirer(BaseAcquisitionHandler):
                 self.logger.debug(f"Downloaded GPM for {date_str}")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to download GPM for {date_str}: {e}")
+                self.logger.debug(f"Failed to download GPM for {date_str}: {e}", exc_info=True)
                 continue
 
         if not datasets:
@@ -305,7 +306,7 @@ class GPMIMERGAcquirer(BaseAcquisitionHandler):
                     downloaded += 1
                     downloaded_files.append(out_file)
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Failed to download {filename}: {e}")
+                    self.logger.warning(f"Failed to download {filename}: {e}", exc_info=True)
 
             if max_granules and downloaded >= int(max_granules):
                 break

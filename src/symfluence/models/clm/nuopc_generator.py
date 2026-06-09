@@ -9,6 +9,8 @@ single-point run, including nuopc.runconfig, nuopc.runseq, lnd_in,
 datm_in, datm.streams.xml, drv_in, drv_flds_in, fd.yaml, CASEROOT,
 and user_nl_clm.
 """
+from __future__ import annotations
+
 import logging
 import shutil
 import urllib.request
@@ -16,8 +18,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# CESM inputdata root (downloaded on demand)
-CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
+# Default CESM inputdata root (downloaded on demand). Configurable via
+# CLM_CESM_INPUTDATA_PATH — see _resolve_cesm_inputdata().
+DEFAULT_CESM_INPUTDATA = Path.home() / 'projects' / 'cesm-inputdata'
 
 # Base URL for CESM inputdata SVN server
 _CESM_INPUTDATA_URL = (
@@ -34,10 +37,49 @@ _REQUIRED_INPUTDATA = [
 ]
 
 
-def _ensure_cesm_inputdata() -> None:
+def _resolve_cesm_inputdata(preprocessor) -> Path:
+    """Resolve the CESM inputdata root, defaulting to a SYMFLUENCE-managed dir.
+
+    Precedence:
+
+    1. ``CLM_CESM_INPUTDATA_PATH`` (``config.model.clm.cesm_inputdata_path``)
+       when set to anything other than the ``'default'`` sentinel.
+    2. Otherwise a writable, SYMFLUENCE-managed location alongside the model
+       installs (``<data_dir>/installs/cesm-inputdata``), resolved the same way
+       as ``CLM_INSTALL_PATH: default``. This shares the (large, static)
+       inputdata across domains and avoids the home directory, which is often
+       not writable from HPC compute nodes — so no manual override is needed.
+    3. As a last resort (no project/data dir available), the home-directory
+       default. This keeps the function total even outside a real project.
+    """
+    configured = preprocessor._get_config_value(
+        lambda: preprocessor.config.model.clm.cesm_inputdata_path,
+        default='default',
+        dict_key='CLM_CESM_INPUTDATA_PATH',
+    )
+    if configured and str(configured).strip().lower() != 'default':
+        return Path(configured).expanduser()
+
+    # Mirror CLMPreProcessor._get_install_path() so inputdata lands next to the
+    # model installs under the SYMFLUENCE data dir (writable scratch on HPC).
+    code_dir = preprocessor._get_config_value(
+        lambda: preprocessor.config.system.code_dir,
+        default=None,
+        dict_key='SYMFLUENCE_CODE_DIR',
+    )
+    if code_dir:
+        code_path = Path(code_dir)
+        return code_path.parent / (code_path.name + '_data') / 'installs' / 'cesm-inputdata'
+    try:
+        return preprocessor.project_dir.parents[1] / 'installs' / 'cesm-inputdata'
+    except (AttributeError, IndexError):
+        return DEFAULT_CESM_INPUTDATA
+
+
+def _ensure_cesm_inputdata(root: Path) -> None:
     """Download required CESM inputdata files if missing."""
     for rel_path in _REQUIRED_INPUTDATA:
-        local = CESM_INPUTDATA / rel_path
+        local = root / rel_path
         if local.exists() and local.stat().st_size > 0:
             continue
         local.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +89,7 @@ def _ensure_cesm_inputdata() -> None:
             urllib.request.urlretrieve(url, local)  # nosec B310 — trusted CESM inputdata URL
             logger.info(f"  Saved: {local} ({local.stat().st_size / 1e6:.1f} MB)")
         except Exception as exc:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"  Failed to download {rel_path}: {exc}")
+            logger.warning(f"  Failed to download {rel_path}: {exc}", exc_info=True)
 
 
 class CLMNuopcGenerator:
@@ -62,10 +104,11 @@ class CLMNuopcGenerator:
 
     def __init__(self, preprocessor):
         self.pp = preprocessor
+        self.cesm_inputdata = _resolve_cesm_inputdata(preprocessor)
 
     def generate_nuopc_runtime(self) -> None:
         """Generate all NUOPC runtime configuration files."""
-        _ensure_cesm_inputdata()
+        _ensure_cesm_inputdata(self.cesm_inputdata)
         logger.info("Generating NUOPC runtime configuration files")
 
         lat, lon, area_km2 = self.pp.domain_generator.get_catchment_centroid()
@@ -655,13 +698,13 @@ WAV_attributes::
         hist_nhtfrq = ctx['hist_nhtfrq']
         hist_mfilt = ctx['hist_mfilt']
         # SNICAR data paths (from CESM inputdata)
-        snicar_dir = CESM_INPUTDATA / 'lnd' / 'clm2' / 'snicardata'
+        snicar_dir = self.cesm_inputdata / 'lnd' / 'clm2' / 'snicardata'
         fsnowaging = snicar_dir / 'snicar_drdt_bst_fit_60_c070416.nc'
         fsnowoptics = snicar_dir / 'snicar_optics_5bnd_c013122.nc'
 
         # MEGAN emissions (from CESM inputdata)
         # Urban stream data (from CESM inputdata)
-        urban_dir = CESM_INPUTDATA / 'lnd' / 'clm2' / 'urbandata'
+        urban_dir = self.cesm_inputdata / 'lnd' / 'clm2' / 'urbandata'
         urban_tv = urban_dir / 'CLM50_tbuildmax_Oleson_2016_0.9x1.25_simyr1849-2106_c160923.nc'
         urban_mesh = urban_dir / 'CLM50_tbuildmax_Oleson_2016_0.9x1_ESMFmesh_cdf5_100621.nc'
 
@@ -984,7 +1027,7 @@ WAV_attributes::
 
     def _write_drv_flds_in(self) -> None:
         """Generate drv_flds_in."""
-        megan_file = (CESM_INPUTDATA / 'atm' / 'cam' / 'chem'
+        megan_file = (self.cesm_inputdata / 'atm' / 'cam' / 'chem'
                       / 'trop_mozart' / 'emis'
                       / 'megan21_emis_factors_78pft_c20161108.nc')
 

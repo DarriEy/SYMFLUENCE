@@ -7,6 +7,7 @@ Question definitions for SYMFLUENCE project initialization wizard.
 This module defines all questions presented during the interactive wizard,
 including their types, validation rules, and conditional display logic.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto

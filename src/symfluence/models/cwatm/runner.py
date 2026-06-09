@@ -2,17 +2,18 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM Model Runner."""
+from __future__ import annotations
 
 import os
 import sys
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('CWATM')
+@R.runners.add('CWATM')
 class CWatMRunner(BaseModelRunner):
     """Runner for CWatM (Community Water Model).
 

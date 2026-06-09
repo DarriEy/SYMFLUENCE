@@ -29,6 +29,8 @@ Module parameter categories:
 # ---------------------------------------------------------------------------
 # Only parameters that should be varied during calibration are listed.
 # Keys match the CRHM .prj parameter names.
+from __future__ import annotations
+
 PARAM_BOUNDS = {
     # -- Shared --
     'basin_area':       {'min': 1.0,   'max': 10000.0},   # km2
@@ -44,17 +46,25 @@ PARAM_BOUNDS = {
     # -- evap --
     'F_Qg':             {'min': 0.0,   'max': 0.5},       # ground heat flux fraction
     'Zwind':            {'min': 1.0,   'max': 30.0},      # wind measurement height [m]
+    # -- ebsm snowmelt timing --
+    'tfactor':          {'min': 0.0,   'max': 10.0},      # melt temperature factor
+    'nfactor':          {'min': 0.0,   'max': 10.0},      # net-radiation melt factor
+    'delay_melt':       {'min': 0.0,   'max': 60.0},      # melt onset delay [day-of-year offset]
     # -- Netroute --
     'Kstorage':         {'min': 0.0,   'max': 200.0},     # Muskingum K (channel)
     'Lag':              {'min': 0.0,   'max': 100.0},     # Muskingum lag (channel)
     'gwKstorage':       {'min': 0.0,   'max': 200.0},     # gw storage coeff
+    'gwLag':            {'min': 0.0,   'max': 1000.0},    # gw routing lag
     # -- obs --
-    'lapse_rate':       {'min': 0.3,   'max': 1.5},       # temp lapse rate
+    'lapse_rate':       {'min': 0.3,   'max': 1.5},       # temp lapse rate [C/100m]
+    'precip_elev_adj':  {'min': 0.0,   'max': 1.0},       # orographic precip gradient
     'tmax_allrain':     {'min': 0.0,   'max': 8.0},       # all-rain threshold [C]
     'tmax_allsnow':     {'min': -5.0,  'max': 2.0},       # all-snow threshold [C]
-    # -- pbsm --
+    # -- pbsm / snow sublimation --
     'A_S':              {'min': 0.001, 'max': 0.01},      # snow age decay
     'N_S':              {'min': 50.0,  'max': 500.0},     # vegetation density
+    'inhibit_subl':     {'min': 0.0,   'max': 1.0},       # 0/1 switch: PBSM blowing-snow sublimation off
+    'Qe_subl_from_SWE': {'min': 0.0,   'max': 1.0},       # fraction of snowpack sublimation (ebsm)
     # -- Soil --
     'Ksat':             {'min': 0.01,  'max': 100.0},     # saturated hydraulic conductivity [mm/hr]
     'gw_K':             {'min': 0.0001, 'max': 1.0},      # gw recession [1/d]

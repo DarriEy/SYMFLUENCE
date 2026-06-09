@@ -16,6 +16,8 @@ The heavy lifting is delegated to sub-module generators:
 - SWATSubbasinGenerator: .sub, .hru, .gw, .mgt, .sol files
 - SWATRoutingGenerator: file.cio, fig.fig, .rte, .swq, database stubs
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Dict, Tuple
@@ -23,13 +25,13 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("SWAT")
+@R.preprocessors.add("SWAT")
 class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a SWAT model run.
@@ -151,7 +153,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"SWAT preprocessing failed: {e}")
+            logger.error(f"SWAT preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -211,7 +213,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         return {
             'lat': 51.0,

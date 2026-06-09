@@ -6,6 +6,7 @@ Path configuration models.
 
 Contains ShapefilePathConfig and PathsConfig for file paths and directory structure.
 """
+from __future__ import annotations
 
 from pydantic import BaseModel, Field
 

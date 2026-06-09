@@ -15,6 +15,7 @@ Config keys:
     GROUNDWATER_MODEL: Must be MODFLOW
     MODFLOW_PARAMS_TO_CALIBRATE: Comma-separated MODFLOW params (default: K,SY,DRAIN_CONDUCTANCE)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -24,7 +25,6 @@ import numpy as np
 
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # MODFLOW groundwater parameter bounds
 MODFLOW_DEFAULT_BOUNDS = {
@@ -46,7 +46,7 @@ MODFLOW_DEFAULT_BOUNDS = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('COUPLED_GW')
+@R.parameter_managers.add('COUPLED_GW')
 class CoupledGWParameterManager(BaseParameterManager):
     """Manages joint land-surface + MODFLOW parameter space.
 
@@ -212,7 +212,7 @@ class CoupledGWParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to update MODFLOW files: {e}")
+            self.logger.error(f"Failed to update MODFLOW files: {e}", exc_info=True)
             return False
 
     def _write_npf(self, d: Path, k: float) -> None:

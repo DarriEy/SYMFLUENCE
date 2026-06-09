@@ -7,6 +7,7 @@ Observed data processor for streamflow and hydrological observations.
 Handles data acquisition from USGS, WSC, SMHI, and LAMAH-ICE providers
 with standardized output formatting for model calibration.
 """
+from __future__ import annotations
 
 import csv
 from pathlib import Path
@@ -18,6 +19,7 @@ from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.core.mixins import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import find_basin_shapefile
 
 
 class ObservedDataProcessor(ConfigMixin):
@@ -743,24 +745,22 @@ class ObservedDataProcessor(ConfigMixin):
             if discharge_unit == 'mm/d':
                 # Get the basin area from the shapefile
                 try:
-                    # Determine the shapefile path
-                    subbasins_name = self._get_config_value(lambda: self.config.paths.river_basins_name, dict_key='RIVER_BASINS_NAME')
-                    if subbasins_name == 'default':
-                        subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins.shp"
-
+                    # Determine the shapefile path. Honour an explicit override,
+                    # else use the shared resolver (handles the nested catchment
+                    # layout and river_basins fallback).
                     shapefile_path_str = self._get_config_value(lambda: None, default=None, dict_key='RIVER_BASIN_SHP_PATH')
                     if shapefile_path_str:
                         shapefile_path = Path(shapefile_path_str)
                     else:
-                        # Try default locations
-                        shapefile_path = self.project_dir / "shapefiles/river_basins" / subbasins_name
-                        if not shapefile_path.exists():
-                            alt_shapefile_path = self.project_dir / "shapefiles/catchment" / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_catchment.shp"
-                            if alt_shapefile_path.exists():
-                                shapefile_path = alt_shapefile_path
-                                self.logger.info(f"Using alternative shapefile: {shapefile_path}")
-                            else:
-                                raise FileNotFoundError(f"Cannot find shapefile at {shapefile_path} or {alt_shapefile_path}")
+                        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+                        shapefile_path = find_basin_shapefile(
+                            self.project_dir / "shapefiles",
+                            domain_name,
+                            self.domain_definition_method,
+                            self.experiment_id,
+                            required=True,
+                            logger=self.logger,
+                        )
 
                     # Read the shapefile
                     import geopandas as gpd

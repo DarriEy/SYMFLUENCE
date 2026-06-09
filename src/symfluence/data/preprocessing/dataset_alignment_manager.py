@@ -14,6 +14,7 @@ This module handles:
 - Padding datasets with fill values or last valid values
 - Reindexing datasets to common time coordinates
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, List, Optional, Tuple, Union
@@ -175,7 +176,7 @@ class DatasetAlignmentManager:
             return ds_aligned
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error aligning {name}: {e}")
+            self.logger.warning(f"Error aligning {name}: {e}", exc_info=True)
             return ds
 
     def align_array_to_time_length(

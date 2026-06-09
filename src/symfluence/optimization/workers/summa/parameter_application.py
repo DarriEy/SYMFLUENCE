@@ -10,6 +10,7 @@ Parameter Application for SUMMA Workers
 This module contains functions for applying optimization parameters
 to SUMMA model configuration files.
 """
+from __future__ import annotations
 
 import os
 import random

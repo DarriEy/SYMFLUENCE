@@ -3,6 +3,7 @@ Unit tests for AnalysisPlotter.
 
 Tests sensitivity analysis, decision impacts, and threshold analysis visualizations.
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

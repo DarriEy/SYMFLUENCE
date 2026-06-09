@@ -11,21 +11,22 @@ Provides calibration target classes for HYPE hydrological model.
 Handles HYPE output formats (timeCOUT.txt for direct, NetCDF for routed)
 with automatic outlet subbasin selection.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     pass
 
 
-@OptimizerRegistry.register_calibration_target('HYPE', 'streamflow')
+@R.calibration_targets.add('HYPE_STREAMFLOW')
 class HYPEStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for HYPE model outputs.
 

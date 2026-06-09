@@ -7,6 +7,7 @@ SYMFLUENCE CLI Command Handlers
 This package contains command handlers for the SYMFLUENCE CLI subcommand architecture.
 Each module implements handlers for a specific command category.
 """
+from __future__ import annotations
 
 from .agent_commands import AgentCommands
 from .binary_commands import BinaryCommands

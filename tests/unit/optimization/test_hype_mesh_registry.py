@@ -3,6 +3,7 @@ Test HYPE and MESH optimizer/worker registration
 
 Verifies that the new components are properly registered and can be instantiated.
 """
+from __future__ import annotations
 
 import logging
 import tempfile
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 
 
 @pytest.fixture
@@ -71,13 +72,13 @@ class TestHYPERegistration:
 
     def test_hype_optimizer_registered(self):
         """Test that HYPE optimizer is registered."""
-        optimizer_cls = OptimizerRegistry.get_optimizer('HYPE')
+        optimizer_cls = R.optimizers.get('HYPE')
         assert optimizer_cls is not None
         assert optimizer_cls.__name__ == 'HYPEModelOptimizer'
 
     def test_hype_worker_registered(self):
         """Test that HYPE worker is registered."""
-        worker_cls = OptimizerRegistry.get_worker('HYPE')
+        worker_cls = R.workers.get('HYPE')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'HYPEWorker'
 
@@ -114,7 +115,7 @@ class TestMESHRegistration:
         """Test that MESH optimizer is registered."""
         # Import to trigger registration
 
-        optimizer_cls = OptimizerRegistry.get_optimizer('MESH')
+        optimizer_cls = R.optimizers.get('MESH')
         assert optimizer_cls is not None
         assert optimizer_cls.__name__ == 'MESHModelOptimizer'
 
@@ -122,7 +123,7 @@ class TestMESHRegistration:
         """Test that MESH worker is registered."""
         # Import to trigger registration
 
-        worker_cls = OptimizerRegistry.get_worker('MESH')
+        worker_cls = R.workers.get('MESH')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'MESHWorker'
 
@@ -160,7 +161,7 @@ class TestRegistryIntegrity:
         expected_optimizers = ['SUMMA', 'FUSE', 'NGEN', 'HYPE', 'MESH']
 
         for model in expected_optimizers:
-            optimizer_cls = OptimizerRegistry.get_optimizer(model)
+            optimizer_cls = R.optimizers.get(model)
             assert optimizer_cls is not None, f"{model} optimizer not registered"
 
     def test_all_workers_registered(self):
@@ -168,5 +169,5 @@ class TestRegistryIntegrity:
         expected_workers = ['SUMMA', 'FUSE', 'NGEN', 'HYPE', 'MESH']
 
         for model in expected_workers:
-            worker_cls = OptimizerRegistry.get_worker(model)
+            worker_cls = R.workers.get(model)
             assert worker_cls is not None, f"{model} worker not registered"

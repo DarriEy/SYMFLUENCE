@@ -10,6 +10,7 @@ noah-owp-modular model (NOAA-OWP).  Forcing is converted from NetCDF
 parameter tables (GENPARM.TBL, SOILPARM.TBL, MPTABLE.TBL) plus
 a Fortran namelist (namelist.input) are written to the settings directory.
 """
+from __future__ import annotations
 
 import logging
 import shutil
@@ -21,13 +22,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor('NOAHMP')
+@R.preprocessors.add('NOAHMP')
 class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the standalone Noah-MP land surface model.
@@ -144,7 +145,7 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 f"({self._forcing_start} to {self._forcing_end})"
             )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error preparing Noah-MP forcing: {e}")
+            logger.error(f"Error preparing Noah-MP forcing: {e}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
 
@@ -183,7 +184,7 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             logger.info("Noah-MP configuration files created")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error creating Noah-MP configs: {e}")
+            logger.error(f"Error creating Noah-MP configs: {e}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
 

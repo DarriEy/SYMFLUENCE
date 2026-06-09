@@ -9,6 +9,7 @@ Implements read/write for the Delft-FEWS PI-XML timeseries format using only
 
 PI-XML namespace: ``http://www.wldelft.nl/fews/PI``
 """
+from __future__ import annotations
 
 import xml.etree.ElementTree as ET  # nosec B405 - parsing trusted FEWS PI-XML files
 from datetime import datetime, timezone

@@ -7,6 +7,7 @@ Model execution handler for optimization trials.
 Manages SUMMA and mizuRoute execution during calibration, including
 parameter application, simulation runs, and output extraction.
 """
+from __future__ import annotations
 
 import logging
 import subprocess

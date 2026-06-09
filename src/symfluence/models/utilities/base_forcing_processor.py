@@ -7,6 +7,7 @@ Base class for model-specific forcing processors.
 Provides common initialization, file operations, and logging patterns
 used across FUSE, SUMMA, HYPE, and other model forcing processors.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

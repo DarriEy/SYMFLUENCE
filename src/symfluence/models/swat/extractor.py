@@ -7,6 +7,7 @@ SWAT Result Extractor.
 Handles extraction of simulation results from SWAT model outputs.
 SWAT outputs are in fixed-width text format, primarily output.rch.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

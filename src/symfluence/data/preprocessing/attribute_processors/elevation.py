@@ -6,6 +6,7 @@ Elevation attribute processor.
 
 Handles DEM processing, slope/aspect generation, and elevation statistics calculation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict
@@ -266,6 +267,6 @@ class ElevationProcessor(BaseAttributeProcessor):
                         results[f"{prefix}{attribute_name}.{clean_stat}"] = value
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error processing elevation attributes: {str(e)}")
+            self.logger.error(f"Error processing elevation attributes: {str(e)}", exc_info=True)
 
         return results

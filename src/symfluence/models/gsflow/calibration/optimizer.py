@@ -6,19 +6,20 @@ GSFLOW Model Optimizer.
 
 GSFLOW-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import GSFLOWWorker  # noqa: F401
 
 
-@OptimizerRegistry.register_optimizer('GSFLOW')
+@R.optimizers.add('GSFLOW')
 class GSFLOWModelOptimizer(BaseModelOptimizer):
     """GSFLOW-specific optimizer using the unified BaseModelOptimizer framework."""
 
@@ -150,5 +151,5 @@ class GSFLOWModelOptimizer(BaseModelOptimizer):
             return final_result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in final evaluation: {e}")
+            self.logger.error(f"Error in final evaluation: {e}", exc_info=True)
             return None

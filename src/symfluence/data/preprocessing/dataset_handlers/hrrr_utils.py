@@ -7,6 +7,7 @@ HRRR (High-Resolution Rapid Refresh) dataset handler.
 Processes HRRR atmospheric forecast data with Lambert conformal projection
 handling, variable extraction, and unit conversions.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -404,7 +405,7 @@ class HRRRHandler(BaseDatasetHandler):
             try:
                 ds = self.open_dataset(f)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error opening HRRR file {f}: {e}")
+                self.logger.error(f"Error opening HRRR file {f}: {e}", exc_info=True)
                 continue
 
             try:
@@ -413,7 +414,7 @@ class HRRRHandler(BaseDatasetHandler):
                 ds_proc.to_netcdf(out_name)
                 self.logger.info(f"Saved processed HRRR forcing: {out_name}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error processing HRRR dataset from {f}: {e}")
+                self.logger.error(f"Error processing HRRR dataset from {f}: {e}", exc_info=True)
             finally:
                 ds.close()
 

@@ -6,6 +6,7 @@ Discretization panel for HRU sub-grid methods.
 
 Visible after domain delineation completes (gui_phase >= 'domain_defined').
 """
+from __future__ import annotations
 
 import logging
 

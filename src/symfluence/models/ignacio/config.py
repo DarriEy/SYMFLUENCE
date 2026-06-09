@@ -7,6 +7,7 @@ IGNACIO Fire Model Configuration for SYMFLUENCE
 Pydantic configuration model for IGNACIO fire simulation parameters.
 Maps SYMFLUENCE configuration to IGNACIO's YAML config format.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 

@@ -7,6 +7,7 @@ Uses recurrent neural networks to learn temporal patterns in forcing data
 (precipitation, temperature) for hydrological prediction. Supports optional
 attention mechanism and configurable architecture.
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -14,7 +15,7 @@ from typing import TYPE_CHECKING
 _LAZY_IMPORTS = {
     'LSTMRunner': ('.runner', 'LSTMRunner'),
     'LSTMPreProcessor': ('.preprocessor', 'LSTMPreProcessor'),
-    'LSTMPostprocessor': ('.postprocessor', 'LSTMPostprocessor'),
+    'LSTMPostProcessor': ('.postprocessor', 'LSTMPostProcessor'),
     'LSTMModel': ('.model', 'LSTMModel'),
     'visualize_lstm': ('.visualizer', 'visualize_lstm'),
 }
@@ -24,7 +25,10 @@ _LAZY_ALIASES = {
     'FLASH': ('.runner', 'LSTMRunner'),
     'FlashRunner': ('.runner', 'LSTMRunner'),
     'FlashPreProcessor': ('.preprocessor', 'LSTMPreProcessor'),
-    'FlashPostprocessor': ('.postprocessor', 'LSTMPostprocessor'),
+    'FlashPostProcessor': ('.postprocessor', 'LSTMPostProcessor'),
+    # Deprecated pre-1.0 spellings (RTI item 23) — use *PostProcessor.
+    'LSTMPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
+    'FlashPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
 }
 
 
@@ -50,24 +54,27 @@ from .config import LSTMConfigAdapter
 from .extractor import LSTMResultExtractor
 from .plotter import LSTMPlotter
 
-model_manifest(
-    "LSTM",
-    config_adapter=LSTMConfigAdapter,
-    result_extractor=LSTMResultExtractor,
-    plotter=LSTMPlotter,
-)
+
+def register() -> None:
+    """Register LSTM components with the unified registry."""
+    model_manifest(
+        "LSTM",
+        config_adapter=LSTMConfigAdapter,
+        result_extractor=LSTMResultExtractor,
+        plotter=LSTMPlotter,
+    )
 
 
 if TYPE_CHECKING:
     from .model import LSTMModel
-    from .postprocessor import LSTMPostprocessor
+    from .postprocessor import LSTMPostProcessor
     from .preprocessor import LSTMPreProcessor
     from .runner import LSTMRunner
     from .visualizer import visualize_lstm
 
 
 __all__ = [
-    'LSTMRunner', 'LSTMPreProcessor', 'LSTMPostprocessor', 'LSTMModel',
+    'LSTMRunner', 'LSTMPreProcessor', 'LSTMPostProcessor', 'LSTMModel',
     'visualize_lstm',
-    'FLASH', 'FlashRunner', 'FlashPreProcessor', 'FlashPostprocessor',
+    'FLASH', 'FlashRunner', 'FlashPreProcessor', 'FlashPostProcessor',
 ]

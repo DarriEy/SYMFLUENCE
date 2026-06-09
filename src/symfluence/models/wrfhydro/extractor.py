@@ -14,6 +14,7 @@ is derived from LDASOUT runoff fields by differencing accumulated values:
   Q(t) = delta(t) * basin_area_m2 / (dt * 1000)
 where SFCRNOFF/UGDRNOFF are accumulated mm from simulation start.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

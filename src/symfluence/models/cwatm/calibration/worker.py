@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM calibration worker."""
+from __future__ import annotations
 
 import os
 import shutil
@@ -12,14 +13,14 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker
 
 from .parameter_manager import CWatMParameterManager
 
 
-@OptimizerRegistry.register_worker('CWATM')
+@R.workers.add('CWATM')
 class CWatMWorker(BaseWorker):
     """Calibration worker for CWatM."""
 

@@ -8,6 +8,7 @@ Parses the run_info.xml file that FEWS writes into the module working directory
 before invoking the General Adapter. Extracts simulation time window, paths,
 and properties needed to drive a SYMFLUENCE model run.
 """
+from __future__ import annotations
 
 import xml.etree.ElementTree as ET  # nosec B405 - parsing trusted FEWS run_info.xml
 from dataclasses import dataclass, field

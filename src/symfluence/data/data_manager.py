@@ -8,6 +8,7 @@ preprocessing. Keeps orchestration thin while services handle the heavy
 lifting. See docs under ``docs/source/configuration`` and ``docs/source/data``
 for full workflows.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -16,6 +17,7 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.core.registries import R
 from symfluence.data.acquisition.acquisition_service import AcquisitionService
 from symfluence.data.acquisition.observed_processor import ObservedDataProcessor
@@ -622,21 +624,20 @@ class DataManager(BaseManager):
             if explicit_path.exists():
                 return explicit_path
 
-        # Search for HRU shapefiles with common patterns
-        patterns = [
-            f"{domain_name}_HRUs_*.shp",
-            f"{domain_name}_catchment*.shp",
-            "*HRU*.shp",
-            "*catchment*.shp",
-            "*.shp"  # Fallback to any shapefile
-        ]
-
-        for pattern in patterns:
-            matches = list(catchment_dir.glob(pattern))
-            if matches:
-                return matches[0]
-
-        return None
+        # Search the nested discretization layout (and legacy flat dir) via the
+        # shared finder.
+        return find_basin_shapefile(
+            self.project_dir / 'shapefiles',
+            domain_name,
+            self._get_config_value(
+                lambda: self.config.domain.definition_method, default='lumped',
+                dict_key='DOMAIN_DEFINITION_METHOD'),
+            self._get_config_value(
+                lambda: self.config.domain.experiment_id, default='run_1',
+                dict_key='EXPERIMENT_ID'),
+            include_river_basins=False,
+            logger=self.logger,
+        )
 
     def _find_forcing_shapefile(self) -> Optional[Path]:
         """

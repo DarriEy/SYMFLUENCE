@@ -12,6 +12,7 @@ Extracts results from MODFLOW 6 output files:
 MODFLOW 6 binary file format:
     Each record: header (text + kstp/kper/pertim/totim/ncol/nrow/nlay) + float64 array
 """
+from __future__ import annotations
 
 import logging
 import struct
@@ -20,13 +21,13 @@ from typing import Dict, List
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_result_extractor("MODFLOW")
+@R.result_extractors.add("MODFLOW")
 class MODFLOWResultExtractor(ModelResultExtractor):
     """
     Extracts results from MODFLOW 6 output files.

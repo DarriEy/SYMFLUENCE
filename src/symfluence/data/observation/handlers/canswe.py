@@ -30,6 +30,7 @@ Variables in NetCDF:
     - station_id: Unique station identifier
     - time: Observation timestamp
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List
@@ -519,7 +520,7 @@ class CanSWEHandler(BaseObservationHandler):
                         })
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to extract station {idx}: {e}")
+                self.logger.debug(f"Failed to extract station {idx}: {e}", exc_info=True)
                 continue
 
         df = pd.DataFrame(records)

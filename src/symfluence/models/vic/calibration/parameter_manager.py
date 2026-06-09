@@ -6,6 +6,7 @@ VIC Parameter Manager
 
 Handles VIC parameter bounds, normalization, and parameter file updates.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -14,11 +15,11 @@ from typing import Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('VIC')
+@R.parameter_managers.add('VIC')
 class VICParameterManager(BaseParameterManager):
     """Handles VIC parameter bounds, normalization, and file updates."""
 
@@ -296,7 +297,7 @@ class VICParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating VIC parameter file: {e}")
+            self.logger.error(f"Error updating VIC parameter file: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -357,7 +358,7 @@ class VICParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _get_default_initial_values(self) -> Dict[str, float]:
@@ -395,5 +396,5 @@ class VICParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying params to {worker_params_dir}: {e}")
+            self.logger.error(f"Error copying params to {worker_params_dir}: {e}", exc_info=True)
             return False

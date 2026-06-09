@@ -2,15 +2,16 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """CWatM calibration optimizer."""
+from __future__ import annotations
 
 import re
 from pathlib import Path
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_optimizer('CWATM')
+@R.optimizers.add('CWATM')
 class CWatMModelOptimizer(BaseModelOptimizer):
     """Optimizer for CWatM model calibration."""
 

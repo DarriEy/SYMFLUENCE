@@ -7,6 +7,7 @@ WATFLOOD Result Extractor.
 Extracts results from WATFLOOD output files including .tb0 (time-bin)
 format and CSV files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -103,7 +104,7 @@ class WATFLOODResultExtractor(ModelResultExtractor):
             if dates:
                 return pd.Series(values, index=dates, name=f'WATFLOOD_{variable_type}')
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error parsing tb0 file: {e}")
+            logger.error(f"Error parsing tb0 file: {e}", exc_info=True)
         return None
 
     def extract_streamflow(

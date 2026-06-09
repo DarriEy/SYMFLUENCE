@@ -6,6 +6,7 @@ Process Pool Execution Strategy
 
 Executes tasks using Python's ProcessPoolExecutor.
 """
+from __future__ import annotations
 
 import concurrent.futures
 import logging

@@ -11,6 +11,7 @@ hardcoding them in the central init_presets.py file.
 Phase 4 delegation shim: resolved presets live in ``R.presets``.  The
 ``_preset_loaders`` dict is kept locally for lazy loader execution.
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -187,9 +188,9 @@ class PresetRegistry:
         """
         import logging
 
-        from symfluence.core.constants import SupportedModels
+        from symfluence.models import model_packages_with
 
-        for model_name in SupportedModels.WITH_PRESETS:
+        for model_name in model_packages_with('init_preset'):
             try:
                 __import__(
                     f'symfluence.models.{model_name}.init_preset',

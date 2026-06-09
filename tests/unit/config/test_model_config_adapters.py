@@ -8,13 +8,20 @@ Tests the new ModelRegistry-based config system to verify:
 4. Validation is properly delegated to models
 5. Core config system integration works
 """
+from __future__ import annotations
 
 import pytest
 
 from symfluence.core.config.defaults import ModelDefaults
 from symfluence.core.config.transformers import transform_flat_to_nested
+from symfluence.core.registries import R
 from symfluence.models.base import ConfigValidationError, ModelConfigAdapter
-from symfluence.models.registry import ModelRegistry
+from symfluence.models.config_resolution import (
+    get_config_adapter,
+    get_config_defaults,
+    get_config_transformers,
+    validate_model_config,
+)
 
 
 class TestModelRegistryRegistration:
@@ -28,7 +35,7 @@ class TestModelRegistryRegistration:
         ]
 
         for model in expected_models:
-            adapter = ModelRegistry.get_config_adapter(model)
+            adapter = get_config_adapter(model)
             # Some models might not have adapters yet, so we check for registration attempts
             # The adapter can be None if the model module hasn't been imported
             # So we just verify the registry method doesn't crash
@@ -40,7 +47,7 @@ class TestModelRegistryRegistration:
         test_models = ['SUMMA', 'FUSE', 'NGEN']
 
         for model in test_models:
-            defaults = ModelRegistry.get_config_defaults(model)
+            defaults = get_config_defaults(model)
             # Defaults might be empty dict if model not imported, but should not fail
             assert isinstance(defaults, dict), \
                 f"Defaults for {model} should be a dict"
@@ -50,7 +57,7 @@ class TestModelRegistryRegistration:
         test_models = ['SUMMA', 'FUSE', 'NGEN']
 
         for model in test_models:
-            transformers = ModelRegistry.get_config_transformers(model)
+            transformers = get_config_transformers(model)
             # Transformers might be empty dict if model not imported
             assert isinstance(transformers, dict), \
                 f"Transformers for {model} should be a dict"
@@ -68,7 +75,7 @@ class TestSUMMAConfigAdapter:
         except ImportError:
             pytest.skip("SUMMA module not available")
 
-        adapter = ModelRegistry.get_config_adapter('SUMMA')
+        adapter = get_config_adapter('SUMMA')
         if adapter is None:
             pytest.skip("SUMMA adapter not registered")
         return adapter
@@ -148,7 +155,7 @@ class TestFUSEConfigAdapter:
         except ImportError:
             pytest.skip("FUSE module not available")
 
-        adapter = ModelRegistry.get_config_adapter('FUSE')
+        adapter = get_config_adapter('FUSE')
         if adapter is None:
             pytest.skip("FUSE adapter not registered")
         return adapter
@@ -206,7 +213,7 @@ class TestNGENConfigAdapter:
         except ImportError:
             pytest.skip("NGEN module not available")
 
-        adapter = ModelRegistry.get_config_adapter('NGEN')
+        adapter = get_config_adapter('NGEN')
         if adapter is None:
             pytest.skip("NGEN adapter not registered")
         return adapter
@@ -291,7 +298,6 @@ class TestCoreConfigIntegration:
         """Test that root config validation delegates to ModelRegistry."""
         # This is a higher-level test that would require creating a full SymfluenceConfig
         # We'll just test that the method exists and can be called
-        from symfluence.models.registry import ModelRegistry
 
         # Create a mock config
         config = {
@@ -301,7 +307,7 @@ class TestCoreConfigIntegration:
 
         # Should not crash (validation might pass or fail depending on what's registered)
         try:
-            ModelRegistry.validate_model_config('SUMMA', config)
+            validate_model_config('SUMMA', config)
         except Exception as e:  # noqa: BLE001
             # If it raises, it should be a proper validation error, not a crash
             assert 'configuration' in str(e).lower() or 'required' in str(e).lower(), \
@@ -338,7 +344,7 @@ class TestConfigAdapterInterface:
         # Try to get any registered adapter
         try:
             import symfluence.models.summa
-            adapter = ModelRegistry.get_config_adapter('SUMMA')
+            adapter = get_config_adapter('SUMMA')
             if adapter is None:
                 pytest.skip("No adapters registered")
         except ImportError:
@@ -360,7 +366,7 @@ class TestConfigAdapterInterface:
         """Test that adapter methods return correct types."""
         try:
             import symfluence.models.summa
-            adapter = ModelRegistry.get_config_adapter('SUMMA')
+            adapter = get_config_adapter('SUMMA')
             if adapter is None:
                 pytest.skip("SUMMA adapter not registered")
         except ImportError:
@@ -386,3 +392,44 @@ class TestConfigAdapterInterface:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+class TestConfigPrefixFallback:
+    """AutoGeneratedConfigAdapter derives transformers from CONFIG_PREFIX when
+    the schema declares no Field(alias=...) — the external JAX-plugin pattern.
+
+    Without this, such plugins emit no transformers, so core never recognizes
+    their keys nor populates config.model.<model> (it runs on defaults).
+    """
+
+    def _adapter_cls(self, prefix=None):
+        from pydantic import BaseModel
+
+        from symfluence.models.base.base_config import AutoGeneratedConfigAdapter
+
+        class _Schema(BaseModel):
+            backend: str = "jax"
+            warmup_days: int = 365
+
+        class _Adapter(AutoGeneratedConfigAdapter):
+            if prefix is not None:
+                CONFIG_PREFIX = prefix
+
+            def get_config_schema(self):
+                return _Schema
+
+            def validate(self, config):  # abstract in the base
+                return None
+
+        return _Adapter
+
+    def test_prefix_fallback_generates_transformers(self):
+        ft = self._adapter_cls(prefix="FAKE_")("FAKE").get_field_transformers()
+        assert ft == {
+            "FAKE_BACKEND": ("model", "fake", "backend"),
+            "FAKE_WARMUP_DAYS": ("model", "fake", "warmup_days"),
+        }
+
+    def test_no_prefix_no_aliases_yields_empty(self):
+        # Unchanged behavior: no CONFIG_PREFIX and no aliases -> no transformers.
+        assert self._adapter_cls(prefix=None)("NOPREFIX").get_field_transformers() == {}

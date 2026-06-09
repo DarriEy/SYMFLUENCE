@@ -7,6 +7,7 @@ NGEN Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.ngen.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.ngen.calibration.targets import NgenStreamflowTarget
 

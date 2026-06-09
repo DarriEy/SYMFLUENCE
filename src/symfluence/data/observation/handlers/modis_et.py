@@ -13,6 +13,8 @@ Supports data from:
 The handler processes 8-day composite ET data and converts it to daily
 values suitable for comparison with model outputs like SUMMA scalarTotalET.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 

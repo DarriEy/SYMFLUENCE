@@ -5,8 +5,9 @@
 NGen Model Postprocessor.
 
 Processes simulation outputs from the NOAA NextGen Framework (ngen).
-Migrated to use StandardModelPostprocessor with multi-file support (Phase 1.5).
+Migrated to use StandardModelPostProcessor with multi-file support (Phase 1.5).
 """
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -15,17 +16,17 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from symfluence.models.base import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('NGEN')
-class NgenPostprocessor(StandardModelPostprocessor):
+@R.postprocessors.add('NGEN')
+class NgenPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for NextGen Framework outputs.
 
     Handles extraction and analysis of simulation results from multiple nexus
-    output files. Uses StandardModelPostprocessor with multi-file aggregation.
+    output files. Uses StandardModelPostProcessor with multi-file aggregation.
 
     NGEN outputs streamflow to multiple nex-*_output.csv files, one per nexus.
     This postprocessor aggregates them based on CALIBRATION_NEXUS_ID config
@@ -134,7 +135,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
                     all_streamflow.append(df)
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Error processing {nexus_file}: {e}")
+                self.logger.error(f"Error processing {nexus_file}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -234,7 +235,7 @@ class NgenPostprocessor(StandardModelPostprocessor):
             })
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading {nexus_file}: {e}")
+            self.logger.error(f"Error reading {nexus_file}: {e}", exc_info=True)
             return None
 
     def _calculate_nse(self, observed: np.ndarray, simulated: np.ndarray) -> float:

@@ -8,6 +8,7 @@ Provides quick-config widgets for calibration parameters, a "Save & Run"
 button that launches calibration in the background, and a run-history table
 that shows past experiments with their scores.
 """
+from __future__ import annotations
 
 import logging
 

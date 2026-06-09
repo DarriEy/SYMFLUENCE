@@ -2,11 +2,12 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Hydrological model configuration classes."""
+from __future__ import annotations
 
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from .base import FROZEN_CONFIG
 from .model_config_types import SpatialModeType
@@ -180,14 +181,31 @@ class NGENConfig(BaseModel):
         default='wind_speed_measurement_height_m',
         alias='NGEN_PET_PARAMS_TO_CALIBRATE'
     )
+    sacsma_params_to_calibrate: str = Field(
+        default='UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE',
+        alias='NGEN_SACSMA_PARAMS_TO_CALIBRATE'
+    )
+    snow17_params_to_calibrate: str = Field(
+        default='SCF,MFMAX,MFMIN,TIPM,PLWHC',
+        # Canonical alias is hyphen-free so it can be documented as a YAML key;
+        # the hyphenated NGEN_SNOW-17_* form is kept as a backward-compat input alias.
+        alias='NGEN_SNOW17_PARAMS_TO_CALIBRATE',
+        validation_alias=AliasChoices(
+            'snow-17_params_to_calibrate',
+            'NGEN_SNOW-17_PARAMS_TO_CALIBRATE',
+            'NGEN_SNOW17_PARAMS_TO_CALIBRATE',
+        ),
+    )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
     # Parameter bounds overrides (per-module)
     cfe_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_CFE_PARAM_BOUNDS')
     noah_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_NOAH_PARAM_BOUNDS')
     pet_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_PET_PARAM_BOUNDS')
+    snow17_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_SNOW17_PARAM_BOUNDS')
     # Module selection (replaces individual ENABLE_* flags)
     modules_selected: str = Field(default='SLOTH,PET,CFE', alias='NGEN_MODULES_SELECTED')
     noah_et_fallback: str = Field(default='ETRAN', alias='NGEN_NOAH_ET_FALLBACK')
+    csv_output_is_flow: bool = Field(default=False, alias='NGEN_CSV_OUTPUT_IS_FLOW')
 
     @model_validator(mode='before')
     @classmethod
@@ -244,8 +262,15 @@ class NGENConfig(BaseModel):
     @model_validator(mode='after')
     def _validate_calibrate_subset(self) -> 'NGENConfig':
         """Ensure modules_to_calibrate is a subset of modules_selected."""
-        selected = {m.strip().upper() for m in self.modules_selected.split(',') if m.strip()}
-        calibrate = {m.strip().upper() for m in self.modules_to_calibrate.split(',') if m.strip()}
+        def canonical_module_name(module: str) -> str:
+            raw = module.strip().upper()
+            collapsed = raw.replace('-', '').replace('_', '')
+            if collapsed == 'SACSMA':
+                return 'SACSMA'
+            return raw
+
+        selected = {canonical_module_name(m) for m in self.modules_selected.split(',') if m.strip()}
+        calibrate = {canonical_module_name(m) for m in self.modules_to_calibrate.split(',') if m.strip()}
         not_selected = calibrate - selected
         if not_selected:
             raise ValueError(
@@ -405,6 +430,10 @@ class CLMConfig(BaseModel):
     # Installation
     install_path: str = Field(default='default', alias='CLM_INSTALL_PATH')
     exe: str = Field(default='cesm.exe', alias='CLM_EXE')
+    # Root for CESM inputdata downloaded on demand. 'default' resolves to
+    # <data_dir>/installs/cesm-inputdata (shared, writable scratch — same base
+    # as CLM_INSTALL_PATH). Override to point elsewhere if needed.
+    cesm_inputdata_path: str = Field(default='default', alias='CLM_CESM_INPUTDATA_PATH')
 
     # Settings
     settings_path: str = Field(default='default', alias='SETTINGS_CLM_PATH')
@@ -512,10 +541,14 @@ class CRHMConfig(BaseModel):
     spatial_mode: SpatialModeType = Field(default='lumped', alias='CRHM_SPATIAL_MODE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_CRHM')
     params_to_calibrate: str = Field(
-        default='basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch',
+        default='Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,inhibit_subl,Qe_subl_from_SWE,N_S,Kstorage,gw_K,tfactor,nfactor,delay_melt,gwKstorage,gwLag',
         alias='CRHM_PARAMS_TO_CALIBRATE'
     )
     timeout: int = Field(default=3600, alias='CRHM_TIMEOUT', ge=60, le=86400)
+    elevation_bands: bool = Field(default=False, alias='CRHM_ELEVATION_BANDS')
+    elevation_band_size: float = Field(
+        default=200.0, alias='CRHM_ELEVATION_BAND_SIZE', gt=0.0)
+    terrain_radiation: bool = Field(default=False, alias='CRHM_TERRAIN_RADIATION')
 
 
 class WRFHydroConfig(BaseModel):

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Machine learning and fire-model configuration classes."""
+from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional
 

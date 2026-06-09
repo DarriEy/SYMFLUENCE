@@ -1,4 +1,5 @@
 """Tests for AnalysisManager observation path resolution."""
+from __future__ import annotations
 
 import logging
 import tempfile

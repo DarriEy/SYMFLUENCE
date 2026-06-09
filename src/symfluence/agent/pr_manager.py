@@ -7,6 +7,7 @@ PR management module for staging and proposing code changes.
 Generates PR titles, descriptions, and manages git staging.
 Supports fuzzy matching for code edits and automated PR creation via gh CLI.
 """
+from __future__ import annotations
 
 import re
 import shutil
@@ -552,7 +553,7 @@ class PRManager:
         base_branch: str = "main",
         reason: str = "improvement",
         draft: bool = False,
-        auto_push: bool = True
+        auto_push: bool = False
     ) -> Tuple[bool, str]:
         """
         Create a complete PR automatically using gh CLI.
@@ -570,7 +571,9 @@ class PRManager:
             base_branch: Base branch to merge into (default: main)
             reason: Type of change (bugfix, improvement, feature)
             draft: Create as draft PR
-            auto_push: Automatically push and create PR
+            auto_push: Automatically push and create PR. Defaults to False so a
+                network-mutating action never occurs without an explicit opt-in
+                (closes a prompt-injection path; callers pass auto_push=True to opt in).
 
         Returns:
             Tuple of (success, result_message_or_error)

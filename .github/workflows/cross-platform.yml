@@ -1,10 +1,12 @@
 name: Cross-Platform Testing
 
 on:
+  # Tiered: the full OS matrix runs after merge to develop/main, nightly, and on
+  # demand — NOT on every PR (the fast unit gate lives in ci.yml).
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  schedule:
+    - cron: '0 3 * * *'  # nightly full cross-platform matrix
   workflow_dispatch:
 
 defaults:
@@ -106,8 +108,9 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # Install with test dependencies for pytest
-          pip install -e ".[test]"
+          # Install with test dependencies for pytest; gui+baseflow extras so the
+          # optional-feature unit tests run here instead of skipping.
+          pip install -e ".[test,gui,baseflow]"
 
           # Install pytest-xdist for parallel test execution
           pip install pytest-xdist
@@ -119,7 +122,18 @@ jobs:
             conda activate test-env
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing tests/unit/
+          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
+
+      - name: Core coverage gate
+        # Stricter ratchet for the fully-testable core spine, reusing the
+        # .coverage data from the step above. Instrumentation-only modules
+        # (profiling, npm packaging) are excluded. One-way ratchet: only raise.
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          coverage report \
+            --include='src/symfluence/core/*' \
+            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py' \
+            --fail-under=80
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()
@@ -216,15 +230,28 @@ jobs:
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits cdo
 
-          # Set up Fortran compiler paths (Homebrew gcc includes gfortran)
-          # Find the gcc version installed by Homebrew
-          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
-          if [ -n "$GCC_VER" ]; then
-            echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
-            echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
-            echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
-            echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          # Homebrew's gcc ships only versioned binaries (gfortran-NN), but many
+          # build scripts invoke `gfortran` by name. Resolve the newest version,
+          # retry once if the formula didn't link cleanly (a flaky-runner cause
+          # of "gfortran: command not found"), and fail loudly rather than
+          # silently leaving FC unset (the previous `if [ -n ... ]` guard turned a
+          # missing compiler into a confusing downstream build failure).
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | sort -V | tail -1 | sed 's/.*gfortran-//')
+          if [ -z "$GCC_VER" ]; then
+            echo "gfortran not found after 'brew install gcc'; reinstalling gcc..."
+            brew reinstall gcc || true
+            GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | sort -V | tail -1 | sed 's/.*gfortran-//')
           fi
+          if [ -z "$GCC_VER" ]; then
+            echo "::error::Homebrew gcc did not provide gfortran; cannot build Fortran tools"
+            exit 1
+          fi
+          # Unversioned symlink so name-based `gfortran` invocations resolve.
+          ln -sf "/opt/homebrew/bin/gfortran-${GCC_VER}" /opt/homebrew/bin/gfortran
+          echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
+          echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
+          echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
 
           # Help CMake find Homebrew packages (especially udunits)
           echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
@@ -350,7 +377,7 @@ jobs:
           # Install GDAL Python bindings matching system version
           # Note: Check Windows first — conda's gdal-config is not bash-compatible
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
+            conda install -c conda-forge gdal -y
           elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
@@ -359,10 +386,13 @@ jobs:
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
-            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e ".[test]" || pip install -e . || pip install .
+            # Surgically drop only the "gdal" dependency token so the TOML
+            # stays valid (a line-filter corrupts it, yielding a 0.0.0 install
+            # with no dependencies). Mirrors the unit-test job.
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll][^\"]*\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            pip install -e ".[test]"
           else
-            pip install -e ".[test]" || pip install -e .
+            pip install -e ".[test]"
           fi
 
       - name: Validate binaries
@@ -371,7 +401,7 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
           fi
-          pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation || echo "Binary validation completed with warnings"
+          pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation
 
       # =====================================================================
       # PHASE 1: Generate Release Artifacts (macOS only)
@@ -431,20 +461,39 @@ jobs:
           cd /tmp/symfluence-test
           tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
 
-          # Test binaries run without original install directory
-          echo "→ Testing SUMMA..."
-          if [ -f "./symfluence-tools/bin/summa" ]; then
-            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
-          fi
+          # A relocated binary is broken if it cannot resolve its shared
+          # libraries. Detect that explicitly — loader errors are printed even
+          # when the tool's own exit code for --version/--help is non-zero —
+          # instead of swallowing the result with `|| echo`, which hid genuine
+          # relocation failures (the whole point of this test).
+          check_relocated() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ]; then
+              echo "  (skipping $name — not present in this build)"
+              return 0
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found"; then
+              echo "::error::$name failed to load shared libraries after relocation"
+              return 1
+            fi
+            if [ -z "$out" ]; then
+              echo "::error::$name produced no output after relocation (likely failed to start)"
+              return 1
+            fi
+            echo "  ✓ $name runs after relocation"
+          }
 
-          echo "→ Testing NGEN..."
-          if [ -f "./symfluence-tools/bin/ngen" ]; then
-            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
-          fi
+          # Test binaries run without their original install directory
+          echo "→ Testing SUMMA...";  check_relocated SUMMA ./symfluence-tools/bin/summa --version
+          echo "→ Testing NGEN...";   check_relocated NGEN  ./symfluence-tools/bin/ngen --help
 
           echo "→ Testing mizuRoute..."
           if [ -f "./symfluence-tools/bin/mizuroute" ]; then
-            [ -x "./symfluence-tools/bin/mizuroute" ] && echo "  mizuRoute is executable"
+            [ -x "./symfluence-tools/bin/mizuroute" ] || { echo "::error::mizuRoute is not executable"; exit 1; }
+            echo "  ✓ mizuRoute is executable"
           fi
 
           echo "✓ Relocatability test complete"
@@ -527,15 +576,28 @@ jobs:
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits cdo
 
-          # Set up Fortran compiler paths (Homebrew gcc includes gfortran)
-          # Find the gcc version installed by Homebrew
-          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
-          if [ -n "$GCC_VER" ]; then
-            echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
-            echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
-            echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
-            echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          # Homebrew's gcc ships only versioned binaries (gfortran-NN), but many
+          # build scripts invoke `gfortran` by name. Resolve the newest version,
+          # retry once if the formula didn't link cleanly (a flaky-runner cause
+          # of "gfortran: command not found"), and fail loudly rather than
+          # silently leaving FC unset (the previous `if [ -n ... ]` guard turned a
+          # missing compiler into a confusing downstream build failure).
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | sort -V | tail -1 | sed 's/.*gfortran-//')
+          if [ -z "$GCC_VER" ]; then
+            echo "gfortran not found after 'brew install gcc'; reinstalling gcc..."
+            brew reinstall gcc || true
+            GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | sort -V | tail -1 | sed 's/.*gfortran-//')
           fi
+          if [ -z "$GCC_VER" ]; then
+            echo "::error::Homebrew gcc did not provide gfortran; cannot build Fortran tools"
+            exit 1
+          fi
+          # Unversioned symlink so name-based `gfortran` invocations resolve.
+          ln -sf "/opt/homebrew/bin/gfortran-${GCC_VER}" /opt/homebrew/bin/gfortran
+          echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
+          echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
+          echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
 
           # Help CMake find Homebrew packages (especially udunits)
           echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
@@ -669,7 +731,7 @@ jobs:
           # Install GDAL Python bindings matching system version
           # Note: Check Windows first — conda's gdal-config is not bash-compatible
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            conda install -c conda-forge gdal-python::gdal -y || true
+            conda install -c conda-forge gdal -y
           elif command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
@@ -677,10 +739,13 @@ jobs:
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e ".[test]" || pip install -e . || pip install .
+            # Surgically drop only the "gdal" dependency token so the TOML
+            # stays valid (a line-filter corrupts it, yielding a 0.0.0 install
+            # with no dependencies). Mirrors the unit-test job.
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll][^\"]*\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            pip install -e ".[test]"
           else
-            pip install -e ".[test]" || pip install -e .
+            pip install -e ".[test]"
           fi
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist
@@ -692,7 +757,7 @@ jobs:
             conda activate test-env
           fi
           # Run integration tests in parallel (skip slow tests that download large datasets)
-          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/ || echo "Integration tests completed"
+          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/
 
       - name: Upload test outputs (on failure)
         if: failure()

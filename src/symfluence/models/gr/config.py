@@ -15,6 +15,7 @@ to auto-generate defaults and transformers from Pydantic Field declarations.
 All defaults are maintained in GRConfig (model_configs.py) for single
 source of truth.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

@@ -8,6 +8,7 @@ Provides gradient-based optimization methods (ADAM, L-BFGS) via finite differenc
 These methods are useful for smooth optimization landscapes and can converge
 faster than population-based methods in some cases.
 """
+from __future__ import annotations
 
 import logging
 from typing import Callable, Dict, List, Optional, Tuple

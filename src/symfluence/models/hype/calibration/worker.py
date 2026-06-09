@@ -6,6 +6,7 @@ HYPE Worker
 
 Worker implementation for HYPE model optimization.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -13,13 +14,13 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('HYPE')
+@R.workers.add('HYPE')
 class HYPEWorker(BaseWorker):
     """
     Worker for HYPE model calibration.
@@ -115,6 +116,16 @@ class HYPEWorker(BaseWorker):
         if Path(exe_name).is_absolute() and Path(exe_name).exists():
             return exe_name
 
+        # Honor the explicitly configured install path (as runner.py does).
+        # Without this the worker ignores HYPE_INSTALL_PATH and falls through to
+        # the bare exe name -> FileNotFoundError -> 100% calibration crashes.
+        install_path = cfg.get('HYPE_INSTALL_PATH', '')
+        if install_path and install_path != 'default':
+            ip = Path(install_path)
+            for candidate in (ip / exe_name, ip):
+                if candidate.is_file():
+                    return str(candidate)
+
         # Try SYMFLUENCE_DATA_DIR install location
         data_dir = cfg.get('SYMFLUENCE_DATA_DIR', '')
         if data_dir and data_dir != 'default':
@@ -205,7 +216,7 @@ class HYPEWorker(BaseWorker):
                 land_uses = geoclass_df.iloc[:, 1].unique()
                 self.logger.debug(f"Read {len(land_uses)} land use types from GeoClass.txt")
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"Failed to read GeoClass.txt: {e}")
+                self.logger.error(f"Failed to read GeoClass.txt: {e}", exc_info=True)
                 return False
 
             # Write parameter file with calibration parameters
@@ -271,7 +282,7 @@ class HYPEWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying HYPE parameters: {e}")
+            self.logger.error(f"Error applying HYPE parameters: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -327,7 +338,7 @@ class HYPEWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error running HYPE: {e}")
+            self.logger.warning(f"Error running HYPE: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -465,7 +476,7 @@ class HYPEWorker(BaseWorker):
                     sim_series = sim_series[(sim_series.index >= calib_start) & (sim_series.index <= calib_end)]
                     obs_daily = obs_daily[(obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)]
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.warning(f"Could not apply calibration period: {e}")
+                    self.logger.warning(f"Could not apply calibration period: {e}", exc_info=True)
 
             # Find common dates
             common_idx = sim_series.index.intersection(obs_daily.index)
@@ -525,7 +536,7 @@ class HYPEWorker(BaseWorker):
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating HYPE metrics: {e}")
+            self.logger.error(f"Error calculating HYPE metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}

@@ -11,6 +11,8 @@ Handles preparation of WRF-Hydro model inputs including:
 - Fulldom routing grid (channel network)
 - Forcing files (LDASIN NetCDF)
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -19,13 +21,13 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("WRFHYDRO")
+@R.preprocessors.add("WRFHYDRO")
 class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a WRF-Hydro model run.
@@ -108,7 +110,7 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"WRF-Hydro preprocessing failed: {str(e)}")
+            logger.error(f"WRF-Hydro preprocessing failed: {str(e)}", exc_info=True)
             import traceback
             logger.debug(traceback.format_exc())
             return False

@@ -31,6 +31,8 @@ Example:
     >>> downloader = CloudForcingDownloader(config, logger)
     >>> output = downloader.download_forcing_data(Path('./data'))
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict
 

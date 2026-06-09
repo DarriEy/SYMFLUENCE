@@ -9,6 +9,7 @@ Base Model Evaluator
 
 This module provides the abstract base class for different evaluation variables.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

@@ -7,6 +7,8 @@ CLM Model Postprocessor
 Extracts streamflow and other variables from CLM5 history output.
 CLM outputs QRUNOFF in mm/s which is converted to m3/s for evaluation.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -14,14 +16,14 @@ from typing import Dict, Optional, Tuple
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor("CLM")
-class CLMPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add("CLM")
+class CLMPostProcessor(StandardModelPostProcessor):
     """
     Postprocesses CLM5 output.
 
@@ -146,5 +148,5 @@ class CLMPostProcessor(StandardModelPostprocessor):
                 source='shapefile'
             )
         except Exception:  # noqa: BLE001 — model execution resilience
-            logger.warning("Could not determine catchment area, using default 2210 km2")
+            logger.warning("Could not determine catchment area, using default 2210 km2", exc_info=True)
             return 2210.0

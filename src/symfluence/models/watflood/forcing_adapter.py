@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to WATFLOOD .met format.
 WATFLOOD only requires precipitation and temperature forcing (simplified
 energy balance).
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -117,5 +118,5 @@ class WATFLOODForcingAdapter:
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error converting forcing: {e}")
+            self.logger.error(f"Error converting forcing: {e}", exc_info=True)
             return False

@@ -7,6 +7,7 @@ VIC Result Extractor.
 Handles extraction of simulation results from VIC model outputs.
 VIC outputs are in NetCDF format with standard variable names.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional

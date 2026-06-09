@@ -11,6 +11,7 @@ Provides shared infrastructure for all model postprocessing modules including:
 - Common data extraction patterns
 - Unit conversion utilities
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
@@ -52,7 +53,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
 
     Example:
         >>> @ModelRegistry.register_postprocessor('MYMODEL')
-        >>> class MyModelPostprocessor(BaseModelPostProcessor):
+        >>> class MyModelPostProcessor(BaseModelPostProcessor):
         ...     def _get_model_name(self) -> str:
         ...         return "MYMODEL"
         ...
@@ -353,7 +354,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
                 self.logger.info(f"Creating standardized streamflow plots for {self.model_name}...")
                 self.reporting_manager.visualize_timeseries_results()
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"Error creating streamflow plots: {str(e)}")
+                self.logger.error(f"Error creating streamflow plots: {str(e)}", exc_info=True)
         else:
             self.logger.debug("Skipping visualization (manager not available or visualization disabled)")
 

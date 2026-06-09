@@ -13,6 +13,7 @@ Provides modular attribute processing functionality split into specialized proce
 - ClimateProcessor: Climate data
 - HydrologyProcessor: Hydrological attributes
 """
+from __future__ import annotations
 
 from .base import BaseAttributeProcessor
 from .climate import ClimateProcessor

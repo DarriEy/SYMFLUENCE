@@ -11,6 +11,7 @@ This module handles:
 
 Extracted from ForcingResampler to improve testability and reduce coupling.
 """
+from __future__ import annotations
 
 import gc
 import logging
@@ -216,7 +217,7 @@ class RemappingWeightGenerator(ConfigMixin):
                     with xr.open_dataset(case_remap_nc) as ds:
                         ds.to_dataframe().to_csv(case_remap_csv)
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.warning(f"Could not convert NetCDF weights to CSV: {e}")
+                    self.logger.warning(f"Could not convert NetCDF weights to CSV: {e}", exc_info=True)
 
             if case_remap_csv.exists():
                 shutil.move(str(case_remap_csv), str(remap_file))
@@ -440,7 +441,7 @@ class RemappingWeightApplier(ConfigMixin):
             return False
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"{worker_str}Error processing {forcing_file.name}: {str(e)}")
+            self.logger.error(f"{worker_str}Error processing {forcing_file.name}: {str(e)}", exc_info=True)
             return False
 
     def _get_variables(self, forcing_file: Path) -> List[str]:
@@ -572,7 +573,7 @@ class BatchProcessor(ConfigMixin):
                     else:
                         self.logger.error(f"Failed to process {file.name}")
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.error(f"Error processing {file.name}: {str(e)}")
+                    self.logger.error(f"Error processing {file.name}: {str(e)}", exc_info=True)
 
                 pbar.update(1)
 
@@ -626,7 +627,7 @@ class BatchProcessor(ConfigMixin):
                     pbar.update(len(batch_files))
 
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}", exc_info=True)
                     pbar.update(len(batch_files))
 
                 import gc
@@ -640,5 +641,5 @@ class BatchProcessor(ConfigMixin):
         try:
             return self.applier.apply_weights(file, remap_file, worker_id)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Worker {worker_id}: Error processing {file.name}: {str(e)}")
+            self.logger.error(f"Worker {worker_id}: Error processing {file.name}: {str(e)}", exc_info=True)
             return False

@@ -2,17 +2,20 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Wflow model postprocessor."""
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('WFLOW')
-class WflowPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('WFLOW')
+class WflowPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the Wflow model.
 
     For lumped models, Wflow CSV output uses soil_surface_water__net_runoff_volume_flux

@@ -8,19 +8,20 @@ ParFlow-specific optimizer inheriting from BaseModelOptimizer.
 Calibrates van Genuchten parameters, saturated hydraulic conductivity,
 Manning's roughness, and domain geometry via DDS or other algorithms.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .targets import ParFlowStreamflowTarget  # noqa: F401 - triggers target registration
 from .worker import ParFlowWorker  # noqa: F401 - triggers worker registration
 
 
-@OptimizerRegistry.register_optimizer('PARFLOW')
+@R.optimizers.add('PARFLOW')
 class ParFlowModelOptimizer(BaseModelOptimizer):
     """
     ParFlow-specific optimizer using the unified BaseModelOptimizer framework.

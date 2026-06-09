@@ -6,6 +6,7 @@ Task Distributor
 
 Handles distribution of optimization tasks across parallel processes.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional

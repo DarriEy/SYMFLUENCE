@@ -7,6 +7,7 @@ FLUXCOM evapotranspiration observation handler.
 Provides acquisition and preprocessing of FLUXCOM machine learning-based
 evapotranspiration products for model validation and calibration.
 """
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -42,7 +43,7 @@ class FLUXCOMETHandler(BaseObservationHandler):
             acquirer = FLUXCOMETAcquirer(self.config, self.logger)
             acquirer.download(self.project_observations_dir)
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}")
+            self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}", exc_info=True)
 
         return et_dir
 

@@ -8,6 +8,7 @@ Handles extraction of routed streamflow from mizuRoute model outputs.
 Encapsulates mizuRoute-specific logic for reach/segment identification
 and routing variable names.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.models.base import ModelResultExtractor
 
 
@@ -67,7 +69,7 @@ class MizuRouteResultExtractor(ModelResultExtractor):
             ValueError: If no routed runoff variable found
         """
         if variable_type != 'streamflow':
-            raise ValueError(
+            raise ModelExecutionError(
                 f"mizuRoute extractor only supports 'streamflow', got '{variable_type}'"
             )
 
@@ -97,7 +99,7 @@ class MizuRouteResultExtractor(ModelResultExtractor):
                         # No spatial dimension - use as-is
                         return cast(pd.Series, var.to_pandas())
 
-            raise ValueError(
+            raise ModelExecutionError(
                 f"No suitable routed runoff variable found in {output_file}. "
                 f"Tried: {var_names}"
             )

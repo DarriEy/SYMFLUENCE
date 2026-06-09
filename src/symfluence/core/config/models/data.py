@@ -7,6 +7,7 @@ Data management configuration models.
 Contains DataConfig for high-level data acquisition and processing settings,
 including geospatial data acquisition configuration.
 """
+from __future__ import annotations
 
 from typing import List, Optional
 
@@ -112,6 +113,14 @@ class DataConfig(BaseModel):
 
     # Concurrent acquisition
     max_acquisition_workers: int = Field(default=3, alias='MAX_ACQUISITION_WORKERS', ge=1, le=8)
+
+    # Attribute cleanup / consolidation (consumed by acquisition.cleanup_processor)
+    unify_soil: bool = Field(default=False, alias='UNIFY_SOIL')
+    minimum_land_fraction: float = Field(default=0.01, alias='MINIMUM_LAND_FRACTION', ge=0, le=1.0)
+    num_land_cover: int = Field(default=20, alias='NUM_LAND_COVER', ge=1)
+
+    # MAF / datatool job submission account (consumed by acquisition.maf_processor)
+    tool_account: Optional[str] = Field(default=None, alias='TOOL_ACCOUNT')
 
     # Geospatial data acquisition settings
     geospatial: Optional[GeospatialConfig] = Field(default_factory=GeospatialConfig)

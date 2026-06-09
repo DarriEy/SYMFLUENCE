@@ -8,6 +8,7 @@ Fully refactored implementation using extracted stream methods and shared utilit
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -115,8 +116,28 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             # Run TauDEM workflow
             self._run_taudem_workflow(pour_point_path)
 
-            # Convert raster watersheds to polygon shapefile
-            self.gdal.run_gdal_processing(self.interim_dir)
+            # Convert raster watersheds to polygon shapefile. For coastal domains,
+            # mask the sea (flat 0-elevation in coastal DEMs) from the watershed
+            # raster first — otherwise TauDEM routes the ocean into thin radial
+            # tentacle basins reaching the domain edge. Defaults to the coastal
+            # flag, overridable via MASK_OCEAN_WATERSHEDS.
+            mask_ocean = self._get_config_value(
+                lambda: self.config.geofabric.mask_ocean_watersheds,
+                default=None,
+                dict_key='MASK_OCEAN_WATERSHEDS',
+            )
+            if mask_ocean is None:
+                mask_ocean = self._get_config_value(
+                    lambda: self.config.domain.delineation.delineate_coastal_watersheds,
+                    default=False,
+                    dict_key='DELINEATE_COASTAL_WATERSHEDS',
+                )
+            sea_level = self._get_config_value(
+                lambda: self.config.geofabric.sea_level_threshold,
+                default=0.0,
+                dict_key='SEA_LEVEL_THRESHOLD',
+            )
+            self.gdal.run_gdal_processing(self.interim_dir, mask_ocean=bool(mask_ocean), sea_level=float(sea_level))
 
             # Subset upstream geofabric
             river_network_path, river_basins_path = self._subset_upstream_geofabric(pour_point_path)
@@ -236,9 +257,23 @@ class GeofabricDelineator(BaseGeofabricDelineator):
                     basins, rivers, pour_point, self.logger
                 )
 
-                # Find basin containing pour point
+                # The outlets shapefile may carry interior outlets (id > 0) used only
+                # to break the stream network at gauges. The domain extent is defined
+                # by the primary outlet (id 0), so anchor the upstream subset there.
+                if 'id' in pour_point.columns and (pour_point['id'] == 0).any():
+                    primary_outlet = pour_point[pour_point['id'] == 0]
+                    if len(pour_point) > 1:
+                        self.logger.info(
+                            f"{len(pour_point)} outlets present; subsetting upstream of "
+                            f"the primary outlet (id 0). Interior outlets only refine "
+                            f"subbasin boundaries."
+                        )
+                else:
+                    primary_outlet = pour_point
+
+                # Find basin containing the primary pour point
                 downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-                    pour_point, basins, logger=self.logger,
+                    primary_outlet, basins, logger=self.logger,
                 )
 
                 # Build river network graph
@@ -261,7 +296,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             return subset_rivers_path, subset_basins_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error during geofabric subsetting: {str(e)}")
+            self.logger.error(f"Error during geofabric subsetting: {str(e)}", exc_info=True)
             return None, None
 
     def _process_geofabric(
@@ -381,6 +416,18 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
         # Process geofabric one more time to ensure consistency
         basins, rivers = self._process_geofabric(basins, rivers)
+
+        # Optionally strip thin watershed-delineation "tentacle" artifacts that
+        # gdal.Polygonize traces from 1-pixel flow-routing leaks toward the coast.
+        despike = self._get_config_value(
+            lambda: self.config.geofabric.despike_basin_geometry,
+            default=False,
+            dict_key='DESPIKE_BASIN_GEOMETRY',
+        )
+        if despike:
+            n_before = len(basins)
+            basins = GeometryProcessor.despike_geodataframe(basins)
+            self.logger.info(f"Despiked basin geometry ({n_before} basins) before saving")
 
         # Save files
         basins.to_file(basins_path)

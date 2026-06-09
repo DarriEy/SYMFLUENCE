@@ -7,6 +7,7 @@ Parameter transformation adapters for model-specific calibration.
 Provides transformers that apply calibration parameters to model-specific
 formats (e.g., soil depth multipliers for SUMMA NetCDF files).
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

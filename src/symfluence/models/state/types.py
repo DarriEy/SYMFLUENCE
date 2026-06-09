@@ -9,6 +9,7 @@ Core data structures for model state save/restore operations:
 - StateMetadata: Immutable metadata describing a saved state
 - ModelState: Container for state data (files and/or arrays)
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto

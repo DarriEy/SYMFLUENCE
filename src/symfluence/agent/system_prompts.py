@@ -7,6 +7,7 @@ System prompts and templates for the SYMFLUENCE AI agent.
 This module contains all the prompts, messages, and templates used by the agent
 to interact with users and guide its behavior.
 """
+from __future__ import annotations
 
 SYSTEM_PROMPT = """You are an AI assistant for SYMFLUENCE, a comprehensive hydrological modeling framework.
 

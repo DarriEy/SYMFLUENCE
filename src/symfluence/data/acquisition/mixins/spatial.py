@@ -9,6 +9,7 @@ Provides utilities for spatial subsetting of datasets:
 - Rasterio window-based subsetting for GeoTIFFs
 - Bbox format conversions for various APIs
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -1,6 +1,120 @@
 """Unit tests for ToolInstaller behavior and result reporting."""
+from __future__ import annotations
 
+import os
+import shutil
+import stat
+import sys
 from unittest.mock import MagicMock
+
+import pytest
+
+
+def _make_exe(path):
+    """Create a tiny executable shell stub at *path*."""
+    with open(path, "w") as fh:
+        fh.write("#!/bin/sh\n")
+    os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlink shim")
+def test_bare_compiler_shim_exposes_versioned_gfortran(mock_external_tools, tmp_path):
+    """When only `gfortran-NN` exists, a bare `gfortran` is shimmed onto PATH.
+
+    Mirrors the macOS-runner case where Homebrew's gcc ships only versioned
+    Fortran binaries, breaking Makefiles/preflights that call bare `gfortran`.
+    """
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    _make_exe(bindir / "gfortran-9")
+    _make_exe(bindir / "gfortran-14")  # newest — should win
+
+    env = {"PATH": str(bindir)}
+    assert shutil.which("gfortran", path=env["PATH"]) is None
+
+    installer._ensure_bare_compiler_shim(env, "gfortran")
+
+    resolved = shutil.which("gfortran", path=env["PATH"])
+    assert resolved is not None
+    assert os.path.realpath(resolved) == os.path.realpath(bindir / "gfortran-14")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlink shim")
+def test_bare_compiler_shim_is_noop_when_bare_present(mock_external_tools, tmp_path):
+    """If a bare `gfortran` is already reachable, PATH is left untouched."""
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    _make_exe(bindir / "gfortran")
+
+    env = {"PATH": str(bindir)}
+    installer._ensure_bare_compiler_shim(env, "gfortran")
+
+    assert env["PATH"] == str(bindir)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlink shim")
+def test_bare_compiler_shim_noop_without_any_compiler(mock_external_tools, tmp_path):
+    """With neither bare nor versioned compiler, PATH is unchanged (no crash)."""
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+    bindir = tmp_path / "empty"
+    bindir.mkdir()
+
+    env = {"PATH": str(bindir)}
+    installer._ensure_bare_compiler_shim(env, "gfortran")
+
+    assert env["PATH"] == str(bindir)
+
+
+def test_clone_repository_sparse_excludes_paths(mock_external_tools, tmp_path):
+    """`sparse_exclude` keeps host-incompatible fixture paths out of the checkout.
+
+    Reproduces the t-route case where a test-fixture directory must be skipped
+    (on Windows its filenames are illegal); here we just assert the directory is
+    absent from the working tree while normal sources remain.
+    """
+    import subprocess
+
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    if shutil.which("git") is None:
+        pytest.skip("git not available")
+
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    # Two test/ fixture dirs — one top-level, one deeply nested — mirroring how
+    # t-route scatters them. A bare `test/` pattern must catch both.
+    top = origin / "test" / "HurricaneLaura"
+    nested = origin / "src" / "pkg" / "network" / "test" / "fixtures"
+    top.mkdir(parents=True)
+    nested.mkdir(parents=True)
+    (top / "restart.nc").write_text("fixture")
+    (nested / "data.ncdf").write_text("fixture")
+    (origin / "src" / "pkg" / "normal.py").write_text("print('hi')\n")
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    subprocess.run(["git", "init", "-q"], cwd=origin, check=True, env=env)
+    subprocess.run(["git", "add", "-A"], cwd=origin, check=True, env=env)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=origin, check=True, env=env)
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+    target = tmp_path / "clone"
+    ok = installer._clone_repository(
+        str(origin), None, target,
+        sparse_exclude=["test/"],  # any-depth, matches both dirs above
+    )
+
+    assert ok is True
+    assert (target / "src" / "pkg" / "normal.py").exists()
+    assert not (target / "test" / "HurricaneLaura" / "restart.nc").exists()
+    assert not (target / "src" / "pkg" / "network" / "test" / "fixtures" / "data.ncdf").exists()
 
 
 def test_install_fails_fast_when_required_tool_missing(mock_external_tools, tmp_path):

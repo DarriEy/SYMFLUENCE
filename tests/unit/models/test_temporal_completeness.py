@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Tests for temporal completeness validation in ForcingDataProcessor."""
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd

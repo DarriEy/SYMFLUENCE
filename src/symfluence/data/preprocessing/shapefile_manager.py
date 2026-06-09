@@ -12,6 +12,7 @@ This module handles:
 
 Extracted from ForcingResampler to improve testability and reduce coupling.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -142,7 +143,7 @@ class ShapefileManager(ConfigMixin):
             return wgs84_path
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error reading existing WGS84 file: {str(e)}. Recreating.")
+            self.logger.warning(f"Error reading existing WGS84 file: {str(e)}. Recreating.", exc_info=True)
             return None
 
     def ensure_unique_hru_ids(
@@ -272,5 +273,5 @@ class ShapefileManager(ConfigMixin):
             return shifted_path, True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to align target longitudes: {e}")
+            self.logger.warning(f"Failed to align target longitudes: {e}", exc_info=True)
             return target_shapefile, False

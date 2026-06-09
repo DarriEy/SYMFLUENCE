@@ -4,6 +4,7 @@ Fixtures for optimization/calibration unit tests.
 Provides mock configurations, data, and helpers for testing calibration
 without actually running expensive model simulations.
 """
+from __future__ import annotations
 
 import logging
 

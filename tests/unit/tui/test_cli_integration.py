@@ -1,4 +1,5 @@
 """Tests for TUI CLI integration — argument parser and command handler."""
+from __future__ import annotations
 
 from argparse import Namespace
 from unittest.mock import MagicMock, patch

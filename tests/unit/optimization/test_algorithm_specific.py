@@ -13,6 +13,7 @@ References:
     - DREAM: Vrugt, J.A. et al. (2009). "Accelerating MCMC simulation by DE"
     - PSO: Kennedy, J. & Eberhart, R. (1995). "Particle swarm optimization"
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock, Mock

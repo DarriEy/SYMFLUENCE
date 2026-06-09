@@ -7,6 +7,7 @@ Extracted from ``ReportingManager`` — handles registry-based model plotter
 dispatch (``visualize_model_results``) and the individual
 ``visualize_*_outputs`` methods.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -157,15 +158,9 @@ class ModelOutputOrchestrator:
         Returns:
             Plot result (path to saved plot or dict of paths), or None.
         """
-        # Import model modules to trigger plotter registration
-        from symfluence.core.constants import SupportedModels
-
-        for model in SupportedModels.WITH_PLOTTERS:
-            try:
-                __import__(f'symfluence.models.{model}')
-            except ImportError:
-                self.logger.debug(f"Model plotter module '{model}' not available")
-
+        # Plotters are registered at `import symfluence` via entry-point
+        # discovery, so the registry is already populated — look the model up
+        # directly rather than re-importing model modules from a hardcoded list.
         from symfluence.core.registries import R
 
         model_upper = model_name.upper()

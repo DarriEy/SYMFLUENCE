@@ -12,6 +12,8 @@ Tests import, registration, and basic functionality for:
 - Daymet
 - VIIRS Snow
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch

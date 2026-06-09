@@ -74,6 +74,8 @@ Limitations and Considerations:
     - Computationally intensive for large watersheds
     - Patch-level output can generate very large files
 """
+from __future__ import annotations
+
 from .postprocessor import RHESSysPostProcessor
 from .preprocessor import RHESSysPreProcessor
 from .runner import RHESSysRunner
@@ -86,9 +88,12 @@ from symfluence.core.registry import model_manifest
 from .config import RHESSysConfigAdapter
 from .extractor import RHESSysResultExtractor
 
-model_manifest(
-    "RHESSYS",
-    config_adapter=RHESSysConfigAdapter,
-    result_extractor=RHESSysResultExtractor,
-    build_instructions_module="symfluence.models.rhessys.build_instructions",
-)
+
+def register() -> None:
+    """Register RHESSYS components with the unified registry."""
+    model_manifest(
+        "RHESSYS",
+        config_adapter=RHESSysConfigAdapter,
+        result_extractor=RHESSysResultExtractor,
+        build_instructions_module="symfluence.models.rhessys.build_instructions",
+    )

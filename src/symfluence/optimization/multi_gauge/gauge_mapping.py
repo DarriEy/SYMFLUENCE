@@ -7,6 +7,7 @@ This module extracts the common spatial-join logic previously duplicated in
 ``models.fuse.calibration.multi_gauge_metrics.ensure_gauge_segment_mapping``
 and ``models.hype.calibration.multi_gauge_metrics.ensure_hype_gauge_mapping``.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

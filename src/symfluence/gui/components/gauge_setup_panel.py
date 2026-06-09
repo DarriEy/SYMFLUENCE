@@ -8,6 +8,7 @@ Appears when a gauge marker is clicked on the map; provides a form for
 configuring the new domain and calls ``setup_pour_point_workflow()`` on submit,
 then patches the resulting config with user-chosen model/forcing/time values.
 """
+from __future__ import annotations
 
 import logging
 import re

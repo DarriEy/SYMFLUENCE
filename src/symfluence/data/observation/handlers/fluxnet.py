@@ -12,6 +12,8 @@ Provides flux tower observations for ET calibration:
 
 Wraps the FLUXNET acquisition handler for the observation pipeline.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -185,5 +187,5 @@ class FLUXNETObservationHandler(BaseObservationHandler):
             return True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"FLUXNET validation error: {e}")
+            self.logger.error(f"FLUXNET validation error: {e}", exc_info=True)
             return False

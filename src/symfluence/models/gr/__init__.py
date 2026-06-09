@@ -38,7 +38,7 @@ Spatial Modes:
 Key Components:
     GRPreProcessor: Forcing preparation, catchment setup, R script generation
     GRRunner: Model execution via Rscript with airGR/airGRdatassim packages
-    GRPostprocessor: Output parsing, result formatting, metric calculation
+    GRPostProcessor: Output parsing, result formatting, metric calculation
 
 Configuration Parameters:
     GR_SPATIAL_MODE: Spatial setup ('auto', 'lumped', 'distributed')
@@ -57,7 +57,7 @@ Typical Workflow:
     2. Process forcing data (precipitation, temperature, PET)
     3. Generate R control script and input CSV files
     4. Execute GR via GRRunner (calls Rscript)
-    5. Parse outputs and format results via GRPostprocessor
+    5. Parse outputs and format results via GRPostProcessor
 
 Limitations and Considerations:
     - Requires R with airGR/airGRdatassim packages installed
@@ -65,8 +65,9 @@ Limitations and Considerations:
     - Parameter bounds should respect physical constraints (X1, X3 > 0)
     - For distributed mode, subcatchment areas needed for routing
 """
+from __future__ import annotations
 
-from .postprocessor import GRPostprocessor
+from .postprocessor import GRPostProcessor
 from .preprocessor import GRPreProcessor
 from .runner import GRRunner
 from .visualizer import visualize_gr
@@ -74,7 +75,7 @@ from .visualizer import visualize_gr
 __all__ = [
     'GRPreProcessor',
     'GRRunner',
-    'GRPostprocessor',
+    'GRPostProcessor',
     'visualize_gr'
 ]
 
@@ -85,8 +86,14 @@ from symfluence.core.registry import model_manifest
 from .config import GRConfigAdapter
 from .extractor import GRResultExtractor
 
-model_manifest(
-    "GR",
-    config_adapter=GRConfigAdapter,
-    result_extractor=GRResultExtractor,
-)
+
+def register() -> None:
+    """Register GR components with the unified registry."""
+    model_manifest(
+        "GR",
+        config_adapter=GRConfigAdapter,
+        result_extractor=GRResultExtractor,
+    )
+
+# Deprecated pre-1.0 spelling (RTI item 23) — use GRPostProcessor.
+GRPostprocessor = GRPostProcessor

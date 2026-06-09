@@ -7,6 +7,7 @@ Streamflow Metrics Utility
 Shared utility for streamflow metric calculation across all optimization workers.
 Consolidates duplicate implementations from GR, FUSE, SUMMA, MESH, HYPE, and NGEN workers.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -17,6 +18,7 @@ import pandas as pd
 
 from symfluence.core.constants import ModelDefaults, UnitConversion
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.evaluation.metrics import kge, kge_prime, mae, nse, rmse
 
 logger = logging.getLogger(__name__)
@@ -148,75 +150,23 @@ class StreamflowMetrics:
         """Get catchment area from shapefile/geopackage."""
         import geopandas as gpd
 
-        # Resolve catchment path
-        catchment_path = config.get('CATCHMENT_PATH', 'default')
-        if catchment_path == 'default' or not catchment_path:
-            catchment_path = project_dir / 'shapefiles' / 'catchment'
-        else:
-            catchment_path = Path(catchment_path)
-
-        # Resolve catchment filename
-        discretization = config.get('SUB_GRID_DISCRETIZATION', 'elevation')
-        catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
-        if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
-
-        # Build list of paths to search (in priority order)
-        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-
-        # Also search for GRUs variant (common naming convention)
-        grus_name = f"{domain_name}_HRUs_GRUs.shp"
-
-        # Build search paths with multiple fallbacks
-        # Shapefiles are typically created during preprocessing and may be in a different
-        # experiment directory (commonly run_1) than the current calibration experiment
-        search_paths = [
-            catchment_path / catchment_name,  # Direct path
-            catchment_path / domain_method / experiment_id / catchment_name,  # Current experiment
-            catchment_path / domain_method / catchment_name,  # Without experiment_id
-            catchment_path / grus_name,  # GRUs variant direct
-            catchment_path / domain_method / experiment_id / grus_name,  # GRUs current experiment
-            catchment_path / domain_method / grus_name,  # GRUs without experiment_id
-        ]
-
-        # Add run_1 as fallback if current experiment_id is different
-        # (shapefiles are typically created during initial preprocessing in run_1)
-        if experiment_id != 'run_1':
-            search_paths.extend([
-                catchment_path / domain_method / 'run_1' / catchment_name,
-                catchment_path / domain_method / 'run_1' / grus_name,
-            ])
-
-        # Find the first existing file
-        catchment_file = None
-        for path in search_paths:
-            if path.exists():
-                catchment_file = path
-                logger.debug(f"Found catchment shapefile: {path}")
-                break
-
-        # Last resort: search any existing experiment directory under domain_method
-        if catchment_file is None:
-            domain_method_dir = catchment_path / domain_method
-            if domain_method_dir.exists():
-                for exp_dir in sorted(domain_method_dir.iterdir()):
-                    if exp_dir.is_dir():
-                        for name in [catchment_name, grus_name]:
-                            candidate = exp_dir / name
-                            if candidate.exists():
-                                catchment_file = candidate
-                                logger.debug(
-                                    f"Found catchment shapefile in fallback search: {candidate}"
-                                )
-                                break
-                    if catchment_file:
-                        break
+        # Resolve via the shared finder: handles the nested experiment-scoped
+        # layout, the GRUs/GRUS casing drift, cross-experiment shapefiles
+        # (preprocessing often writes under run_1), and explicit
+        # CATCHMENT_PATH / CATCHMENT_SHP_NAME overrides.
+        catchment_file = find_basin_shapefile(
+            project_dir / 'shapefiles',
+            domain_name,
+            config.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
+            config.get('EXPERIMENT_ID', 'run_1'),
+            explicit_path=config.get('CATCHMENT_PATH', 'default'),
+            explicit_name=config.get('CATCHMENT_SHP_NAME', 'default'),
+            logger=logger,
+        )
 
         if catchment_file is None:
             logger.warning(
                 f"Catchment shapefile not found for {domain_name}. "
-                f"Searched paths include: {catchment_path / domain_method}. "
                 f"Using default area {default_area} km2. "
                 f"This may cause incorrect unit conversions during calibration!"
             )

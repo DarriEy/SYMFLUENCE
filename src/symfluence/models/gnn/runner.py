@@ -7,6 +7,7 @@ GNN Model Runner.
 
 Orchestrates the GNN model workflow: data loading, graph construction, training, and simulation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -19,16 +20,16 @@ import torch.nn as nn
 import torch.optim as optim
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
-from ..registry import ModelRegistry
 from .model import GNNModel
-from .postprocessor import GNNPostprocessor
+from .postprocessor import GNNPostProcessor
 from .preprocessor import GNNPreProcessor
 
 
-@ModelRegistry.register_runner('GNN', method_name='run_gnn')
+@R.runners.add('GNN', runner_method='run_gnn')
 class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     """Runner for the Spatio-Temporal GNN Hydrological Model.
 
@@ -50,7 +51,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
     Attributes:
         device: torch.device (cuda if available, else cpu)
         preprocessor: GNNPreProcessor for data loading and normalization
-        postprocessor: GNNPostprocessor for result formatting
+        postprocessor: GNNPostProcessor for result formatting
         model: GNNModel instance (None until initialized)
         hru_ids: List of HRU identifiers in model
         outlet_indices: List of node indices at watersheds outlets
@@ -101,7 +102,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
             self.project_dir,
             self.device
         )
-        self.postprocessor = GNNPostprocessor(
+        self.postprocessor = GNNPostProcessor(
             self.config_dict,
             self.logger,
             reporting_manager=self.reporting_manager
@@ -455,7 +456,7 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
                     self._save_model_checkpoint(checkpoint_path, adj_matrix)
                     self.logger.info(f"Checkpoint saved at epoch {epoch+1}: {checkpoint_path}")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}")
+                    self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}", exc_info=True)
 
     def _simulate(self, X: torch.Tensor, common_dates: pd.DatetimeIndex, hru_ids: List[int]) -> pd.DataFrame:
         """Run full forward simulation and return streamflow time series.
@@ -543,4 +544,6 @@ class GNNRunner(BaseModelRunner, SpatialOrchestrator):  # type: ignore[misc]
         }, path)
 
     def _load_model_checkpoint(self, path: Path):
-        return torch.load(path, map_location=self.device)
+        # weights_only=True prevents arbitrary code execution when deserializing
+        # an untrusted checkpoint (CVE-2025-32434 lineage).
+        return torch.load(path, map_location=self.device, weights_only=True)

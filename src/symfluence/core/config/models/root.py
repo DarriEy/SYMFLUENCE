@@ -8,6 +8,7 @@ Contains SymfluenceConfig - the main configuration class that orchestrates
 all other config models and provides validation, factory methods, and
 backward compatibility.
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -116,8 +117,8 @@ class SymfluenceConfig(BaseModel):
         hydrological_model = values.get('HYDROLOGICAL_MODEL')
         if hydrological_model:
             try:
-                from symfluence.models.registry import ModelRegistry
-                model_transformers = ModelRegistry.get_config_transformers(hydrological_model)
+                from symfluence.models.config_resolution import get_config_transformers
+                model_transformers = get_config_transformers(hydrological_model)
                 if model_transformers:
                     combined_map.update(model_transformers)
             except (ImportError, KeyError, AttributeError):
@@ -236,7 +237,7 @@ class SymfluenceConfig(BaseModel):
     def validate_coordinates(self):
         """Validate coordinate formats and bounds"""
         from symfluence.core.exceptions import ConfigurationError, ValidationError
-        from symfluence.core.validation import validate_bounding_box
+        from symfluence.core.validation import parse_pour_point_coords, validate_bounding_box
 
         # Validate pour point coordinates
         if self.domain.pour_point_coords:
@@ -256,6 +257,14 @@ class SymfluenceConfig(BaseModel):
                 raise ConfigurationError(
                     f"POUR_POINT_COORDS must be 'lat/lon' format, got '{self.domain.pour_point_coords}'"
                 ) from None
+
+        # Validate additional interior outlet coordinates (one or many 'lat/lon').
+        # parse_pour_point_coords raises ConfigurationError on any malformed/out-of-range pair.
+        if self.domain.pour_point_additional_coords:
+            parse_pour_point_coords(
+                self.domain.pour_point_additional_coords,
+                context='POUR_POINT_ADDITIONAL_COORDS',
+            )
 
         # Validate bounding box coordinates
         if self.domain.bounding_box_coords:
@@ -292,11 +301,12 @@ class SymfluenceConfig(BaseModel):
         """
         Validate model-specific required fields based on HYDROLOGICAL_MODEL.
 
-        Delegates to ModelRegistry for all model-specific validation.
+        Delegates to the model config-resolution helpers for all
+        model-specific validation.
         """
         from symfluence.core.config.flattening import flatten_nested_config
         from symfluence.core.exceptions import ConfigurationError
-        from symfluence.models.registry import ModelRegistry
+        from symfluence.models.config_resolution import validate_model_config
 
         models = self._parse_models()
         flat_config = flatten_nested_config(self)
@@ -304,7 +314,7 @@ class SymfluenceConfig(BaseModel):
 
         for model_name in models:
             try:
-                ModelRegistry.validate_model_config(model_name, flat_config)
+                validate_model_config(model_name, flat_config)
             except Exception as e:  # noqa: BLE001 — configuration resilience
                 all_errors.append(f"{model_name}: {str(e)}")
 

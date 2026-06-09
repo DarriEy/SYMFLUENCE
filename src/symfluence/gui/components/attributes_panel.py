@@ -6,6 +6,7 @@ Acquire Attributes panel for downloading geospatial attribute data.
 
 Visible after project setup completes (gui_phase >= 'project_created').
 """
+from __future__ import annotations
 
 import logging
 

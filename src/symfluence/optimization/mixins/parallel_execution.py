@@ -177,6 +177,7 @@ See Also:
     - ProcessPoolExecutionStrategy: Multiprocessing.Pool implementation
     - MPIExecutionStrategy: MPI-based distributed execution implementation
 """
+from __future__ import annotations
 
 import logging
 import multiprocessing as mp

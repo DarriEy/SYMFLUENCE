@@ -8,18 +8,19 @@ Manages parameter bounds, normalization, and file updates for Noah-MP
 calibration.  Parameters are split between namelist.input (scalar knobs)
 and SOILPARM.TBL (soil hydraulic properties).
 """
+from __future__ import annotations
 
 import logging
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_noahmp_bounds
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('NOAHMP')
+@R.parameter_managers.add('NOAHMP')
 class NoahMPParameterManager(BaseParameterManager):
     """Handles Noah-MP parameter bounds, normalization, and file updates."""
 

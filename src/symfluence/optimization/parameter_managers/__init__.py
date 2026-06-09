@@ -21,6 +21,7 @@ decorators.  This module auto-discovers all model packages at import time
 so that every ``calibration/parameter_manager.py`` is imported and its
 decorator fires.
 """
+from __future__ import annotations
 
 
 def _register_parameter_managers():
@@ -28,40 +29,24 @@ def _register_parameter_managers():
 
     Scans ``symfluence.models.*`` for sub-packages that contain a
     ``calibration.parameter_manager`` module and imports each one to
-    trigger its ``@register_parameter_manager`` decorator.  Models whose
-    dependencies are not installed are silently skipped.
+    trigger its ``@register_parameter_manager`` decorator.  Models with no
+    calibration support are skipped silently; models whose parameter-manager
+    module *exists but fails to import* are surfaced at WARNING (see
+    ``discover_calibration_components``) instead of vanishing silently.
     """
-    import importlib
     import logging
-    import pkgutil
 
-    logger = logging.getLogger(__name__)
+    from symfluence.optimization._autodiscover import discover_calibration_components
 
-    try:
-        import symfluence.models as models_pkg
-    except ImportError:
-        return
-
-    for _importer, model_name, is_pkg in pkgutil.iter_modules(models_pkg.__path__):
-        if not is_pkg:
-            continue
-        module_path = f'symfluence.models.{model_name}.calibration.parameter_manager'
-        try:
-            importlib.import_module(module_path)
-        except (ImportError, ModuleNotFoundError, AttributeError):
-            # Expected for models without calibration support or missing deps
-            logger.debug("Skipped parameter manager for %s", model_name)
+    discover_calibration_components('parameter_manager', logging.getLogger(__name__))
 
 
 # Trigger registration on import
 _register_parameter_managers()
 
-# Re-export from canonical locations (avoids deprecation warnings for internal use)
-# Users who import directly from the stub modules will still see deprecation warnings
-from jhbv.calibration.parameter_manager import HBVParameterManager
-from jsacsma.calibration.parameter_manager import SacSmaParameterManager
-from jxaj.calibration.parameter_manager import XinanjiangParameterManager
-
+# Re-export in-tree parameter managers from their canonical locations.
+# (HBV / SAC-SMA / Xinanjiang come from the optional JAX plugins and are
+# re-exported lazily via __getattr__ below.)
 from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
 from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
@@ -92,3 +77,31 @@ __all__ = [
     'GSFLOWParameterManager',
     'WATFLOODParameterManager',
 ]
+
+# HBV / SAC-SMA / Xinanjiang parameter managers live in the optional JAX model
+# plugins (the ``jax`` extra). Re-export them lazily (PEP 562) so importing this
+# package never requires the plugins, while
+# ``from ...parameter_managers import HBVParameterManager`` still works when they
+# are installed. Accessing one without the plugin raises a clear ImportError.
+_OPTIONAL_JAX_PARAM_MANAGERS = {
+    'HBVParameterManager': 'jhbv.calibration.parameter_manager',
+    'SacSmaParameterManager': 'jsacsma.calibration.parameter_manager',
+    'XinanjiangParameterManager': 'jxaj.calibration.parameter_manager',
+}
+
+
+def __getattr__(name):
+    """Lazily resolve the optional JAX-plugin parameter managers (PEP 562)."""
+    module_path = _OPTIONAL_JAX_PARAM_MANAGERS.get(name)
+    if module_path is not None:
+        import importlib
+
+        try:
+            module = importlib.import_module(module_path)
+        except ImportError as exc:
+            raise ImportError(
+                f"{name} is provided by the optional JAX model plugins. "
+                'Install them with: pip install "symfluence[jax]"'
+            ) from exc
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

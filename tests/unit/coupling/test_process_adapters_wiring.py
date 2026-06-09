@@ -1,4 +1,5 @@
 """Tests for process adapter read_outputs() wiring to real extractors."""
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

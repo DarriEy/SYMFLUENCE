@@ -8,6 +8,7 @@ This module provides a Result[T] pattern for handling validation and
 operation outcomes in a composable, type-safe way. It replaces the
 tuple (bool, Optional[str]) pattern used throughout the codebase.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, Optional, TypeVar, cast

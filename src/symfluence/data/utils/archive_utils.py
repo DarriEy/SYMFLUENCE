@@ -7,6 +7,7 @@ Archive utilities for SYMFLUENCE data management.
 Provides functions for creating compressed archives of processed data
 directories to reduce storage footprint while preserving data integrity.
 """
+from __future__ import annotations
 
 import logging
 import shutil
@@ -65,5 +66,5 @@ def tar_directory(source_dir: Path, archive_name: Optional[str] = None,
 
     except Exception as e:  # noqa: BLE001 — preprocessing resilience
         if logger:
-            logger.error(f"Error creating archive {archive_path}: {str(e)}")
+            logger.error(f"Error creating archive {archive_path}: {str(e)}", exc_info=True)
         return False

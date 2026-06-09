@@ -4,6 +4,7 @@ SYMFLUENCE Lumped Basin Integration Tests
 Tests the lumped basin workflow from notebook 02a for all supported models.
 Uses local test data from tests/data/ and runs the full workflow from raw data.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

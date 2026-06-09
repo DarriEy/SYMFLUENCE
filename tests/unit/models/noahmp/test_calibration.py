@@ -1,6 +1,9 @@
 """Tests for Noah-MP calibration components."""
+from __future__ import annotations
 
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestNoahMPCalibrationRegistration:
@@ -8,8 +11,7 @@ class TestNoahMPCalibrationRegistration:
 
     def test_optimizer_registered(self):
         from symfluence.models.noahmp.calibration import NoahMPModelOptimizer  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'NOAHMP' in OptimizerRegistry._optimizers
+        assert 'NOAHMP' in R.optimizers
 
     def test_optimizer_model_name(self):
         from symfluence.models.noahmp.calibration.optimizer import NoahMPModelOptimizer
@@ -18,13 +20,11 @@ class TestNoahMPCalibrationRegistration:
 
     def test_worker_registered(self):
         from symfluence.models.noahmp.calibration import NoahMPWorker  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'NOAHMP' in OptimizerRegistry._workers
+        assert 'NOAHMP' in R.workers
 
     def test_parameter_manager_registered(self):
         from symfluence.models.noahmp.calibration import NoahMPParameterManager  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'NOAHMP' in OptimizerRegistry._parameter_managers
+        assert 'NOAHMP' in R.parameter_managers
 
 
 class TestNoahMPWorkerAttributes:
@@ -55,8 +55,8 @@ class TestNoahMPWorkerAttributes:
   dt                 = 3600
   startdate          = "200001010000"
   enddate            = "200112310000"
-  forcing_filename   = "/tmp/forcing.txt"
-  output_filename    = "/tmp/output.nc"
+  forcing_filename   = "forcing.txt"
+  output_filename    = "output.nc"
 /
 
 &forcing

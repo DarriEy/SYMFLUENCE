@@ -22,6 +22,7 @@ Configuration:
     MODIS_NDVI_QC: True (default) - Apply QC filtering
     MODIS_NDVI_USE_APPEEARS: False (default) - Use earthaccess
 """
+from __future__ import annotations
 
 import re
 import time

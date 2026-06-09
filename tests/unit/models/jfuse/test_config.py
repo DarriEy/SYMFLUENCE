@@ -1,4 +1,5 @@
 """Tests for jFUSE model configuration."""
+from __future__ import annotations
 
 import pytest
 from jfuse.sfconfig import JFUSEConfig, JFUSEConfigAdapter

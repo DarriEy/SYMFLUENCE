@@ -17,7 +17,7 @@
 
 ## Quick Links
 
-- **Install:** `pip install symfluence` or `uv pip install symfluence`
+- **Install:** `pip install symfluence`
 - **Documentation:** [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
 - **Website:** [symfluence.org](https://symfluence.org)
 - **Discussions:** [GitHub Discussions](https://github.com/symfluence-org/SYMFLUENCE/discussions)
@@ -36,16 +36,7 @@ After installation, install external model binaries:
 symfluence binary install
 ```
 
-### Development Installation
-
-```bash
-git clone https://github.com/symfluence-org/SYMFLUENCE.git
-cd SYMFLUENCE
-./scripts/symfluence-bootstrap --install
-source venv/bin/activate
-```
-
-For Docker, conda, npm, uv, HPC modules, and other install methods, see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
+For development setup (editable install / bootstrap) and all other install methods — Docker, conda, npm, uv, HPC modules — see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
 ---
 
