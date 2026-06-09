@@ -224,7 +224,7 @@ class TestSymfluenceInstance:
         from symfluence.agent.tool_executor import ToolExecutor
 
         # Patch SYMFLUENCE in the core module where it's imported from
-        with patch('symfluence.core.SYMFLUENCE') as mock_sf:
+        with patch('symfluence.SYMFLUENCE') as mock_sf:
             mock_instance = MagicMock()
             mock_sf.return_value = mock_instance
 
@@ -238,7 +238,7 @@ class TestSymfluenceInstance:
         """Test SYMFLUENCE instance caching."""
         from symfluence.agent.tool_executor import ToolExecutor
 
-        with patch('symfluence.core.SYMFLUENCE') as mock_sf:
+        with patch('symfluence.SYMFLUENCE') as mock_sf:
             mock_instance = MagicMock()
             mock_sf.return_value = mock_instance
 

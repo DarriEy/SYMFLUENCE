@@ -103,7 +103,7 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
         from symfluence.core.exceptions import ConfigurationError, SYMFLUENCEError
 
         config_path = BaseCommand.get_config_path(args)

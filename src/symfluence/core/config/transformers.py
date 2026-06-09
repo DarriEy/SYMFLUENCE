@@ -124,7 +124,7 @@ def build_combined_flat_to_nested_map(
 
     if hydrological_model:
         try:
-            from symfluence.models.config_resolution import get_config_transformers
+            from symfluence.core.config.config_resolution import get_config_transformers
             model_transformers = get_config_transformers(hydrological_model)
             if model_transformers:
                 # Model-specific transformers override base mapping

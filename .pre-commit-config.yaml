@@ -95,3 +95,10 @@ repos:
         additional_dependencies: [pyyaml]
         pass_filenames: false
         files: (pyproject\.toml|pixi\.toml|environment\.yml)
+      - id: check-core-layering
+        name: Guard core layering (no core -> upper-layer imports)
+        entry: python scripts/check_core_layering.py
+        language: python
+        pass_filenames: false
+        types: [python]
+        files: ^src/symfluence/core/
