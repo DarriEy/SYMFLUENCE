@@ -1019,6 +1019,9 @@ src/symfluence/models/prms/calibration/worker.py:PRMSWorker.run_model:except Exc
 src/symfluence/models/prms/calibration/worker.py:_evaluate_prms_parameters_worker:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/prms/postprocessor.py:PRMSPostProcessor._parse_statvar_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/prms/postprocessor.py:PRMSPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/prms/preprocessor.py:PRMSPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/prms/preprocessor.py:PRMSPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/prms/preprocessor.py:PRMSPreProcessor._get_dominant_classes:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/prms/preprocessor.py:PRMSPreProcessor._load_forcing_data:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/prms/preprocessor.py:PRMSPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/rhessys/calibration/optimizer.py:RHESSysModelOptimizer._apply_best_parameters_for_final:except Exception as e:  # noqa: BLE001 — calibration resilience
