@@ -189,9 +189,9 @@ class DomainConfig(BaseModel):
         if not isinstance(v, str):
             return v
         v = v.lower().strip()
-        from symfluence.data.acquisition.attribute_profiles import PROFILES
-        if v not in PROFILES:
-            valid = ', '.join(sorted(PROFILES.keys()))
+        from symfluence.core.config.constants import VALID_ATTRIBUTE_PROFILES
+        if v not in VALID_ATTRIBUTE_PROFILES:
+            valid = ', '.join(sorted(VALID_ATTRIBUTE_PROFILES))
             raise ValueError(
                 f"ATTRIBUTE_PROFILE must be one of [{valid}], got '{v}'"
             )

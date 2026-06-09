@@ -241,20 +241,6 @@ FUSE_EXE: fuse.exe
 # GR settings
 GR_EXE: GR.r
 
-#FLASH settings
-FLASH_LOAD: False
-FLASH_HIDDEN_SIZE: 128
-FLASH_NUM_LAYERS: 3
-FLASH_EPOCHS: 300
-FLASH_BATCH_SIZE: 64
-FLASH_LEARNING_RATE: 0.001
-FLASH_LEARNING_PATIENCE: 30
-FLASH_LOOKBACK: 700
-FLASH_DROPOUT: 0.2
-FLASH_L2_REGULARIZATION: 1e-6
-FLASH_USE_ATTENTION: True
-FLASH_USE_SNOW: False
-
 # LSTM settings
 LSTM_LOAD: False
 LSTM_HIDDEN_SIZE: 128
@@ -336,23 +322,6 @@ TARGET_METRIC: KGE
   # -- GLUE specific settings
 GLUE_THRESHOLD: -3.0
 GLUE_SHAPING_FACTOR: 1.0
-
-  # -- jFUSE parameter bounds
-JFUSE_PARAM_BOUNDS:
-  S1_max: [10, 500]
-  S2_max: [50, 2000]
-  ku: [0.01, 1.0]
-  ki: [0.001, 0.5]
-  ks: [0.0001, 0.1]
-  n: [1.0, 5.0]
-  b: [0.5, 3.0]
-  Ac_max: [0.1, 1.0]
-  f_rchr: [0.0, 1.0]
-  T_rain: [-2.0, 4.0]
-  T_melt: [-2.0, 4.0]
-  MFMAX: [1.0, 8.0]
-  MFMIN: [0.5, 4.0]
-  smooth_frac: [0.0, 1.0]
 
   # -- DDS specific settings
 DDS_R:  0.2

@@ -234,15 +234,6 @@ ADDITIONAL_OBSERVATIONS: MODIS_SNOW
 
 ### ============================================= 6. Multivariate evaluation - SCF Trend settings: ========================================
 
-# Multivariate comparison settings
-MULTIVAR_EVALUATION: True
-MULTIVAR_TARGETS:
-  - variable: SCF
-    source: MODIS
-    product: MOD10A2
-    metric: trend_correlation
-    weight: 1.0
-
 # MODIS Snow Cover Fraction settings for trend study
 MODIS_SCF_PRODUCT: MOD10A2
 MODIS_SCF_PATH: default
@@ -250,22 +241,6 @@ MODIS_SCF_VARIABLE: Maximum_Snow_Extent
 MODIS_SCF_TEMPORAL_RESOLUTION: 8day
 MODIS_CLOUD_FILTER: True
 MODIS_CLOUD_MAX_FRACTION: 0.3
-
-# Trend analysis settings
-SCF_TREND_ANALYSIS: True
-SCF_TREND_METHOD: Mann-Kendall
-SCF_TREND_SIGNIFICANCE: 0.05
-SCF_TREND_PERIOD: 2000-03-01, 2023-12-31
-SCF_SEASONAL_DECOMPOSITION: True
-SCF_SEASONS:
-  accumulation: [10, 11, 12, 1, 2, 3]
-  ablation: [4, 5, 6]
-  snow_free: [7, 8, 9]
-
-# Regional aggregation settings
-SCF_REGIONAL_AGGREGATION: True
-SCF_ELEVATION_BANDS: [0, 200, 400, 600, 800, 1000, 1200, 1500, 2000]
-SCF_SPATIAL_RESOLUTION: 500
 
 ### ============================================= 7. Optimization settings: ===============================================================
 

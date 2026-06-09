@@ -100,7 +100,6 @@ class OptimizationManager(BaseManager):
             - 'iteration': Iterative parameter optimization (calibration)
 
         Deprecated Methods (logged as warnings):
-            - 'differentiable_parameter_emulation': Use gradient-based (ADAM/LBFGS) instead
             - 'emulation': Use model emulation libraries instead
 
         Returns:
@@ -160,7 +159,6 @@ class OptimizationManager(BaseManager):
 
         # Check for deprecated methods and warn
         deprecated_methods = [
-            'differentiable_parameter_emulation',
             'emulation'
         ]
 

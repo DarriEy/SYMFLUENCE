@@ -219,25 +219,6 @@ TARGET_METRIC: KGE
 GLUE_THRESHOLD: -3.0
 GLUE_SHAPING_FACTOR: 1.0
 
-# jFUSE parameter bounds
-JFUSE_PARAM_BOUNDS:
-  S1_max: [10, 500]                                            # Upper zone storage capacity [mm]
-  S2_max: [50, 2000]                                           # Lower zone storage capacity [mm]
-  ku: [0.01, 1.0]                                              # Upper zone drainage rate [1/day]
-  ki: [0.001, 0.5]                                             # Interflow drainage rate [1/day]
-  ks: [0.0001, 0.1]                                            # Baseflow drainage rate [1/day]
-  n: [1.0, 5.0]                                                # Brooks-Corey exponent [-]
-  b: [0.5, 3.0]                                                # Tension storage shape parameter [-]
-  Ac_max: [0.1, 1.0]                                           # Maximum saturated area fraction [-]
-  f_rchr: [0.0, 1.0]                                           # Recharge fraction [-]
-  T_rain: [-2.0, 4.0]                                          # Rain temperature threshold [C]
-  T_melt: [-2.0, 4.0]                                          # Melt temperature threshold [C]
-  MFMAX: [1.0, 8.0]                                            # Maximum melt factor [mm/C/day]
-  MFMIN: [0.5, 4.0]                                            # Minimum melt factor [mm/C/day]
-  smooth_frac: [0.0, 1.0]                                      # Smoothing fraction [-]
-
-# Gradient-based optimization settings
-ADAM_LEARNING_RATE: 0.01                                       # Initial learning rate
 ADAM_BETA1: 0.9                                                # First moment decay
 ADAM_BETA2: 0.999                                              # Second moment decay
 GRADIENT_CLIP_VALUE: 1.0                                       # Gradient clipping threshold

@@ -346,5 +346,4 @@ EASYMORE_CACHE: /path/to/cache/dir
 EASYMORE_JOB_CONF: /path/to/esmr/job_config
 CLUSTER_JSON: /path/to/cluster.json
 GISTOOL_LIB_PATH: /path/to/r-env/
-SETTINGS_BASE_DIR: src/symfluence/resources/base_settings
 EM_EARTH_REGION: NorthAmerica

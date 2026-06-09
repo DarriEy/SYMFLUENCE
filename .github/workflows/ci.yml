@@ -60,6 +60,12 @@ jobs:
         run: |
           python scripts/check_core_layering.py
 
+      # NOTE: the shipped-config strict guard (scripts/check_shipped_configs_strict.py)
+      # needs the installed symfluence package to build the recognized-key set, so it
+      # is NOT run here (the lint job installs only ruff+pyyaml). It is enforced in the
+      # Unit Tests job via tests/unit/config/test_shipped_configs_strict.py, and in
+      # pre-commit (language: system).
+
       - name: Type check with mypy
         continue-on-error: false
         run: |
