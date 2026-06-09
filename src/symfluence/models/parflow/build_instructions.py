@@ -179,6 +179,49 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
 
     mkdir -p "${BUILD_TMPDIR}/parflow_src/build"
 
+    # Windows (MSYS2/MinGW): ParFlow's AMPS "seq" layer unconditionally includes
+    # POSIX-only <sys/times.h> (times()/struct tms/sysconf) and <sys/param.h>,
+    # which MinGW lacks — the build dies at "fatal error: sys/times.h: No such
+    # file". Provide header-only shims on a private include dir. ParFlow's real
+    # timing uses gettimeofday (CASC_HAVE_GETTIMEOFDAY) and we pass
+    # PARFLOW_ENABLE_TIMING=FALSE, so times() only needs to compile and link — a
+    # clock()-based stub suffices (no <windows.h>, to avoid macro pollution).
+    WIN_COMPAT_FLAG=""
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            _WC="${BUILD_TMPDIR}/parflow_src/win_compat"
+            mkdir -p "${_WC}/sys"
+            cat > "${_WC}/sys/times.h" <<'TIMESH'
+#ifndef SF_WIN_SYS_TIMES_H
+#define SF_WIN_SYS_TIMES_H
+#include <time.h>
+struct tms { clock_t tms_utime, tms_stime, tms_cutime, tms_cstime; };
+static __inline__ clock_t times(struct tms *buf) {
+    clock_t c = clock();
+    if (buf) { buf->tms_utime = c; buf->tms_stime = 0;
+               buf->tms_cutime = 0; buf->tms_cstime = 0; }
+    return c;
+}
+#ifndef _SC_CLK_TCK
+#define _SC_CLK_TCK 2
+#endif
+static __inline__ long sysconf(int name) { (void)name; return (long)CLOCKS_PER_SEC; }
+#endif
+TIMESH
+            cat > "${_WC}/sys/param.h" <<'PARAMH'
+#ifndef SF_WIN_SYS_PARAM_H
+#define SF_WIN_SYS_PARAM_H
+#include <limits.h>
+#ifndef MAXPATHLEN
+#define MAXPATHLEN 4096
+#endif
+#endif
+PARAMH
+            WIN_COMPAT_FLAG="-I${_WC}"
+            echo "Windows: added sys/times.h + sys/param.h shims at ${_WC}"
+            ;;
+    esac
+
     echo "Configuring CMake build..."
     # ParFlow source has several C99/C11 compliance issues that modern
     # Clang (16+) treats as hard errors:
@@ -191,7 +234,7 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
         -DPARFLOW_AMPS_LAYER=seq \
         -DPARFLOW_ENABLE_TIMING=FALSE \
         -DPARFLOW_HAVE_CLM=OFF \
-        -DCMAKE_C_FLAGS="-Wno-int-conversion -Wno-implicit-function-declaration -Wno-incompatible-pointer-types"
+        -DCMAKE_C_FLAGS="${WIN_COMPAT_FLAG} -Wno-int-conversion -Wno-implicit-function-declaration -Wno-incompatible-pointer-types"
 
     echo "Compiling..."
     NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -226,8 +269,8 @@ fi
         'dependencies': ['cmake', 'make'],
         'test_command': '--version',
         'verify_install': {
-            'file_paths': ['bin/parflow'],
-            'check_type': 'exists'
+            'file_paths': ['bin/parflow', 'bin/parflow.exe'],
+            'check_type': 'exists_any'
         },
         'order': 26,  # After MODFLOW (25)
         'optional': True,  # Not installed by default with --install
