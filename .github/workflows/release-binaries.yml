@@ -113,12 +113,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # bullseye ships cmake 3.18; several model builds need >= 3.20. Use the pip
-      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH.
+      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH. meson is
+      # here too: MODFLOW 6's USGS prebuilt needs GLIBC_2.34 (above our 2.31
+      # floor), so on this container it's source-built via meson — but the
+      # installer only auto-installs meson inside a venv/conda, and this is bare
+      # system Python, so provide it up front or mf6 silently won't ship on Linux.
       - name: Upgrade build tools in container (old-glibc Linux)
         if: matrix.container != ''
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cmake>=3.22" ninja
+          python -m pip install "cmake>=3.22" ninja meson
 
       # ========================================================================
       # Pre-Release Validation
