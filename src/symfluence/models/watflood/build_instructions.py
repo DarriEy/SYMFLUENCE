@@ -250,33 +250,45 @@ if ! grep -q "eof_compat" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
 fi
 
 # === Add eof external declaration to EF_Module.f ===
-# Only inject 'logical, external :: eof' if CountDataLinesAfterHeader is
-# OUTSIDE the module (after END MODULE).  If it's inside a CONTAINS section,
-# eof is visible via host association from area_watflood and the external
-# declaration is invalid inside a module procedure.
+# EF_Module's CountDataLinesAfterHeader uses Intel's EOF() builtin, which
+# gfortran lacks; eof() is supplied by eof_compat.f90 (an external function).
+# gfortran must be told eof is an external LOGICAL or it implicitly types it
+# REAL(4) and rejects ".not.EOF(...)" ("Operand of .not. operator is REAL(4)").
+# Two cases for where the declaration must go:
+#   * function lives AFTER END MODULE -> declare inside the function itself.
+#   * function is a module procedure (inside CONTAINS) -> declaring it in the
+#     function body is fine too, but declaring it once in the module's
+#     specification part (before CONTAINS) host-associates it to every contained
+#     procedure. We must NOT skip this case: EF_Module does not use area_watflood,
+#     so eof is otherwise undeclared here (this was the real watflood build break).
 if [ -f "${SRC_DIR}/common/EF_Module.f" ] && ! grep -q "logical, external :: eof" "${SRC_DIR}/common/EF_Module.f" 2>/dev/null; then
     python3 -c "
 import re
-with open('${SRC_DIR}/common/EF_Module.f') as f:
+path = '${SRC_DIR}/common/EF_Module.f'
+with open(path) as f:
     txt = f.read()
-# Check if CountDataLinesAfterHeader exists at all
 if 'CountDataLinesAfterHeader' not in txt:
-    exit(0)
-# Find END MODULE position and CountDataLinesAfterHeader position
+    raise SystemExit(0)
+decl = '      logical, external :: eof\n'
 end_mod = re.search(r'END\s+MODULE', txt, re.IGNORECASE)
 func_pos = txt.find('CountDataLinesAfterHeader')
 if end_mod and func_pos > end_mod.start():
-    # Function is AFTER END MODULE (extracted to EF_Extra.f90 or standalone)
-    # Safe to inject external declaration
+    # Function is AFTER END MODULE (external procedure): declare inside it.
     txt = txt.replace(
         'INTEGER FUNCTION CountDataLinesAfterHeader',
-        'INTEGER FUNCTION CountDataLinesAfterHeader\n      logical, external :: eof'
-    )
-    with open('${SRC_DIR}/common/EF_Module.f', 'w') as f:
-        f.write(txt)
-    print('  Injected eof external declaration (function after END MODULE)')
+        'INTEGER FUNCTION CountDataLinesAfterHeader\n' + decl, 1)
+    where = 'inside function (after END MODULE)'
 else:
-    print('  CountDataLinesAfterHeader is inside CONTAINS — skipping eof injection (host association)')
+    # Module procedure: inject at module scope, just before CONTAINS, so it is
+    # host-associated into the contained function(s) that call eof().
+    m = re.search(r'^[ \t]*CONTAINS', txt, re.IGNORECASE | re.MULTILINE)
+    if not m:
+        raise SystemExit(0)
+    txt = txt[:m.start()] + decl + txt[m.start():]
+    where = 'module scope before CONTAINS (host association)'
+with open(path, 'w') as f:
+    f.write(txt)
+print('  Injected eof external declaration: ' + where)
 " 2>/dev/null || echo "  WARNING: EF_Module.f eof injection failed (non-fatal)"
 fi
 
