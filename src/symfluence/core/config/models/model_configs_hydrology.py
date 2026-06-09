@@ -609,6 +609,7 @@ class PRMSConfig(BaseModel):
     )
     model_mode: str = Field(default='DAILY', alias='PRMS_MODEL_MODE')
     timeout: int = Field(default=3600, alias='PRMS_TIMEOUT', ge=60, le=86400)
+    use_obs_solar: bool = Field(default=False, alias='PRMS_USE_OBS_SOLAR')
 
 
 class GSFLOWConfig(BaseModel):

@@ -7119,6 +7119,15 @@ PRMS_MODEL_MODE: "DAILY"
 #   Usage:      3
 PRMS_TIMEOUT: 3600
 
+# Use measured incoming shortwave (data var 'solrad', Langleys/day) instead of
+# the ddsolrad degree-day estimate; drives PET and snowmelt energy.
+# PRMS_USE_OBS_SOLAR
+#   Type:        bool
+#   Default:     false
+#   Source:      PRMSConfig (model_configs.py)
+#   Usage:      1
+PRMS_USE_OBS_SOLAR: false
+
 
 # 9.14. GSFLOW Model Configuration
 # ================================================================================
