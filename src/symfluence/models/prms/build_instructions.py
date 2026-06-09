@@ -131,8 +131,23 @@ import os
 p = 'makelist'
 with open(p) as f: txt = f.read()
 
+import re
 nf_inc = os.environ.get('NF_INC_EXPORT', '')
 nf_flibs = os.environ.get('NF_FLIBS_EXPORT', '')
+
+# On Windows the NetCDF prefix can contain a space (e.g. the Git-for-Windows
+# 'C:/Program Files/Git/mingw64' that gets picked up ahead of MSYS2's clean
+# 'C:/msys64/mingw64'). An unquoted -I/-L carrying that space makes gfortran
+# split the flag and treat the tail ('Files/Git/...') as a stray linker input
+# ('linker input file not found'). Quote any path containing a space; space-free
+# paths (Linux/macOS, MSYS2) are left untouched.
+def _q(path):
+    return chr(34) + path + chr(34) if ' ' in path else path
+nf_inc = _q(nf_inc)
+if nf_flibs:
+    _tmp = nf_flibs + ' -ZZZEND'
+    _tmp = re.sub(r'-L(.+?)(?= -)', lambda m: '-L' + _q(m.group(1)), _tmp)
+    nf_flibs = _tmp.replace(' -ZZZEND', '')
 
 # Add -fallow-argument-mismatch to FFLAGS (if not already present)
 if '-fallow-argument-mismatch' not in txt:
