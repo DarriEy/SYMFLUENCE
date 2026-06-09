@@ -511,7 +511,9 @@ print_info "Staging ParFlow..."
 
 PARFLOW_DIR="$INSTALLS_DIR/parflow"
 if [ -d "$PARFLOW_DIR" ]; then
-    stage_binary "$PARFLOW_DIR/bin/parflow" "parflow" "ParFlow" || print_warning "ParFlow binary not found"
+    stage_binary "$PARFLOW_DIR/bin/parflow" "parflow" "ParFlow" \
+        || stage_binary "$PARFLOW_DIR/bin/parflow.exe" "parflow.exe" "ParFlow" \
+        || print_warning "ParFlow binary not found"
     stage_license "$PARFLOW_DIR" "ParFlow"
 else
     print_warning "ParFlow not installed"
