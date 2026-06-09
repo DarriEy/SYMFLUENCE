@@ -173,15 +173,26 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
     # Must be sequential: PIHM needs CVODE headers installed before compiling
     cd "${SRC_DIR}"
     make clean 2>/dev/null || true
-    # MM-PIHM's `cvode` Makefile target runs `cmake ../` then a bare `make`.
-    # On Windows the mingw ninja package is installed, so CMake defaults to the
-    # Ninja generator and emits build.ninja — then the target's `make` finds no
-    # Makefile and dies ("No targets specified and no makefile found", Error 2).
-    # CMake honors the CMAKE_GENERATOR env var, so pin Makefiles on Windows.
     case "$(uname -s)" in
-        MINGW*|MSYS*|CYGWIN*) export CMAKE_GENERATOR="Unix Makefiles" ;;
+        MINGW*|MSYS*|CYGWIN*)
+            # MM-PIHM's `cvode` target runs `cmake ../` then a bare `make`, but
+            # mingw cmake defaults to the Ninja generator (emits build.ninja, no
+            # Makefile) so the bare make dies ("No targets ... no makefile
+            # found", Error 2) — and CMAKE_GENERATOR alone didn't override it.
+            # Replicate the cvode configure (Makefile:352) and build with
+            # `cmake --build`, which works with whatever generator cmake picked.
+            echo "Windows: building CVODE via cmake --build (generator-agnostic)..."
+            mkdir -p cvode/instdir
+            ( cd cvode/instdir && cmake \
+                -DCMAKE_INSTALL_PREFIX=../instdir -DCMAKE_INSTALL_LIBDIR=lib \
+                -DBUILD_SHARED_LIBS=OFF -DEXAMPLES_ENABLE_C=OFF -DEXAMPLES_INSTALL=OFF ../ \
+              && cmake --build . \
+              && cmake --build . --target install )
+            ;;
+        *)
+            make cvode
+            ;;
     esac
-    make cvode
     make pihm -j "${NCPU}"
 
     # The Makefile places the binary in the source root (gcc -o pihm ...);
