@@ -4365,20 +4365,6 @@ SETTINGS_SUMMA_SOILPROFILE: "FA"
 #   Description: Initial matric head for SUMMA cold state initialization
 SUMMA_INIT_MATRIC_HEAD: -1.0
 
-# SETTINGS_SUMMA_INIT_GRID_FILE
-#   Type:        str
-#   Default:     coldState_glacSurfTopo.nc
-#   Source:      SUMMAConfig (model_configs.py)
-#   Description: Glacier initial conditions grid file
-SETTINGS_SUMMA_INIT_GRID_FILE: "coldState_glacSurfTopo.nc"
-
-# SETTINGS_SUMMA_ATTRIB_GRID_FILE
-#   Type:        str
-#   Default:     attributes_glacBedTopo.nc
-#   Source:      SUMMAConfig (model_configs.py)
-#   Description: Glacier attributes grid file
-SETTINGS_SUMMA_ATTRIB_GRID_FILE: "attributes_glacBedTopo.nc"
-
 
 # 8. FUSE Model Configuration
 # ================================================================================
