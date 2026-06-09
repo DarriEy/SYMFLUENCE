@@ -82,16 +82,24 @@ fi
 echo "CMake version: $(cmake --version | head -1)"
 echo "gfortran version: $(gfortran --version | head -1)"
 
-# Check for NetCDF-Fortran
-NETCDF_FORTRAN=""
-if command -v nf-config >/dev/null 2>&1; then
-    NETCDF_FORTRAN="$(nf-config --prefix 2>/dev/null || echo '')"
-elif [ -d "/opt/homebrew/opt/netcdf-fortran" ]; then
-    NETCDF_FORTRAN="/opt/homebrew/opt/netcdf-fortran"
-elif [ -d "/usr/local/opt/netcdf-fortran" ]; then
-    NETCDF_FORTRAN="/usr/local/opt/netcdf-fortran"
-elif [ -d "/usr" ] && [ -f "/usr/include/netcdf.mod" ]; then
-    NETCDF_FORTRAN="/usr"
+# Check for NetCDF-Fortran. Honor a NETCDF_FORTRAN already exported by the
+# shared NetCDF detection snippet — on MSYS2/MinGW it resolves to the mingw64
+# prefix (e.g. C:/msys64/mingw64), where nf-config and the unix prefixes below
+# don't exist. Clobbering it with "" (as before) made mHM the only model to
+# fail on Windows with "NetCDF-Fortran not found" even though the toolchain has
+# it. Only run our own detection when nothing was pre-set.
+if [ -z "${NETCDF_FORTRAN:-}" ]; then
+    if command -v nf-config >/dev/null 2>&1; then
+        NETCDF_FORTRAN="$(nf-config --prefix 2>/dev/null || echo '')"
+    elif [ -d "/opt/homebrew/opt/netcdf-fortran" ]; then
+        NETCDF_FORTRAN="/opt/homebrew/opt/netcdf-fortran"
+    elif [ -d "/usr/local/opt/netcdf-fortran" ]; then
+        NETCDF_FORTRAN="/usr/local/opt/netcdf-fortran"
+    elif [ -d "/mingw64" ] && [ -f "/mingw64/include/netcdf.mod" ]; then
+        NETCDF_FORTRAN="/mingw64"
+    elif [ -d "/usr" ] && [ -f "/usr/include/netcdf.mod" ]; then
+        NETCDF_FORTRAN="/usr"
+    fi
 fi
 
 if [ -z "$NETCDF_FORTRAN" ]; then
