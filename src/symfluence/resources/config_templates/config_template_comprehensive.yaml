@@ -6837,6 +6837,23 @@ MHM_PARAMS_TO_CALIBRATE: canopyInterceptionFactor,snowTreshholdTemperature,degre
 #   Usage:      3
 MHM_TIMEOUT: 3600
 
+# Distributed morphology: build a gridded domain (DEM/soil/landcover/flow network)
+# so Multiscale Parameter Regionalization operates over real spatial variability.
+# MHM_DISTRIBUTED
+#   Type:        bool
+#   Default:     false
+#   Source:      MHMConfig (model_configs.py)
+#   Usage:      1
+MHM_DISTRIBUTED: false
+
+# Grid resolution (degrees) for distributed mHM morphology / forcing.
+# MHM_GRID_RES
+#   Type:        float
+#   Default:     0.02
+#   Source:      MHMConfig (model_configs.py)
+#   Usage:      1
+MHM_GRID_RES: 0.02
+
 
 # 9.11. CRHM Model Configuration
 # ================================================================================
