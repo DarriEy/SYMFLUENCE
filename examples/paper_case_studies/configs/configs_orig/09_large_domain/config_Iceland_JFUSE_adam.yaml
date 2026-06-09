@@ -162,12 +162,6 @@ JFUSE_TIMESTEP_DAYS: 1.0
 JFUSE_CALIBRATION_METRIC: KGE
 JFUSE_USE_GRADIENT_CALIBRATION: True
 JFUSE_NETWORK_FILE: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_Iceland_multivar/settings/mizuRoute/topology.nc
-JFUSE_FORCING_SOURCE: FUSE_input
-JFUSE_MAPPING_FILE: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_Iceland_multivar/settings/mizuRoute/fuse_to_routing_mapping.csv
-
-# Transfer function settings — spatially varying parameters from catchment attributes
-JFUSE_USE_TRANSFER_FUNCTIONS: true
-JFUSE_ATTRIBUTES_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_Iceland_multivar/settings/FUSE/subcatchment_attributes.csv
 
 # JFUSE parameters to calibrate (prms_gradient default 14 params, all with non-zero gradients)
 JFUSE_PARAMS_TO_CALIBRATE: S1_max,S2_max,ku,ki,ks,n,Ac_max,b,f_rchr,T_rain,T_melt,MFMAX,MFMIN,smooth_frac
@@ -190,10 +184,6 @@ SETTINGS_MIZU_PARAMETERS: param.nml.default
 SETTINGS_MIZU_CONTROL_FILE: mizuroute.control
 SETTINGS_MIZU_REMAP: routing_remap.nc
 
-# Model results path
-EXPERIMENT_OUTPUT_JFUSE: default
-EXPERIMENT_LOG_JFUSE: default
-
 ### ============================================= 5. Evaluation settings: =================================================================
 
 # Simulation settings
@@ -206,15 +196,6 @@ ADDITIONAL_OBSERVATIONS: MODIS_SNOW
 
 ### ============================================= 6. Multivariate evaluation - SCF Trend settings: ========================================
 
-# Multivariate comparison settings
-MULTIVAR_EVALUATION: True
-MULTIVAR_TARGETS:
-  - variable: SCF
-    source: MODIS
-    product: MOD10A2
-    metric: trend_correlation
-    weight: 1.0
-
 # MODIS Snow Cover Fraction settings for trend study
 MODIS_SCF_PRODUCT: MOD10A2
 MODIS_SCF_PATH: default
@@ -222,22 +203,6 @@ MODIS_SCF_VARIABLE: Maximum_Snow_Extent
 MODIS_SCF_TEMPORAL_RESOLUTION: 8day
 MODIS_CLOUD_FILTER: True
 MODIS_CLOUD_MAX_FRACTION: 0.3
-
-# Trend analysis settings
-SCF_TREND_ANALYSIS: True
-SCF_TREND_METHOD: Mann-Kendall
-SCF_TREND_SIGNIFICANCE: 0.05
-SCF_TREND_PERIOD: 2000-03-01, 2003-12-31
-SCF_SEASONAL_DECOMPOSITION: True
-SCF_SEASONS:
-  accumulation: [10, 11, 12, 1, 2, 3]
-  ablation: [4, 5, 6]
-  snow_free: [7, 8, 9]
-
-# Regional aggregation settings
-SCF_REGIONAL_AGGREGATION: True
-SCF_ELEVATION_BANDS: [0, 200, 400, 600, 800, 1000, 1200, 1500, 2000]
-SCF_SPATIAL_RESOLUTION: 500
 
 ### ============================================= 7. Optimization settings: ===============================================================
 

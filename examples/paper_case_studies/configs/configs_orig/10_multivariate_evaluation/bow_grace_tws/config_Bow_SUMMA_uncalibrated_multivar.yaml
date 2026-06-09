@@ -240,18 +240,6 @@ HYDAT_PATH: /work/comphyd_lab/data/geospatial-data/hydat/Hydat.sqlite3
 
 ### ============================================= 6. Multivariate evaluation settings: ====================================================
 
-# GRACE TWS comparison settings
-MULTIVAR_EVALUATION: True
-MULTIVAR_TARGETS:
-  - variable: TWS
-    source: GRACE
-    metric: correlation
-    weight: 0.5
-  - variable: streamflow
-    source: WSC
-    metric: KGE
-    weight: 0.5
-
 # GRACE data settings
 GRACE_TWS_PRODUCT: GRACE-FO_JPL_RL06_mascon
 GRACE_TWS_PATH: default
