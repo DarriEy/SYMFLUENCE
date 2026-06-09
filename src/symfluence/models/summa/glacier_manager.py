@@ -164,7 +164,7 @@ class GlacierAttributesManager(ConfigMixin):
 
                 if domain_type_shp.exists() and dem_domain_shp.exists() and debris_thick_shp.exists():
                     return self._process_from_shapefiles(
-                        domain_type_shp, dem_domain_shp, debris_thick_shp,
+                        domain_type_shp, debris_thick_shp, dem_domain_shp, glacier_dir,
                         settings_dir, base_attributes_file, base_coldstate_file,
                         hru_ids, gru_ids, hru_areas, hru_elevs, hru2gru
                     )
@@ -479,7 +479,6 @@ class GlacierAttributesManager(ConfigMixin):
         self,
         settings_dir: Path,
         base_attributes_file: Path,
-        nGrid: np.ndarray,
         glacier_dir: Path,
         gru_ids: np.ndarray,
         grid_info: Dict[str, Any]
