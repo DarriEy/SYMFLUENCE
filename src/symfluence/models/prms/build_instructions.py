@@ -94,6 +94,24 @@ if command -v nc-config >/dev/null 2>&1; then
     fi
 fi
 
+# Windows (Git Bash): nf-config, if present, resolves to the Git-for-Windows
+# mingw (C:/Program Files/Git/mingw64), whose include dir has no netcdf.mod
+# ("Cannot open module file 'netcdf.mod'"). The real NetCDF-Fortran is in MSYS2's
+# mingw64. Point at it by absolute path — Git Bash's /mingw64 is Git's, not
+# MSYS2's — overriding whatever the detection above picked.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        for _m in "C:/msys64/mingw64" "/mingw64"; do
+            if [ -f "$_m/include/netcdf.mod" ] || [ -f "$_m/include/NETCDF.mod" ]; then
+                NF_INC="$_m/include"
+                NF_FLIBS="-L$_m/lib -lnetcdff -lnetcdf"
+                echo "Windows: using NetCDF-Fortran from $_m"
+                break
+            fi
+        done
+        ;;
+esac
+
 # PRMS repo clones directly into install dir; top-level has Makefile, mmf/, prms/
 echo "Building PRMS with make..."
 
