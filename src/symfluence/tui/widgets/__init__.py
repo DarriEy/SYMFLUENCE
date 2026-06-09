@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """TUI widget modules."""
+from __future__ import annotations
 
 from .config_tree import ConfigTreeWidget
 from .domain_list import DomainListWidget

@@ -8,6 +8,7 @@ Handles both routed (mizuRoute) and non-routed (native SUMMA) output.
 For lumped domains without routing, reads averageRoutedRunoff from SUMMA
 output and converts from m/s to m³/s using HRU area.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -15,12 +16,13 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
-from ..base import RoutedModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import RoutedModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('SUMMA')
-class SUMMAPostprocessor(RoutedModelPostprocessor):
+@R.postprocessors.add('SUMMA')
+class SUMMAPostProcessor(RoutedModelPostProcessor):
     """
     Postprocessor for SUMMA model outputs.
 
@@ -107,5 +109,5 @@ class SUMMAPostprocessor(RoutedModelPostprocessor):
             return self.save_streamflow_to_results(streamflow)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting SUMMA native streamflow: {e}")
+            self.logger.error(f"Error extracting SUMMA native streamflow: {e}", exc_info=True)
             return None

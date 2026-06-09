@@ -17,6 +17,7 @@ JRC Global Surface Water Overview:
 Output Format:
     CSV with spatial statistics: mean, std, min, max water occurrence/extent
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
@@ -132,7 +133,7 @@ class JRCWaterHandler(BaseObservationHandler):
                 if stats:
                     results.append(stats)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {tif_file.name}: {e}")
+                self.logger.warning(f"Failed to process {tif_file.name}: {e}", exc_info=True)
 
         if not results:
             self.logger.warning(f"No JRC surface water data could be extracted from {len(tif_files)} files")
@@ -159,34 +160,12 @@ class JRCWaterHandler(BaseObservationHandler):
         return output_file
 
     def _get_catchment_path(self) -> Optional[Path]:
-        """Get path to catchment shapefile if available."""
-        catchment_dir = self._get_config_value(
-            lambda: self.config.domain.catchment_path,
-            default=None
-        )
-        if catchment_dir:
-            catchment_dir = Path(catchment_dir)
-        else:
-            catchment_dir = self.project_dir / "shapefiles" / "catchment"
+        """Get path to catchment shapefile if available.
 
-        if not catchment_dir.exists():
-            return None
-
-        # Find shapefile
-        shp_name = self._get_config_value(
-            lambda: self.config.domain.catchment_shp_name,
-            default=f"{self.domain_name}_catchment.shp"
-        )
-        shp_path = catchment_dir / shp_name
-        if shp_path.exists():
-            return shp_path
-
-        # Try to find any shapefile
-        shp_files = list(catchment_dir.glob("*.shp"))
-        if shp_files:
-            return shp_files[0]
-
-        return None
+        Delegates to the shared resolver, which handles the nested
+        discretization layout and river_basins fallback.
+        """
+        return self._resolve_catchment_shapefile()
 
     def _compute_basin_stats(
         self,
@@ -266,6 +245,6 @@ class JRCWaterHandler(BaseObservationHandler):
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             import traceback
-            self.logger.warning(f"Error computing stats for {tif_path.name}: {e}")
+            self.logger.warning(f"Error computing stats for {tif_path.name}: {e}", exc_info=True)
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")
             return None

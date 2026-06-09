@@ -3,6 +3,7 @@ Unit tests for coordinate_utils module.
 
 Tests bounding box parsing, coordinate normalization, and related utilities.
 """
+from __future__ import annotations
 
 import numpy as np
 import pytest

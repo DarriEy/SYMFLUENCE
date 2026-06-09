@@ -8,6 +8,7 @@ Wraps the model-agnostic regionalization framework from
 ``models/fuse/calibration/parameter_regionalization`` with SUMMA defaults
 and attribute loading from SUMMA ``attributes.nc`` files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

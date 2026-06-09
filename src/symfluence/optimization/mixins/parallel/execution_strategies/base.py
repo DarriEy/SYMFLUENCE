@@ -6,6 +6,7 @@ Base Execution Strategy
 
 Abstract base class for parallel execution strategies.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List

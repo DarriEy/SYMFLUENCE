@@ -7,16 +7,17 @@ GSFLOW Parameter Manager.
 Manages parameters for both PRMS (####-delimited params.dat) and
 MODFLOW-NWT (UPW package) components of GSFLOW.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('GSFLOW')
+@R.parameter_managers.add('GSFLOW')
 class GSFLOWParameterManager(BaseParameterManager):
     """Parameter manager for GSFLOW (PRMS + MODFLOW-NWT)."""
 
@@ -96,7 +97,7 @@ class GSFLOWParameterManager(BaseParameterManager):
 
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying GSFLOW parameters: {e}")
+            self.logger.error(f"Error applying GSFLOW parameters: {e}", exc_info=True)
             return False
 
     def _update_prms_params(self, settings_dir: Path, params: Dict[str, float]) -> bool:

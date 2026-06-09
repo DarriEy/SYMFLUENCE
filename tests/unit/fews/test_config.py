@@ -1,4 +1,5 @@
 """Tests for FEWS adapter configuration models."""
+from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
@@ -49,9 +50,10 @@ class TestFEWSConfig:
         with pytest.raises(ValidationError):
             cfg.work_dir = "/new/path"
 
-    def test_alias_access(self):
-        cfg = FEWSConfig(FEWS_WORK_DIR="/tmp/fews")
-        assert cfg.work_dir == "/tmp/fews"
+    def test_alias_access(self, tmp_path):
+        work_dir = str(tmp_path / "fews")
+        cfg = FEWSConfig(FEWS_WORK_DIR=work_dir)
+        assert cfg.work_dir == work_dir
 
     def test_invalid_format(self):
         with pytest.raises(ValidationError):

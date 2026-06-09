@@ -8,6 +8,7 @@ SH (iter-3, 11.SH.3) reported that the paper configs write
 validator only accepted ``semidistributed`` (no separator). Accept
 both underscore and hyphen variants so the paper configs run as-is.
 """
+from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError

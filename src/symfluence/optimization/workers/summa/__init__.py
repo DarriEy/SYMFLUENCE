@@ -18,6 +18,7 @@ The original summa_parallel_workers.py has been split into focused modules:
 - model_execution: SUMMA/mizuRoute execution
 - dds_optimization: DDS algorithm for workers
 """
+from __future__ import annotations
 
 from symfluence.models.summa.parallel_gru_execution import (
     compute_gru_splits,

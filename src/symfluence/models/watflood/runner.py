@@ -6,6 +6,7 @@ WATFLOOD Model Runner.
 
 Executes WATFLOOD from a working directory (copy exe pattern, like MESH).
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -90,7 +91,7 @@ class WATFLOODRunner(BaseModelRunner):
             logger.warning(f"WATFLOOD timed out after {timeout}s")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error running WATFLOOD: {e}")
+            logger.error(f"Error running WATFLOOD: {e}", exc_info=True)
             return None
 
     def _get_executable(self) -> Path:

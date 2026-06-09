@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Workflow-stage orchestrators for the reporting facade."""
+from __future__ import annotations
 
 from symfluence.reporting.orchestrators.calibration_orchestrator import CalibrationOrchestrator
 from symfluence.reporting.orchestrators.diagnostics_orchestrator import DiagnosticsOrchestrator

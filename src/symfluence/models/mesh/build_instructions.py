@@ -12,11 +12,13 @@ This module defines how to build MESH from source, including:
 MESH (Modélisation Environnementale Surface Hydrology) is Environment
 Canada's land-surface and hydrology model.
 """
+from __future__ import annotations
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('mesh')
+@R.build_instructions.add('mesh')
 def get_mesh_build_instructions():
     """
     Get MESH build instructions.

@@ -7,6 +7,8 @@ noah-owp-modular writes a single ``output.nc`` with all water/energy
 variables on the model time axis.  Variable naming follows the NOAH-MP
 convention (uppercase Fortran-style identifiers).
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict, List, Optional
 

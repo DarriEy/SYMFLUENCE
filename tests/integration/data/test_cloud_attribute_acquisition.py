@@ -3,6 +3,7 @@ SYMFLUENCE Cloud Attribute Acquisition Integration Tests
 
 Validates cloud attribute acquisition for DEM, land cover, and soil classes.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

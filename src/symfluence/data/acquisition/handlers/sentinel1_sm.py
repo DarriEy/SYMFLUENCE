@@ -18,6 +18,8 @@ Sentinel-1 SM features:
 Data access via Copernicus Data Space Ecosystem:
 https://dataspace.copernicus.eu/
 """
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -130,7 +132,7 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             response.raise_for_status()
             return response.json().get('access_token')
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to get access token: {e}")
+            self.logger.error(f"Failed to get access token: {e}", exc_info=True)
             return None
 
     def _search_products(self, token: str) -> List[Dict[str, Any]]:
@@ -178,7 +180,7 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             response.raise_for_status()
             return response.json().get('value', [])
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Product search failed: {e}")
+            self.logger.error(f"Product search failed: {e}", exc_info=True)
             return []
 
     def _download_product(self, token: str, product_id: str, output_file: Path) -> bool:
@@ -199,5 +201,5 @@ class Sentinel1SMAcquirer(BaseAcquisitionHandler):
             return True
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to download {product_id}: {e}")
+            self.logger.warning(f"Failed to download {product_id}: {e}", exc_info=True)
             return False

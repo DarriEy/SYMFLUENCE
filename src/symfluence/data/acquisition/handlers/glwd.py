@@ -23,6 +23,7 @@ Configuration:
     GLWD_FORMAT: 'tif' (default) or 'gdb' - Download format
     GLWD_PRODUCT: 'combined' (default), 'area_pct', 'area_ha'
 """
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path
@@ -124,7 +125,8 @@ class GLWDAcquirer(BaseAcquisitionHandler, RetryMixin):
         self.logger.info("Extracting archive...")
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(cache_dir)
+                from symfluence.core.archive_extraction import safe_zip_extract
+                safe_zip_extract(zf, cache_dir)
         except zipfile.BadZipFile:
             self.logger.error("Downloaded file is not a valid zip")
             zip_path.unlink(missing_ok=True)

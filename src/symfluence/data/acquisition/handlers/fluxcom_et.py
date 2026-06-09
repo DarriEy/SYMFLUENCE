@@ -43,6 +43,7 @@ References:
     - Jung et al. (2019): https://doi.org/10.1038/s41597-019-0076-8
     - FLUXCOM-X: https://www.icos-cp.eu/data-products/2G60-ZHAK
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -177,7 +178,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
             with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
                 collection = json.loads(resp.read())
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to query ICOS Carbon Portal: {e}")
+            self.logger.warning(f"Failed to query ICOS Carbon Portal: {e}", exc_info=True)
             return []
 
         downloaded = []
@@ -199,7 +200,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                 with urllib.request.urlopen(req2, timeout=60) as resp2:  # nosec B310
                     year_data = json.loads(resp2.read())
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to fetch {year} metadata: {e}")
+                self.logger.warning(f"Failed to fetch {year} metadata: {e}", exc_info=True)
                 continue
 
             for item in year_data.get("members", []):
@@ -240,7 +241,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                         downloaded.append(out_file)
                         self.logger.info(f"  {year}: OK ({out_file.stat().st_size / 1e6:.1f} MB)")
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.warning(f"  {year}: download failed: {e}")
+                        self.logger.warning(f"  {year}: download failed: {e}", exc_info=True)
                     break
 
         self.logger.info(f"Downloaded {len(downloaded)} FLUXCOM-X yearly files")
@@ -313,7 +314,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
                 datasets.append(da)
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Error reading {f}: {e}")
+                self.logger.warning(f"Error reading {f}: {e}", exc_info=True)
                 continue
 
         if not datasets:

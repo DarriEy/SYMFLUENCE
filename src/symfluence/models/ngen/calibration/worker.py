@@ -7,6 +7,7 @@ NextGen (NGEN) Worker
 Worker implementation for NextGen model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -15,13 +16,13 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel as PydanticBaseModel
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('NGEN')
+@R.workers.add('NGEN')
 class NgenWorker(BaseWorker):
     """
     Worker for NextGen (ngen) model calibration.
@@ -305,7 +306,7 @@ class NgenWorker(BaseWorker):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying ngen parameters: {e}")
+            self.logger.error(f"Error applying ngen parameters: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -354,7 +355,7 @@ class NgenWorker(BaseWorker):
             self.logger.error(f"Required ngen input file not found: {e}")
             return False
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running ngen: {e}")
+            self.logger.error(f"Error running ngen: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -398,7 +399,7 @@ class NgenWorker(BaseWorker):
             return self._calculate_metrics_direct(output_dir, config)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating ngen metrics: {e}")
+            self.logger.error(f"Error calculating ngen metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     def _calculate_metrics_direct(
@@ -483,7 +484,7 @@ class NgenWorker(BaseWorker):
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in direct ngen metrics calculation: {e}")
+            self.logger.error(f"Error in direct ngen metrics calculation: {e}", exc_info=True)
             return {'kge': self.penalty_score}
 
     @staticmethod

@@ -7,6 +7,7 @@ LSTM (Flow and Snow Hydrological LSTM) model runner.
 An LSTM-based model for hydrological predictions, specifically for streamflow
 and snow water equivalent (SWE).
 """
+from __future__ import annotations
 
 import logging
 import pickle  # nosec B403 - Used for trusted internal model serialization
@@ -28,19 +29,19 @@ except ImportError:
     HAS_DROUTE = False
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..execution import RoutingModel, SpatialOrchestrator
 from ..mixins import SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from .model import LSTMModel
-from .postprocessor import LSTMPostprocessor
+from .postprocessor import LSTMPostProcessor
 from .preprocessor import LSTMPreProcessor
 
 
-@ModelRegistry.register_runner('LSTM', method_name='run_lstm')
+@R.runners.add('LSTM', runner_method='run_lstm')
 class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
@@ -94,7 +95,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
             self.project_dir,
             self.device
         )
-        self.postprocessor = LSTMPostprocessor(
+        self.postprocessor = LSTMPostProcessor(
             self.config,
             self.logger,
             reporting_manager=self.reporting_manager
@@ -674,7 +675,9 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         self.logger.info(f"Loading LSTM model from {path}")
         if not path.exists():
             raise FileNotFoundError(f"Model checkpoint not found at {path}")
-        return torch.load(path, map_location=self.device)
+        # weights_only=True prevents arbitrary code execution when deserializing
+        # an untrusted checkpoint (CVE-2025-32434 lineage).
+        return torch.load(path, map_location=self.device, weights_only=True)
 
     def _log_memory_usage(self):
         """Log current memory usage."""

@@ -9,14 +9,15 @@ Most models can inherit from this and only define configuration attributes, redu
 boilerplate from 50-150 lines to 10-20 lines.
 
 Usage:
-    @ModelRegistry.register_postprocessor('MYMODEL')
-    class MyModelPostprocessor(StandardModelPostprocessor):
+    @R.postprocessors.add('MYMODEL')
+    class MyModelPostProcessor(StandardModelPostProcessor):
         model_name = "MYMODEL"
         output_file_pattern = "{domain}_{experiment}_output.nc"
         streamflow_variable = "discharge"
         streamflow_unit = "mm_per_day"  # or "cms"
         netcdf_selections = {"hru": 0}  # Optional dimension selections
 """
+from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta
@@ -29,7 +30,7 @@ import xarray as xr
 from .base_postprocessor import BaseModelPostProcessor
 
 
-class StandardModelPostprocessor(BaseModelPostProcessor):
+class StandardModelPostProcessor(BaseModelPostProcessor):
     """
     Simplified postprocessor for models with standard extraction patterns.
 
@@ -64,7 +65,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
         aggregation_method: str - "sum", "mean", or "concat"
 
     Example:
-        >>> class FUSEPostprocessor(StandardModelPostprocessor):
+        >>> class FUSEPostProcessor(StandardModelPostProcessor):
         ...     model_name = "FUSE"
         ...     output_file_pattern = "{domain}_{experiment}_runs_best.nc"
         ...     streamflow_variable = "q_routed"
@@ -220,7 +221,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
         try:
             return self.read_netcdf_streamflow(file_path, variable, **selections)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading NetCDF: {e}")
+            self.logger.error(f"Error reading NetCDF: {e}", exc_info=True)
             return None
 
     def _get_netcdf_selections(self) -> Dict[str, Any]:
@@ -274,7 +275,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             return df[flow_column]
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading text file: {e}")
+            self.logger.error(f"Error reading text file: {e}", exc_info=True)
             return None
 
     def _get_flow_column(self, df: pd.DataFrame) -> Optional[str]:
@@ -436,7 +437,7 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
                     all_streamflow.append(df)
 
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Error processing {file_path}: {e}")
+                self.logger.warning(f"Error processing {file_path}: {e}", exc_info=True)
                 continue
 
         if not all_streamflow:
@@ -504,11 +505,11 @@ class StandardModelPostprocessor(BaseModelPostProcessor):
             return result
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading {file_path}: {e}")
+            self.logger.error(f"Error reading {file_path}: {e}", exc_info=True)
             return None
 
 
-class RoutedModelPostprocessor(StandardModelPostprocessor):
+class RoutedModelPostProcessor(StandardModelPostProcessor):
     """
     Specialized postprocessor for models that use mizuRoute routing.
 
@@ -516,7 +517,7 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
     and selecting the outlet reach.
 
     Example:
-        >>> class SUMMAPostprocessor(RoutedModelPostprocessor):
+        >>> class SUMMAPostProcessor(RoutedModelPostProcessor):
         ...     model_name = "SUMMA"
     """
 
@@ -571,5 +572,15 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading routing output: {e}")
+            self.logger.error(f"Error reading routing output: {e}", exc_info=True)
             return None
+
+
+# ---------------------------------------------------------------------------
+# Deprecated pre-1.0 spellings. The canonical class name is *PostProcessor
+# (matching BaseModelPostProcessor). These aliases keep existing
+# imports/subclasses working through the 1.0 transition and should be removed
+# at v1.0 (see RTI review item 23 / open question 1).
+# ---------------------------------------------------------------------------
+StandardModelPostprocessor = StandardModelPostProcessor
+RoutedModelPostprocessor = RoutedModelPostProcessor

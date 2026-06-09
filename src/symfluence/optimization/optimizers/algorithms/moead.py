@@ -26,6 +26,7 @@ Reference:
     Complicated Pareto Sets, MOEA/D and NSGA-II. IEEE Transactions on
     Evolutionary Computation, 13(2), 284-302.
 """
+from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

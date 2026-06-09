@@ -7,6 +7,7 @@ and post-processing.
 
 Visible after data processing completes (gui_phase >= 'data_ready').
 """
+from __future__ import annotations
 
 import logging
 

@@ -8,6 +8,7 @@ Executes the ParFlow-CLM binary from a prepared simulation directory.
 Same execution pattern as standalone ParFlow, but reads from
 settings/CLMPARFLOW/ and verifies both .pfb and CLM output files.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -19,13 +20,13 @@ from typing import Optional
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.mpi_utils import find_mpirun
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner("CLMPARFLOW", method_name="run_clmparflow")
+@R.runners.add("CLMPARFLOW", runner_method="run_clmparflow")
 class CLMParFlowRunner(BaseModelRunner):
     """
     Runs ParFlow-CLM via direct parflow invocation.

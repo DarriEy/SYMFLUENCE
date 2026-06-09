@@ -4,6 +4,7 @@
 """
 DataTable widget displaying domain directories from SYMFLUENCE_DATA_DIR.
 """
+from __future__ import annotations
 
 from textual.widgets import DataTable
 

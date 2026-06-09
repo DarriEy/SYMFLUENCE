@@ -33,6 +33,7 @@ References:
     - Mapzen Terrain: https://github.com/tilezen/joerd
     - ALOS AW3D30: https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/aw3d30_e.htm
 """
+from __future__ import annotations
 
 import gzip
 import math

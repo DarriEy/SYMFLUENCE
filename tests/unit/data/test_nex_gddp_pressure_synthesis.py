@@ -21,6 +21,7 @@ then ISA pressure-altitude relation), emits a clear warning, and
 writes a full-like DataArray so downstream code sees a normal
 forcing field rather than an empty/missing one.
 """
+from __future__ import annotations
 
 import logging
 

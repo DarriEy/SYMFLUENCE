@@ -6,19 +6,21 @@ RHESSys Model Postprocessor
 
 Handles output extraction, processing, and analysis for RHESSys model outputs.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPostProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor('RHESSys')
+@R.postprocessors.add('RHESSys')
 class RHESSysPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for RHESSys model outputs within SYMFLUENCE.
@@ -97,7 +99,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             except ImportError:
                 self.logger.debug("WMFirePostProcessor not available")
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"WMFire perimeter generation failed: {e}")
+                self.logger.warning(f"WMFire perimeter generation failed: {e}", exc_info=True)
 
             # Check if perimeter data is configured for comparison
             has_perimeter = (
@@ -117,7 +119,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
                 results['fire_perimeter_metrics'] = metrics
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not compare fire perimeters: {e}")
+            self.logger.warning(f"Could not compare fire perimeters: {e}", exc_info=True)
 
     def extract_streamflow(self) -> Optional[Path]:
         """
@@ -171,7 +173,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting streamflow: {str(e)}")
+            self.logger.error(f"Error extracting streamflow: {str(e)}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -222,7 +224,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return total_area_m2
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not calculate basin area: {e}, using default")
+            self.logger.warning(f"Could not calculate basin area: {e}, using default", exc_info=True)
             return 2.2e9  # Default ~2200 km²
 
     def _read_basin_daily(self, filepath: Path) -> Optional[pd.Series]:
@@ -290,7 +292,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return q_cms
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error reading basin daily file: {e}")
+            self.logger.error(f"Error reading basin daily file: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -336,7 +338,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting water balance: {e}")
+            self.logger.error(f"Error extracting water balance: {e}", exc_info=True)
             return None
 
     def extract_litter_pools(self) -> Optional[Path]:
@@ -406,7 +408,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return output_path
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting litter pools: {e}")
+            self.logger.error(f"Error extracting litter pools: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -481,7 +483,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return output_path
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error generating fuel grids: {e}")
+            self.logger.error(f"Error generating fuel grids: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None
@@ -607,7 +609,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             return metrics
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error comparing fire perimeters: {e}")
+            self.logger.error(f"Error comparing fire perimeters: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return None

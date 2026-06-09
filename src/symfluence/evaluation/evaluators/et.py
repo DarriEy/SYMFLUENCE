@@ -38,6 +38,7 @@ Configuration:
     ET_USE_QUALITY_CONTROL: Apply QC filtering (True/False)
     ET_MAX_QUALITY_FLAG: Maximum quality flag threshold (FluxNet)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

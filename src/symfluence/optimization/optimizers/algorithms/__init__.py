@@ -16,6 +16,7 @@ Usage:
     algorithm = get_algorithm('dds', config, logger)
     result = algorithm.optimize(...)
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Type

@@ -5,11 +5,12 @@ Verifies that model-specific forcing adapters are properly registered
 and provide expected interfaces for converting CFIF (CF-Intermediate Format)
 data to model-specific formats.
 """
+from __future__ import annotations
 
 import pytest
 
+from symfluence.core.registries import R
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
-from symfluence.models.registry import ModelRegistry
 
 
 class TestForcingAdapterRegistration:
@@ -17,32 +18,32 @@ class TestForcingAdapterRegistration:
 
     def test_summa_adapter_registered(self):
         """SUMMA forcing adapter should be registered."""
-        assert ModelRegistry.has_forcing_adapter('SUMMA') is True
+        assert ForcingAdapterRegistry.is_registered('SUMMA') is True
         assert ForcingAdapterRegistry.is_registered('SUMMA') is True
 
     def test_fuse_adapter_registered(self):
         """FUSE forcing adapter should be registered."""
-        assert ModelRegistry.has_forcing_adapter('FUSE') is True
+        assert ForcingAdapterRegistry.is_registered('FUSE') is True
         assert ForcingAdapterRegistry.is_registered('FUSE') is True
 
     def test_hype_adapter_registered(self):
         """HYPE forcing adapter should be registered."""
-        assert ModelRegistry.has_forcing_adapter('HYPE') is True
+        assert ForcingAdapterRegistry.is_registered('HYPE') is True
         assert ForcingAdapterRegistry.is_registered('HYPE') is True
 
     def test_ngen_adapter_registered(self):
         """NGEN forcing adapter should be registered."""
-        assert ModelRegistry.has_forcing_adapter('NGEN') is True
+        assert ForcingAdapterRegistry.is_registered('NGEN') is True
         assert ForcingAdapterRegistry.is_registered('NGEN') is True
 
     def test_gr_adapter_registered(self):
         """GR forcing adapter should be registered."""
-        assert ModelRegistry.has_forcing_adapter('GR') is True
+        assert ForcingAdapterRegistry.is_registered('GR') is True
         assert ForcingAdapterRegistry.is_registered('GR') is True
 
     def test_list_forcing_adapters(self):
         """Should be able to list all registered forcing adapters."""
-        adapters = ModelRegistry.list_forcing_adapters()
+        adapters = ForcingAdapterRegistry.get_registered_models()
         assert isinstance(adapters, list)
         assert 'SUMMA' in adapters
         assert 'FUSE' in adapters
@@ -52,13 +53,13 @@ class TestForcingAdapterRegistration:
 
     def test_list_via_registry(self):
         """Should get same list from both registries."""
-        from_model_registry = ModelRegistry.list_forcing_adapters()
+        from_model_registry = ForcingAdapterRegistry.get_registered_models()
         from_forcing_registry = ForcingAdapterRegistry.get_registered_models()
         assert from_model_registry == from_forcing_registry
 
     def test_nonexistent_adapter(self):
         """Should return False for non-existent adapter."""
-        assert ModelRegistry.has_forcing_adapter('NONEXISTENT') is False
+        assert ForcingAdapterRegistry.is_registered('NONEXISTENT') is False
         assert ForcingAdapterRegistry.is_registered('NONEXISTENT') is False
 
 
@@ -72,38 +73,38 @@ class TestForcingAdapterInstantiation:
 
     def test_get_summa_adapter(self, config):
         """Should be able to get SUMMA adapter instance."""
-        adapter = ModelRegistry.get_forcing_adapter('SUMMA', config)
+        adapter = ForcingAdapterRegistry.get_adapter('SUMMA', config)
         assert adapter is not None
         assert isinstance(adapter, ForcingAdapter)
 
     def test_get_fuse_adapter(self, config):
         """Should be able to get FUSE adapter instance."""
-        adapter = ModelRegistry.get_forcing_adapter('FUSE', config)
+        adapter = ForcingAdapterRegistry.get_adapter('FUSE', config)
         assert adapter is not None
         assert isinstance(adapter, ForcingAdapter)
 
     def test_get_hype_adapter(self, config):
         """Should be able to get HYPE adapter instance."""
-        adapter = ModelRegistry.get_forcing_adapter('HYPE', config)
+        adapter = ForcingAdapterRegistry.get_adapter('HYPE', config)
         assert adapter is not None
         assert isinstance(adapter, ForcingAdapter)
 
     def test_get_ngen_adapter(self, config):
         """Should be able to get NGEN adapter instance."""
-        adapter = ModelRegistry.get_forcing_adapter('NGEN', config)
+        adapter = ForcingAdapterRegistry.get_adapter('NGEN', config)
         assert adapter is not None
         assert isinstance(adapter, ForcingAdapter)
 
     def test_get_gr_adapter(self, config):
         """Should be able to get GR adapter instance."""
-        adapter = ModelRegistry.get_forcing_adapter('GR', config)
+        adapter = ForcingAdapterRegistry.get_adapter('GR', config)
         assert adapter is not None
         assert isinstance(adapter, ForcingAdapter)
 
     def test_get_nonexistent_adapter(self, config):
-        """Should return None for non-existent adapter via ModelRegistry."""
-        adapter = ModelRegistry.get_forcing_adapter('NONEXISTENT', config)
-        assert adapter is None
+        """Non-raising class lookup returns None for a non-existent adapter."""
+        adapter_cls = ForcingAdapterRegistry.get_adapter_class('NONEXISTENT')
+        assert adapter_cls is None
 
     def test_get_nonexistent_adapter_via_forcing_registry(self, config):
         """Should raise ValueError for non-existent adapter via ForcingAdapterRegistry."""
@@ -118,7 +119,7 @@ class TestSUMMAForcingAdapter:
     def adapter(self):
         """Get SUMMA adapter instance."""
         config = {'domain': {'name': 'test'}}
-        return ModelRegistry.get_forcing_adapter('SUMMA', config)
+        return ForcingAdapterRegistry.get_adapter('SUMMA', config)
 
     def test_has_variable_mapping(self, adapter):
         """SUMMA adapter should provide variable mapping."""
@@ -156,7 +157,7 @@ class TestFUSEForcingAdapter:
     def adapter(self):
         """Get FUSE adapter instance."""
         config = {'domain': {'name': 'test'}}
-        return ModelRegistry.get_forcing_adapter('FUSE', config)
+        return ForcingAdapterRegistry.get_adapter('FUSE', config)
 
     def test_has_variable_mapping(self, adapter):
         """FUSE adapter should provide variable mapping."""
@@ -178,7 +179,7 @@ class TestHYPEForcingAdapter:
     def adapter(self):
         """Get HYPE adapter instance."""
         config = {'domain': {'name': 'test'}}
-        return ModelRegistry.get_forcing_adapter('HYPE', config)
+        return ForcingAdapterRegistry.get_adapter('HYPE', config)
 
     def test_has_variable_mapping(self, adapter):
         """HYPE adapter should provide variable mapping."""
@@ -200,7 +201,7 @@ class TestNGENForcingAdapter:
     def adapter(self):
         """Get NGEN adapter instance."""
         config = {'domain': {'name': 'test'}}
-        return ModelRegistry.get_forcing_adapter('NGEN', config)
+        return ForcingAdapterRegistry.get_adapter('NGEN', config)
 
     def test_has_variable_mapping(self, adapter):
         """NGEN adapter should provide variable mapping."""
@@ -222,7 +223,7 @@ class TestGRForcingAdapter:
     def adapter(self):
         """Get GR adapter instance."""
         config = {'domain': {'name': 'test'}}
-        return ModelRegistry.get_forcing_adapter('GR', config)
+        return ForcingAdapterRegistry.get_adapter('GR', config)
 
     def test_has_variable_mapping(self, adapter):
         """GR adapter should provide variable mapping."""
@@ -248,7 +249,7 @@ class TestForcingAdapterInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'FUSE', 'HYPE', 'NGEN', 'GR'])
     def test_adapter_has_required_methods(self, model_name, config):
         """All adapters should implement required interface methods."""
-        adapter = ModelRegistry.get_forcing_adapter(model_name, config)
+        adapter = ForcingAdapterRegistry.get_adapter(model_name, config)
 
         assert hasattr(adapter, 'get_variable_mapping')
         assert hasattr(adapter, 'get_required_variables')
@@ -262,7 +263,7 @@ class TestForcingAdapterInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'FUSE', 'HYPE', 'NGEN', 'GR'])
     def test_adapter_methods_are_callable(self, model_name, config):
         """All adapter methods should be callable."""
-        adapter = ModelRegistry.get_forcing_adapter(model_name, config)
+        adapter = ForcingAdapterRegistry.get_adapter(model_name, config)
 
         assert callable(adapter.get_variable_mapping)
         assert callable(adapter.get_required_variables)
@@ -273,7 +274,7 @@ class TestForcingAdapterInterface:
     @pytest.mark.parametrize('model_name', ['SUMMA', 'FUSE', 'HYPE', 'NGEN', 'GR'])
     def test_adapter_returns_expected_types(self, model_name, config):
         """Adapters should return expected types."""
-        adapter = ModelRegistry.get_forcing_adapter(model_name, config)
+        adapter = ForcingAdapterRegistry.get_adapter(model_name, config)
 
         # get_variable_mapping should return dict
         mapping = adapter.get_variable_mapping()
@@ -303,7 +304,7 @@ class TestForcingAdapterBackwardCompatibility:
     def test_both_registries_return_same_adapter_class(self, config):
         """ModelRegistry and ForcingAdapterRegistry should work together."""
         # Get via ModelRegistry
-        adapter1 = ModelRegistry.get_forcing_adapter('SUMMA', config)
+        adapter1 = ForcingAdapterRegistry.get_adapter('SUMMA', config)
 
         # Get via ForcingAdapterRegistry
         adapter2 = ForcingAdapterRegistry.get_adapter('SUMMA', config)
@@ -313,7 +314,7 @@ class TestForcingAdapterBackwardCompatibility:
 
     def test_both_registries_list_same_models(self):
         """Both registries should list the same models."""
-        from_model_registry = set(ModelRegistry.list_forcing_adapters())
+        from_model_registry = set(ForcingAdapterRegistry.get_registered_models())
         from_forcing_registry = set(ForcingAdapterRegistry.get_registered_models())
 
         assert from_model_registry == from_forcing_registry

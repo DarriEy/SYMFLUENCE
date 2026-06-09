@@ -21,20 +21,27 @@ Input files generated:
     gwf.oc      — output control
     gwf.ims     — iterative model solution
 """
+from __future__ import annotations
 
 import logging
 import math
 from pathlib import Path
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("MODFLOW")
-class MODFLOWPreProcessor:
+@R.preprocessors.add("MODFLOW")
+class MODFLOWPreProcessor(BaseModelPreProcessor):
     """Generates MODFLOW 6 input files for lumped groundwater simulation."""
 
+    MODEL_NAME = "MODFLOW"
+
+    # Keeps its own defensive __init__ (tolerates dict / MagicMock coupled-test
+    # configs) rather than calling super().__init__, whose strict typed-config
+    # access doesn't fit how the coupled groundwater models are wired.
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
@@ -111,7 +118,7 @@ class MODFLOWPreProcessor:
             self.logger.info(f"Auto-detected catchment area from shapefile: {area_km2:.1f} km2")
             return area_km2
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.debug(f"Could not auto-detect catchment area: {e}")
+            self.logger.debug(f"Could not auto-detect catchment area: {e}", exc_info=True)
             return None
 
     def _get_time_info(self):

@@ -5,18 +5,20 @@
 PRMS model postprocessor.
 
 Handles extraction and processing of PRMS model simulation results.
-Uses StandardModelPostprocessor for reduced boilerplate.
+Uses StandardModelPostProcessor for reduced boilerplate.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('PRMS')
-class PRMSPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('PRMS')
+class PRMSPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for the PRMS model.
 
@@ -107,7 +109,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             import traceback
-            self.logger.error(f"Error extracting PRMS streamflow: {str(e)}")
+            self.logger.error(f"Error extracting PRMS streamflow: {str(e)}", exc_info=True)
             self.logger.debug(traceback.format_exc())
             return None
 
@@ -183,7 +185,7 @@ class PRMSPostProcessor(StandardModelPostprocessor):
             return None
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Error parsing statvar file: {e}")
+            self.logger.warning(f"Error parsing statvar file: {e}", exc_info=True)
             return None
 
     def _extract_from_netcdf(self, nc_path: Path):

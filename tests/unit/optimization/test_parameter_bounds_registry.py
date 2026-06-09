@@ -4,6 +4,7 @@ Unit tests for Parameter Bounds Registry
 Tests that parameter bounds are correctly registered for all models
 and that config overrides preserve transform metadata.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

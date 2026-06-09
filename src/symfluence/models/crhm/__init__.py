@@ -66,6 +66,8 @@ References:
 
     https://github.com/CentreForHydrology/CRHM
 """
+from __future__ import annotations
+
 from .config import CRHMConfigAdapter
 from .extractor import CRHMResultExtractor
 from .postprocessor import CRHMPostProcessor
@@ -83,14 +85,17 @@ __all__ = [
 # Register all CRHM components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "CRHM",
-    preprocessor=CRHMPreProcessor,
-    runner=CRHMRunner,
-    result_extractor=CRHMResultExtractor,
-    config_adapter=CRHMConfigAdapter,
-    build_instructions_module="symfluence.models.crhm.build_instructions",
-)
+
+def register() -> None:
+    """Register CRHM components with the unified registry."""
+    model_manifest(
+        "CRHM",
+        preprocessor=CRHMPreProcessor,
+        runner=CRHMRunner,
+        result_extractor=CRHMResultExtractor,
+        config_adapter=CRHMConfigAdapter,
+        build_instructions_module="symfluence.models.crhm.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

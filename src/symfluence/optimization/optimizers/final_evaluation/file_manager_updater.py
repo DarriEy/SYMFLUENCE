@@ -6,6 +6,7 @@ File Manager Updater
 
 Handles updates to SUMMA file manager for final evaluation.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

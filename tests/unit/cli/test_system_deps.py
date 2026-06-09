@@ -1,4 +1,5 @@
 """Unit tests for system dependency registry and platform detection."""
+from __future__ import annotations
 
 import os
 import re
@@ -169,6 +170,51 @@ class TestRegistryYAML:
             dep = self.registry._registry["dependencies"][dep_id]
             pkg = dep.get("packages", {}).get("msys2", "")
             assert "mingw-w64" in pkg, f"{dep_id} msys2 should be mingw-w64 prefixed"
+
+
+class TestInstallPathDepGaps:
+    """Regression coverage for the §8 install-path gaps (issue #150, G2/G5).
+
+    pkg-config, boost, expat and wget were previously absent from the registry,
+    so source builds that rely on them could not be diagnosed or auto-installed.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _load_registry(self):
+        self.registry = _fresh_registry()
+
+    def test_new_deps_registered(self):
+        deps = self.registry._registry["dependencies"]
+        for dep_id in ("pkg_config", "boost", "expat", "wget"):
+            assert dep_id in deps, f"{dep_id} missing from registry"
+
+    def test_new_deps_have_package_names_per_manager(self):
+        deps = self.registry._registry["dependencies"]
+        for dep_id in ("pkg_config", "boost", "expat", "wget"):
+            pkgs = deps[dep_id].get("packages", {})
+            for mgr in ("apt", "dnf", "brew", "conda"):
+                assert mgr in pkgs and pkgs[mgr], f"{dep_id} missing {mgr} package name"
+
+    def test_pkg_config_required_for_source_builds(self):
+        """pkg-config locates HDF5/NetCDF/PROJ during C/Fortran source builds."""
+        treq = self.registry._registry["tool_requirements"]
+        for tool in ("summa", "fuse", "mizuroute", "mesh", "vic", "clm", "ngen", "taudem"):
+            assert "pkg_config" in treq[tool]["required"], \
+                f"{tool} should require pkg_config"
+
+    def test_optional_geospatial_deps_wired(self):
+        treq = self.registry._registry["tool_requirements"]
+        assert "boost" in treq["ngen"]["optional"]
+        assert "expat" in treq["taudem"]["optional"]
+        assert "expat" in treq["gistool"]["optional"]
+
+    def test_no_dangling_tool_requirement_refs(self):
+        """Every dep referenced by a tool must exist in the dependencies map."""
+        reg = self.registry._registry
+        dep_ids = set(reg["dependencies"])
+        for tool, req in reg["tool_requirements"].items():
+            for dep in req.get("required", []) + req.get("optional", []):
+                assert dep in dep_ids, f"{tool} references unknown dep {dep!r}"
 
 
 # ── Install command generation ───────────────────────────────────────────
@@ -599,3 +645,44 @@ class TestRegistryIntegration:
 
     def test_platform_is_valid(self):
         assert self.registry.platform in Platform
+
+
+# ── Conda library-glob fallback (Windows openblas etc.) ───────────────────
+
+class TestCondaLibFallback:
+    """`_check_conda_lib` finds libs whose conda-forge build omits dev headers."""
+
+    def test_check_conda_lib_finds_windows_layout(self, tmp_path):
+        libdir = tmp_path / "Library" / "lib"
+        libdir.mkdir(parents=True)
+        (libdir / "libopenblas.lib").write_text("")
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, path = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is True
+        assert "openblas" in path
+
+    def test_check_conda_lib_finds_unix_layout(self, tmp_path):
+        libdir = tmp_path / "lib"
+        libdir.mkdir(parents=True)
+        (libdir / "libopenblas.so").write_text("")
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, _ = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is True
+
+    def test_check_conda_lib_absent(self, tmp_path):
+        (tmp_path / "Library" / "lib").mkdir(parents=True)
+        with patch.dict(os.environ, {"CONDA_PREFIX": str(tmp_path)}, clear=False):
+            found, path = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is False
+        assert path is None
+
+    def test_check_conda_lib_no_conda_prefix(self):
+        with patch.dict(os.environ, {"CONDA_PREFIX": ""}, clear=False):
+            found, _ = SystemDepsRegistry._check_conda_lib("*openblas*")
+        assert found is False
+
+    def test_blas_dep_declares_conda_lib(self):
+        """The blas dependency must carry the conda_lib glob for the fallback."""
+        reg = _fresh_registry()
+        blas = reg._registry["dependencies"]["blas"]
+        assert blas["check"].get("conda_lib") == "*openblas*"

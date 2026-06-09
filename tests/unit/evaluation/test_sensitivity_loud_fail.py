@@ -22,6 +22,7 @@ These tests pin two behaviours:
    so the workflow step is marked FAILED instead of silently
    'complete with no output'.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock
@@ -136,3 +137,57 @@ def test_analysis_manager_raises_when_no_model_produces_results(monkeypatch, tmp
     assert "SUMMA" in msg
     assert "FUSE" in msg
     assert "non-numeric bounds" in msg
+
+
+def _make_manager(hydrological_model):
+    """Build an AnalysisManager wired to a fake config, bypassing __init__."""
+    from symfluence.evaluation.analysis_manager import AnalysisManager
+
+    cfg = MagicMock()
+    cfg.model.hydrological_model = hydrological_model
+    cfg.analysis.run_sensitivity_analysis = True
+
+    mgr = AnalysisManager.__new__(AnalysisManager)
+    mgr.config = cfg
+    mgr.logger = logging.getLogger("test_sa_self_training")
+    mgr.reporting_manager = MagicMock()
+    mgr._get_config_value = lambda getter, default=None, **_: (
+        getter() if callable(getter) else default
+    )
+    return mgr
+
+
+def test_self_training_only_config_skips_without_failing(monkeypatch):
+    """A config of only self-training models (LSTM/GNN) has no parameters to
+    perturb. Sensitivity analysis must return None (clean skip), NOT raise
+    EvaluationError — these models would otherwise drag the whole step to
+    'no results for any configured model'."""
+    mgr = _make_manager("LSTM,GNN")
+
+    # Guard: the analyzer paths must never be reached for self-training models.
+    def explode(model):
+        raise AssertionError(f"sensitivity analysis should not run for {model}")
+
+    monkeypatch.setattr(mgr, "_run_generic_sensitivity_analysis", explode)
+
+    assert mgr.run_sensitivity_analysis() is None
+
+
+def test_self_training_models_excluded_from_mixed_config(monkeypatch):
+    """In a mixed config, LSTM/GNN are dropped and only the calibratable
+    models are analyzed — and the 'no results' aggregation never mentions the
+    skipped self-training models."""
+    mgr = _make_manager("LSTM,SUMMA")
+
+    analyzed = []
+
+    def record(model):
+        analyzed.append(model)
+        return {"param_a": {"S1": 0.5}}
+
+    monkeypatch.setattr(mgr, "_run_generic_sensitivity_analysis", record)
+
+    results = mgr.run_sensitivity_analysis()
+
+    assert analyzed == ["SUMMA"], f"LSTM should have been skipped, saw: {analyzed}"
+    assert results is not None and "LSTM" not in results

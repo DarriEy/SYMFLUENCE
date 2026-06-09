@@ -13,6 +13,7 @@ from various sources:
 Each factory handles the complexity of merging defaults, loading from sources,
 and transforming to the hierarchical structure required by Pydantic models.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -231,6 +232,20 @@ def from_file_factory(
         if overrides:
             normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
             config_dict.update(normalized_overrides)
+
+        # Tiered validation of unrecognized keys (RTI review item 21):
+        # warn by default, raise under STRICT_CONFIG / SYMFLUENCE_STRICT_CONFIG.
+        # Runs on the fully-resolved flat user config before transformation, so
+        # the allowlist already includes any plugin-registered schema keys.
+        from symfluence.core.config.key_validation import validate_known_flat_keys
+        from symfluence.core.config.legacy_aliases import RECOGNIZED_FLAT_KEYS
+        from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+        # The allowlist is the flat->nested transform map (core + plugin schemas +
+        # legacy aliases for the selected model) unioned with the recognized flat
+        # keys that are read directly from _extra rather than a nested field.
+        known_keys = set(build_combined_flat_to_nested_map(config_dict.get('HYDROLOGICAL_MODEL')))
+        known_keys |= RECOGNIZED_FLAT_KEYS
+        validate_known_flat_keys(config_dict, known_keys, source=str(path))
 
         # Transform flat dict to nested structure
         nested_config = transform_flat_to_nested(config_dict)

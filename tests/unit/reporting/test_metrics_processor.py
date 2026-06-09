@@ -3,6 +3,7 @@ Unit tests for MetricsProcessor.
 
 Tests performance metrics calculation functionality.
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch

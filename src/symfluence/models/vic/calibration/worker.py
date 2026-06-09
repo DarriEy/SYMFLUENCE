@@ -6,6 +6,7 @@ VIC Worker
 
 Worker implementation for VIC model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -19,12 +20,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('VIC')
+@R.workers.add('VIC')
 class VICWorker(BaseWorker):
     """
     Worker for VIC model calibration.
@@ -108,7 +109,7 @@ class VICWorker(BaseWorker):
             return self._update_params_file(params_file, params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying VIC parameters: {e}")
+            self.logger.error(f"Error applying VIC parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -283,7 +284,7 @@ class VICWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating VIC parameters: {e}")
+            self.logger.error(f"Error updating VIC parameters: {e}", exc_info=True)
             return False
 
     def _validate_params(self, params: Dict[str, float]) -> Optional[str]:
@@ -404,7 +405,7 @@ class VICWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running VIC: {e}")
+            self.logger.error(f"Error running VIC: {e}", exc_info=True)
             return False
 
     def _get_vic_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -615,7 +616,7 @@ class VICWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating VIC metrics: {e}")
+            self.logger.error(f"Error calculating VIC metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}

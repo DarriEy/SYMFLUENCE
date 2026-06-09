@@ -7,14 +7,16 @@ MESH model preprocessor.
 Handles data preparation using meshflow library for MESH model setup.
 Uses meshflow exclusively for all preprocessing - both lumped and distributed modes.
 """
+from __future__ import annotations
 
 import logging
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.registries import R
+
 from ..base import BaseModelPreProcessor
-from ..registry import ModelRegistry
 from .preprocessing import (
     MESHConfigDefaults,
     MESHConfigGenerator,
@@ -27,7 +29,7 @@ from .preprocessing import (
 )
 
 
-@ModelRegistry.register_preprocessor('MESH')
+@R.preprocessors.add('MESH')
 class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Preprocessor for the MESH model.
@@ -560,6 +562,16 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if candidate.exists():
                 hru_shapefile = candidate
                 break
+
+        # Cross-experiment / casing drift: the elevation-band shapefile may have
+        # been written under a different experiment_id. Deep-search before giving
+        # up (kept elevation-specific so we never grab a GRUs/landclass variant).
+        if hru_shapefile is None:
+            catchment_root = self.project_dir / 'shapefiles' / 'catchment'
+            if catchment_root.exists():
+                deep = sorted(catchment_root.rglob(f'{self.domain_name}_HRUs_elevation*.shp'))
+                if deep:
+                    hru_shapefile = deep[0]
 
         if hru_shapefile is None:
             self.logger.warning(

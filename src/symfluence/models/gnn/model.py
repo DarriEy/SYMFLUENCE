@@ -8,6 +8,7 @@ GNN (Graph Neural Network) Model Definition.
 This module contains the PyTorch model definition for a DAG-based
 Spatio-Temporal GNN for hydrological routing.
 """
+from __future__ import annotations
 
 import torch
 import torch.nn as nn

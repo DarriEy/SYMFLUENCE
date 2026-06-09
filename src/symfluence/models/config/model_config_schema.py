@@ -22,6 +22,7 @@ Usage:
     schema = get_model_schema('SUMMA')
     config = schema.apply_defaults(config_dict)
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum

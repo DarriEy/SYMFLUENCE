@@ -1,4 +1,5 @@
 """Tests for NGEN model configuration."""
+from __future__ import annotations
 
 import pytest
 

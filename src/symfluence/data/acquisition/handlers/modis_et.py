@@ -27,6 +27,8 @@ Configuration:
     MOD16_QC_FILTER: True (default) - filter by quality flags
     MOD16_UNITS: 'mm_day' (default), 'kg_m2_8day' (raw)
 """
+from __future__ import annotations
+
 import os
 import re
 from datetime import datetime, timedelta

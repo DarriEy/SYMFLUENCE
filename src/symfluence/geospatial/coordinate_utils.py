@@ -13,6 +13,7 @@ This module provides standardized utilities for handling geographic coordinates 
 - Coordinate transformations
 - Meridian wrapping detection
 """
+from __future__ import annotations
 
 from typing import Dict, Optional, Tuple, Union
 

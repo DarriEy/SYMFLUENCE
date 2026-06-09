@@ -6,6 +6,7 @@ SLURM job submission command handlers for SYMFLUENCE CLI.
 
 This module implements handlers for submitting workflows as SLURM jobs.
 """
+from __future__ import annotations
 
 from argparse import Namespace
 

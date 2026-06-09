@@ -1,6 +1,7 @@
 """
 Tests for constants module, including UnitConverter.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock
 

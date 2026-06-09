@@ -6,6 +6,7 @@
 Provides execute_subprocess (canonical), execute_model_subprocess (deprecated),
 and run_with_retry for all model runners via mixin inheritance.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -115,15 +116,17 @@ class SubprocessExecutionMixin:
                 msg = success_message or f"Process completed successfully in {duration:.1f}s"
                 self.logger.log(success_log_level, msg)
             else:
-                self.logger.debug(f"Process exited with code {result.returncode}")
+                # Log at WARNING so a non-zero exit is visible at the default log
+                # level, not hidden until the user reruns with --debug. This is the
+                # most user-facing diagnostic gap (e.g. "SUMMA appears to exit
+                # silently").
+                self.logger.warning(f"Process exited with code {result.returncode}; see log file: {log_file}")
                 exec_result.error_message = f"Exit code: {result.returncode}"
 
                 # Log error context
                 if error_context:
                     for key, value in error_context.items():
                         self.logger.debug(f"  {key}: {value}")
-
-                self.logger.debug(f"See log file: {log_file}")
 
                 if check:
                     raise subprocess.CalledProcessError(
@@ -221,7 +224,7 @@ class SubprocessExecutionMixin:
                             for line in last_lines:
                                 self.logger.error(f"  {line.rstrip()}")
                 except Exception as read_error:  # noqa: BLE001 — model execution resilience
-                    self.logger.error(f"Could not read log file: {read_error}")
+                    self.logger.error(f"Could not read log file: {read_error}", exc_info=True)
 
             self.logger.error(f"Full log available at: {log_file}")
             raise

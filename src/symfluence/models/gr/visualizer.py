@@ -6,15 +6,16 @@ GR Model Visualizer.
 
 Provides model-specific visualization registration for GR.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
 
 
-@ModelRegistry.register_visualizer('GR')
+@R.visualizers.add('GR')
 def visualize_gr(reporting_manager: Any, config: Dict[str, Any], project_dir: Path, experiment_id: str, workflow: List[str]):
     """
     Visualize GR model outputs.
@@ -27,4 +28,4 @@ def visualize_gr(reporting_manager: Any, config: Dict[str, Any], project_dir: Pa
         reporting_manager.visualize_timeseries_results()
 
     except Exception as e:  # noqa: BLE001 — model execution resilience
-        logger.error(f"Error during GR visualization: {str(e)}")
+        logger.error(f"Error during GR visualization: {str(e)}", exc_info=True)

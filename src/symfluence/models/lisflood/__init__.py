@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Distributed Hydrological Model (JRC/Deltares)."""
+from __future__ import annotations
 
 from .config import LisfloodConfigAdapter
 from .extractor import LisfloodResultExtractor
@@ -19,14 +20,17 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "LISFLOOD",
-    preprocessor=LisfloodPreProcessor,
-    runner=LisfloodRunner,
-    result_extractor=LisfloodResultExtractor,
-    config_adapter=LisfloodConfigAdapter,
-    build_instructions_module="symfluence.models.lisflood.build_instructions",
-)
+
+def register() -> None:
+    """Register LISFLOOD components with the unified registry."""
+    model_manifest(
+        "LISFLOOD",
+        preprocessor=LisfloodPreProcessor,
+        runner=LisfloodRunner,
+        result_extractor=LisfloodResultExtractor,
+        config_adapter=LisfloodConfigAdapter,
+        build_instructions_module="symfluence.models.lisflood.build_instructions",
+    )
 
 try:
     from .calibration import LisfloodModelOptimizer  # noqa: F401

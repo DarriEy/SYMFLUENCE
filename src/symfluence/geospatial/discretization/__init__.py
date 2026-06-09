@@ -18,6 +18,8 @@ Example:
     >>> discretizer = DomainDiscretizer(config)
     >>> discretizer.run()
 """
+from __future__ import annotations
+
 from .artifacts import DiscretizationArtifacts
 from .core import DomainDiscretizationRunner, DomainDiscretizer
 

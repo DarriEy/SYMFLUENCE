@@ -20,6 +20,7 @@ References:
     Abbaspour, K.C. (2015): SWAT-CUP: SWAT Calibration and Uncertainty
     Programs. Eawag, Swiss Federal Institute of Aquatic Science and Technology.
 """
+from __future__ import annotations
 
 from typing import Dict, Tuple
 

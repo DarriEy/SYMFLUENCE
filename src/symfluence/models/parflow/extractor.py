@@ -12,6 +12,7 @@ Extracts results from ParFlow .pfb binary output files:
 Uses parflowio for .pfb reading (lazy import). Falls back to struct-based
 reader when parflowio is not available.
 """
+from __future__ import annotations
 
 import logging
 import struct
@@ -21,8 +22,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ def _read_pfb(filepath: Path) -> np.ndarray:
     return data
 
 
-@ModelRegistry.register_result_extractor("PARFLOW")
+@R.result_extractors.add("PARFLOW")
 class ParFlowResultExtractor(ModelResultExtractor):
     """
     Extracts results from ParFlow .pfb output files.

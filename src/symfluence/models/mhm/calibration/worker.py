@@ -6,6 +6,7 @@ mHM Worker
 
 Worker implementation for mHM model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -19,12 +20,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('MHM')
+@R.workers.add('MHM')
 class MHMWorker(BaseWorker):
     """
     Worker for mHM model calibration.
@@ -108,7 +109,7 @@ class MHMWorker(BaseWorker):
             return self._update_namelist_file(param_namelist, params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying mHM parameters: {e}")
+            self.logger.error(f"Error applying mHM parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -195,7 +196,7 @@ class MHMWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating mHM namelist: {e}")
+            self.logger.error(f"Error updating mHM namelist: {e}", exc_info=True)
             return False
 
     def _format_namelist_value(self, value: float) -> str:
@@ -313,7 +314,7 @@ class MHMWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running mHM: {e}")
+            self.logger.error(f"Error running mHM: {e}", exc_info=True)
             return False
 
     def _get_mhm_executable(self, config: Dict[str, Any], data_dir: Path) -> Path:
@@ -457,7 +458,7 @@ class MHMWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating mHM metrics: {e}")
+            self.logger.error(f"Error calculating mHM metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}

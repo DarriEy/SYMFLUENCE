@@ -8,6 +8,7 @@ This module provides:
 - CRHMParameterManager: Handles CRHM parameter bounds and updates
 - CRHMWorker: Worker for CRHM model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import CRHMModelOptimizer
 from .parameter_manager import CRHMParameterManager

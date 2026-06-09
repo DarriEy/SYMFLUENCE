@@ -2,18 +2,20 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD model postprocessor."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor("LISFLOOD")
-class LisfloodPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add("LISFLOOD")
+class LisfloodPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the LISFLOOD model.
 
     LISFLOOD outputs discharge in m³/s in NetCDF format (dis*.nc) or as

@@ -9,6 +9,7 @@ Uses TauDEM for watershed delineation and creates simplified river network.
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

@@ -4,6 +4,7 @@ Unit tests for model-specific calibration components.
 Tests calibration targets, worker functions, and parameter management
 for SUMMA, FUSE, and NGEN models.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
@@ -47,11 +48,11 @@ class TestSUMMACalibrationTargets:
 
         assert isinstance(obs_data, (pd.Series, pd.DataFrame))
 
-    def test_align_summa_simulation_with_obs(self, summa_config, test_logger, mock_observations):
+    def test_align_summa_simulation_with_obs(self, summa_config, test_logger, mock_observations, tmp_path):
         """Test aligning SUMMA simulation results with observations."""
         from symfluence.optimization.calibration_targets import StreamflowTarget
 
-        target = StreamflowTarget(summa_config, Path("/tmp"), test_logger)
+        target = StreamflowTarget(summa_config, tmp_path, test_logger)
 
         # Create mock simulation and observation data with DatetimeIndex
         dates = pd.date_range('2020-01-01', periods=31, freq='D')
@@ -66,7 +67,7 @@ class TestSUMMACalibrationTargets:
         assert isinstance(metrics, dict)
         assert len(metrics) > 0
 
-    def test_summa_calibration_period_subset(self, summa_config, test_logger):
+    def test_summa_calibration_period_subset(self, summa_config, test_logger, tmp_path):
         """Test extracting calibration period from full simulation."""
         from symfluence.optimization.calibration_targets import StreamflowTarget
 
@@ -75,7 +76,7 @@ class TestSUMMACalibrationTargets:
             CALIBRATION_PERIOD='2020-01-10, 2020-01-20'
         )
 
-        target = StreamflowTarget(config, Path("/tmp"), test_logger)
+        target = StreamflowTarget(config, tmp_path, test_logger)
 
         # Create full period data
         dates = pd.date_range('2020-01-01', periods=31, freq='D')

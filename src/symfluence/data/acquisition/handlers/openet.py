@@ -17,6 +17,8 @@ OpenET features:
 
 API access: https://openetdata.org/
 """
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Optional
@@ -200,5 +202,5 @@ class OpenETAcquirer(BaseAcquisitionHandler):
             return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"OpenET request failed: {e}")
+            self.logger.error(f"OpenET request failed: {e}", exc_info=True)
             return None

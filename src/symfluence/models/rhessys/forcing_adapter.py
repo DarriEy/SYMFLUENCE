@@ -8,6 +8,7 @@ Converts CFIF (CF-Intermediate Format) forcing data to RHESSys format.
 RHESSys (Regional Hydro-Ecologic Simulation System) requires meteorological
 forcing for ecohydrological simulations.
 """
+from __future__ import annotations
 
 from typing import Callable, Dict, List
 

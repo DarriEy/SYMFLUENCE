@@ -8,24 +8,26 @@ Handles preparation of CRHM model inputs including:
 - Observation file (.obs) with meteorological forcing data
 - Project file (.prj) with model configuration and parameters
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.spatial_modes import SpatialMode
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CRHM")
+@R.preprocessors.add("CRHM")
 class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a CRHM model run.
@@ -62,6 +64,39 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
         logger.info(f"CRHM spatial mode: {self.spatial_mode}")
 
+        # Elevation-band (sub-grid) discretisation. When enabled, the basin is
+        # split into fixed-width elevation bands (one HRU per band). CRHM lapses
+        # the basin-mean forcing to each band's mean elevation, so snow
+        # accumulation and melt timing become elevation-dependent -- the single
+        # biggest control on snowmelt-driven streamflow timing in mountainous
+        # catchments, which a lumped (single mean-elevation) HRU cannot capture.
+        self.use_elev_bands = bool(self._get_config_value(
+            lambda: self.config.model.crhm.elevation_bands,
+            default=False,
+            dict_key='CRHM_ELEVATION_BANDS'
+        ))
+        self.elev_band_size = float(self._get_config_value(
+            lambda: self.config.model.crhm.elevation_band_size,
+            default=self._get_config_value(
+                lambda: self.config.domain.elevation_band_size,
+                default=200.0, dict_key='ELEVATION_BAND_SIZE'),
+            dict_key='CRHM_ELEVATION_BAND_SIZE'
+        ))
+        if self.use_elev_bands:
+            logger.info(f"CRHM elevation bands ON (band size {self.elev_band_size:.0f} m)")
+
+        # Terrain-driven radiation: derive per-band slope (hru_GSL) and aspect
+        # (hru_ASL) from the DEM instead of treating every band as flat. CRHM's
+        # energy-balance snowmelt uses slope/aspect for the solar incidence
+        # angle, so this sharpens elevation-band melt timing. Requires bands.
+        self.use_terrain_radiation = bool(self._get_config_value(
+            lambda: self.config.model.crhm.terrain_radiation,
+            default=False,
+            dict_key='CRHM_TERRAIN_RADIATION'
+        ))
+        if self.use_terrain_radiation:
+            logger.info("CRHM terrain radiation ON (per-band slope/aspect from DEM)")
+
     def run_preprocessing(self) -> bool:
         """
         Run the complete CRHM preprocessing workflow.
@@ -85,7 +120,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"CRHM preprocessing failed: {e}")
+            logger.error(f"CRHM preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False
@@ -117,17 +152,27 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             catchment_path = self.get_catchment_path()
             if catchment_path.exists():
                 gdf = gpd.read_file(catchment_path)
+                if gdf.crs is None:
+                    gdf = gdf.set_crs(epsg=4326)
 
-                # Get centroid
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
+                # Centroid in GEOGRAPHIC degrees. The shapefile is often in a
+                # projected CRS (e.g. EPSG:3057, metres); taking the centroid in
+                # that CRS yields lon/lat in metres, which then produces an
+                # absurd UTM zone (EPSG:9xxxx -> invalid) and made this whole
+                # method fall back to defaults (lat=51, area=100) -> wrong PET,
+                # snowmelt timing and water balance. Compute the centroid in a
+                # projected CRS (to avoid the geographic-centroid warning) and
+                # reproject the point to degrees.
+                if gdf.crs.is_geographic:
+                    cpt = gdf.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326).iloc[0]
+                else:
+                    cpt = gdf.geometry.centroid.to_crs(epsg=4326).iloc[0]
+                lon, lat = cpt.x, cpt.y
 
-                # Project to UTM for accurate area
+                # Accurate area via the UTM zone derived from the degree centroid.
                 utm_zone = int((lon + 180) / 6) + 1
-                hemisphere = 'north' if lat >= 0 else 'south'
-                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
-                area_m2 = gdf_proj.geometry.area.sum()
+                utm_crs = f"EPSG:{(32600 if lat >= 0 else 32700) + utm_zone}"
+                area_m2 = gdf.to_crs(utm_crs).geometry.area.sum()
 
                 # Get elevation if available
                 elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
@@ -140,7 +185,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     'elev': elev
                 }
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment properties: {e}")
+            logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         # Defaults for cold-region catchment
         return {
@@ -150,6 +195,106 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             'area_km2': 100.0,
             'elev': 1000.0
         }
+
+    def _find_dem_path(self) -> Optional[Path]:
+        """Locate the catchment DEM raster (domain_<name>_elv.tif)."""
+        dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
+        cands = sorted(dem_dir.glob('*_elv.tif')) if dem_dir.exists() else []
+        if not cands:
+            cands = sorted(self.project_dir.glob('attributes/**/*elv*.tif'))
+        return cands[0] if cands else None
+
+    def _get_elevation_bands(self, total_area_km2: float):
+        """
+        Derive fixed-width elevation bands from the catchment DEM.
+
+        Returns a list of {'elev': mean_elev_m, 'area_km2': band_area} dicts
+        (ordered low -> high) plus the area-weighted mean elevation, which is
+        used as the observation (forcing) reference elevation. CRHM then lapses
+        the basin-mean forcing from that reference to each band.
+
+        Returns (bands, ref_elev) or (None, None) when bands cannot be built
+        (no DEM, <2 populated bands) so the caller can fall back to lumped.
+        """
+        try:
+            import rasterio  # local import: only needed when bands are enabled
+        except ImportError:
+            logger.warning("rasterio unavailable; cannot build elevation bands")
+            return None, None
+
+        dem_path = self._find_dem_path()
+        if dem_path is None:
+            logger.warning("No DEM found; falling back to lumped CRHM (1 HRU)")
+            return None, None
+
+        with rasterio.open(dem_path) as src:
+            arr2d = src.read(1).astype('float64')
+            nodata = src.nodata
+            xres, yres = src.res
+            bnds = src.bounds
+            is_geographic = src.crs is not None and src.crs.is_geographic
+
+        valid = np.isfinite(arr2d) & (arr2d > -100.0)
+        if nodata is not None:
+            valid &= arr2d != nodata
+        if int(valid.sum()) == 0:
+            logger.warning("DEM has no valid pixels; falling back to lumped CRHM")
+            return None, None
+
+        # Per-pixel slope (deg) and aspect (deg, 0=N) for terrain radiation.
+        slope2d = aspect2d = None
+        if self.use_terrain_radiation:
+            if is_geographic:
+                lat0 = np.radians((bnds.bottom + bnds.top) / 2.0)
+                xres_m = abs(xres) * 111320.0 * max(np.cos(lat0), 0.1)
+                yres_m = abs(yres) * 111320.0
+            else:
+                xres_m, yres_m = abs(xres), abs(yres)
+            z = np.where(valid, arr2d, np.nan)
+            dzdy, dzdx = np.gradient(z, yres_m, xres_m)
+            slope2d = np.degrees(np.arctan(np.hypot(dzdx, dzdy)))
+            aspect2d = (np.degrees(np.arctan2(-dzdy, dzdx)) + 360.0) % 360.0
+
+        arr = arr2d[valid]
+        sl = slope2d[valid] if slope2d is not None else None
+        asp = aspect2d[valid] if aspect2d is not None else None
+
+        size = self.elev_band_size
+        lo_edge = np.floor(arr.min() / size) * size
+        hi_edge = np.ceil(arr.max() / size) * size
+        edges = np.arange(lo_edge, hi_edge + size, size)
+        npix = arr.size
+        bands = []
+        for i in range(len(edges) - 1):
+            lo, hi = edges[i], edges[i + 1]
+            sel = (arr >= lo) & (arr < hi) if i < len(edges) - 2 else (arr >= lo) & (arr <= hi)
+            n = int(sel.sum())
+            if n == 0:
+                continue
+            band = {
+                'elev': float(arr[sel].mean()),
+                'area_km2': total_area_km2 * (n / npix),
+            }
+            if sl is not None and asp is not None:
+                band['slope'] = float(np.nanmean(sl[sel]))
+                a = np.radians(asp[sel])
+                band['aspect'] = float(
+                    (np.degrees(np.arctan2(np.nanmean(np.sin(a)),
+                                           np.nanmean(np.cos(a)))) + 360.0) % 360.0)
+            bands.append(band)
+
+        if len(bands) < 2:
+            logger.info("DEM relief spans <2 bands; using lumped CRHM (1 HRU)")
+            return None, None
+
+        ref_elev = sum(b['elev'] * b['area_km2'] for b in bands) / \
+            sum(b['area_km2'] for b in bands)
+        logger.info(
+            f"CRHM elevation bands: {len(bands)} bands "
+            f"({bands[0]['elev']:.0f}-{bands[-1]['elev']:.0f} m), "
+            f"ref elev {ref_elev:.0f} m"
+        )
+        return bands, ref_elev
 
     def _generate_observation_file(self) -> None:
         """
@@ -182,7 +327,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_ds = self._load_forcing_data()
             self._write_obs_file(forcing_ds, obs_path, start_date, end_date)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load forcing data: {e}, using synthetic")
+            logger.warning(f"Could not load forcing data: {e}, using synthetic", exc_info=True)
             self._generate_synthetic_obs(obs_path, start_date, end_date)
 
         logger.info(f"Observation file written: {obs_path}")
@@ -225,11 +370,14 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         """Write forcing data in CRHM .obs format."""
         # Variable mapping from ERA5/forcing names to CRHM names
         var_map = {
-            't': ['air_temperature', 'temperature', 'tas', 'temp', 't2m'],
-            'p': ['precipitation_flux', 'precipitation', 'pr', 'precip', 'tp'],
+            # NOTE: includes CARRA/SUMMA-style names (airtemp, pptrate, windspd,
+            # SWRadAtm). Without them every variable fell back to SYNTHETIC data
+            # (constant-ish temp ramp, ~5x-low precip) -> meaningless simulation.
+            't': ['air_temperature', 'temperature', 'tas', 'temp', 't2m', 'airtemp'],
+            'p': ['precipitation_flux', 'precipitation', 'pr', 'precip', 'tp', 'pptrate'],
             'rh': ['rh', 'relative_humidity', 'hurs'],
-            'u': ['wind_speed', 'wind_speed', 'sfcWind', 'wind'],
-            'Qsi': ['surface_downwelling_shortwave_flux', 'ssrd', 'rsds', 'swdown', 'shortwave'],
+            'u': ['wind_speed', 'sfcWind', 'wind', 'windspd'],
+            'Qsi': ['surface_downwelling_shortwave_flux', 'ssrd', 'rsds', 'swdown', 'shortwave', 'SWRadAtm'],
         }
 
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='h')
@@ -307,7 +455,7 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     # Derive from specific humidity if available
                     derived = False
                     if 't' in data_columns:
-                        for q_name in ['specific_humidity', 'specific_humidity', 'huss', 'q']:
+                        for q_name in ['specific_humidity', 'huss', 'q', 'spechum']:
                             if q_name in forcing_ds:
                                 q_data = forcing_ds[q_name].values
                                 if q_data.ndim > 1:
@@ -598,8 +746,6 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         start_date, end_date = self._get_simulation_dates()
         props = self._get_catchment_properties()
 
-        nhru = 1  # lumped basin -> single HRU
-
         # Store the observation file as a bare filename.  The runner
         # passes --obs_file_directory to tell CRHM where to find it.
         obs_basename = obs_file
@@ -608,6 +754,25 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         area_km2 = props.get('area_km2', 100.0)
         lat = props.get('lat', 51.0)
         elev = props.get('elev', 1000.0)
+
+        # Elevation-band discretisation (one HRU per band) or lumped fallback.
+        # band_elevs / band_areas are per-HRU vectors; obs_ref_elev is the
+        # forcing reference elevation CRHM lapses from.
+        band_elevs = None
+        band_areas = None
+        band_slopes = None
+        band_aspects = None
+        obs_ref_elev = int(elev)
+        if self.use_elev_bands:
+            bands, ref_elev = self._get_elevation_bands(area_km2)
+            if bands:
+                band_elevs = [int(round(b['elev'])) for b in bands]
+                band_areas = [round(b['area_km2'], 6) for b in bands]
+                obs_ref_elev = int(round(ref_elev))
+                if self.use_terrain_radiation and all('slope' in b for b in bands):
+                    band_slopes = [round(b['slope'], 2) for b in bands]
+                    band_aspects = [round(b['aspect'], 1) for b in bands]
+        nhru = len(band_elevs) if band_elevs else 1  # lumped -> single HRU
 
         lines = []
 
@@ -694,12 +859,23 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         def _hru_val(v):
             return ' '.join([str(v)] * nhru)
 
+        # Helper to write an explicit per-HRU vector (one value per HRU)
+        def _hru_vec(vals):
+            return ' '.join(str(v) for v in vals)
+
+        # Per-HRU area / elevation: band vectors when discretised, else lumped.
+        hru_area_str = _hru_vec(band_areas) if band_areas else _hru_val(area_km2)
+        hru_elev_str = _hru_vec(band_elevs) if band_elevs else _hru_val(int(elev))
+        # Per-band slope/aspect from the DEM when terrain radiation is on.
+        hru_asl_str = _hru_vec(band_aspects) if band_aspects else _hru_val(0)
+        hru_gsl_str = _hru_vec(band_slopes) if band_slopes else _hru_val(5)
+
         # ---- Shared parameters (basin-wide, broadcast to all modules) ----
         _write_param('Shared', 'basin_area', area_km2)
-        _write_param('Shared', 'hru_area', _hru_val(area_km2))
-        _write_param('Shared', 'hru_ASL', _hru_val(0))
-        _write_param('Shared', 'hru_elev', _hru_val(int(elev)))
-        _write_param('Shared', 'hru_GSL', _hru_val(5))
+        _write_param('Shared', 'hru_area', hru_area_str)
+        _write_param('Shared', 'hru_ASL', hru_asl_str)
+        _write_param('Shared', 'hru_elev', hru_elev_str)
+        _write_param('Shared', 'hru_GSL', hru_gsl_str)
         _write_param('Shared', 'hru_lat', _hru_val(round(lat, 2)))
         _write_param('Shared', 'Ht', _hru_val(0.3))
         _write_param('Shared', 'inhibit_evap', _hru_val(0))
@@ -733,18 +909,18 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         _write_param('crack', 'PriorInfiltration', _hru_val(0))
 
         # ---- ebsm (energy-balance snowmelt) ----
-        _write_param('ebsm', 'delay_melt', 0)
-        _write_param('ebsm', 'nfactor', 0)
-        _write_param('ebsm', 'Qe_subl_from_SWE', 0)
-        _write_param('ebsm', 'tfactor', 0)
-        _write_param('ebsm', 'Use_QnD', 0)
+        _write_param('ebsm', 'delay_melt', _hru_val(0))
+        _write_param('ebsm', 'nfactor', _hru_val(0))
+        _write_param('ebsm', 'Qe_subl_from_SWE', _hru_val(0))
+        _write_param('ebsm', 'tfactor', _hru_val(0))
+        _write_param('ebsm', 'Use_QnD', _hru_val(0))
 
         # ---- evap ----
-        _write_param('evap', 'evap_type', 0)
-        _write_param('evap', 'F_Qg', 0.05)
-        _write_param('evap', 'inhibit_evap_User', 0)
-        _write_param('evap', 'rs', 0)
-        _write_param('evap', 'Zwind', 10)
+        _write_param('evap', 'evap_type', _hru_val(0))
+        _write_param('evap', 'F_Qg', _hru_val(0.05))
+        _write_param('evap', 'inhibit_evap_User', _hru_val(0))
+        _write_param('evap', 'rs', _hru_val(0))
+        _write_param('evap', 'Zwind', _hru_val(10))
 
         # ---- global ----
         _write_param('global', 'Time_Offset', 0)
@@ -756,7 +932,8 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         _write_param('Netroute', 'gwwhereto', _hru_val(0))
         _write_param('Netroute', 'Kstorage', _hru_val(1))
         _write_param('Netroute', 'Lag', _hru_val(8))
-        _write_param('Netroute', 'order', _hru_val(1))
+        _write_param('Netroute', 'order',
+                      _hru_vec(range(1, nhru + 1)))
         _write_param('Netroute', 'preferential_flow', _hru_val(0))
         _write_param('Netroute', 'runKstorage', _hru_val(0))
         _write_param('Netroute', 'runLag', _hru_val(0))
@@ -778,46 +955,47 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         _write_param('obs', 'HRU_OBS',
                       '\n'.join([hru_obs_row] * 5))
         _write_param('obs', 'lapse_rate', _hru_val(0.75))
-        # obs_elev: 2-D (nobs x nhru), 2 rows
+        # obs_elev: forcing reference elevation (basin-mean) that CRHM lapses
+        # FROM to each band's hru_elev. 2-D (nobs x nhru), 2 rows.
         _write_param('obs', 'obs_elev',
-                      '\n'.join([_hru_val(int(elev))] * 2))
-        _write_param('obs', 'ppt_daily_distrib', 1)
-        _write_param('obs', 'precip_elev_adj', 0)
-        _write_param('obs', 'snow_rain_determination', 0)
-        _write_param('obs', 'tmax_allrain', 4)
-        _write_param('obs', 'tmax_allsnow', 0)
+                      '\n'.join([_hru_val(obs_ref_elev)] * 2))
+        _write_param('obs', 'ppt_daily_distrib', _hru_val(1))
+        _write_param('obs', 'precip_elev_adj', _hru_val(0))
+        _write_param('obs', 'snow_rain_determination', _hru_val(0))
+        _write_param('obs', 'tmax_allrain', _hru_val(4))
+        _write_param('obs', 'tmax_allsnow', _hru_val(0))
 
         # ---- pbsm (blowing snow) ----
-        _write_param('pbsm', 'A_S', 0.003)
-        _write_param('pbsm', 'distrib', 1)
+        _write_param('pbsm', 'A_S', _hru_val(0.003))
+        _write_param('pbsm', 'distrib', _hru_val(1))
         # pbsm has its own "fetch" parameter distinct from the Shared one.
         # Write it directly to avoid collision with the Shared fetch key.
         lines.append("pbsm fetch <300 to 10000.0>")
-        lines.append("1500")
-        _write_param('pbsm', 'inhibit_bs', 0)
-        _write_param('pbsm', 'inhibit_subl', 0)
-        _write_param('pbsm', 'N_S', 320)
+        lines.append(_hru_val(1500))
+        _write_param('pbsm', 'inhibit_bs', _hru_val(0))
+        _write_param('pbsm', 'inhibit_subl', _hru_val(0))
+        _write_param('pbsm', 'N_S', _hru_val(320))
 
         # ---- Soil ----
-        _write_param('Soil', 'cov_type', 1)
-        _write_param('Soil', 'gw_init', 75)
-        _write_param('Soil', 'gw_K', 0.001)
-        _write_param('Soil', 'gw_max', 150)
-        _write_param('Soil', 'lower_ssr_K', 0.001)
-        _write_param('Soil', 'rechr_ssr_K', 0.001)
-        _write_param('Soil', 'Sdinit', 0)
-        _write_param('Soil', 'Sd_gw_K', 0.001)
-        _write_param('Soil', 'Sd_ssr_K', 0.001)
-        _write_param('Soil', 'soil_gw_K', 0.001)
-        _write_param('Soil', 'soil_moist_init', 125)
-        _write_param('Soil', 'soil_moist_max', 250)
-        _write_param('Soil', 'soil_rechr_init', 30)
-        _write_param('Soil', 'soil_ssr_runoff', 1)
+        _write_param('Soil', 'cov_type', _hru_val(1))
+        _write_param('Soil', 'gw_init', _hru_val(75))
+        _write_param('Soil', 'gw_K', _hru_val(0.001))
+        _write_param('Soil', 'gw_max', _hru_val(150))
+        _write_param('Soil', 'lower_ssr_K', _hru_val(0.001))
+        _write_param('Soil', 'rechr_ssr_K', _hru_val(0.001))
+        _write_param('Soil', 'Sdinit', _hru_val(0))
+        _write_param('Soil', 'Sd_gw_K', _hru_val(0.001))
+        _write_param('Soil', 'Sd_ssr_K', _hru_val(0.001))
+        _write_param('Soil', 'soil_gw_K', _hru_val(0.001))
+        _write_param('Soil', 'soil_moist_init', _hru_val(125))
+        _write_param('Soil', 'soil_moist_max', _hru_val(250))
+        _write_param('Soil', 'soil_rechr_init', _hru_val(30))
+        _write_param('Soil', 'soil_ssr_runoff', _hru_val(1))
         # soil_withdrawal: 2-D (nlay x nhru)
         _write_param('Soil', 'soil_withdrawal',
                       '\n'.join([_hru_val(2)] * 2))
-        _write_param('Soil', 'transp_limited', 0)
-        _write_param('Soil', 'Wetlands_scaling_factor', 1)
+        _write_param('Soil', 'transp_limited', _hru_val(0))
+        _write_param('Soil', 'Wetlands_scaling_factor', _hru_val(1))
 
         lines.append("######")
 

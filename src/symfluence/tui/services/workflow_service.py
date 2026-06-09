@@ -7,6 +7,7 @@ Wrapper around SYMFLUENCE core for workflow execution from the TUI.
 Provides config loading, step enumeration, status queries, and background
 execution support.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

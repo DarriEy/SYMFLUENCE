@@ -6,6 +6,7 @@ GNN Model Postprocessor.
 
 Handles result saving, formatting, and standardized streamflow plotting for the GNN model.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional
@@ -15,16 +16,16 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('GNN')
-class GNNPostprocessor(StandardModelPostprocessor):
+@R.postprocessors.add('GNN')
+class GNNPostProcessor(StandardModelPostProcessor):
     """
     Handles post-processing of GNN model results.
 
-    Extends StandardModelPostprocessor with GNN-specific outlet selection logic.
+    Extends StandardModelPostProcessor with GNN-specific outlet selection logic.
     Supports three-level fallback for outlet identification:
     1. Config-specified outlet HRU IDs (from NetCDF attributes)
     2. Pour point shapefile intersection with river network
@@ -38,7 +39,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
         outlet_selection_method: "config" with custom fallback logic
     """
 
-    # StandardModelPostprocessor configuration
+    # StandardModelPostProcessor configuration
     model_name = "GNN"
     output_file_pattern = "{experiment}_GNN_output.nc"
     streamflow_variable = "predicted_streamflow"
@@ -238,7 +239,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
         """
         Extract streamflow from GNN output NetCDF.
 
-        Uses StandardModelPostprocessor pattern with custom outlet selection
+        Uses StandardModelPostProcessor pattern with custom outlet selection
         logic for distributed GNN outputs.
 
         Returns:
@@ -270,7 +271,7 @@ class GNNPostprocessor(StandardModelPostprocessor):
                 return self.save_streamflow_to_results(data.to_pandas())
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}")
+            self.logger.error(f"Error extracting {self.model_name} streamflow: {str(e)}", exc_info=True)
             return None
 
     def save_results(

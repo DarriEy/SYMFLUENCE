@@ -19,6 +19,7 @@ CMC Snow Overview:
 Output Format:
     CSV with columns: datetime, swe_mm
 """
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
@@ -301,6 +302,6 @@ class CMCSnowHandler(BaseObservationHandler):
                     })
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Error processing {filepath.name}: {e}")
+            self.logger.warning(f"Error processing {filepath.name}: {e}", exc_info=True)
 
         return results

@@ -8,6 +8,8 @@ Provides cloud acquisition for GLDAS-2.1 Noah Land Surface Model monthly data.
 TWS = Soil Moisture (4 layers) + SWE + Canopy Water Storage.
 Uses earthaccess for NASA GES DISC authentication.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 import earthaccess
@@ -116,7 +118,7 @@ class GLDASAcquirer(BaseAcquisitionHandler):
                 all_data.append(row)
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {f}: {e}")
+                self.logger.warning(f"Failed to process {f}: {e}", exc_info=True)
 
         if all_data:
             df = pd.DataFrame(all_data).set_index('date').sort_index()

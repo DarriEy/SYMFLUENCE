@@ -40,6 +40,8 @@ References:
 
     https://github.com/ESCOMP/CTSM
 """
+from __future__ import annotations
+
 from .config import CLMConfigAdapter
 from .extractor import CLMResultExtractor
 from .postprocessor import CLMPostProcessor
@@ -59,11 +61,14 @@ __all__ = [
 # decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "CLM",
-    config_adapter=CLMConfigAdapter,
-    build_instructions_module="symfluence.models.clm.build_instructions",
-)
+
+def register() -> None:
+    """Register CLM components with the unified registry."""
+    model_manifest(
+        "CLM",
+        config_adapter=CLMConfigAdapter,
+        build_instructions_module="symfluence.models.clm.build_instructions",
+    )
 
 # Register calibration components with OptimizerRegistry
 try:

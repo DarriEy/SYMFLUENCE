@@ -46,7 +46,7 @@ class _MockRunner:
         return None
 
 
-class _MockPostprocessor:
+class _MockPostProcessor:
     MODEL_NAME = "MOCK"
 
     def extract_streamflow(self):
@@ -105,7 +105,7 @@ class TestModelManifest:
             preprocessor=_MockPreprocessor,
             runner=_MockRunner,
             runner_method="run_mock",
-            postprocessor=_MockPostprocessor,
+            postprocessor=_MockPostProcessor,
             config_adapter=_MockConfigAdapter,
             result_extractor=_MockExtractor,
             decision_analyzer=_MockDecisionAnalyzer,
@@ -120,7 +120,7 @@ class TestModelManifest:
 
         assert R.preprocessors["MOCK"] is _MockPreprocessor
         assert R.runners["MOCK"] is _MockRunner
-        assert R.postprocessors["MOCK"] is _MockPostprocessor
+        assert R.postprocessors["MOCK"] is _MockPostProcessor
         assert R.config_adapters["MOCK"] is _MockConfigAdapter
         assert R.result_extractors["MOCK"] is _MockExtractor
         assert R.decision_analyzers["MOCK"] is _MockDecisionAnalyzer
@@ -182,7 +182,7 @@ class TestModelManifest:
             "MOCK",
             preprocessor=_MockPreprocessor,
             runner=_MockRunner,
-            postprocessor=_MockPostprocessor,
+            postprocessor=_MockPostProcessor,
         )
         v = Registries.validate_model("MOCK")
         assert v["valid"] is True
@@ -211,3 +211,63 @@ class TestModelManifest:
         assert R.config_defaults["MOCK"] == defaults
         assert R.config_transformers["MOCK"] == transformers
         assert R.config_validators["MOCK"] is validator
+
+
+class TestConfigSchemaBridging:
+    """model_manifest bridges an adapter's schema into R.config_schemas.
+
+    Plugins that register only a config_adapter (no explicit config_schema)
+    must still land in R.config_schemas so the ModelConfig validator builds
+    config.model.<model> from their settings instead of silently defaulting.
+    """
+
+    def test_adapter_schema_bridged_when_no_explicit_schema(self):
+        from pydantic import BaseModel
+
+        class _Schema(BaseModel):
+            backend: str = "jax"
+
+        class _Adapter:
+            def __init__(self, model_name):
+                self.model_name = model_name
+
+            @classmethod
+            def get_config_schema(cls):
+                return _Schema
+
+        model_manifest("MOCK", config_adapter=_Adapter)
+        assert R.config_schemas["MOCK"] is _Schema
+
+    def test_explicit_schema_takes_precedence(self):
+        from pydantic import BaseModel
+
+        class _AdapterSchema(BaseModel):
+            pass
+
+        class _ExplicitSchema(BaseModel):
+            pass
+
+        class _Adapter:
+            def __init__(self, model_name):
+                self.model_name = model_name
+
+            @classmethod
+            def get_config_schema(cls):
+                return _AdapterSchema
+
+        model_manifest("MOCK", config_adapter=_Adapter, config_schema=_ExplicitSchema)
+        assert R.config_schemas["MOCK"] is _ExplicitSchema
+
+    def test_adapter_without_schema_is_harmless(self):
+        # A bare adapter whose get_config_schema raises must not break registration.
+        class _Adapter:
+            def __init__(self, model_name):
+                self.model_name = model_name
+
+            @classmethod
+            def get_config_schema(cls):
+                raise RuntimeError("no schema")
+
+        model_manifest("MOCK", config_adapter=_Adapter)
+        assert R.config_adapters["MOCK"] is _Adapter
+        assert "MOCK" not in R.config_schemas

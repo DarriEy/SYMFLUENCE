@@ -6,6 +6,7 @@ WATFLOOD Post-Processor.
 
 Extracts and processes WATFLOOD model outputs.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -13,12 +14,12 @@ from typing import Optional
 
 import pandas as pd
 
-from symfluence.models.base import StandardModelPostprocessor
+from symfluence.models.base import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class WATFLOODPostProcessor(StandardModelPostprocessor):
+class WATFLOODPostProcessor(StandardModelPostProcessor):
     """Post-processor for WATFLOOD model outputs."""
 
     model_name = "WATFLOOD"
@@ -49,7 +50,7 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
             self.logger.error(f"No WATFLOOD output found in {output_dir}")
             return None
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"Error extracting WATFLOOD streamflow: {e}")
+            self.logger.error(f"Error extracting WATFLOOD streamflow: {e}", exc_info=True)
             return None
 
     def _extract_from_file(self, output_file: Path) -> Optional[pd.Series]:
@@ -63,7 +64,7 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
             elif output_file.suffix == '.tb0':
                 return self._parse_tb0(output_file)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error extracting streamflow: {e}")
+            logger.error(f"Error extracting streamflow: {e}", exc_info=True)
         return None
 
     def _parse_tb0(self, tb0_file: Path) -> Optional[pd.Series]:
@@ -92,5 +93,5 @@ class WATFLOODPostProcessor(StandardModelPostprocessor):
             if dates:
                 return pd.Series(values, index=dates, name='WATFLOOD_discharge_cms')
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error parsing tb0: {e}")
+            logger.error(f"Error parsing tb0: {e}", exc_info=True)
         return None

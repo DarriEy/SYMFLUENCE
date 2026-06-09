@@ -31,6 +31,8 @@ References:
 
     https://github.com/MODFLOW-ORG/modflow6
 """
+from __future__ import annotations
+
 from .config import MODFLOWConfigAdapter
 from .extractor import MODFLOWResultExtractor
 from .plotter import MODFLOWPlotter
@@ -52,9 +54,12 @@ __all__ = [
 # decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "MODFLOW",
-    config_adapter=MODFLOWConfigAdapter,
-    plotter=MODFLOWPlotter,
-    build_instructions_module="symfluence.models.modflow.build_instructions",
-)
+
+def register() -> None:
+    """Register MODFLOW components with the unified registry."""
+    model_manifest(
+        "MODFLOW",
+        config_adapter=MODFLOWConfigAdapter,
+        plotter=MODFLOWPlotter,
+        build_instructions_module="symfluence.models.modflow.build_instructions",
+    )

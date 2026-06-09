@@ -8,6 +8,7 @@ Extracts overland flow and subsurface drainage from ParFlow-CLM output
 and combines them into total streamflow. No external coupling needed —
 CLM handles ET/snow internally within the ParFlow simulation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -15,14 +16,14 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
-from symfluence.models.base.standard_postprocessor import StandardModelPostprocessor
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_postprocessor("CLMPARFLOW")
-class CLMParFlowPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add("CLMPARFLOW")
+class CLMParFlowPostProcessor(StandardModelPostProcessor):
     """
     Postprocesses CLMParFlow output.
 
@@ -124,7 +125,7 @@ class CLMParFlowPostProcessor(StandardModelPostprocessor):
                 subsurface_m3hr = pd.Series(dtype=float, name='subsurface_drainage_m3hr')
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Failed to extract CLMParFlow output: {e}")
+            logger.error(f"Failed to extract CLMParFlow output: {e}", exc_info=True)
             return None
 
         return self._extract_standalone_flow(overland_m3s, subsurface_m3hr)

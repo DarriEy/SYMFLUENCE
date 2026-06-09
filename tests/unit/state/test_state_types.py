@@ -1,4 +1,5 @@
 """Tests for state management types and serialization."""
+from __future__ import annotations
 
 from pathlib import Path
 

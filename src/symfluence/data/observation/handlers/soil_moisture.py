@@ -14,6 +14,7 @@ Supported products:
     - SMOS: ESA L-band passive microwave (~25 km, 2010-present)
     - ASCAT: EUMETSAT C-band active microwave (~25 km, 2007-present)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional
@@ -565,7 +566,7 @@ class SMOSSMHandler(BaseObservationHandler):
 
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Error processing SMOS file {nc_file.name}: {e}")
+                self.logger.warning(f"Error processing SMOS file {nc_file.name}: {e}", exc_info=True)
                 continue
 
         if not all_data:
@@ -737,7 +738,7 @@ class ASCATSMHandler(BaseObservationHandler):
 
                 ds.close()
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Error processing ASCAT file {nc_file.name}: {e}")
+                self.logger.warning(f"Error processing ASCAT file {nc_file.name}: {e}", exc_info=True)
                 continue
 
         if not all_data:

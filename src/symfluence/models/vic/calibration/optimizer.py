@@ -6,18 +6,19 @@ VIC Model Optimizer
 
 VIC-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import VICWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('VIC')
+@R.optimizers.add('VIC')
 class VICModelOptimizer(BaseModelOptimizer):
     """
     VIC-specific optimizer using the unified BaseModelOptimizer framework.

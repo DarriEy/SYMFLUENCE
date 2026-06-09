@@ -6,6 +6,7 @@ GNN Model Preprocessor.
 
 Handles data loading and graph structure construction for the GNN model.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

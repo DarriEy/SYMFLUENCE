@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from symfluence.core.registries import R
+
 """Tests for CWatM postprocessor."""
 
 
@@ -10,8 +14,7 @@ class TestCWatMPostProcessor:
 
     def test_postprocessor_registered_with_registry(self):
         import symfluence.models.cwatm  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'CWATM' in ModelRegistry._postprocessors
+        assert 'CWATM' in R.postprocessors
 
     def test_model_name(self):
         from symfluence.models.cwatm.postprocessor import CWatMPostProcessor

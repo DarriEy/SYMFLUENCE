@@ -6,6 +6,7 @@ Analysis panel for benchmarking, decision analysis, and sensitivity analysis.
 
 Visible after model run completes (gui_phase >= 'model_ready').
 """
+from __future__ import annotations
 
 import logging
 

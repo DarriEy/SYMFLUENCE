@@ -7,17 +7,18 @@ WRF-Hydro Parameter Manager
 Handles WRF-Hydro parameter bounds, normalization, and Fortran namelist updates.
 Parameters are applied to hydro.namelist and namelist.hrldas using regex-based parsing.
 """
+from __future__ import annotations
 
 import logging
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('WRFHYDRO')
+@R.parameter_managers.add('WRFHYDRO')
 class WRFHydroParameterManager(BaseParameterManager):
     """Handles WRF-Hydro parameter bounds, normalization, and namelist updates.
 
@@ -128,7 +129,7 @@ class WRFHydroParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating WRF-Hydro namelists: {e}")
+            self.logger.error(f"Error updating WRF-Hydro namelists: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -176,7 +177,7 @@ class WRFHydroParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating namelist {namelist_path}: {e}")
+            self.logger.error(f"Error updating namelist {namelist_path}: {e}", exc_info=True)
             return False
 
     def _format_namelist_value(self, value: float) -> str:
@@ -224,7 +225,7 @@ class WRFHydroParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _extract_value_from_content(self, content: str, param_name: str) -> Optional[float]:
@@ -278,5 +279,5 @@ class WRFHydroParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying WRF-Hydro files to {worker_settings_dir}: {e}")
+            self.logger.error(f"Error copying WRF-Hydro files to {worker_settings_dir}: {e}", exc_info=True)
             return False

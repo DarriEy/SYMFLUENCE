@@ -11,21 +11,22 @@ Provides calibration target classes for RHESSys ecosystem-hydrological model.
 Handles RHESSys output formats (CSV results, basin.daily) with daily resampling
 of observations to match RHESSys output frequency.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
     pass
 
 
-@OptimizerRegistry.register_calibration_target('RHESSys', 'streamflow')
+@R.calibration_targets.add('RHESSYS_STREAMFLOW')
 class RHESSysStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for RHESSys ecosystem-hydrological model outputs.
 
@@ -69,7 +70,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
             return obs_series
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error loading observed data: {str(e)}")
+            self.logger.error(f"Error loading observed data: {str(e)}", exc_info=True)
             return None
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
@@ -263,7 +264,7 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
                             except Exception:  # noqa: BLE001 — calibration resilience
                                 continue
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.debug(f"Failed to read basin area from {wf_path}: {e}")
+                    self.logger.debug(f"Failed to read basin area from {wf_path}: {e}", exc_info=True)
 
         return None
 

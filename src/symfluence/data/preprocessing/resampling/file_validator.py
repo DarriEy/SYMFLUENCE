@@ -6,6 +6,7 @@ File Validator
 
 Validates forcing files for proper structure and content.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -96,5 +97,5 @@ class FileValidator:
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(
                 f"{worker_str}Error validating file {file_path.name}: {str(e)}"
-            )
+            , exc_info=True)
             return False

@@ -9,6 +9,7 @@ Optionally performs drop analysis to objectively determine the optimal threshold
 
 Extracted from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional

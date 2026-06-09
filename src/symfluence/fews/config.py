@@ -8,6 +8,7 @@ Defines the Pydantic models for FEWS General Adapter settings:
 - FEWSConfig: Top-level FEWS configuration (added as optional section to SymfluenceConfig)
 - IDMapEntry: Single variable mapping entry (FEWS name <-> SYMFLUENCE name + unit conversion)
 """
+from __future__ import annotations
 
 from typing import List, Literal, Optional
 

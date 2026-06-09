@@ -12,6 +12,7 @@ Manages two profilers:
 1. IOProfiler: Python-level I/O operations
 2. SystemIOProfiler: External tool I/O (SUMMA, mizuRoute, etc.)
 """
+from __future__ import annotations
 
 import atexit
 import os

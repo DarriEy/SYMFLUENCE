@@ -10,6 +10,7 @@ Tests cover:
 - Required method signatures
 - Configuration parsing
 """
+from __future__ import annotations
 
 import inspect
 import logging

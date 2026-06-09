@@ -7,6 +7,7 @@ Forcing Adapter Registry for SYMFLUENCE.
 This module provides a registry for model forcing adapters,
 enabling dynamic discovery and instantiation without hardcoded model names.
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -145,9 +146,9 @@ class ForcingAdapterRegistry:
         This method attempts to import the forcing_adapter module
         from each known model package.
         """
-        from symfluence.core.constants import SupportedModels
+        from symfluence.models import model_packages_with
 
-        for model_name in SupportedModels.WITH_FORCING_ADAPTER:
+        for model_name in model_packages_with('forcing_adapter'):
             try:
                 __import__(
                     f'symfluence.models.{model_name}.forcing_adapter',

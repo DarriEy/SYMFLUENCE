@@ -31,6 +31,7 @@ References:
     hydrologic predictions with a multiscale regionalization scheme. Water
     Resources Research, 49, 5700-5714.
 """
+from __future__ import annotations
 
 from typing import Dict, List, Tuple
 

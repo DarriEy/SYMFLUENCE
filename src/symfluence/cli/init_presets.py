@@ -14,6 +14,7 @@ Architecture:
     with the PresetRegistry. This module maintains backward compatibility by
     aggregating presets from both the registry and legacy definitions.
 """
+from __future__ import annotations
 
 from symfluence.core.registries import R
 
@@ -222,8 +223,8 @@ _LEGACY_PRESETS = {
 def _get_merged_presets():
     """Get all presets from both registry and legacy definitions."""
     # Ensure model preset modules are imported to trigger registration
-    from symfluence.core.constants import SupportedModels
-    for model_name in SupportedModels.WITH_PRESETS:
+    from symfluence.models import model_packages_with
+    for model_name in model_packages_with('init_preset'):
         try:
             __import__(f'symfluence.models.{model_name}.init_preset', fromlist=['init_preset'])
         except ImportError:

@@ -21,6 +21,7 @@ Build Configuration:
 - build_snippets: Shared shell script helpers
 - build_schema: Build instruction schema and validation
 """
+from __future__ import annotations
 
 from .base import BaseService
 

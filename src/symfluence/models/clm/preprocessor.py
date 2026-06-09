@@ -11,19 +11,21 @@ Orchestrates CLM preprocessing by delegating to focused sub-modules:
 
 Forcing is handled by the existing CLMForcingProcessor.
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CLM")
+@R.preprocessors.add("CLM")
 class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     """
     Prepares inputs for a CLM5 model run.

@@ -8,6 +8,7 @@ This module provides:
 - SWATParameterManager: Handles SWAT parameter bounds and updates
 - SWATWorker: Worker for SWAT model calibration in optimization loops
 """
+from __future__ import annotations
 
 from .optimizer import SWATModelOptimizer
 from .parameter_manager import SWATParameterManager

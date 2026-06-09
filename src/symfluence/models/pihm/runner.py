@@ -16,6 +16,7 @@ The binary is invoked as:
 
 from {sim_dir} as the working directory.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -25,8 +26,8 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 PROJECT_NAME = "pihm_lumped"
 
 
-@ModelRegistry.register_runner("PIHM")
+@R.runners.add("PIHM")
 class PIHMRunner(BaseModelRunner):
     """
     Runs MM-PIHM via direct invocation.

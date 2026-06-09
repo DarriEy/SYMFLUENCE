@@ -7,6 +7,7 @@ Final Evaluation Orchestrator
 Coordinates file manager updates, model decisions restoration,
 and results persistence during the final evaluation phase.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

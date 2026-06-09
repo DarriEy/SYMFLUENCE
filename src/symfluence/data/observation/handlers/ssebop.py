@@ -17,6 +17,7 @@ SSEBop Overview:
 Output Format:
     CSV with columns: datetime, et_mm_day
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional
@@ -130,7 +131,7 @@ class SSEBopHandler(BaseObservationHandler):
             try:
                 ds = self._open_dataset(nc_file)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to open {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to open {nc_file.name}: {e}", exc_info=True)
                 continue
 
             with ds:
@@ -237,7 +238,7 @@ class SSEBopHandler(BaseObservationHandler):
                         })
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Failed to process {tif_file.name}: {e}")
+                self.logger.debug(f"Failed to process {tif_file.name}: {e}", exc_info=True)
 
         if not results:
             self.logger.warning("No SSEBop ET data could be extracted")

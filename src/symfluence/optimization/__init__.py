@@ -20,17 +20,18 @@ Model Optimizers:
     - NgenModelOptimizer: Optimizer for NextGen model
 
 Usage:
-    >>> from symfluence.optimization import OptimizerRegistry
-    >>> optimizer_cls = OptimizerRegistry.get_optimizer('FUSE')
+    >>> from symfluence.core.registries import R
+    >>> optimizer_cls = R.optimizers.get('FUSE')
     >>> optimizer = optimizer_cls(config, logger)
     >>> results = optimizer.run_pso()
 """
 
 # Trigger objective registration
+from __future__ import annotations
+
 from . import objectives
 from .objectives import ObjectiveRegistry
 from .optimizers.base_model_optimizer import BaseModelOptimizer
-from .registry import OptimizerRegistry
 from .workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 try:
@@ -38,7 +39,7 @@ try:
 except ImportError:
     pass
 
-# Import model optimizers to trigger registration with OptimizerRegistry
+# Import model optimizers to trigger registration with R.optimizers
 from . import model_optimizers
 
 # Gradient-based optimization utilities
@@ -46,7 +47,6 @@ from .gradient import EMA, AdamW, CosineAnnealingWarmRestarts, CosineDecay
 
 __all__ = [
     # Registries
-    "OptimizerRegistry",
     "ObjectiveRegistry",
     # Base classes
     "BaseModelOptimizer",

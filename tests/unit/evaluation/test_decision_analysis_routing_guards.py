@@ -15,6 +15,7 @@ Two fixes pinned here:
    combination produced NaN, so the outer workflow step isn't marked
    complete on zero output.
 """
+from __future__ import annotations
 
 import csv
 import logging
@@ -25,6 +26,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+
+from symfluence.core.exceptions import FileOperationError
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
@@ -133,7 +136,7 @@ def test_neither_output_present_raises_named_error(summa_analyzer, tmp_path):
     NaN row."""
     analyzer = summa_analyzer
     analyzer._resolved['ROUTING_MODEL'] = 'none'
-    with pytest.raises(FileNotFoundError) as excinfo:
+    with pytest.raises(FileOperationError) as excinfo:
         analyzer._load_streamflow_simulations()
     msg = str(excinfo.value)
     assert 'mizuRoute' in msg

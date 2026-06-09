@@ -1,4 +1,5 @@
 """Tests for benchmarking streamflow path resolution."""
+from __future__ import annotations
 
 import logging
 import tempfile

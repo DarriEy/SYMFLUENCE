@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from symfluence.core.registries import R
+
 """Tests for PCR-GLOBWB postprocessor."""
 
 
@@ -10,8 +14,7 @@ class TestPCRGLOBWBPostProcessor:
 
     def test_postprocessor_registered_with_registry(self):
         import symfluence.models.pcrglobwb  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'PCRGLOBWB' in ModelRegistry._postprocessors
+        assert 'PCRGLOBWB' in R.postprocessors
 
     def test_model_name(self):
         from symfluence.models.pcrglobwb.postprocessor import PCRGLOBWBPostProcessor

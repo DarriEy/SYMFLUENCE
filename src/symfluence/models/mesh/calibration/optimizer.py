@@ -7,6 +7,7 @@ MESH Model Optimizer
 MESH-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with MESH.
 """
+from __future__ import annotations
 
 import logging
 import shutil
@@ -14,13 +15,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import safe_delete
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import MESHWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('MESH')
+@R.optimizers.add('MESH')
 class MESHModelOptimizer(BaseModelOptimizer):
     """
     MESH-specific optimizer using the unified BaseModelOptimizer framework.
@@ -97,7 +98,11 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
             # Run MESH model
             if not self._run_model_for_final_evaluation(final_output_dir):
-                self.logger.error("MESH run failed during final evaluation")
+                self.logger.error(
+                    "MESH run failed during final evaluation "
+                    "(see the MESH output/coverage message above — often the forcing ends "
+                    "before the configured simulation end date)"
+                )
                 return None
 
             # MESH writes output to forcing/MESH_input/results/

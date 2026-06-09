@@ -8,6 +8,7 @@ Worker implementation for Noah-MP model optimization.
 Handles parameter application to namelist.input and SOILPARM.TBL,
 model execution, and metric calculation from output.nc.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -23,12 +24,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
-@OptimizerRegistry.register_worker('NOAHMP')
+@R.workers.add('NOAHMP')
 class NoahMPWorker(BaseWorker):
     """
     Worker for Noah-MP model calibration.
@@ -112,7 +113,7 @@ class NoahMPWorker(BaseWorker):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying Noah-MP parameters: {e}")
+            self.logger.error(f"Error applying Noah-MP parameters: {e}", exc_info=True)
             return False
 
     def _apply_namelist_params(
@@ -308,7 +309,7 @@ class NoahMPWorker(BaseWorker):
             self.logger.warning(f"Noah-MP timed out after {timeout}s")
             return False
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Noah-MP execution error: {e}")
+            self.logger.error(f"Noah-MP execution error: {e}", exc_info=True)
             return False
 
     def calculate_metrics(
@@ -384,7 +385,7 @@ class NoahMPWorker(BaseWorker):
             )
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating Noah-MP metrics: {e}")
+            self.logger.error(f"Error calculating Noah-MP metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
 
     @staticmethod

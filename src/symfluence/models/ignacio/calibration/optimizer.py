@@ -8,18 +8,19 @@ IGNACIO-specific optimizer inheriting from BaseModelOptimizer.
 Uses spatial metrics (IoU/Dice) as objective function for fire
 perimeter calibration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import IGNACIOWorker  # noqa: F401 - trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('IGNACIO')
+@R.optimizers.add('IGNACIO')
 class IGNACIOModelOptimizer(BaseModelOptimizer):
     """
     IGNACIO-specific optimizer using the unified BaseModelOptimizer framework.

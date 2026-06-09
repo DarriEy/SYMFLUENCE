@@ -10,11 +10,12 @@ Tier 2 (fallback): Build from source using meson.
 MODFLOW 6 is the USGS modular groundwater flow model. Pre-compiled
 binaries are available for Linux, macOS (Intel + ARM), and Windows.
 """
+from __future__ import annotations
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('modflow')
+@R.build_instructions.add('modflow')
 def get_modflow_build_instructions():
     """
     Get MODFLOW 6 build/install instructions.

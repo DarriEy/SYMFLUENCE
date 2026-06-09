@@ -3,6 +3,7 @@
 Validates structural correctness of the exception hierarchy to prevent
 accidental re-parenting, orphaned exceptions, or duplicate definitions.
 """
+from __future__ import annotations
 
 import pytest
 

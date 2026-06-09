@@ -9,16 +9,17 @@ forcing, and writes a single NetCDF output file.
 
 Reference repository: https://github.com/NOAA-OWP/noah-owp-modular
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('NOAHMP')
+@R.runners.add('NOAHMP')
 class NoahMPRunner(BaseModelRunner):
     """Runner for the standalone Noah-MP land surface model.
 

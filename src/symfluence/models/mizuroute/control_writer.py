@@ -7,11 +7,13 @@ MizuRoute Control File Writer
 Unified control file generation for different source models (SUMMA, FUSE, GR).
 Eliminates code duplication by using configuration-driven templates.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, TextIO, Union
 
+from symfluence.core.exceptions import ConfigValidationError
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -145,7 +147,7 @@ class ControlFileWriter(ConfigurableMixin):
         """
         model_type = model_type.lower()
         if model_type not in MODEL_CONFIGS:
-            raise ValueError(f"Unknown model type: {model_type}. Expected one of: {list(MODEL_CONFIGS.keys())}")
+            raise ConfigValidationError(f"Unknown model type: {model_type}. Expected one of: {list(MODEL_CONFIGS.keys())}")
 
         model_config = MODEL_CONFIGS[model_type]
         mizu_config = mizu_config or {}

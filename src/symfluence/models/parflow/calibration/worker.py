@@ -7,18 +7,19 @@ ParFlow Worker
 Worker implementation for ParFlow model optimization.
 Handles .pfidb parameter updates, ParFlow execution, and metric extraction.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_worker('PARFLOW')
+@R.workers.add('PARFLOW')
 class ParFlowWorker(BaseWorker):
     """
     Parallel worker for ParFlow model calibration.
@@ -100,7 +101,7 @@ class ParFlowWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to apply ParFlow parameters: {e}")
+            self.logger.error(f"Failed to apply ParFlow parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -139,7 +140,7 @@ class ParFlowWorker(BaseWorker):
             return result is not None
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error running ParFlow in worker: {e}")
+            self.logger.error(f"Error running ParFlow in worker: {e}", exc_info=True)
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -177,7 +178,7 @@ class ParFlowWorker(BaseWorker):
                 return {'kge': self.penalty_score}
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating ParFlow metrics: {e}")
+            self.logger.error(f"Error calculating ParFlow metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}

@@ -22,6 +22,7 @@ Output:
     data/forcing/CLMPARFLOW_input/forcing.1d            -- Met forcing for CLM
     data/forcing/CLMPARFLOW_input/daily_rainfall.npy    -- daily net rainfall [m/hr]
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -31,15 +32,21 @@ from typing import Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.models.registry import ModelRegistry
+from symfluence.core.registries import R
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_preprocessor("CLMPARFLOW")
-class CLMParFlowPreProcessor:
+@R.preprocessors.add("CLMPARFLOW")
+class CLMParFlowPreProcessor(BaseModelPreProcessor):
     """Generates ParFlow-CLM input files for integrated hydrologic simulation."""
 
+    MODEL_NAME = "CLMPARFLOW"
+
+    # This preprocessor keeps its own defensive __init__ (tolerates dict / coupled
+    # contexts) rather than calling super().__init__, whose strict typed-config
+    # access doesn't fit how the coupled groundwater models are wired.
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
@@ -308,7 +315,7 @@ class CLMParFlowPreProcessor:
             pptrate, airtemp, times = pptrate[sort_idx], airtemp[sort_idx], times[sort_idx]
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not read ERA5 forcing: {e}")
+            self.logger.warning(f"Could not read ERA5 forcing: {e}", exc_info=True)
             return None
 
         try:

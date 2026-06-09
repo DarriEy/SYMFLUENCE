@@ -70,9 +70,28 @@ repos:
         language: python
         pass_filenames: false
         types: [python]
+      - id: check-resilience-logging
+        name: Guard resilience handlers log with a traceback
+        entry: python scripts/check_resilience_logging.py
+        language: python
+        pass_filenames: false
+        types: [python]
+      - id: check-model-raises
+        name: Guard generic raises in models/
+        entry: python scripts/check_model_raises.py
+        language: python
+        pass_filenames: false
+        types: [python]
       - id: check-version-sync
         name: Validate version synchronization
         entry: bash scripts/check_version_sync.sh
         language: system
         pass_filenames: false
         files: (symfluence_version\.py|pyproject\.toml|setup\.cfg)
+      - id: check-manifest-consistency
+        name: Guard install-manifest consistency
+        entry: python scripts/check_manifest_consistency.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: (pyproject\.toml|pixi\.toml|environment\.yml)

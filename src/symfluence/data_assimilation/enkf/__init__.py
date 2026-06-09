@@ -4,6 +4,7 @@
 """
 Ensemble Kalman Filter (EnKF) implementation.
 """
+from __future__ import annotations
 
 from .enkf_algorithm import EnKFAlgorithm
 from .observation_operator import ObservationOperator, StreamflowObservationOperator

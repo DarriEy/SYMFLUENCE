@@ -26,6 +26,7 @@ References:
     Luojus, K., et al. (2021). GlobSnow v3.0 Northern Hemisphere snow water
     equivalent dataset. Scientific Data, 8, 163.
 """
+from __future__ import annotations
 
 import traceback
 from pathlib import Path
@@ -188,7 +189,7 @@ class GlobSnowAcquirer(
                     self.logger.warning(
                         f"Error processing GlobSnow {date.strftime('%Y-%m-%d')}: {e}\n"
                         f"{traceback.format_exc()}"
-                    )
+                    , exc_info=True)
                     continue
 
             if not daily_datasets:
@@ -323,7 +324,7 @@ class GlobSnowAcquirer(
 
             self.logger.warning(
                 f"Failed to download GlobSnow for {date_str}: {e}"
-            )
+            , exc_info=True)
             return None
 
     _cached_lats = None
@@ -400,5 +401,5 @@ class GlobSnowAcquirer(
             )
             return ds
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"EASE-Grid reprojection failed: {e}")
+            self.logger.warning(f"EASE-Grid reprojection failed: {e}", exc_info=True)
             return ds

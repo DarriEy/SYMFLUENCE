@@ -8,6 +8,7 @@ Extracts simulated streamflow from PIHM .rivflx output (river flux)
 and compares against observed streamflow for metric calculation
 during calibration.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -15,13 +16,13 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@OptimizerRegistry.register_calibration_target('PIHM', 'streamflow')
+@R.calibration_targets.add('PIHM_STREAMFLOW')
 class PIHMStreamflowTarget(StreamflowEvaluator):
     """Streamflow calibration target for PIHM integrated hydrologic model."""
 
@@ -107,5 +108,5 @@ class PIHMStreamflowTarget(StreamflowEvaluator):
             return streamflow
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to extract PIHM streamflow: {e}")
+            self.logger.error(f"Failed to extract PIHM streamflow: {e}", exc_info=True)
             return None

@@ -1,4 +1,5 @@
 """Tests for symfluence.core.provenance."""
+from __future__ import annotations
 
 import json
 import platform
@@ -79,12 +80,13 @@ def test_make_run_id_no_git():
 # capture_provenance
 # ---------------------------------------------------------------------------
 
-def test_capture_provenance():
+def test_capture_provenance(tmp_path):
     """capture_provenance returns a populated RunProvenance."""
-    prov = capture_provenance("exp1", "domain1", config_path="/tmp/cfg.yaml")
+    config_path = str(tmp_path / "cfg.yaml")
+    prov = capture_provenance("exp1", "domain1", config_path=config_path)
     assert prov.experiment_id == "exp1"
     assert prov.domain_name == "domain1"
-    assert prov.config_path == "/tmp/cfg.yaml"
+    assert prov.config_path == config_path
     assert prov.symfluence_version  # non-empty
     assert prov.start_utc  # non-empty
     assert prov.steps == []

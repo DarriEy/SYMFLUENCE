@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """LISFLOOD Model Runner."""
+from __future__ import annotations
 
 import logging
 import os
@@ -10,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ def _conda_env_site_packages(env_name: str) -> Optional[str]:
     return None
 
 
-@ModelRegistry.register_runner("LISFLOOD")
+@R.runners.add("LISFLOOD")
 class LisfloodRunner(BaseModelRunner):
     """Runner for the LISFLOOD model (Python/PCRaster-based).
 

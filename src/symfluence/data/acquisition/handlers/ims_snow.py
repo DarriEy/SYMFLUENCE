@@ -28,6 +28,7 @@ References:
 - Product: https://nsidc.org/data/g02156
 - Documentation: https://nsidc.org/sites/default/files/g02156-v001-userguide_1_1.pdf
 """
+from __future__ import annotations
 
 import gzip
 import math
@@ -211,7 +212,7 @@ class IMSSnowAcquirer(BaseAcquisitionHandler):
             files = re.findall(r'href="([^"]+\.asc\.gz)"', response.text)
             return sorted(files)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Could not list files for {year}: {e}")
+            self.logger.warning(f"Could not list files for {year}: {e}", exc_info=True)
             return []
 
     def _download_and_parse(self, year: int, doy: int, resolution: str) -> Optional[np.ndarray]:
@@ -269,7 +270,7 @@ class IMSSnowAcquirer(BaseAcquisitionHandler):
             return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.debug(f"Error parsing IMS file: {e}")
+            self.logger.debug(f"Error parsing IMS file: {e}", exc_info=True)
             return None
 
     def _extract_domain_stats(

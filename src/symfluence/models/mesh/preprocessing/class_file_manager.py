@@ -8,6 +8,7 @@ Handles all operations on the MESH CLASS parameter file (CLASS.ini).
 Manages GRU blocks, NM parameter, vegetation corrections, initial
 conditions, and elevation band block creation.
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -124,7 +125,7 @@ class CLASSFileManager:
                     f.writelines(lines)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to update CLASS NM: {e}")
+            self.logger.warning(f"Failed to update CLASS NM: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Block trimming
@@ -193,7 +194,7 @@ class CLASSFileManager:
                     f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)"
                 )
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to trim CLASS to count {target_count}: {e}")
+            self.logger.warning(f"Failed to trim CLASS to count {target_count}: {e}", exc_info=True)
 
     def trim_blocks_by_mask(self, lines: list, keep_mask: list) -> bool:
         """Trim CLASS parameter blocks to match DDB GRU columns.
@@ -321,7 +322,7 @@ class CLASSFileManager:
             self.update_nm(n_keep)
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to remove CLASS blocks: {e}")
+            self.logger.warning(f"Failed to remove CLASS blocks: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Fix NM + optional trim (combined workflow)
@@ -369,7 +370,7 @@ class CLASSFileManager:
                 )
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix GRU count mismatch: {e}")
+            self.logger.warning(f"Failed to fix GRU count mismatch: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Vegetation parameters
@@ -472,7 +473,7 @@ class CLASSFileManager:
                 )
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix CLASS vegetation parameters: {e}")
+            self.logger.warning(f"Failed to fix CLASS vegetation parameters: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Initial conditions
@@ -581,7 +582,7 @@ class CLASSFileManager:
                 )
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix CLASS initial conditions: {e}")
+            self.logger.warning(f"Failed to fix CLASS initial conditions: {e}", exc_info=True)
 
     @staticmethod
     def _get_climate_adjusted_snow_params(
@@ -741,7 +742,7 @@ class CLASSFileManager:
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(
                 f"Failed to create elevation band CLASS blocks: {e}"
-            )
+            , exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False

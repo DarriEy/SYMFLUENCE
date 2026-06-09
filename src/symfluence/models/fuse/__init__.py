@@ -31,7 +31,7 @@ Spatial Modes:
 Key Components:
     FUSEPreProcessor: Forcing preparation, spatial setup, file manager generation
     FUSERunner: Model execution with structure selection and parameter mapping
-    FUSEPostprocessor: Output extraction and result formatting
+    FUSEPostProcessor: Output extraction and result formatting
     FuseStructureAnalyzer: Ensemble analysis comparing different model structures
 
 Configuration Parameters:
@@ -58,11 +58,13 @@ Limitations and Considerations:
 """
 
 # Import main classes
+from __future__ import annotations
+
 from .elevation_band_manager import FuseElevationBandManager
 
 # Import manager classes (for advanced usage)
 from .forcing_processor import FuseForcingProcessor
-from .postprocessor import FUSEPostprocessor
+from .postprocessor import FUSEPostProcessor
 from .preprocessor import FUSEPreProcessor
 from .runner import FUSERunner
 from .structure_analyzer import FuseStructureAnalyzer
@@ -73,7 +75,7 @@ __all__ = [
     # Main classes (public API)
     'FUSEPreProcessor',
     'FUSERunner',
-    'FUSEPostprocessor',
+    'FUSEPostProcessor',
     'FuseStructureAnalyzer',
     # Manager classes (advanced usage)
     'FuseForcingProcessor',
@@ -88,11 +90,17 @@ from .config import FUSEConfigAdapter
 from .extractor import FUSEResultExtractor
 from .plotter import FUSEPlotter
 
-model_manifest(
-    "FUSE",
-    config_adapter=FUSEConfigAdapter,
-    result_extractor=FUSEResultExtractor,
-    decision_analyzer=FuseStructureAnalyzer,
-    plotter=FUSEPlotter,
-    build_instructions_module="symfluence.models.fuse.build_instructions",
-)
+
+def register() -> None:
+    """Register FUSE components with the unified registry."""
+    model_manifest(
+        "FUSE",
+        config_adapter=FUSEConfigAdapter,
+        result_extractor=FUSEResultExtractor,
+        decision_analyzer=FuseStructureAnalyzer,
+        plotter=FUSEPlotter,
+        build_instructions_module="symfluence.models.fuse.build_instructions",
+    )
+
+# Deprecated pre-1.0 spelling (RTI item 23) — use FUSEPostProcessor.
+FUSEPostprocessor = FUSEPostProcessor

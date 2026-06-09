@@ -7,6 +7,7 @@ ERA5 Dataset Handler for SYMFLUENCE
 This module provides the ERA5-specific implementation for forcing data processing.
 ERA5 uses regular lat/lon grids and typically doesn't require merging operations.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

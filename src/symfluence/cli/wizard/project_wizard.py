@@ -7,6 +7,7 @@ Main wizard orchestrator for SYMFLUENCE project initialization.
 This module provides the ProjectWizard class that coordinates the interactive
 configuration wizard, managing question flow, state, and config generation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

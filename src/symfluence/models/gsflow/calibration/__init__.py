@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """GSFLOW model calibration components."""
+from __future__ import annotations
 
 from .optimizer import GSFLOWModelOptimizer
 from .parameter_manager import GSFLOWParameterManager

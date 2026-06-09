@@ -19,6 +19,7 @@ See Also:
     - symfluence.data.utils.spatial_utils: Core spatial operations
     - symfluence.data.preprocessing.attribute_processors: Specialized processors
 """
+from __future__ import annotations
 
 from typing import Dict, List, Union
 

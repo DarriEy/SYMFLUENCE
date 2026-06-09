@@ -6,6 +6,7 @@ Tests coordinate transformation utilities including:
 - Coordinate format conversion
 - CRS transformations
 """
+from __future__ import annotations
 
 from pathlib import Path
 

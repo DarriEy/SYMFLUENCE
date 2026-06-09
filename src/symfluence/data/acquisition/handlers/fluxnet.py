@@ -28,6 +28,8 @@ References:
 - FLUXNET2015: https://fluxnet.org/data/fluxnet2015-dataset/
 - ICOS: https://www.icos-cp.eu/
 """
+from __future__ import annotations
+
 import os
 import time
 import zipfile
@@ -240,7 +242,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             else:
                 return pd.read_csv(best_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to load {best_file}: {e}")
+            self.logger.error(f"Failed to load {best_file}: {e}", exc_info=True)
             return None
 
     def _download_ameriflux(
@@ -347,7 +349,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         except requests.exceptions.RequestException as e:
             self.logger.warning(f"AmeriFlux API request error: {e}")
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"AmeriFlux API download failed: {e}")
+            self.logger.warning(f"AmeriFlux API download failed: {e}", exc_info=True)
 
         # Fallback: Try direct data portal approach
         return self._try_ameriflux_direct(station_id, user_id, user_email, output_dir)
@@ -381,7 +383,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                 self.logger.debug(f"Site {station_id} not found in availability list")
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.debug(f"Could not determine site data policy: {e}")
+            self.logger.debug(f"Could not determine site data policy: {e}", exc_info=True)
 
         return None
 
@@ -424,7 +426,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                 self.logger.warning("No CSV files found in downloaded archive")
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Failed to download/extract AmeriFlux data: {e}")
+            self.logger.warning(f"Failed to download/extract AmeriFlux data: {e}", exc_info=True)
 
         return None
 
@@ -461,7 +463,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                     self.logger.info(f"Task status: {task_status} ({elapsed}s elapsed)")
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.debug(f"Status check failed: {e}")
+                self.logger.debug(f"Status check failed: {e}", exc_info=True)
 
             time.sleep(poll_interval)
             elapsed += poll_interval

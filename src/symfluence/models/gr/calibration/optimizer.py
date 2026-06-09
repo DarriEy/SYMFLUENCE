@@ -6,19 +6,20 @@ GR Model Optimizer
 
 GR-specific optimizer inheriting from BaseModelOptimizer.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .worker import GRWorker  # noqa: F401 - Import to trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('GR')
+@R.optimizers.add('GR')
 class GRModelOptimizer(BaseModelOptimizer):
     """
     GR-specific optimizer using the unified BaseModelOptimizer framework.

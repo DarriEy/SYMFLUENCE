@@ -4,6 +4,7 @@ SYMFLUENCE Point-Scale Integration Tests
 Tests the point-scale workflow from notebook 01a (Paradise SNOTEL example).
 Runs a short SUMMA simulation for a point domain.
 """
+from __future__ import annotations
 
 import shutil
 import zipfile

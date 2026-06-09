@@ -27,6 +27,7 @@ References:
     the Conterminous United States. USDA NRCS.
     https://gdg.sc.egov.usda.gov/
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -262,7 +263,7 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
                 backoff_factor=2.0,
             )
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"SDA query failed: {e}")
+            self.logger.warning(f"SDA query failed: {e}", exc_info=True)
             return None
 
         # Parse SDA JSON response

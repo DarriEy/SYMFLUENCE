@@ -2,15 +2,18 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """PCR-GLOBWB model postprocessor."""
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('PCRGLOBWB')
-class PCRGLOBWBPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('PCRGLOBWB')
+class PCRGLOBWBPostProcessor(StandardModelPostProcessor):
     """Postprocessor for the PCR-GLOBWB 2.0 model.
 
     PCR-GLOBWB outputs discharge in NetCDF format with naming convention

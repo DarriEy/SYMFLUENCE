@@ -12,6 +12,7 @@ spatially distributed calibration of hydrological models.
 Originally housed under the FUSE model package, these utilities are
 model-agnostic and are used by multiple model backends (FUSE, HYPE, etc.).
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -117,7 +118,7 @@ class MultiGaugeMetrics:
                 self._obs_cache[gauge_id] = obs
 
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.warning(f"Error reading observations for gauge {gauge_id}: {e}")
+                self.logger.warning(f"Error reading observations for gauge {gauge_id}: {e}", exc_info=True)
                 return None
 
         # Filter by date range if specified
@@ -201,7 +202,7 @@ class MultiGaugeMetrics:
                 return sim
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error extracting simulated at segment {segment_id}: {e}")
+            self.logger.error(f"Error extracting simulated at segment {segment_id}: {e}", exc_info=True)
             return None
 
     def _calculate_kge(

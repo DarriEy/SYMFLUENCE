@@ -9,6 +9,7 @@ FUSE Structure Analyzer
 
 This module implements the Structure Ensemble Analysis for the FUSE model.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -307,7 +308,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                         basin_gdf = basin_gdf.to_crs(epsg=3857) # Simple projection for area
                     return basin_gdf.geometry.area.sum() / 1e6
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Failed to calculate area from shapefile: {e}")
+                self.logger.warning(f"Failed to calculate area from shapefile: {e}", exc_info=True)
 
         return 1.0 # Default fallback
 
@@ -328,4 +329,4 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                         metric
                     )
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Highlight visualization for {metric} failed: {e}")
+                    self.logger.warning(f"Highlight visualization for {metric} failed: {e}", exc_info=True)

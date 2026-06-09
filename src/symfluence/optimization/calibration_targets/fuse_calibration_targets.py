@@ -7,6 +7,7 @@ FUSE Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.fuse.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.fuse.calibration.targets import FUSESnowTarget, FUSEStreamflowTarget
 

@@ -4,6 +4,7 @@
 """
 SLURM Monitor screen — squeue wrapper for HPC job management.
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical

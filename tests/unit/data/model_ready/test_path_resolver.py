@@ -1,4 +1,5 @@
 """Tests for model-ready path resolver with fallback logic."""
+from __future__ import annotations
 
 from pathlib import Path
 

@@ -7,6 +7,7 @@ Elevation band management for FUSE model.
 This module contains the FuseElevationBandManager class which handles creation
 of elevation bands for both lumped and distributed spatial configurations.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins import ConfigMixin
 
 from ..spatial_modes import SpatialMode
@@ -90,7 +92,7 @@ class FuseElevationBandManager(ConfigMixin):
         elif spatial_mode in (SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED):
             return self._create_distributed_elevation_bands()
         else:
-            raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+            raise ModelExecutionError(f"Unknown FUSE spatial mode: {spatial_mode}")
 
     def _get_forcing_spatial_info(self) -> Optional[Tuple[list, Dict[str, np.ndarray]]]:
         forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"

@@ -7,16 +7,17 @@ PRMS Parameter Manager
 Handles PRMS parameter bounds, normalization, and parameter file updates.
 Parameters are updated by rewriting sections of the PRMS params.dat file.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_parameter_manager('PRMS')
+@R.parameter_managers.add('PRMS')
 class PRMSParameterManager(BaseParameterManager):
     """Handles PRMS parameter bounds, normalization, and file updates.
 
@@ -149,7 +150,7 @@ class PRMSParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating PRMS parameter file: {e}")
+            self.logger.error(f"Error updating PRMS parameter file: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -257,7 +258,7 @@ class PRMSParameterManager(BaseParameterManager):
             return params
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error reading initial parameters: {e}")
+            self.logger.error(f"Error reading initial parameters: {e}", exc_info=True)
             return self._get_default_initial_values()
 
     def _extract_first_value(self, block: str, param_name: str) -> Optional[float]:
@@ -315,5 +316,5 @@ class PRMSParameterManager(BaseParameterManager):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error copying PRMS files to {worker_settings_dir}: {e}")
+            self.logger.error(f"Error copying PRMS files to {worker_settings_dir}: {e}", exc_info=True)
             return False

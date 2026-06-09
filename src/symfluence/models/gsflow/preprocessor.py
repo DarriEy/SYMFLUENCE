@@ -13,6 +13,7 @@ Prepares the full GSFLOW input file suite:
 For a lumped domain the MODFLOW grid is a single cell representing
 the bulk aquifer.  The SFR package provides stream-aquifer coupling.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -84,7 +85,7 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"GSFLOW preprocessing failed: {e}")
+            logger.error(f"GSFLOW preprocessing failed: {e}", exc_info=True)
             import traceback
             logger.error(traceback.format_exc())
             return False

@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Shared type aliases for model-specific config models."""
+from __future__ import annotations
 
 from typing import Literal
 

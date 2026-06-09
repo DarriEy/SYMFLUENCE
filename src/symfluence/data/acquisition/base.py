@@ -8,6 +8,8 @@ Provides the abstract base class that all data acquisition handlers inherit from
 Centralizes common functionality like bounding box parsing, temporal subsetting,
 caching logic, and diagnostic visualization.
 """
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union

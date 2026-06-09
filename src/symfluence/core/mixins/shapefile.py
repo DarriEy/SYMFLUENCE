@@ -6,6 +6,7 @@ Shapefile access mixin for SYMFLUENCE modules.
 
 Provides standardized shapefile column name access from configuration.
 """
+from __future__ import annotations
 
 from typing import Any
 

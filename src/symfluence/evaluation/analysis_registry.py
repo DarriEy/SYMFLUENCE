@@ -55,6 +55,7 @@ See Also:
     - ModelRegistry: Similar pattern for preprocessors/runners/postprocessors
     - EvaluationRegistry: Registry for variable-type evaluators
 """
+from __future__ import annotations
 
 import warnings
 from typing import Dict, List, Optional, Type

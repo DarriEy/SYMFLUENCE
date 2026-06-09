@@ -13,6 +13,7 @@ Handles both lumped FUSE output and distributed FUSE + mizuRoute output.
 Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
+from __future__ import annotations
 
 import logging
 import warnings
@@ -29,11 +30,12 @@ warnings.filterwarnings('ignore',
                        module='xarray.*')
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import SnowEvaluator, StreamflowEvaluator
-from symfluence.optimization.registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_calibration_target('FUSE', 'streamflow')
+@R.calibration_targets.add('FUSE_STREAMFLOW')
 class FUSEStreamflowTarget(StreamflowEvaluator):
     """FUSE-specific streamflow evaluator handling lumped/distributed modes."""
 
@@ -96,7 +98,7 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
                 elif 'q_instnt' in ds.variables:
                     sim_var = 'q_instnt'
                 else:
-                    raise ValueError("No runoff variable found in FUSE output")
+                    raise ModelExecutionError("No runoff variable found in FUSE output")
 
                 # Handle variable dimensions - param_set may or may not exist
                 var = ds[sim_var]
@@ -120,7 +122,7 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
         return super()._get_catchment_area() / 1e6 # Base class returns m2
 
 
-@OptimizerRegistry.register_calibration_target('FUSE', 'snow')
+@R.calibration_targets.add('FUSE_SNOW')
 class FUSESnowTarget(SnowEvaluator):
     """FUSE-specific snow evaluator."""
 
@@ -147,7 +149,7 @@ class FUSESnowTarget(SnowEvaluator):
             sim_var = next((c for c in swe_candidates if c in ds.variables), None)
 
             if sim_var is None:
-                raise ValueError("No SWE variable found in FUSE output")
+                raise ModelExecutionError("No SWE variable found in FUSE output")
 
             if self.is_distributed:
                 simulated = ds[sim_var].isel(param_set=0) if 'param_set' in ds[sim_var].dims else ds[sim_var]

@@ -26,6 +26,8 @@ Example:
     >>> raw_data = handler.acquire()
     >>> processed = handler.process(raw_data)
 """
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from symfluence.data.base_registry import HandlerRegistry

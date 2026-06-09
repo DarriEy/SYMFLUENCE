@@ -8,6 +8,7 @@ Tests cover:
 4. Gradient computation for calibration
 5. End-to-end simulation accuracy
 """
+from __future__ import annotations
 
 from unittest.mock import patch
 

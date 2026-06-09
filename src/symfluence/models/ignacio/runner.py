@@ -6,19 +6,20 @@ IGNACIO Model Runner for SYMFLUENCE
 
 Executes the IGNACIO fire spread model using the ignacio Python package.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@ModelRegistry.register_runner('IGNACIO')
+@R.runners.add('IGNACIO')
 class IGNACIORunner(BaseModelRunner):
     """
     Runs the IGNACIO fire spread model.
@@ -176,7 +177,7 @@ class IGNACIORunner(BaseModelRunner):
             self.logger.warning(f"IGNACIO FWI package not available: {e}")
             return False
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"FWI calculation failed: {e}")
+            self.logger.error(f"FWI calculation failed: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -260,7 +261,7 @@ class IGNACIORunner(BaseModelRunner):
             return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO API execution failed: {e}")
+            self.logger.error(f"IGNACIO API execution failed: {e}", exc_info=True)
             return False
 
     def _run_via_cli(self) -> bool:
@@ -316,7 +317,7 @@ class IGNACIORunner(BaseModelRunner):
             return False
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"IGNACIO CLI execution failed: {e}")
+            self.logger.error(f"IGNACIO CLI execution failed: {e}", exc_info=True)
             return False
 
     def run(self, **kwargs) -> Optional[Path]:

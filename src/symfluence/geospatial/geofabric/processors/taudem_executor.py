@@ -15,13 +15,35 @@ Handles:
 
 Refactored from geofabric_utils.py (2026-01-01)
 """
+from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+# A `module load` command must be run through a shell (``module`` is a shell
+# function, not a binary), which is otherwise an injection surface. We constrain
+# what the shell may run: module names must look like module names, and the
+# command being launched must be a known TauDEM executable. Everything is then
+# shlex-quoted and handed to ``bash -lc`` as an argv (shell=False).
+_MODULE_NAME_RE = re.compile(r"^[A-Za-z0-9._/+-]+$")
+
+#: Official TauDEM executable names SYMFLUENCE may launch under `module load`.
+_ALLOWED_TAUDEM_CMDS = frozenset({
+    "aread8", "areadinf", "catchhydrogeo", "catchoutlets", "connectdown",
+    "d8flowdir", "d8flowpathextremeup", "d8hdisttostrm",
+    "dinfavalanche", "dinfconcentration", "dinfdecayaccum", "dinfdistdown",
+    "dinfdistup", "dinfflowdir", "dinfrevaccum", "dinftranslimaccum",
+    "dinfupdependence", "dropanalysis", "gagewatershed", "gridnet", "lengtharea",
+    "moveoutletstostrm", "moveoutletstostreams", "peukerdouglas",
+    "peukerdouglasstreamdef", "pitremove", "slopearea", "slopeavedown",
+    "streamnet", "threshold", "twi",
+})
 
 
 class TauDEMExecutor:
@@ -162,6 +184,43 @@ class TauDEMExecutor:
 
         return parts
 
+    def _safe_module_load_command(
+        self, command: str, run_cmd: Optional[str], has_mpi_prefix: bool
+    ) -> str:
+        """Validate and quote a ``module load ... && <taudem>`` command for ``bash -lc``.
+
+        ``module load`` must run in a shell (``module`` is a shell function), so we
+        constrain what the shell may execute: module names must match a conservative
+        pattern and the launched command must be a known TauDEM executable. Every
+        token is shlex-quoted. Raises ``ValueError`` on anything outside the allowlists.
+        """
+        parts = command.split(" && ")
+        if len(parts) != 2:
+            raise ValueError(f"Unexpected module-load command shape: {command!r}")
+        module_part, actual_cmd = parts
+
+        mod_tokens = module_part.split()
+        if mod_tokens[:2] != ["module", "load"] or len(mod_tokens) < 3:
+            raise ValueError(f"Unexpected 'module load' clause: {module_part!r}")
+        for name in mod_tokens[2:]:
+            if not _MODULE_NAME_RE.match(name):
+                raise ValueError(f"Disallowed module name: {name!r}")
+
+        cmd_tokens = shlex.split(actual_cmd)
+        if not cmd_tokens:
+            raise ValueError("Empty TauDEM command after 'module load'")
+        if not ({Path(t).name for t in cmd_tokens} & _ALLOWED_TAUDEM_CMDS):
+            raise ValueError(f"No allowlisted TauDEM command in: {actual_cmd!r}")
+
+        safe_module = "module load " + " ".join(shlex.quote(n) for n in mod_tokens[2:])
+        safe_actual = " ".join(shlex.quote(t) for t in cmd_tokens)
+        if has_mpi_prefix or not run_cmd:
+            return f"{safe_module} && {safe_actual}"
+        return (
+            f"{safe_module} && {shlex.quote(run_cmd)} "
+            f"-n {int(self.num_processes)} {safe_actual}"
+        )
+
     def run_command(self, command: str, retry: bool = True) -> None:
         """
         Run a TauDEM command with MPI support and retry logic.
@@ -202,20 +261,16 @@ class TauDEMExecutor:
                     # module load is a shell function and requires shell=True
                     needs_shell = "module load" in command
 
-                    if run_cmd and needs_shell:
-                        # Handle commands with module load specially - requires shell=True
-                        # Security note: module load commands require shell execution
-                        # as 'module' is a shell function, not an executable
-                        parts = command.split(" && ")
-                        if len(parts) == 2:
-                            module_part = parts[0]
-                            actual_cmd = parts[1]
-                            if not has_mpi_prefix:
-                                full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.num_processes} {actual_cmd}"
-                            else:
-                                full_command = command
-                        else:
-                            full_command = command
+                    if needs_shell:
+                        # `module load` requires a shell (module is a shell
+                        # function, not a binary). Instead of interpolating
+                        # untrusted tokens into a shell=True string, build a
+                        # validated, fully shlex-quoted command and run it via an
+                        # explicit `bash -lc` argv with shell=False.
+                        shell_cmd = self._safe_module_load_command(
+                            command, run_cmd, has_mpi_prefix
+                        )
+                        full_command: Union[str, List[str]] = ["bash", "-lc", shell_cmd]
                     elif run_cmd and not has_mpi_prefix:
                         # Add MPI prefix for regular commands - use list format
                         # Export LD_LIBRARY_PATH to MPI child processes so TauDEM
@@ -241,7 +296,7 @@ class TauDEMExecutor:
                     result = subprocess.run(
                         full_command,
                         check=True,
-                        shell=needs_shell,  # nosec B602 - shell controlled by MPI config
+                        shell=False,
                         capture_output=True,
                         text=True
                     )

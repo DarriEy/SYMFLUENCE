@@ -15,6 +15,7 @@ fallback to ARCO, and emits a structured warning naming the three most
 common post-Sept-2024 CDS setup problems so a user can self-diagnose
 without reading source. This test pins the content of that warning.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

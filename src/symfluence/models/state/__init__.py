@@ -15,6 +15,7 @@ Public API:
     - StateManager: Orchestration and serialization
     - StateError, StateValidationError: Exceptions
 """
+from __future__ import annotations
 
 from .exceptions import StateError, StateValidationError
 from .manager import StateManager

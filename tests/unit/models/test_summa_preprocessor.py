@@ -3,6 +3,7 @@ Unit tests for SUMMA preprocessor.
 
 Tests SUMMA-specific preprocessing functionality.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.summa import SummaPreProcessor
 
 
@@ -178,10 +180,9 @@ class TestSummaRegistration:
 
     def test_summa_registered_as_preprocessor(self):
         """Test that SUMMA is registered in the model registry."""
-        from symfluence.models.registry import ModelRegistry
 
         # SUMMA should be registered
-        assert 'SUMMA' in ModelRegistry._preprocessors
+        assert 'SUMMA' in R.preprocessors
 
 
 class TestSummaElevationCorrectionSkip:

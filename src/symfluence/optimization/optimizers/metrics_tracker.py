@@ -6,6 +6,7 @@ Evaluation Metrics Tracker
 
 Tracks crash rates and logs optimization progress in a consistent format.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Callable, Dict, Optional

@@ -8,6 +8,7 @@ This module provides handlers for acquiring and processing observation data
 from multiple sources including satellite products, in-situ networks, and
 reanalysis datasets.
 """
+from __future__ import annotations
 
 from .ana import ANAStreamflowHandler
 from .camels import (

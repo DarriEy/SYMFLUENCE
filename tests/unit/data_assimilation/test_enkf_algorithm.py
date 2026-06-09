@@ -1,4 +1,5 @@
 """Tests for EnKF algorithm — synthetic linear twin experiment."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

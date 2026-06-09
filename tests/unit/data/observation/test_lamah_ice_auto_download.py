@@ -13,6 +13,7 @@ These tests use a locally-generated fake zip to avoid hitting
 HydroShare from CI — the same code path that would be taken in
 production.
 """
+from __future__ import annotations
 
 import logging
 import zipfile

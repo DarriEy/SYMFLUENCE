@@ -12,11 +12,13 @@ This module defines how to build SWAT from source, including:
 SWAT is built from Fortran source code using CMake + gfortran. The build
 produces the swat_rel.exe executable for watershed simulations.
 """
+from __future__ import annotations
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('swat')
+@R.build_instructions.add('swat')
 def get_swat_build_instructions():
     """
     Get SWAT build instructions.

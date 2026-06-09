@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Groundwater and integrated surface-subsurface model configuration classes."""
+from __future__ import annotations
 
 from typing import Optional
 

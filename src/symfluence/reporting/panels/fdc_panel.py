@@ -6,6 +6,7 @@ Flow Duration Curve panel for model comparison visualizations.
 
 Renders flow duration curves for observations and model outputs.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

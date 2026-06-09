@@ -1,4 +1,5 @@
 """Tests for Noah-MP configuration adapter."""
+from __future__ import annotations
 
 import pytest
 

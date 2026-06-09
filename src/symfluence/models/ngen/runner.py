@@ -7,6 +7,7 @@ NGen Model Runner.
 Manages the execution of the NOAA NextGen Framework (ngen).
 Refactored to use the Unified Model Execution Framework.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -15,11 +16,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('NGEN', method_name='run_ngen')
+@R.runners.add('NGEN', runner_method='run_ngen')
 class NgenRunner(BaseModelRunner):  # type: ignore[misc]
     """
     Runner for NextGen Framework simulations.
@@ -431,7 +432,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     json.dump(data, f, indent=2)
                 self.logger.debug("Patched absolute paths in realization config copy")
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to patch realization libraries: {e}")
+            self.logger.warning(f"Failed to patch realization libraries: {e}", exc_info=True)
 
     def _move_ngen_outputs(self, build_dir: Path, output_dir: Path):
         """
@@ -523,7 +524,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     is_lumped = True
                     self.logger.info("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.debug(f"Could not parse nexus file for lumped detection: {e}")
+                self.logger.debug(f"Could not parse nexus file for lumped detection: {e}", exc_info=True)
 
         # For lumped domains, t-route channel routing is not needed.
         # However, if the active runoff module lacks built-in routing (SAC-SMA,
@@ -573,7 +574,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.error(f"T-Route routing failed: {e}")
+            self.logger.error(f"T-Route routing failed: {e}", exc_info=True)
             if troute_log.exists():
                 self.logger.error(f"Check t-route log: {troute_log}")
             return False
@@ -677,7 +678,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                         use_netcdf = True
                         self.logger.info("Using NetCDF topology for T-Route NHDNetwork")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.")
+                    self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.", exc_info=True)
 
             # Fall back to hydrofabric GeoPackage with HYFeaturesNetwork
             if not topology_complete and troute_gpkg_src.exists() and troute_config_src.exists():
@@ -711,7 +712,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                             use_gpkg = True
                             self.logger.debug("Using hydrofabric GeoPackage (legacy flowlines layer)")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.debug(f"GeoPackage check failed: {e}. Trying GeoJSON.")
+                    self.logger.debug(f"GeoPackage check failed: {e}. Trying GeoJSON.", exc_info=True)
 
             # Fall back to GeoJSON flowlines
             if not topology_complete and troute_flowlines_src.exists() and troute_config_src.exists():
@@ -729,7 +730,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                         missing = required_cols - available_cols
                         self.logger.warning(f"T-Route flowlines missing required columns: {missing}. Skipping routing.")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
-                    self.logger.warning(f"Failed to read T-Route flowlines: {e}. Skipping routing.")
+                    self.logger.warning(f"Failed to read T-Route flowlines: {e}. Skipping routing.", exc_info=True)
 
             if not topology_complete and not troute_flowlines_src.exists() and not troute_topology_src.exists():
                 self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
@@ -968,7 +969,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.error("NGIAB Docker execution timed out")
                 return False
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.error(f"NGIAB Docker execution failed: {e}")
+                self.logger.error(f"NGIAB Docker execution failed: {e}", exc_info=True)
                 return False
 
     def _resolve_ngiab_context(
@@ -1141,7 +1142,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 )
                 config_file.write_text(content, encoding='utf-8')
             except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
+                self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}", exc_info=True)
         self.logger.debug("Patched NOAH config files with container parameter paths")
 
     def _create_ngiab_realization(self, src_realization: Path, config_dir: Path, domain_name: str):

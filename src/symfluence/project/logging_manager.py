@@ -7,6 +7,7 @@ Logging management for SYMFLUENCE workflow execution.
 Provides comprehensive logging infrastructure including console and file handlers,
 workflow step formatting, run summaries, and log archival capabilities.
 """
+from __future__ import annotations
 
 import json
 import logging

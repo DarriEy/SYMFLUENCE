@@ -1,4 +1,5 @@
 """Unit tests for binary command handlers."""
+from __future__ import annotations
 
 import subprocess
 from argparse import Namespace

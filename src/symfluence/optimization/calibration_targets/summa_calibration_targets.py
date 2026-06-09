@@ -7,6 +7,7 @@ SUMMA Calibration Targets (Backward Compatibility)
 .. deprecated::
     Moved to symfluence.models.summa.calibration.targets
 """
+from __future__ import annotations
 
 from symfluence.models.summa.calibration.targets import SUMMAETTarget, SUMMASnowTarget, SUMMAStreamflowTarget
 

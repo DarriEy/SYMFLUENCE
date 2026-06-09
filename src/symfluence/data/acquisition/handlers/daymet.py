@@ -18,6 +18,8 @@ Daymet features:
 Data access via ORNL DAAC:
 https://daymet.ornl.gov/
 """
+from __future__ import annotations
+
 import netrc
 import os
 from pathlib import Path

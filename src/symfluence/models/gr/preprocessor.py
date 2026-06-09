@@ -10,6 +10,8 @@ Uses shared utilities for forcing data processing and data quality handling.
 """
 
 # Optional R/rpy2 support - only needed for GR models
+from __future__ import annotations
+
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -19,19 +21,19 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 from ..base import BaseModelPreProcessor
 from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
-from ..registry import ModelRegistry
 from ..spatial_modes import SpatialMode
 from ..utilities import ForcingDataProcessor
 
 HAS_RPY2 = find_spec("rpy2") is not None
 
 
-@ModelRegistry.register_preprocessor('GR')
+@R.preprocessors.add('GR')
 class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the GR family of models (GR4J, GR5J, GR6J).
@@ -263,7 +265,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             self.logger.warning(
                 f"Failed to apply area-weighted aggregation: {e}. "
                 f"Falling back to simple mean."
-            )
+            , exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return ds.mean(dim='hru')

@@ -4,6 +4,7 @@ End-to-end install & validate tests.
 Replaces .github/workflows/install-validate.yml validation steps with pytest.
 These tests validate the complete SYMFLUENCE installation and core functionality.
 """
+from __future__ import annotations
 
 import shutil
 import subprocess

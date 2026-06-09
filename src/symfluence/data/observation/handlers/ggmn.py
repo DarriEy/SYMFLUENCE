@@ -6,6 +6,8 @@ GGMN (Global Groundwater Monitoring Network) Observation Handler
 
 Handles acquisition of groundwater level data from IGRAC's GGMN via WFS.
 """
+from __future__ import annotations
+
 import json
 from pathlib import Path
 

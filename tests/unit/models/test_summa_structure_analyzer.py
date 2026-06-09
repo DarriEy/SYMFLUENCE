@@ -3,10 +3,13 @@ Tests for SUMMA Structure Analyzer lazy loading and routing logic.
 
 Tests the refactored lazy loading pattern that prevents circular dependencies.
 """
+from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
 import pytest
+
+from symfluence.core.exceptions import ConfigValidationError
 
 
 class TestSummaStructureAnalyzerLazyLoading:
@@ -119,8 +122,8 @@ class TestSummaStructureAnalyzerLazyLoading:
 
         analyzer = SummaStructureAnalyzer(config_no_routing, self.logger)
 
-        # Should raise RuntimeError
-        with pytest.raises(RuntimeError, match="MizuRoute runner requested but routing is not configured"):
+        # Should raise ConfigValidationError (routing not configured)
+        with pytest.raises(ConfigValidationError, match="MizuRoute runner requested but routing is not configured"):
             _ = analyzer.mizuroute_runner
 
     @patch('symfluence.models.summa.structure_analyzer.SummaRunner')

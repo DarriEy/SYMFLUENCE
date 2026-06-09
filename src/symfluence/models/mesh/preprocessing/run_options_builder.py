@@ -6,6 +6,7 @@ Run Options Configuration Builder
 
 Handles all modifications to MESH_input_run_options.ini.
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -80,7 +81,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                 self.logger.info("Fixed run options variable names")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix run options variable names: {e}")
+            self.logger.warning(f"Failed to fix run options variable names: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Snow / routing parameters
@@ -164,7 +165,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                 self.logger.info("Fixed run options snow/ice parameters")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix run options snow parameters: {e}")
+            self.logger.warning(f"Failed to fix run options snow parameters: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Control flag count
@@ -209,7 +210,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                     self.logger.info(f"Updated control flag count to {flag_count}")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to update control flag count: {e}")
+            self.logger.warning(f"Failed to update control flag count: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Output directories
@@ -231,7 +232,7 @@ class RunOptionsConfigBuilder(ConfigMixin):
                 self.logger.info("Fixed output directory paths in run options")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Failed to fix run options output dirs: {e}")
+            self.logger.warning(f"Failed to fix run options output dirs: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Safe forcing updates

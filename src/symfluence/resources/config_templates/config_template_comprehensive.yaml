@@ -224,6 +224,33 @@ NGEN_NOAH_PARAM_BOUNDS: null
 #   Source:      NGENConfig (model_configs.py)
 NGEN_PET_PARAM_BOUNDS: null
 
+# NGEN_SNOW17_PARAM_BOUNDS
+#   Type:        dict
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SNOW17_PARAM_BOUNDS: null
+
+# NGEN_SACSMA_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SACSMA_PARAMS_TO_CALIBRATE: "UZTWM,UZFWM,UZK,LZTWM,LZFPM,LZFSM,LZPK,LZSK,ZPERC,REXP,PFREE"
+
+# NGEN_SNOW17_PARAMS_TO_CALIBRATE
+#   Description: SNOW-17 parameters to calibrate. The hyphenated NGEN_SNOW-17_PARAMS_TO_CALIBRATE
+#                form is accepted as a backward-compatible alias.
+#   Type:        str
+#   Default:     SCF,MFMAX,MFMIN,TIPM,PLWHC
+#   Source:      NGENConfig (model_configs.py)
+NGEN_SNOW17_PARAMS_TO_CALIBRATE: "SCF,MFMAX,MFMIN,TIPM,PLWHC"
+
+# NGEN_CSV_OUTPUT_IS_FLOW
+#   Description: Whether NGEN CSV output column represents flow (m3/s) rather than depth.
+#   Type:        bool
+#   Default:     False
+#   Source:      NGENConfig (model_configs.py)
+NGEN_CSV_OUTPUT_IS_FLOW: false
+
 # NGEN_EXE
 #   Type:        str
 #   Default:     ngen
@@ -2810,6 +2837,34 @@ DATATOOL_DATASET_ROOT: "/path/to/meteorological-data/"
 #   Usage:      5
 DATATOOL_PATH: default
 
+# TOOL_ACCOUNT
+#   Type:        str
+#   Default:     None
+#   Source:      DataConfig (data.py)
+#   Usage:      MAF / datatool job submission account (acquisition.maf_processor)
+TOOL_ACCOUNT: default
+
+# UNIFY_SOIL
+#   Type:        bool
+#   Default:     false
+#   Source:      DataConfig (data.py)
+#   Usage:      Collapse soil majority to a single class (acquisition.cleanup_processor)
+UNIFY_SOIL: false
+
+# MINIMUM_LAND_FRACTION
+#   Type:        float
+#   Default:     0.01
+#   Source:      DataConfig (data.py)
+#   Usage:      Drop land-cover fractions below this threshold (acquisition.cleanup_processor)
+MINIMUM_LAND_FRACTION: 0.01
+
+# NUM_LAND_COVER
+#   Type:        int
+#   Default:     20
+#   Source:      DataConfig (data.py)
+#   Usage:      Number of land-cover classes to pad to (acquisition.cleanup_processor)
+NUM_LAND_COVER: 20
+
 # EASYMORE_CACHE
 #   Type:        str
 #   Default:     /path/to/cache/dir
@@ -2935,6 +2990,13 @@ OUTPUT_RIVERS_PATH: default
 #   Source:      DomainConfig (domain.py)
 #   Usage:      15
 POUR_POINT_COORDS: null
+
+# POUR_POINT_ADDITIONAL_COORDS
+#   Type:        str | list[str]   # one or more 'lat/lon' interior outlets (semidistributed/distributed only)
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+#   Usage:      0
+POUR_POINT_ADDITIONAL_COORDS: null
 
 # POUR_POINT_SHP_NAME
 #   Type:        str
@@ -5267,6 +5329,12 @@ CLM_INSTALL_PATH: default
 #   Source:      CLMConfig (model_configs.py)
 CLM_EXE: cesm.exe
 
+# CLM_CESM_INPUTDATA_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      CLMConfig (model_configs.py)
+CLM_CESM_INPUTDATA_PATH: default
+
 # SETTINGS_CLM_PATH
 #   Type:        str
 #   Default:     default
@@ -6838,10 +6906,10 @@ EXPERIMENT_OUTPUT_CRHM: default
 
 # CRHM_PARAMS_TO_CALIBRATE
 #   Type:        str
-#   Default:     basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch
+#   Default:     Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,inhibit_subl,Qe_subl_from_SWE,N_S,Kstorage,gw_K,tfactor,nfactor,delay_melt,gwKstorage,gwLag
 #   Source:      CRHMConfig (model_configs.py)
 #   Usage:      5
-CRHM_PARAMS_TO_CALIBRATE: basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch
+CRHM_PARAMS_TO_CALIBRATE: Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,inhibit_subl,Qe_subl_from_SWE,N_S,Kstorage,gw_K,tfactor,nfactor,delay_melt,gwKstorage,gwLag
 
 # CRHM_TIMEOUT
 #   Type:        int
@@ -6849,6 +6917,31 @@ CRHM_PARAMS_TO_CALIBRATE: basin_area,Ht,Asnow,inhibit_evap,Ksat,soil_rechr_max,s
 #   Source:      CRHMConfig (model_configs.py)
 #   Usage:      3
 CRHM_TIMEOUT: 3600
+
+# Discretise the basin into fixed-width elevation bands (one HRU per band) so
+# snow accumulation/melt become elevation-dependent.
+# CRHM_ELEVATION_BANDS
+#   Type:        bool
+#   Default:     false
+#   Source:      CRHMConfig (model_configs.py)
+#   Usage:      1
+CRHM_ELEVATION_BANDS: false
+
+# Elevation-band width in metres (used when CRHM_ELEVATION_BANDS is true).
+# CRHM_ELEVATION_BAND_SIZE
+#   Type:        float
+#   Default:     200.0
+#   Source:      CRHMConfig (model_configs.py)
+#   Usage:      1
+CRHM_ELEVATION_BAND_SIZE: 200.0
+
+# Derive per-band slope/aspect from the DEM for energy-balance melt (needs bands).
+# CRHM_TERRAIN_RADIATION
+#   Type:        bool
+#   Default:     false
+#   Source:      CRHMConfig (model_configs.py)
+#   Usage:      1
+CRHM_TERRAIN_RADIATION: false
 
 
 # 9.12. WRF-Hydro Model Configuration

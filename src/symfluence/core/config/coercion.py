@@ -11,6 +11,8 @@ Environment Variables:
     SYMFLUENCE_STRICT_CONFIG: If set to 'true', '1', or 'yes', coerce_config()
                               will raise errors instead of falling back to dict.
 """
+from __future__ import annotations
+
 import os
 import warnings
 from typing import TYPE_CHECKING, Any, Dict, Union

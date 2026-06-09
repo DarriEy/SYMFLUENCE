@@ -1,4 +1,5 @@
 """Tests for symfluence.core.file_utils module."""
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

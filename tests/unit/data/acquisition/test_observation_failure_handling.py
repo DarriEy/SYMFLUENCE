@@ -18,6 +18,7 @@ observations (GRACE, SNOTEL, etc.) remain best-effort and continue to
 log warnings so a missing optional dataset doesn't break a streamflow-
 only calibration.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import patch
@@ -227,6 +228,80 @@ def test_wsc_handler_implicit_download_when_provider_set(tmp_path):
 
     with patch.object(
         WSCStreamflowHandler, "_download_from_geomet", return_value=tmp_path / "fake.csv"
+    ) as mock_dl:
+        handler.acquire()
+    mock_dl.assert_called_once()
+
+
+def test_wsc_handler_reuses_existing_raw_file(tmp_path):
+    """acquire() is called twice in a single process_observed_data() run
+    (once by AcquisitionService, once by the registry processing loop).
+    The second call must reuse the already-downloaded raw CSV instead of
+    re-hitting the GeoMet API, unless force_download is set."""
+    from symfluence.data.observation.handlers.wsc import WSCStreamflowHandler
+
+    config = SymfluenceConfig(
+        SYMFLUENCE_DATA_DIR=str(tmp_path),
+        SYMFLUENCE_CODE_DIR=str(tmp_path / "code"),
+        DOMAIN_NAME="wsc_reuse_test",
+        EXPERIMENT_ID="test",
+        EXPERIMENT_TIME_START="2020-01-01 00:00",
+        EXPERIMENT_TIME_END="2020-01-02 00:00",
+        FORCING_DATASET="ERA5",
+        HYDROLOGICAL_MODEL="SUMMA",
+        DOMAIN_DEFINITION_METHOD="lumped",
+        SUB_GRID_DISCRETIZATION="GRUs",
+        STREAMFLOW_DATA_PROVIDER="WSC",
+        STATION_ID="05BB001",
+        DATA_ACCESS="cloud",
+    )
+    handler = WSCStreamflowHandler(config, logging.getLogger("test_wsc_reuse"))
+
+    # First acquire: file does not exist yet -> download happens.
+    with patch.object(
+        WSCStreamflowHandler, "_download_from_geomet"
+    ) as mock_dl:
+        raw_file = handler.project_observations_dir / "streamflow" / "raw_data" / "wsc_05BB001_raw.csv"
+        raw_file.parent.mkdir(parents=True, exist_ok=True)
+        raw_file.write_text("dummy\n")
+        mock_dl.return_value = raw_file
+        result = handler.acquire()
+
+    # File now exists; second acquire must NOT re-download.
+    with patch.object(WSCStreamflowHandler, "_download_from_geomet") as mock_dl:
+        result = handler.acquire()
+    mock_dl.assert_not_called()
+    assert result == raw_file
+
+
+def test_wsc_handler_force_download_overrides_existing(tmp_path):
+    """force_download must override the existing-file reuse guard."""
+    from symfluence.data.observation.handlers.wsc import WSCStreamflowHandler
+
+    config = SymfluenceConfig(
+        SYMFLUENCE_DATA_DIR=str(tmp_path),
+        SYMFLUENCE_CODE_DIR=str(tmp_path / "code"),
+        DOMAIN_NAME="wsc_force_test",
+        EXPERIMENT_ID="test",
+        EXPERIMENT_TIME_START="2020-01-01 00:00",
+        EXPERIMENT_TIME_END="2020-01-02 00:00",
+        FORCING_DATASET="ERA5",
+        HYDROLOGICAL_MODEL="SUMMA",
+        DOMAIN_DEFINITION_METHOD="lumped",
+        SUB_GRID_DISCRETIZATION="GRUs",
+        STREAMFLOW_DATA_PROVIDER="WSC",
+        STATION_ID="05BB001",
+        DATA_ACCESS="cloud",
+        FORCE_DOWNLOAD=True,
+    )
+    handler = WSCStreamflowHandler(config, logging.getLogger("test_wsc_force"))
+
+    raw_file = handler.project_observations_dir / "streamflow" / "raw_data" / "wsc_05BB001_raw.csv"
+    raw_file.parent.mkdir(parents=True, exist_ok=True)
+    raw_file.write_text("dummy\n")
+
+    with patch.object(
+        WSCStreamflowHandler, "_download_from_geomet", return_value=raw_file
     ) as mock_dl:
         handler.acquire()
     mock_dl.assert_called_once()

@@ -1,4 +1,5 @@
 """Tests for FEWS PI Diagnostics collector."""
+from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 

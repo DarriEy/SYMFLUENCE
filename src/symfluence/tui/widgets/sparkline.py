@@ -4,6 +4,7 @@
 """
 Unicode sparkline widget for score convergence display.
 """
+from __future__ import annotations
 
 from typing import List
 

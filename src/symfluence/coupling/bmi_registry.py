@@ -59,10 +59,16 @@ class BMIRegistry:
         "TOPMODEL": "symfluence.coupling.adapters.jax_adapters.TopmodelJAXComponent",
     }
 
+    # In-process, externally-differentiable models (own adjoint, not JAX/torch autograd).
+    _ENZYME_MODELS = {
+        "DROUTE": "symfluence.coupling.adapters.droute_adapter.DRouteComponent",
+    }
+
     def __init__(self):
         # Seed R.bmi_adapters with the static classification metadata if not
         # already populated (first instantiation path).
-        for name, path in {**self._PROCESS_MODELS, **self._JAX_MODELS}.items():
+        for name, path in {**self._PROCESS_MODELS, **self._JAX_MODELS,
+                           **self._ENZYME_MODELS}.items():
             if name not in R.bmi_adapters:
                 R.bmi_adapters.add_lazy(name, path)
 

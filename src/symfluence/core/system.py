@@ -14,6 +14,8 @@ Example:
     >>> s = SYMFLUENCE("config.yaml")
     >>> s.run_workflow()
 """
+from __future__ import annotations
+
 try:
     from symfluence.symfluence_version import __version__
 except ImportError:
@@ -28,6 +30,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import SYMFLUENCEError
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.path_resolver import find_basin_shapefile, find_river_basins_shapefile
 from symfluence.core.provenance import capture_provenance
 from symfluence.core.provenance import finalize as finalize_provenance
 from symfluence.project.logging_manager import LoggingManager
@@ -56,10 +59,21 @@ class _DiagnosticSpec:
     """Callable(config, project_dir) → kwargs dict for the plotter, or None to skip."""
 
 
+def _domain_ctx(config: SymfluenceConfig) -> tuple:
+    """Extract (domain_name, definition_method, experiment_id) for shapefile lookup."""
+    domain = getattr(config, 'domain', None)
+    return (
+        getattr(domain, 'name', None),
+        getattr(domain, 'definition_method', 'lumped'),
+        getattr(domain, 'experiment_id', 'run_1'),
+    )
+
+
 def _load_domain(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
     import geopandas as gpd
-    basin_path = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
-    if not basin_path.exists():
+    name, _method, _exp = _domain_ctx(config)
+    basin_path = find_river_basins_shapefile(project_dir / "shapefiles", name)
+    if basin_path is None:
         return None
     dem_path = resolve_data_subdir(project_dir, 'attributes') / "dem" / "dem.tif"
     return dict(
@@ -70,8 +84,9 @@ def _load_domain(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[s
 
 def _load_discretization(config: SymfluenceConfig, project_dir: Path) -> Optional[Dict[str, Any]]:
     import geopandas as gpd
-    hru_path = project_dir / "shapefiles" / "catchment" / "catchment.shp"
-    if not hru_path.exists():
+    name, method, exp = _domain_ctx(config)
+    hru_path = find_basin_shapefile(project_dir / "shapefiles", name, method, exp)
+    if hru_path is None:
         return None
     return dict(
         hru_gdf=gpd.read_file(hru_path),
@@ -98,10 +113,11 @@ def _load_forcing_raw(config: SymfluenceConfig, project_dir: Path) -> Optional[D
     nc_files = list(forcing_dir.glob("*.nc"))
     if not nc_files:
         return None
-    domain_shp = project_dir / "shapefiles" / "river_basins" / "river_basins.shp"
+    name, _method, _exp = _domain_ctx(config)
+    domain_shp = find_river_basins_shapefile(project_dir / "shapefiles", name)
     return dict(
         forcing_nc=nc_files[0],
-        domain_shp=domain_shp if domain_shp.exists() else None,
+        domain_shp=domain_shp,
     )
 
 
@@ -114,11 +130,12 @@ def _load_forcing_remapped(config: SymfluenceConfig, project_dir: Path) -> Optio
     remapped_files = list(remapped_dir.glob("*.nc"))
     if not raw_files or not remapped_files:
         return None
-    hru_shp = project_dir / "shapefiles" / "catchment" / "catchment.shp"
+    name, method, exp = _domain_ctx(config)
+    hru_shp = find_basin_shapefile(project_dir / "shapefiles", name, method, exp)
     return dict(
         raw_nc=raw_files[0],
         remapped_nc=remapped_files[0],
-        hru_shp=hru_shp if hru_shp.exists() else None,
+        hru_shp=hru_shp,
     )
 
 

@@ -3,6 +3,7 @@ Unit tests for GR preprocessor.
 
 Tests GR-specific preprocessing functionality, including mode detection.
 """
+from __future__ import annotations
 
 from importlib.machinery import ModuleSpec
 from unittest.mock import MagicMock, Mock, patch

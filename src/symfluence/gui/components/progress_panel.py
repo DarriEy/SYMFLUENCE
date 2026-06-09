@@ -8,6 +8,7 @@ Displays a compact horizontal progress bar with step dots that
 update in real-time as workflow steps execute. Polled every 300ms
 alongside the log viewer for responsive updates.
 """
+from __future__ import annotations
 
 import panel as pn
 import param

@@ -6,6 +6,7 @@ Final Evaluation Module
 
 Components for running final model evaluation after optimization.
 """
+from __future__ import annotations
 
 from .file_manager_updater import FileManagerUpdater
 from .model_decisions_updater import ModelDecisionsUpdater

@@ -7,6 +7,7 @@ FUSE Result Extractor.
 Handles extraction of simulation results from FUSE (Framework for Understanding
 Structural Errors) model outputs.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast
@@ -15,6 +16,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.models.base import ModelResultExtractor
 
 
@@ -90,7 +92,7 @@ class FUSEResultExtractor(ModelResultExtractor):
                     else:
                         return cast(pd.Series, var.to_pandas())
 
-            raise ValueError(
+            raise ModelExecutionError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "
                 f"Tried: {var_names}"
             )

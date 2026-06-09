@@ -3,6 +3,7 @@ Unit tests for WorkflowDiagnosticPlotter.
 
 Tests diagnostic plotting methods for workflow step validation.
 """
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

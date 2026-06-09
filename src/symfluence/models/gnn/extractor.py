@@ -8,6 +8,7 @@ Handles extraction of simulation results from GNN (Graph Neural Network) model o
 GNN is a data-driven surrogate model that predicts streamflow and possibly other
 hydrological variables.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

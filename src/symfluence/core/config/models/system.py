@@ -6,6 +6,7 @@ System configuration model.
 
 Contains SystemConfig for system-level settings: paths, logging, parallelism, debugging.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal, Optional

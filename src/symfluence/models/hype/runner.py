@@ -6,15 +6,17 @@ HYPE model runner.
 
 Handles HYPE model execution and run-time management.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.registries import R
+
 from ..base import BaseModelRunner
-from ..registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('HYPE')
+@R.runners.add('HYPE')
 class HYPERunner(BaseModelRunner):  # type: ignore[misc]
     """Runner for the HYPE model."""
 

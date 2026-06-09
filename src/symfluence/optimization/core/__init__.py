@@ -19,6 +19,7 @@ Note:
     For new code, use:
     >>> from symfluence.optimization.parameter_managers import SUMMAParameterManager
 """
+from __future__ import annotations
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import (

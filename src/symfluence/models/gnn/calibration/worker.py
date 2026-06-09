@@ -6,6 +6,7 @@ GNN Optimization Worker
 
 Handles individual model evaluations for GNN calibration.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict
@@ -50,7 +51,7 @@ class GNNWorker(BaseWorker):
             )
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error in GNN evaluation: {e}")
+            self.logger.error(f"Error in GNN evaluation: {e}", exc_info=True)
             import traceback
             return WorkerResult(
                 individual_id=task.individual_id,

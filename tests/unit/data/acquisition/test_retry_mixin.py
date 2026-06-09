@@ -11,6 +11,7 @@ Tests the retry logic with exponential backoff:
 - HTTP error classification
 - CDS error classification
 """
+from __future__ import annotations
 
 import time
 from unittest.mock import MagicMock, Mock, call, patch

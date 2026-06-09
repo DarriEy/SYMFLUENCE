@@ -7,6 +7,7 @@ FEWS NetCDF-CF reader and writer.
 Reads and writes CF-1.6 compliant NetCDF files using xarray and the existing
 ``create_netcdf_encoding()`` utility for consistent encoding.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional

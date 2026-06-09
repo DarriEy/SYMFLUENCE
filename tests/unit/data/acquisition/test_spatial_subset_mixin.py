@@ -8,6 +8,7 @@ Tests the spatial subsetting functionality:
 - bbox_to_cds_area(): CDS [N, W, S, E] format
 - bbox_to_wcs_params(): WCS SUBSET parameters
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict

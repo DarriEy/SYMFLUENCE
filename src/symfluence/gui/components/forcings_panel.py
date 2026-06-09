@@ -7,6 +7,7 @@ preprocessing, and building the model-ready datastore.
 
 Visible after discretization completes (gui_phase >= 'discretized').
 """
+from __future__ import annotations
 
 import logging
 

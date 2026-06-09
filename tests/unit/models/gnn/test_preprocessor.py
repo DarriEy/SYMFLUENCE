@@ -1,6 +1,7 @@
 """
 Tests for GNN preprocessor.
 """
+from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 

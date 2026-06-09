@@ -1,4 +1,5 @@
 """Tests for Xinanjiang loss functions and gradient utilities."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

@@ -6,6 +6,7 @@ TRoute configuration mixin.
 
 Provides typed property accessors for TRouteConfig fields via _get_config_value.
 """
+from __future__ import annotations
 
 
 class TRouteConfigMixin:

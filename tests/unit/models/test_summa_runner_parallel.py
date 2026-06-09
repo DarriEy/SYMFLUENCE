@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Tests for SUMMA GRU-parallel execution."""
+from __future__ import annotations
 
 import logging
 from pathlib import Path

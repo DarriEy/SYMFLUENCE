@@ -6,6 +6,7 @@ Analysis visualization plotter.
 
 Handles plotting of sensitivity analysis, decision impacts, and threshold analysis.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

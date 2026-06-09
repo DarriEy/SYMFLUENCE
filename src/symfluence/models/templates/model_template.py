@@ -12,7 +12,7 @@ New models can inherit from UnifiedModelRunner and implement only the
 model-specific methods, reducing boilerplate by ~50%.
 
 Example Implementation:
-    @ModelRegistry.register_runner('MYMODEL', method_name='run_mymodel')
+    @R.runners.add('MYMODEL', runner_method='run_mymodel')
     class MyModelRunner(UnifiedModelRunner):
         def _get_model_name(self) -> str:
             return "MYMODEL"
@@ -25,6 +25,7 @@ Example Implementation:
                 return ModelRunResult(success=True, output_path=self.output_dir)
             return ModelRunResult(success=False, error=result.error_message)
 """
+from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from symfluence.core.exceptions import ConfigurationError, ModelExecutionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
 from ..config import (
@@ -468,9 +470,7 @@ def create_model_runner(
     Raises:
         KeyError: If model is not registered
     """
-    from ..registry import ModelRegistry
-
-    runner_class = ModelRegistry.get_runner(model_name)
+    runner_class = R.runners.get(model_name)
     if runner_class is None:
         raise KeyError(f"No runner registered for model: {model_name}")
     return runner_class(config, logger, reporting_manager=reporting_manager)

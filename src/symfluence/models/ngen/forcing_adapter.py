@@ -7,6 +7,7 @@ NGen Forcing Adapter.
 Converts CFIF (CF-Intermediate Format) forcing data to NOAA NextGen format.
 NGen uses specific variable names from the BMI standard.
 """
+from __future__ import annotations
 
 from typing import Callable, Dict, List
 

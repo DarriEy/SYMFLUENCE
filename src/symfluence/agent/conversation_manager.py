@@ -7,6 +7,7 @@ Conversation history manager for the SYMFLUENCE AI agent.
 This module manages the conversation state and message history using the
 OpenAI message format, which is compatible with most LLM providers.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 

@@ -7,20 +7,21 @@ FUSE Model Optimizer
 FUSE-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with FUSE.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from symfluence.core.file_utils import copy_file
+from symfluence.core.registries import R
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.registry import OptimizerRegistry
 
 from .parameter_manager import FUSEParameterManager  # noqa: F401 - trigger param manager registration
 from .worker import FUSEWorker  # noqa: F401 - trigger worker registration
 
 
-@OptimizerRegistry.register_optimizer('FUSE')
+@R.optimizers.add('FUSE')
 class FUSEModelOptimizer(BaseModelOptimizer):
     """
     FUSE-specific optimizer using the unified BaseModelOptimizer framework.
@@ -118,7 +119,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                         f"Calibration will proceed, but results may be suboptimal."
                     )
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.debug(f"Decision-param validation skipped: {e}")
+            self.logger.debug(f"Decision-param validation skipped: {e}", exc_info=True)
 
     def _create_para_def_nc(self, param_file: Path) -> bool:
         """
@@ -214,7 +215,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to create para_def.nc: {e}")
+            self.logger.error(f"Failed to create para_def.nc: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -287,7 +288,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                            f"Z_FORCING={params.get('Z_FORCING'):.0f}, Z_MID01={params.get('Z_MID01', 'N/A')}")
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error reading elevation bands: {e}. Using defaults.")
+            self.logger.warning(f"Error reading elevation bands: {e}. Using defaults.", exc_info=True)
             params['N_BANDS'] = 1.0
             params['Z_FORCING'] = 1000.0
             params['Z_MID01'] = 1000.0
@@ -336,7 +337,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                         self.logger.debug(f"Template {path} has only {n_vars} vars (need {MIN_REQUIRED_VARS}+)")
                         return False
             except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.debug(f"Could not check template {path}: {e}")
+                self.logger.debug(f"Could not check template {path}: {e}", exc_info=True)
                 return False
 
         # 0. Check for user-specified template path (highest priority)
@@ -530,7 +531,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Failed to add elevation params to constraints file: {e}")
+            self.logger.error(f"Failed to add elevation params to constraints file: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -623,7 +624,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
             return True
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying FUSE parameters for final evaluation: {e}")
+            self.logger.error(f"Error applying FUSE parameters for final evaluation: {e}", exc_info=True)
             return False
 
     def _parse_constraints_defaults(self) -> Dict[str, float]:
@@ -664,7 +665,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                     except (ValueError, IndexError):
                         continue
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error parsing constraints file: {e}")
+            self.logger.warning(f"Error parsing constraints file: {e}", exc_info=True)
 
         return defaults
 
@@ -712,7 +713,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 self.logger.debug("All non-calibrated params in para_def.nc already have non-zero values")
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"Error populating non-calibrated params: {e}")
+            self.logger.warning(f"Error populating non-calibrated params: {e}", exc_info=True)
 
     def _find_para_def_source(self) -> Optional[Path]:
         """Find an existing complete para_def.nc to use as source for final evaluation."""
@@ -830,7 +831,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 self.logger.debug("SCE→DDS transfer: no parameters needed updating")
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.warning(f"SCE→DDS parameter transfer failed (non-fatal): {e}")
+            self.logger.warning(f"SCE→DDS parameter transfer failed (non-fatal): {e}", exc_info=True)
 
     def _setup_parallel_dirs(self) -> None:
         """Setup FUSE-specific parallel directories."""
@@ -903,7 +904,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                     copy_file(param_file, dest_file)
                     self.logger.debug(f"Copied parameter file to {dest_file}")
                 except Exception as e:  # noqa: BLE001 — calibration resilience
-                    self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}")
+                    self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}", exc_info=True)
         else:
             self.logger.error(f"Failed to create parameter file: {param_file} - FUSE calibration will fail")
 

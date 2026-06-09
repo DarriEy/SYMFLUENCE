@@ -7,6 +7,7 @@ Path resolution utilities for SYMFLUENCE configuration management.
 Provides standardized path resolution with default fallback handling to eliminate
 code duplication across model preprocessors, managers, and utilities.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -161,6 +162,173 @@ def resolve_file_path(
         )
 
     return file_path
+
+
+def find_basin_shapefile(
+    shapefiles_dir: Path,
+    domain_name: str,
+    definition_method: str,
+    experiment_id: str,
+    *,
+    explicit_path: Optional[str] = None,
+    explicit_name: Optional[str] = None,
+    include_river_basins: bool = True,
+    required: bool = False,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """Locate an EXISTING catchment/basin polygon shapefile on disk.
+
+    Discretization writes the catchment under an experiment-scoped nested layout
+    (``catchment/{definition_method}/{experiment_id}/{domain}_HRUs_{disc}.shp``)
+    and may upper-case the discretization suffix (GRUs -> GRUS), so a flat
+    ``catchment/{domain}_catchment.shp`` lookup never matches. This finder is a
+    READ-side complement to :meth:`PathResolverMixin._get_catchment_file_path`
+    (which builds the canonical WRITE path). Resolution order:
+
+    1. ``explicit_path`` (+ ``explicit_name``) when provided and non-'default'.
+    2. The canonical nested layout, then the legacy flat ``catchment`` directory.
+    3. A deep search under ``catchment/`` for ``{domain}_HRUs_*.shp`` (handles
+       experiment-id and casing drift).
+    4. The ``river_basins`` outline (any single-polygon basin works for masking
+       or area), unless ``include_river_basins`` is False.
+
+    Args:
+        shapefiles_dir: The domain's ``shapefiles`` directory.
+        domain_name: Domain name (filename prefix).
+        definition_method: e.g. ``lumped`` / ``semidistributed`` (nesting level 1).
+        experiment_id: Experiment id (nesting level 2).
+        explicit_path: Optional CATCHMENT_PATH override (dir or 'default').
+        explicit_name: Optional CATCHMENT_SHP_NAME override (file or 'default').
+        include_river_basins: Allow falling back to the river_basins outline.
+        required: Raise FileNotFoundError when nothing is found.
+        logger: Optional logger for a debug breadcrumb.
+
+    Returns:
+        The resolved Path, or None when not found and not ``required``.
+    """
+    def _log(found: Path) -> Path:
+        if logger is not None:
+            logger.debug(f"Resolved basin shapefile: {found}")
+        return found
+
+    # 1. Explicit user-provided path/name.
+    if explicit_path and explicit_path != 'default':
+        base_dir = Path(explicit_path)
+        if explicit_name and explicit_name != 'default':
+            explicit = base_dir / explicit_name
+            if explicit.exists():
+                return _log(explicit)
+        found = sorted(base_dir.rglob("*.shp")) if base_dir.exists() else []
+        if found:
+            return _log(found[0])
+
+    catchment_dir = shapefiles_dir / "catchment"
+
+    # 2. Canonical nested layout, then legacy flat directory.
+    nested_dir = catchment_dir / definition_method / experiment_id
+    for candidate_dir in (nested_dir, catchment_dir):
+        if not candidate_dir.exists():
+            continue
+        matches = (
+            sorted(candidate_dir.glob(f"{domain_name}_HRUs_*.shp"))
+            or sorted(candidate_dir.glob(f"{domain_name}*.shp"))
+        )
+        if not matches and candidate_dir == nested_dir:
+            matches = sorted(candidate_dir.glob("*.shp"))
+        if matches:
+            return _log(matches[0])
+
+    # 3. Deep search anywhere under catchment/ (experiment/casing drift).
+    if catchment_dir.exists():
+        deep = sorted(catchment_dir.rglob(f"{domain_name}_HRUs_*.shp"))
+        if deep:
+            return _log(deep[0])
+
+    # 4. River basins outline as a last resort.
+    if include_river_basins:
+        river_basins_dir = shapefiles_dir / "river_basins"
+        if river_basins_dir.exists():
+            rb_matches = (
+                sorted(river_basins_dir.glob(f"{domain_name}_riverBasins_*.shp"))
+                or sorted(river_basins_dir.glob("*.shp"))
+            )
+            if rb_matches:
+                return _log(rb_matches[0])
+
+    if required:
+        raise FileNotFoundError(
+            f"Catchment/basin shapefile not found. Searched '{catchment_dir}' "
+            f"(incl. {definition_method}/{experiment_id})"
+            f"{' and river_basins' if include_river_basins else ''}. Run "
+            f"define_domain + discretize_domain first, or set "
+            f"CATCHMENT_PATH/CATCHMENT_SHP_NAME."
+        )
+    return None
+
+
+def find_catchment_subfile(
+    shapefiles_dir: Path,
+    definition_method: str,
+    experiment_id: str,
+    filename: str,
+    *,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """Find a specifically-named file under the nested catchment layout.
+
+    For artifacts written with a fixed name (e.g.
+    ``{domain}_catchment_delineated.shp``) that discretization places under
+    ``catchment/{definition_method}/{experiment_id}/``. Checks the nested path,
+    then the legacy flat ``catchment`` directory, then deep-searches. Returns
+    None when not found.
+    """
+    catchment_dir = shapefiles_dir / "catchment"
+    for candidate in (
+        catchment_dir / definition_method / experiment_id / filename,
+        catchment_dir / filename,
+    ):
+        if candidate.exists():
+            if logger is not None:
+                logger.debug(f"Resolved catchment file: {candidate}")
+            return candidate
+    if catchment_dir.exists():
+        deep = sorted(catchment_dir.rglob(filename))
+        if deep:
+            if logger is not None:
+                logger.debug(f"Resolved catchment file (deep search): {deep[0]}")
+            return deep[0]
+    return None
+
+
+def find_river_basins_shapefile(
+    shapefiles_dir: Path,
+    domain_name: str,
+    *,
+    required: bool = False,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """Locate the EXISTING river-basins (domain outline) shapefile.
+
+    Domain definition writes ``river_basins/{domain}_riverBasins_{method}.shp``
+    (flat, method-suffixed — not experiment-nested). Returns None when not found
+    unless ``required``.
+    """
+    river_basins_dir = shapefiles_dir / "river_basins"
+    if river_basins_dir.exists():
+        matches = (
+            sorted(river_basins_dir.glob(f"{domain_name}_riverBasins_*.shp"))
+            or sorted(river_basins_dir.glob("*.shp"))
+        )
+        if matches:
+            if logger is not None:
+                logger.debug(f"Resolved river_basins shapefile: {matches[0]}")
+            return matches[0]
+    if required:
+        raise FileNotFoundError(
+            f"River-basins shapefile not found under '{river_basins_dir}'. "
+            f"Run define_domain first."
+        )
+    return None
 
 
 from .mixins import ConfigurableMixin
@@ -332,6 +500,37 @@ class PathResolverMixin(ConfigurableMixin):
             self.domain_definition_method / self.experiment_id / catchment_name
         )
         return new_path
+
+    def _find_basin_shapefile(
+        self,
+        required: bool = False,
+        include_river_basins: bool = True,
+    ) -> Optional[Path]:
+        """Locate an EXISTING catchment/basin shapefile for reading.
+
+        Read-side complement to :meth:`_get_catchment_file_path` (which builds
+        the canonical write path). Honours explicit CATCHMENT_PATH /
+        CATCHMENT_SHP_NAME, searches the nested discretization layout, and falls
+        back to the river_basins outline. Returns None when not found unless
+        ``required``. See :func:`find_basin_shapefile`.
+        """
+        explicit_path = self._get_config_value(
+            lambda: self.config.paths.catchment_path, default='default', dict_key='CATCHMENT_PATH'
+        )
+        explicit_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME'
+        )
+        return find_basin_shapefile(
+            self.project_dir / "shapefiles",
+            self.domain_name,
+            self.domain_definition_method,
+            self.experiment_id,
+            explicit_path=explicit_path,
+            explicit_name=explicit_name,
+            include_river_basins=include_river_basins,
+            required=required,
+            logger=getattr(self, 'logger', None),
+        )
 
     def _get_method_suffix(self) -> str:
         """

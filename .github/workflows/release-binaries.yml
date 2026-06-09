@@ -33,7 +33,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
+          # linux-x86_64 is built INSIDE an old-glibc container (Debian 11
+          # "bullseye", glibc 2.31) so the bundled GCC/netCDF/HDF5 runtimes don't
+          # carry a too-new GLIBC_2.3x symbol requirement. This lowers the release
+          # floor from the host's 2.39 to 2.31 — covering RHEL/Rocky 9 (2.34),
+          # Debian 11/12, Ubuntu 20.04+. The host runner only hosts the container.
+          # python:3.11-slim-bullseye ships Python 3.11 against glibc 2.31
+          # directly, avoiding the deadsnakes-PPA / GLIBC_2.34 setup-python
+          # breakage that an Ubuntu base hit. (#156 G6 release-pipeline glibc floor.)
+          - os: ubuntu-22.04
+            container: python:3.11-slim-bullseye
             platform: linux-x86_64
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -44,6 +53,8 @@ jobs:
             python-version: '3.11'
 
     runs-on: ${{ matrix.os }}
+    # Empty for macOS/Windows rows -> the job runs directly on the host runner.
+    container: ${{ matrix.container || '' }}
     timeout-minutes: 120
 
     env:
@@ -52,16 +63,62 @@ jobs:
       SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
 
     steps:
+      # The ubuntu:20.04 container is minimal: install what the JS actions and
+      # later steps need (git for `checkout --submodules`, sudo for the apt
+      # steps, file for the bundling step) BEFORE checkout. Runs as root.
+      - name: Bootstrap build container (old-glibc Linux)
+        if: matrix.container != ''
+        env:
+          # No TTY in the container: tzdata (an apt dependency) would otherwise
+          # launch an interactive timezone prompt and hang the job forever.
+          DEBIAN_FRONTEND: noninteractive
+          TZ: Etc/UTC
+        run: |
+          set -e
+          # python:3.11-slim-bullseye already provides Python 3.11 built against
+          # glibc 2.31, so we only need the OS build toolchain + the utilities
+          # later steps rely on (git/sudo/file/...).
+          # Retry transient mirror hiccups ("Connection reset by peer") instead
+          # of failing the whole job on a single dropped .deb.
+          apt-get -o Acquire::Retries=5 update
+          apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            sudo git ca-certificates curl wget xz-utils file build-essential tzdata
+          git config --global --add safe.directory '*'
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
+      # In a container job, ${{ github.workspace }} (baked into the job-level env)
+      # is the HOST path /home/runner/work/... which does not exist inside the
+      # container — the workspace is mounted at $GITHUB_WORKSPACE (/__w/...). The
+      # tool build auto-detects the container path and installs there, but the
+      # metadata/staging steps would read the host-path env and miss it. Re-point
+      # the SYMFLUENCE_* paths at $GITHUB_WORKSPACE for the container.
+      - name: Fix workspace paths (container)
+        if: matrix.container != ''
+        run: |
+          echo "SYMFLUENCE_CODE=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "SYMFLUENCE_DATA=$GITHUB_WORKSPACE/symfluence_data" >> "$GITHUB_ENV"
+          echo "SYMFLUENCE_DATA_DIR=$GITHUB_WORKSPACE/symfluence_data" >> "$GITHUB_ENV"
+
+      # Only on real runners — the container already provides Python 3.11
+      # (setup-python's binary needs a newer glibc than the container has).
       - name: Set up Python
+        if: matrix.container == ''
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      # bullseye ships cmake 3.18; several model builds need >= 3.20. Use the pip
+      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH.
+      - name: Upgrade build tools in container (old-glibc Linux)
+        if: matrix.container != ''
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cmake>=3.22" ninja
 
       # ========================================================================
       # Pre-Release Validation
@@ -77,9 +134,12 @@ jobs:
       # ========================================================================
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          TZ: Etc/UTC
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y \
             build-essential gfortran cmake \
             openmpi-bin libopenmpi-dev \
             gdal-bin libgdal-dev \
@@ -145,17 +205,62 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Core build dependencies (pip required — latest Miniconda no longer bundles it)
-          # Use m2w64-* packages for native Windows compilers (conda-forge's gcc/gfortran
-          # are POSIX cross-compiler stubs that can't produce Windows binaries)
-          conda install -y pip m2w64-gcc m2w64-gcc-fortran cmake make netcdf-fortran hdf5 openblas udunits2 numpy gdal boost-cpp proj
+          # ── Native Windows toolchain via MSYS2 mingw-w64 (UCRT-free mingw64) ──
+          # The old m2w64-gcc-fortran is gfortran 5.3.0 (2016), which cannot read
+          # the netcdf.mod shipped by modern conda-forge netcdf-fortran ("not a
+          # GNU Fortran module file"), breaking every Fortran tool. Use MSYS2's
+          # current mingw-w64 toolchain AND its matching scientific libraries so
+          # the compiler and the .mod files come from the same modern gfortran.
+          set -e
+          export PATH="/c/msys64/usr/bin:$PATH"
+          # MSYS2 mirrors are flaky ("Operation too slow. Less than 1 bytes/sec");
+          # retry the whole transaction a few times before giving up. --needed
+          # makes each retry skip already-installed packages, so progress carries
+          # across attempts.
+          _pac=( pacman -S --noconfirm --needed
+            make m4 bison flex
+            mingw-w64-x86_64-ntldd
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-netcdf
+            mingw-w64-x86_64-netcdf-fortran
+            mingw-w64-x86_64-hdf5
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-gdal
+            mingw-w64-x86_64-proj
+            mingw-w64-x86_64-geos
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-udunits
+            mingw-w64-x86_64-expat
+            mingw-w64-x86_64-msmpi
+            mingw-w64-x86_64-dlfcn )
+          for _try in 1 2 3 4 5; do
+            echo "pacman install attempt $_try..."
+            if "${_pac[@]}"; then break; fi
+            if [ "$_try" = 5 ]; then echo "pacman failed after 5 attempts" >&2; exit 1; fi
+            echo "retrying after mirror failure..."; sleep 15
+          done
 
-          # Expose CONDA_PREFIX so symfluence dependency checker finds conda-installed libs
-          echo "CONDA_PREFIX=$CONDA_PREFIX" >> $GITHUB_ENV
+          # pip still needed for the Python-packaged tools (troute, ngen helpers)
+          conda install -y pip numpy
 
-          echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
-          echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
-          echo "FC=x86_64-w64-mingw32-gfortran" >> $GITHUB_ENV
+          # Put the mingw64 toolchain first on PATH so its gcc/gfortran/nf-config
+          # win over conda's m2w64 and the MSYS2 msys gcc.
+          MINGW_BIN="C:/msys64/mingw64/bin"
+          echo "$MINGW_BIN" >> $GITHUB_PATH
+
+          # Compiler + library roots come from the SAME mingw64 toolchain.
+          # Do NOT export CONDA_PREFIX for the build: it would steer the library
+          # detection back to conda's mismatched netcdf-fortran.
+          echo "CC=$MINGW_BIN/gcc.exe" >> $GITHUB_ENV
+          echo "CXX=$MINGW_BIN/g++.exe" >> $GITHUB_ENV
+          echo "FC=$MINGW_BIN/gfortran.exe" >> $GITHUB_ENV
+          echo "NETCDF=C:/msys64/mingw64" >> $GITHUB_ENV
+          echo "NETCDF_FORTRAN=C:/msys64/mingw64" >> $GITHUB_ENV
           echo "SYMFLUENCE_NO_VENV=true" >> $GITHUB_ENV
           echo "SYMFLUENCE_PYTHON=python" >> $GITHUB_ENV
 
@@ -311,16 +416,42 @@ jobs:
             echo "  No lib/ directory found"
           fi
 
-          # Test binaries run without original install directory
-          echo "-> Testing SUMMA..."
-          if [ -f "./symfluence-tools/bin/summa" ] || [ -f "./symfluence-tools/bin/summa.exe" ]; then
-            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
-          fi
+          # A relocated binary is broken if it cannot resolve its shared
+          # libraries. Detect that explicitly instead of swallowing the result
+          # with `|| echo`, which hid genuine relocation failures. Covers both
+          # unix loader errors (dyld / "library not loaded" / ...) and Windows
+          # DLL-load failures ("code execution cannot proceed" / 0xC0000135,
+          # which also typically produce no stdout — caught by the empty-output
+          # branch). Non-zero --version/--help exit codes are tolerated.
+          check_relocated() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ] && [ ! -f "$bin.exe" ]; then
+              echo "  (skipping $name — not present in this build)"
+              return 0
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"; then
+              echo "::error::$name failed to load shared libraries after relocation"
+              return 1
+            fi
+            # Empty output is NOT proof of failure: a real DLL/shared-lib load
+            # failure emits one of the patterns above (on Windows the loader
+            # prints "code execution cannot proceed ... 0xC0000135" to stderr,
+            # captured via 2>&1). Some tools legitimately print nothing for
+            # --help/--version (e.g. ngen takes positional args and has no help
+            # flag). Treat empty output as a warning, not a hard failure.
+            if [ -z "$out" ]; then
+              echo "::warning::$name produced no output after relocation (no loader error — likely just no --help/--version text)"
+              return 0
+            fi
+            echo "  ✓ $name runs after relocation"
+          }
 
-          echo "-> Testing NGEN..."
-          if [ -f "./symfluence-tools/bin/ngen" ] || [ -f "./symfluence-tools/bin/ngen.exe" ]; then
-            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
-          fi
+          # Test binaries run without their original install directory
+          echo "-> Testing SUMMA...";  check_relocated SUMMA ./symfluence-tools/bin/summa --version
+          echo "-> Testing NGEN...";   check_relocated NGEN  ./symfluence-tools/bin/ngen --help
 
           echo "Relocatability test complete"
 
@@ -585,16 +716,35 @@ jobs:
 
       - name: Test binary execution
         run: |
+          set -e
           BIN_DIR=$(symfluence path)
 
-          echo "Testing SUMMA..."
-          "$BIN_DIR/summa" --version 2>&1 | head -5 || echo "  SUMMA help displayed"
+          # Fail on loader errors (unix or Windows DLL load) or no output at all,
+          # rather than swallowing a broken binary with `|| echo`. Non-zero
+          # --version/--help exit codes are tolerated.
+          check_binary() {
+            local name="$1" bin="$2"; shift 2
+            if [ ! -f "$bin" ] && [ ! -f "$bin.exe" ]; then
+              echo "::error::$name binary not found at $bin"
+              return 1
+            fi
+            local out
+            out="$("$bin" "$@" 2>&1 | head -20 || true)"
+            echo "$out"
+            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"; then
+              echo "::error::$name failed to load shared libraries"
+              return 1
+            fi
+            if [ -z "$out" ]; then
+              echo "::error::$name produced no output (likely failed to start / missing library)"
+              return 1
+            fi
+            echo "  ✓ $name is executable"
+          }
 
-          echo "Testing mizuRoute..."
-          "$BIN_DIR/mizuroute" --help 2>&1 | head -5 || echo "  mizuRoute help displayed"
-
-          echo "Testing NGEN..."
-          "$BIN_DIR/ngen" --version 2>&1 | head -5 || echo "  NGEN version displayed"
+          echo "Testing SUMMA...";     check_binary SUMMA     "$BIN_DIR/summa"     --version
+          echo "Testing mizuRoute..."; check_binary mizuRoute "$BIN_DIR/mizuroute" --help
+          echo "Testing NGEN...";      check_binary NGEN      "$BIN_DIR/ngen"      --version
 
           echo "All critical binaries are executable"
 

@@ -17,11 +17,13 @@ Balance Snow Model).
 The source code lives in crhmcode/src/ within the repository,
 and requires spdlog (git submodule) and Boost (header-only).
 """
+from __future__ import annotations
 
-from symfluence.cli.services import BuildInstructionsRegistry, get_common_build_environment
+from symfluence.cli.services import get_common_build_environment
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('crhm')
+@R.build_instructions.add('crhm')
 def get_crhm_build_instructions():
     """
     Get CRHM build instructions.

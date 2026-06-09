@@ -10,6 +10,7 @@ Evaluates simulated water storage from SUMMA using either total water storage ch
 and comparing against GRACE satellite data or using glacier only mass balance and
 comparing against observed glacier mass balance data.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

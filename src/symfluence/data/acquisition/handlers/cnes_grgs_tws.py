@@ -10,6 +10,8 @@ catalogue (no authentication required).
 
 Reference: Lemoine et al. (2007), Bruinsma et al. (2010)
 """
+from __future__ import annotations
+
 import re
 from datetime import datetime, timedelta
 from pathlib import Path

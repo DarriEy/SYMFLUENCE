@@ -16,6 +16,7 @@ shifts but still detects:
   - additional duplicate occurrences in an already-allowlisted scope
     (multiset semantics)
 """
+from __future__ import annotations
 
 import importlib.util
 from pathlib import Path

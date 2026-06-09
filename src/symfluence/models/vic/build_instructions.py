@@ -12,15 +12,16 @@ This module defines how to build VIC from source, including:
 VIC 5.x uses Makefiles for building. The image driver is built by default,
 which supports NetCDF input/output for distributed simulations.
 """
+from __future__ import annotations
 
 from symfluence.cli.services import (
-    BuildInstructionsRegistry,
     get_common_build_environment,
     get_netcdf_detection,
 )
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('vic')
+@R.build_instructions.add('vic')
 def get_vic_build_instructions():
     """
     Get VIC build instructions.

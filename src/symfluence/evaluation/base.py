@@ -7,6 +7,7 @@ Base Evaluator for SYMFLUENCE
 Note: This module is maintained for backward compatibility.
 New evaluators should inherit from symfluence.evaluation.evaluators.ModelEvaluator.
 """
+from __future__ import annotations
 
 from .evaluators import ModelEvaluator as BaseEvaluator
 

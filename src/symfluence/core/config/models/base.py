@@ -7,6 +7,7 @@ Common imports and base configuration for config models.
 This module provides shared imports and the base ConfigDict used
 across all configuration model classes.
 """
+from __future__ import annotations
 
 from pydantic import ConfigDict
 

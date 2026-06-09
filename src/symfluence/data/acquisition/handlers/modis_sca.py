@@ -15,6 +15,8 @@ References:
 - MYD10A1: https://nsidc.org/data/myd10a1
 - earthaccess: https://github.com/nsidc/earthaccess
 """
+from __future__ import annotations
+
 import warnings
 from datetime import datetime
 from pathlib import Path

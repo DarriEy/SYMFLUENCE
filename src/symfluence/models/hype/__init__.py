@@ -65,6 +65,7 @@ Limitations and Considerations:
     - Daily timestep is standard; sub-daily requires special configuration
     - Spinup period needed to initialize soil moisture and groundwater states
 """
+from __future__ import annotations
 
 from .config_manager import HYPEConfigManager
 from .forcing_processor import HYPEForcingProcessor
@@ -91,10 +92,13 @@ from .config import HYPEConfigAdapter
 from .extractor import HYPEResultExtractor
 from .plotter import HYPEPlotter
 
-model_manifest(
-    "HYPE",
-    config_adapter=HYPEConfigAdapter,
-    result_extractor=HYPEResultExtractor,
-    plotter=HYPEPlotter,
-    build_instructions_module="symfluence.models.hype.build_instructions",
-)
+
+def register() -> None:
+    """Register HYPE components with the unified registry."""
+    model_manifest(
+        "HYPE",
+        config_adapter=HYPEConfigAdapter,
+        result_extractor=HYPEResultExtractor,
+        plotter=HYPEPlotter,
+        build_instructions_module="symfluence.models.hype.build_instructions",
+    )

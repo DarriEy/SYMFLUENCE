@@ -17,11 +17,12 @@ in order:
   3. troute-routing (Cython MC/DA extensions + optional Fortran diffusive/reach extensions)
   4. troute-nwm (pure Python CLI entry point)
 """
+from __future__ import annotations
 
-from symfluence.cli.services import BuildInstructionsRegistry
+from symfluence.core.registries import R
 
 
-@BuildInstructionsRegistry.register('troute')
+@R.build_instructions.add('troute')
 def get_troute_build_instructions():
     """
     Get t-route build instructions.
@@ -44,6 +45,15 @@ def get_troute_build_instructions():
         'repository': 'https://github.com/NOAA-OWP/t-route.git',
         'branch': None,
         'install_dir': 't-route',
+        # t-route ships test fixtures (reservoir/nudging/restart files) whose
+        # names embed ':' timestamps, which NTFS rejects — git aborts the entire
+        # checkout on Windows with "invalid path". Every offending path lives
+        # under a `test/` directory (top-level and nested), and none are needed
+        # to pip-install the packages, so exclude all `test/` dirs at any depth
+        # via sparse-checkout (harmless no-op on POSIX hosts).
+        'sparse_exclude': [
+            'test/',
+        ],
         'build_commands': [
             r'''
 set -e

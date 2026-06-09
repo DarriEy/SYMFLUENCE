@@ -7,6 +7,7 @@ Hydrology attribute processor.
 Handles water balance calculations, streamflow signatures, baseflow analysis,
 and river network characteristics.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 
@@ -144,7 +145,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
                             pass  # Optimization may fail for certain data, non-critical
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error calculating water balance: {str(e)}")
+            self.logger.error(f"Error calculating water balance: {str(e)}", exc_info=True)
 
         return results
 
@@ -198,7 +199,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
             results["high_flow_duration"] = high_flow_days
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error calculating streamflow signatures: {str(e)}")
+            self.logger.error(f"Error calculating streamflow signatures: {str(e)}", exc_info=True)
 
         return results
 
@@ -254,7 +255,7 @@ class HydrologyProcessor(BaseAttributeProcessor):
                         results[f"baseflow_index_{season_name}"] = season_bf / season_total
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error calculating baseflow attributes: {str(e)}")
+            self.logger.error(f"Error calculating baseflow attributes: {str(e)}", exc_info=True)
 
         return results
 

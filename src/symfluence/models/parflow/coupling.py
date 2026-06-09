@@ -13,6 +13,7 @@ Unit conversions:
     SUMMA scalarSurfaceRunoff: kg/m2/s -> m3/s (x area_m2 / 1000)
     ParFlow subsurface drainage: m3/hr -> m3/s (/ 3600)
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

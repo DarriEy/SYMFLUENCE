@@ -6,6 +6,7 @@ NSGA-II Operators
 
 Provides genetic operators and selection mechanisms for NSGA-II.
 """
+from __future__ import annotations
 
 from typing import List, Tuple
 

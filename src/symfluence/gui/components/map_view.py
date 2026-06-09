@@ -8,6 +8,7 @@ raster (GeoTIFF) overlays, and bounding-box draw tool.
 Uses Bokeh's built-in tile providers and TapTool for native Panel event
 callbacks (no JavaScript bridges needed).
 """
+from __future__ import annotations
 
 import logging
 import threading

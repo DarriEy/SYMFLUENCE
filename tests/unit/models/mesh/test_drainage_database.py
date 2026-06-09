@@ -4,6 +4,7 @@ Tests for MESH drainage database handler.
 Tests cover initialization, ensure_completeness, GRU normalization,
 reorder_by_rank, and elevation band conversion logic.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import Mock, patch

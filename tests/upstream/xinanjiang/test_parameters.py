@@ -1,4 +1,5 @@
 """Tests for Xinanjiang parameter definitions and utilities."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

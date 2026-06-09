@@ -6,6 +6,7 @@ Point Scale Forcing Extractor
 
 Simplified forcing extraction for point-scale or small grid domains.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -101,7 +102,7 @@ class PointScaleForcingExtractor(ConfigMixin):
                 return False
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Could not check forcing grid size: {e}")
+            self.logger.warning(f"Could not check forcing grid size: {e}", exc_info=True)
             return False
 
     def process(
@@ -238,7 +239,7 @@ class PointScaleForcingExtractor(ConfigMixin):
                 return None
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.warning(f"Could not extract forcing elevation from DEM: {e}")
+            self.logger.warning(f"Could not extract forcing elevation from DEM: {e}", exc_info=True)
             return None
 
     def _process_single_file(

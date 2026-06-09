@@ -6,6 +6,7 @@ WRF-Hydro Model Runner.
 
 Executes the WRF-Hydro model using prepared input files.
 """
+from __future__ import annotations
 
 import re
 import shutil
@@ -14,11 +15,11 @@ from typing import List, Optional
 
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mpi_utils import find_mpirun
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
-from symfluence.models.registry import ModelRegistry
 
 
-@ModelRegistry.register_runner('WRFHYDRO')
+@R.runners.add('WRFHYDRO')
 class WRFHydroRunner(BaseModelRunner):
     """Runner for the WRF-Hydro model (Noah-MP + routing)."""
 

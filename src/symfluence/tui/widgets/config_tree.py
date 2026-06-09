@@ -4,6 +4,7 @@
 """
 Tree widget for nested YAML config display.
 """
+from __future__ import annotations
 
 from typing import Any, Dict
 

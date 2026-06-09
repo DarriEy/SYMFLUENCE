@@ -3,6 +3,7 @@ Unit tests for configuration validation.
 
 Tests the Pydantic validators in SymfluenceConfig model.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

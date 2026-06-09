@@ -9,6 +9,7 @@ This module provides a unified interface to the modular services:
 - ToolValidator: For validating installed tools
 - SystemDiagnostics: For system health checks
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 

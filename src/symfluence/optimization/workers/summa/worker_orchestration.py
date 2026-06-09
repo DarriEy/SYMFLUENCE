@@ -10,6 +10,7 @@ Worker Orchestration for SUMMA Workers
 This module contains the core evaluation pipeline orchestration
 for SUMMA parameter optimization.
 """
+from __future__ import annotations
 
 import logging
 import time

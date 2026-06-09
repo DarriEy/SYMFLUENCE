@@ -7,6 +7,7 @@ FUSE File Manager Utilities
 Handles updates to FUSE file manager (fm_catch.txt) for parallel execution
 and path isolation.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -106,7 +107,7 @@ def update_fuse_file_manager(
         return True
 
     except Exception as e:  # noqa: BLE001 — calibration resilience
-        log.error(f"Failed to update FUSE file manager: {e}")
+        log.error(f"Failed to update FUSE file manager: {e}", exc_info=True)
         return False
 
 
@@ -197,7 +198,7 @@ def _resolve_simulation_dates(
                     sim_end = forcing_end.strftime('%Y-%m-%d')
                     log.debug(f"Using forcing file dates: {sim_start} to {sim_end}")
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            log.warning(f"Could not read forcing file dates: {e}")
+            log.warning(f"Could not read forcing file dates: {e}", exc_info=True)
 
     # Fallback to config dates
     if sim_start is None:

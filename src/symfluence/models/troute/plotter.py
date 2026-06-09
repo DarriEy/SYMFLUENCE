@@ -8,6 +8,7 @@ Generates a 2x2 multi-panel overview figure showing t-route routing results:
 routed vs observed hydrograph, performance metrics table, flow duration
 curves, and routing attenuation (lateral inflow vs routed discharge).
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
@@ -15,17 +16,17 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.plot_utils import (
     calculate_flow_duration_curve,
     calculate_metrics,
 )
-from symfluence.reporting.plotter_registry import PlotterRegistry
 
 logger = logging.getLogger(__name__)
 
 
-@PlotterRegistry.register_plotter('TROUTE')
+@R.plotters.add('TROUTE')
 class TRoutePlotter(BasePlotter):
     """Plotter for t-route routing diagnostics.
 
@@ -60,7 +61,7 @@ class TRoutePlotter(BasePlotter):
         try:
             data = self._collect_routing_data(experiment_id)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            self.logger.warning(f"Could not collect t-route routing data: {e}")
+            self.logger.warning(f"Could not collect t-route routing data: {e}", exc_info=True)
             return None
 
         plt, _ = self._setup_matplotlib()

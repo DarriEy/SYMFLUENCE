@@ -44,6 +44,7 @@ def test_gui_launch_command_smoke(monkeypatch):
         "port": 5099,
         "show": False,
         "demo": "bow",
+        "address": "127.0.0.1",
     }
 
 

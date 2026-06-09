@@ -7,15 +7,18 @@ noah-owp-modular writes a single ``output.nc`` containing all water and
 energy variables on the model time axis.  Runoff (surface + subsurface)
 is the closest analogue to streamflow for a 1-D column model.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('NOAHMP')
-class NoahMPPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('NOAHMP')
+class NoahMPPostProcessor(StandardModelPostProcessor):
     """Postprocessor for standalone Noah-MP.
 
     Extracts total runoff (SFCRNOFF + UGDRNOFF) from the output NetCDF,

@@ -1,4 +1,5 @@
 """Tests for TUI service modules."""
+from __future__ import annotations
 
 import csv
 import json

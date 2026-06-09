@@ -5,23 +5,25 @@
 HYPE model postprocessor.
 
 Handles output extraction, processing, and analysis for HYPE model outputs.
-Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.2).
+Migrated to use StandardModelPostProcessor for reduced boilerplate (Phase 1.2).
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict
 
-from ..base import StandardModelPostprocessor
-from ..registry import ModelRegistry
+from symfluence.core.registries import R
+
+from ..base import StandardModelPostProcessor
 
 
-@ModelRegistry.register_postprocessor('HYPE')
-class HYPEPostProcessor(StandardModelPostprocessor):
+@R.postprocessors.add('HYPE')
+class HYPEPostProcessor(StandardModelPostProcessor):
     """
     Postprocessor for HYPE model outputs within SYMFLUENCE.
 
     Handles output extraction, processing, and analysis.
-    Uses StandardModelPostprocessor with configuration-based extraction.
+    Uses StandardModelPostProcessor with configuration-based extraction.
 
     HYPE outputs already-routed discharge at each subbasin outlet in timeCOUT.txt,
     so mizuRoute is not needed (HYPE's internal routing is sufficient).
@@ -66,7 +68,7 @@ class HYPEPostProcessor(StandardModelPostprocessor):
         results = {}
 
         try:
-            # Process streamflow using StandardModelPostprocessor
+            # Process streamflow using StandardModelPostProcessor
             streamflow_path = self.extract_streamflow()
             if streamflow_path:
                 results['streamflow'] = streamflow_path

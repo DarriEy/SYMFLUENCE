@@ -1,4 +1,5 @@
 """Tests for Xinanjiang model core simulation."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

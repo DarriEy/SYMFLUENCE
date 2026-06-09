@@ -16,6 +16,7 @@ back to the active dataset handler's rename map and materialise a
 CFIF-renamed copy in-place before remapping. This test pins that
 behaviour on a synthetic raw-RDRS file.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

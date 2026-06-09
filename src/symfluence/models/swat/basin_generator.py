@@ -7,6 +7,8 @@ SWAT Basin File Generator
 Generates the basin-level parameter file (.bsn), weather generator file (.wgn),
 and auxiliary stub files (.pnd, .wus, .chm) required by SWAT.
 """
+from __future__ import annotations
+
 import logging
 from typing import Dict
 

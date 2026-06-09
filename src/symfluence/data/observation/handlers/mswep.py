@@ -9,6 +9,8 @@ use in hydrological modeling validation and calibration. MSWEP provides
 high-quality merged precipitation estimates combining gauge, satellite,
 and reanalysis data.
 """
+from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional
 
@@ -95,7 +97,7 @@ class MSWEPHandler(BaseObservationHandler):
                 if precip is not None:
                     all_data.append(precip)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to process {nc_file.name}: {e}")
+                self.logger.warning(f"Failed to process {nc_file.name}: {e}", exc_info=True)
 
         if not all_data:
             self.logger.warning("No MSWEP data could be processed")
@@ -127,29 +129,13 @@ class MSWEPHandler(BaseObservationHandler):
         return output_file
 
     def _load_catchment_shapefile(self) -> Optional[gpd.GeoDataFrame]:
-        """Load catchment shapefile for spatial masking."""
-        catchment_path_cfg = self._get_config_value(lambda: self.config.domain.catchment_path, default='default')
-        if catchment_path_cfg == 'default' or not catchment_path_cfg:
-            catchment_path = self.project_dir / "shapefiles" / "catchment"
-        else:
-            catchment_path = Path(catchment_path_cfg)
+        """Load the catchment shapefile for spatial masking.
 
-        catchment_name = self._get_config_value(lambda: self.config.domain.catchment_shp_name, default=f"{self.domain_name}_catchment.shp")
-
-        basin_shp = catchment_path / catchment_name
-        if not basin_shp.exists():
-            # Try alternate patterns
-            for pattern in [f"{self.domain_name}*.shp", "*.shp"]:
-                matches = list(catchment_path.glob(pattern))
-                if matches:
-                    basin_shp = matches[0]
-                    break
-
-        if basin_shp.exists():
-            return gpd.read_file(basin_shp)
-
-        self.logger.warning("Catchment shapefile not found, using bounding box")
-        return None
+        Delegates to the shared resolver, which handles the nested
+        discretization layout and river_basins fallback. Returns None when
+        no basin is found (callers fall back to the bounding box).
+        """
+        return self._load_catchment_gdf()
 
     def _extract_basin_precip(
         self,
@@ -160,7 +146,7 @@ class MSWEPHandler(BaseObservationHandler):
         try:
             ds = xr.open_dataset(nc_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Failed to open {nc_file}: {e}")
+            self.logger.error(f"Failed to open {nc_file}: {e}", exc_info=True)
             return None
 
         # Find precipitation variable
@@ -290,5 +276,5 @@ class MSWEPHandler(BaseObservationHandler):
             df = pd.read_csv(processed_path, parse_dates=['datetime'], index_col='datetime')
             return df
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            self.logger.error(f"Error loading MSWEP data: {e}")
+            self.logger.error(f"Error loading MSWEP data: {e}", exc_info=True)
             return None

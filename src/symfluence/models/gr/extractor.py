@@ -7,6 +7,7 @@ GR Result Extractor.
 Handles extraction of simulation results from GR model outputs.
 GR models (GR4J/GR5J/GR6J) can run in lumped (CSV) or distributed (NetCDF) modes.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, cast

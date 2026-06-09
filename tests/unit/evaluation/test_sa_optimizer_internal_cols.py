@@ -21,6 +21,7 @@ gradient-optimiser diagnostic columns by name, (b) as belt-and-
 suspenders also drops any non-numeric column so a future optimiser
 adding its own string-valued diagnostic doesn't regress this path.
 """
+from __future__ import annotations
 
 import logging
 from unittest.mock import MagicMock

@@ -28,6 +28,7 @@ References:
     maps of soil properties over the contiguous United States. Water Resources
     Research, 55, 2916-2938.
 """
+from __future__ import annotations
 
 import math
 from pathlib import Path
@@ -179,7 +180,7 @@ class POLARISAcquirer(BaseAcquisitionHandler, RetryMixin):
                             self.logger.warning(
                                 f"Failed to download POLARIS tile {tile_name} "
                                 f"for {variable}/{depth}: {e}"
-                            )
+                            , exc_info=True)
                             continue
 
                 if not tile_paths:

@@ -8,6 +8,7 @@ Handles delineation (lumped / semidistributed / distributed) with
 progressive disclosure driven by WorkflowState.gui_phase.
 Discretization lives in DiscretizationPanel.
 """
+from __future__ import annotations
 
 import logging
 

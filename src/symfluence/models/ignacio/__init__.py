@@ -26,6 +26,7 @@ The actual fire simulation logic is in the ignacio package:
 References:
     IGNACIO: https://github.com/KatherineHopeReece/Fire-Engine-Framework
 """
+from __future__ import annotations
 
 import logging
 
@@ -65,17 +66,18 @@ __all__ = [
     "IGNACIOResultExtractor",
 ]
 
-# Register all IGNACIO components via unified registry
-try:
-    from symfluence.core.registry import model_manifest
+def register() -> None:
+    """Register IGNACIO components with the unified registry."""
+    try:
+        from symfluence.core.registry import model_manifest
 
-    model_manifest(
-        "IGNACIO",
-        result_extractor=IGNACIOResultExtractor,
-        build_instructions_module="symfluence.models.ignacio.build_instructions",
-    )
-except Exception:  # noqa: BLE001 — optional dependency
-    pass
+        model_manifest(
+            "IGNACIO",
+            result_extractor=IGNACIOResultExtractor,
+            build_instructions_module="symfluence.models.ignacio.build_instructions",
+        )
+    except Exception:  # noqa: BLE001 — optional dependency
+        pass
 
 # Register calibration components with OptimizerRegistry
 try:

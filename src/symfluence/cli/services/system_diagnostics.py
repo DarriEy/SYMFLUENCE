@@ -6,10 +6,10 @@ System diagnostics service for SYMFLUENCE.
 
 Provides system health checks, toolchain information, and library detection.
 """
+from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -223,28 +223,15 @@ class SystemDiagnostics(BaseService):
         """
         Detect if SYMFLUENCE binaries are installed via npm.
 
+        Delegates to the shared :func:`symfluence.core.npm_bundle.npm_bundle_bin`
+        locator (single source of truth for the ``dist/bin`` convention).
+
         Returns:
             Path to npm-installed binaries, or None if not found.
         """
-        try:
-            result = subprocess.run(
-                ["npm", "root", "-g"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
+        from symfluence.core.npm_bundle import npm_bundle_bin
 
-            if result.returncode == 0:
-                npm_root = Path(result.stdout.strip())
-                npm_bin_dir = npm_root / "symfluence" / "dist" / "bin"
-
-                if npm_bin_dir.exists() and npm_bin_dir.is_dir():
-                    return npm_bin_dir
-
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, OSError, ValueError):
-            pass
-
-        return None
+        return npm_bundle_bin()
 
     def _check_binary_status(
         self, symfluence_data: str, npm_bin_dir: Optional[Path]

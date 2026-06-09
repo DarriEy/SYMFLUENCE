@@ -7,6 +7,7 @@ High Resolution Rapid Refresh (HRRR) data acquisition from AWS S3.
 Provides automated download and processing of HRRR atmospheric forcing data
 with spatial subsetting, coordinate transformation, and NetCDF export.
 """
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -286,7 +287,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                             )
                             v_ds.append(ds)
                         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                            self.logger.debug(f"Variable {v} not available for {dstr} {h:02d}z: {e}")
+                            self.logger.debug(f"Variable {v} not available for {dstr} {h:02d}z: {e}", exc_info=True)
                             continue
                     if v_ds:
                         ds_h = xr.merge(v_ds, compat="override")
@@ -312,7 +313,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                                                  f"lon={float(ds_h.longitude.values[min_idx]):.4f}")
                         all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                    self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}")
+                    self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}", exc_info=True)
                     continue
             curr += pd.Timedelta(days=1)
         if not all_datasets: raise ValueError("No HRRR data downloaded")

@@ -8,6 +8,7 @@ Orchestrates state operations across models and external systems
 (e.g. FEWS). Handles serialization for transport, ensemble state
 management, and FEWS import/export bridging.
 """
+from __future__ import annotations
 
 import logging
 import shutil
@@ -141,7 +142,7 @@ class StateManager:
         try:
             state = model_runner.save_state(staging, timestamp)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error("Failed to save model state for FEWS export: %s", e)
+            logger.error("Failed to save model state for FEWS export: %s", e, exc_info=True)
             return None
 
         # Copy state files to FEWS output

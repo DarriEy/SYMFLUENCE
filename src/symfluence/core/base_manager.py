@@ -7,6 +7,7 @@ Base Manager class for SYMFLUENCE managers.
 Provides standardized initialization, configuration handling, and common
 orchestration patterns for DataManager, ModelManager, and OptimizationManager.
 """
+from __future__ import annotations
 
 import logging
 from abc import ABC

@@ -10,6 +10,7 @@ Manages 26 parameters across 3 target files:
 - params.nc (clm5_params.nc): snow + PFT parameters
 - surfdata (surfdata_clm.nc): soil hydraulic multipliers
 """
+from __future__ import annotations
 
 import logging
 import math
@@ -19,8 +20,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.registry import OptimizerRegistry
 
 # CLM5 parameter definitions:
 # (target_file, nc_variable_or_None, transform)
@@ -108,7 +109,7 @@ CLM_DEFAULT_BOUNDS: Dict[str, Dict[str, Any]] = {
 }
 
 
-@OptimizerRegistry.register_parameter_manager('CLM')
+@R.parameter_managers.add('CLM')
 class CLMParameterManager(BaseParameterManager):
     """Handles CLM5 parameter bounds, normalization, and file updates."""
 
@@ -217,7 +218,7 @@ class CLMParameterManager(BaseParameterManager):
             return success
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating CLM files: {e}")
+            self.logger.error(f"Error updating CLM files: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False

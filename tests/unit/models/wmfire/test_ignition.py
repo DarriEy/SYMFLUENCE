@@ -1,4 +1,6 @@
 """Unit tests for WMFire Ignition and Perimeter Validation classes."""
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -306,34 +308,3 @@ class TestFirePerimeterValidator:
 
         assert result is not None
         assert output_path.exists()
-
-
-class TestIgnitionManagerIntegration:
-    """Integration tests for IgnitionManager."""
-
-    @pytest.fixture
-    def real_ignition_shapefile(self):
-        """Path to real ignition shapefile if available."""
-        path = Path('/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/'
-                   'domain_Bow_at_Banff_elevation/shapefiles/ignitions/Ignition_A.shp')
-        if path.exists():
-            return path
-        pytest.skip("Real ignition shapefile not available")
-
-    def test_load_real_ignition(self, real_ignition_shapefile):
-        """Test loading real ignition shapefile."""
-        config = MagicMock()
-        wmfire = MagicMock()
-        wmfire.ignition_shapefile = str(real_ignition_shapefile)
-        wmfire.ignition_point = None
-        config.model.rhessys.wmfire = wmfire
-
-        mgr = IgnitionManager(config)
-        ign = mgr.get_ignition_point()
-
-        assert ign is not None
-        assert ign.name == "Ignition_A"
-        assert ign.source == "shapefile"
-        # Check coordinates are reasonable for Bow watershed
-        assert 50 < ign.latitude < 52
-        assert -117 < ign.longitude < -115

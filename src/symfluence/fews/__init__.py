@@ -8,6 +8,7 @@ Provides pre- and post-adapters that translate between FEWS's PI-XML/NetCDF-CF
 data exchange protocol and SYMFLUENCE's native formats, enabling any registered
 SYMFLUENCE model to be driven by a FEWS forecasting system.
 """
+from __future__ import annotations
 
 from .config import FEWSConfig, IDMapEntry
 from .exceptions import (

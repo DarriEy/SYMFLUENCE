@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     import jsnow17  # noqa: F401
 except ImportError:

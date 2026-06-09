@@ -32,6 +32,7 @@ References:
     Gelaro, R., et al. (2017). The Modern-Era Retrospective Analysis for Research
     and Applications, Version 2 (MERRA-2). J. Climate, 30, 5419-5454.
 """
+from __future__ import annotations
 
 import math
 import netrc as netrc_module
@@ -389,7 +390,7 @@ class MERRA2Acquirer(
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(
                             f"Failed to download MERRA-2 {key} for {date.strftime('%Y-%m-%d')}: {e}"
-                        )
+                        , exc_info=True)
                         continue
 
                 if day_datasets:

@@ -1,6 +1,9 @@
 """Tests for VIC configuration adapter."""
+from __future__ import annotations
 
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestVICConfigAdapter:
@@ -24,8 +27,7 @@ class TestVICConfigAdapter:
         assert schema == VICConfig
 
     def test_adapter_registered_with_registry(self):
-        from symfluence.models.registry import ModelRegistry
-        assert 'VIC' in ModelRegistry._config_adapters
+        assert 'VIC' in R.config_adapters
 
 
 class TestVICConfigValidation:

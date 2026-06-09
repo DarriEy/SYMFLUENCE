@@ -1,6 +1,9 @@
 """Tests for cFUSE configuration."""
+from __future__ import annotations
 
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestCFUSEConfig:
@@ -46,14 +49,12 @@ class TestCFUSEOptimizerRegistration:
     """Tests for cFUSE optimizer registration."""
 
     def test_optimizer_registered(self):
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert 'CFUSE' in OptimizerRegistry._optimizers
+        assert 'CFUSE' in R.optimizers
 
     def test_optimizer_is_correct_class(self):
         from cfuse.calibration.optimizer import CFUSEModelOptimizer
 
-        from symfluence.optimization.registry import OptimizerRegistry
-        assert OptimizerRegistry._optimizers.get('CFUSE') == CFUSEModelOptimizer
+        assert R.optimizers.get('CFUSE') == CFUSEModelOptimizer
 
 
 class TestCFUSEModelStructures:

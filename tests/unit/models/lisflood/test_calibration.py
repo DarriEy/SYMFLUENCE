@@ -2,6 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """Tests for LISFLOOD calibration components."""
+from __future__ import annotations
 
 import logging
 import shutil
@@ -12,6 +13,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.models.lisflood.calibration.parameter_manager import LisfloodParameterManager
 
 
@@ -280,14 +282,12 @@ class TestOptimizerRegistration:
 
     def test_optimizer_is_registered(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        cls = OptimizerRegistry.get_optimizer("LISFLOOD")
+        cls = R.optimizers.get("LISFLOOD")
         assert cls is not None
 
     def test_worker_is_registered(self):
         import symfluence.models.lisflood  # noqa: F401
-        from symfluence.optimization.registry import OptimizerRegistry
 
-        cls = OptimizerRegistry.get_worker("LISFLOOD")
+        cls = R.workers.get("LISFLOOD")
         assert cls is not None

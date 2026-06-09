@@ -8,6 +8,7 @@ Implements the Delft-FEWS diagnostics contract: the adapter MUST write a
 ``diag.xml`` file to the output directory after every run, even on catastrophic
 failure. The ``write()`` method therefore catches all internal exceptions.
 """
+from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET  # nosec B405 - writing trusted local diagnostics XML

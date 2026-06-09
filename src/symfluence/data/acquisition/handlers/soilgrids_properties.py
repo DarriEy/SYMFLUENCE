@@ -33,6 +33,7 @@ References:
     Poggio, L., et al. (2021). SoilGrids 2.0: producing soil information for
     the globe with quantified spatial uncertainty. SOIL, 7, 217-240.
 """
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -185,7 +186,7 @@ class SoilGridsPropertiesAcquirer(BaseAcquisitionHandler, RetryMixin):
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.warning(
                         f"Failed to download SoilGrids {prop} {depth}: {e}"
-                    )
+                    , exc_info=True)
                     continue
 
         if not output_paths:

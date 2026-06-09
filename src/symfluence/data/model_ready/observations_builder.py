@@ -9,6 +9,7 @@ NetCDF4 file at ``data/model_ready/observations/{domain}_observations.nc``.
 Each observation type (streamflow, snow, ET, ...) lives in its own
 NetCDF group with its own spatial dimension.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -362,7 +363,7 @@ class ObservationsNetCDFBuilder:
             return series
 
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
-            logger.debug("Could not read %s: %s", csv_path, e)
+            logger.debug("Could not read %s: %s", csv_path, e, exc_info=True)
             return None
 
     def _get_handler_source_meta(self, group_name: str) -> Optional[SourceMetadata]:

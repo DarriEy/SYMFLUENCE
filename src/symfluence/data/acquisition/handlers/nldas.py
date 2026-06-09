@@ -23,6 +23,7 @@ References:
     validation for the North American Land Data Assimilation System project phase 2
     (NLDAS-2). J. Geophys. Res., 117, D03109.
 """
+from __future__ import annotations
 
 import math
 import tempfile

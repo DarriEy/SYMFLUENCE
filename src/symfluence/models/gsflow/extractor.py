@@ -7,6 +7,7 @@ GSFLOW Result Extractor.
 Extracts results from GSFLOW output files including PRMS statvar
 output and MODFLOW listing/head files.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -89,7 +90,7 @@ class GSFLOWResultExtractor(ModelResultExtractor):
             if dates:
                 return pd.Series(values, index=dates, name=f'GSFLOW_{variable_type}')
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.error(f"Error parsing statvar: {e}")
+            logger.error(f"Error parsing statvar: {e}", exc_info=True)
         return None
 
     def extract_streamflow(

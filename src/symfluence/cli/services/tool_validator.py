@@ -6,6 +6,7 @@ Tool validation service for SYMFLUENCE.
 
 Validates that required binary executables exist and are functional.
 """
+from __future__ import annotations
 
 import os
 import subprocess

@@ -16,6 +16,8 @@ References:
     Markstrom, S.L., et al. (2008): GSFLOW---Coupled Ground-Water and
     Surface-Water Flow Model. USGS Techniques and Methods 6-D1.
 """
+from __future__ import annotations
+
 from .config import GSFLOWConfigAdapter
 from .extractor import GSFLOWResultExtractor
 from .postprocessor import GSFLOWPostProcessor
@@ -33,14 +35,17 @@ __all__ = [
 # Register all GSFLOW components via unified registry
 from symfluence.core.registry import model_manifest
 
-model_manifest(
-    "GSFLOW",
-    preprocessor=GSFLOWPreProcessor,
-    runner=GSFLOWRunner,
-    result_extractor=GSFLOWResultExtractor,
-    config_adapter=GSFLOWConfigAdapter,
-    build_instructions_module="symfluence.models.gsflow.build_instructions",
-)
+
+def register() -> None:
+    """Register GSFLOW components with the unified registry."""
+    model_manifest(
+        "GSFLOW",
+        preprocessor=GSFLOWPreProcessor,
+        runner=GSFLOWRunner,
+        result_extractor=GSFLOWResultExtractor,
+        config_adapter=GSFLOWConfigAdapter,
+        build_instructions_module="symfluence.models.gsflow.build_instructions",
+    )
 
 # Register calibration components
 try:

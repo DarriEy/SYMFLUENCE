@@ -8,6 +8,7 @@ This module provides the CASR (Canadian Arctic System Reanalysis) specific imple
 for forcing data processing. It handles CASR variable mappings, unit conversions,
 grid structure, and shapefile creation.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -279,7 +280,7 @@ class CASRHandler(BaseDatasetHandler):
                         ds = ds.drop_duplicates(dim='time')
                         datasets.append(ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error opening CASR file {file}: {str(e)}")
+                        self.logger.error(f"Error opening CASR file {file}: {str(e)}", exc_info=True)
 
                 if not datasets:
                     self.logger.warning(f"No valid CASR datasets for {year}-{month:02d}")
@@ -292,7 +293,7 @@ class CASRHandler(BaseDatasetHandler):
                         processed_ds = self.process_dataset(ds)
                         processed_datasets.append(processed_ds)
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.error(f"Error processing CASR dataset: {str(e)}")
+                        self.logger.error(f"Error processing CASR dataset: {str(e)}", exc_info=True)
 
                 if not processed_datasets:
                     self.logger.warning(f"No processed CASR datasets for {year}-{month:02d}")

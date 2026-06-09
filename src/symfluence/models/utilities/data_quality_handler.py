@@ -8,6 +8,7 @@ Shared utility for handling data quality issues across model preprocessors.
 Consolidates NaN handling, fill value logic, and data validation that was
 previously duplicated across FUSE, GR, and other preprocessors.
 """
+from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union

@@ -7,6 +7,7 @@ Parallel Processing Module
 Provides infrastructure for parallel execution of optimization tasks,
 including HPC-specific utilities for scratch storage management.
 """
+from __future__ import annotations
 
 from .config_updater import ConfigurationUpdater
 from .directory_manager import DirectoryManager

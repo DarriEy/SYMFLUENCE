@@ -7,6 +7,7 @@ CONUS404 WRF reanalysis dataset handler.
 Processes CONUS404 high-resolution atmospheric reanalysis data from
 the HyTEST catalog with spatial subsetting and variable mapping.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -489,7 +490,7 @@ class CONUS404Handler(BaseDatasetHandler):
             try:
                 ds = self.open_dataset(f)
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error opening CONUS404 file {f}: {e}")
+                self.logger.error(f"Error opening CONUS404 file {f}: {e}", exc_info=True)
                 continue
 
             try:
@@ -499,7 +500,7 @@ class CONUS404Handler(BaseDatasetHandler):
                 ds_proc.to_netcdf(out_name)
                 self.logger.info(f"Saved processed CONUS404 forcing: {out_name}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.error(f"Error processing CONUS404 dataset from {f}: {e}")
+                self.logger.error(f"Error processing CONUS404 dataset from {f}: {e}", exc_info=True)
             finally:
                 ds.close()
 
@@ -596,7 +597,7 @@ class CONUS404Handler(BaseDatasetHandler):
                 bbox = (lat_min, lat_max, lon_min, lon_max)
                 self.logger.info(f"Filtering CONUS404 grid by bbox (with buffer): {bbox}")
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                self.logger.warning(f"Failed to parse BOUNDING_BOX_COORDS '{bbox_str}': {e}. Processing entire grid.")
+                self.logger.warning(f"Failed to parse BOUNDING_BOX_COORDS '{bbox_str}': {e}. Processing entire grid.", exc_info=True)
 
         geometries = []
         ids = []

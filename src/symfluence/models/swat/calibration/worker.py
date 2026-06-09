@@ -6,6 +6,7 @@ SWAT Worker
 
 Worker implementation for SWAT model optimization.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -20,14 +21,14 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 from ..parameters import PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 
 
-@OptimizerRegistry.register_worker('SWAT')
+@R.workers.add('SWAT')
 class SWATWorker(BaseWorker):
     """
     Worker for SWAT model calibration.
@@ -109,7 +110,7 @@ class SWATWorker(BaseWorker):
             return self._update_swat_files(settings_dir, params)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error applying SWAT parameters: {e}")
+            self.logger.error(f"Error applying SWAT parameters: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -154,7 +155,7 @@ class SWATWorker(BaseWorker):
             return True
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating SWAT files: {e}")
+            self.logger.error(f"Error updating SWAT files: {e}", exc_info=True)
             return False
 
     def _update_single_file(
@@ -524,7 +525,7 @@ class SWATWorker(BaseWorker):
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self._last_error = str(e)
-            self.logger.error(f"Error running SWAT: {e}")
+            self.logger.error(f"Error running SWAT: {e}", exc_info=True)
             return False
 
     def _has_nonzero_flow(self, output_rch: Path, threshold: float = 1e-6) -> bool:
@@ -649,7 +650,7 @@ class SWATWorker(BaseWorker):
             return results
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error calculating SWAT metrics: {e}")
+            self.logger.error(f"Error calculating SWAT metrics: {e}", exc_info=True)
             import traceback
             self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score, 'error': str(e)}
@@ -710,7 +711,7 @@ class SWATWorker(BaseWorker):
             return np.array(flow_values)
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error parsing output.rch: {e}")
+            self.logger.error(f"Error parsing output.rch: {e}", exc_info=True)
             return None
 
     @staticmethod

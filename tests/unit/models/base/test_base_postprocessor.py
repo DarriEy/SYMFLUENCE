@@ -4,6 +4,7 @@ Unit tests for the BaseModelPostProcessor class.
 Tests initialization, path resolution, unit conversions, and helper methods
 for the base postprocessor class.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import Mock

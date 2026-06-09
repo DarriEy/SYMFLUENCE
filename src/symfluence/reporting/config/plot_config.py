@@ -7,6 +7,7 @@ Configuration dataclass for plot styling and defaults.
 This module centralizes all hard-coded values related to plotting,
 making them easy to maintain and customize.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List, Tuple

@@ -7,6 +7,7 @@ GLDAS TWS observation handler.
 Provides acquisition and preprocessing of GLDAS-2.1 Noah Land Surface Model
 monthly TWS data for model validation. TWS = Soil Moisture + SWE + Canopy Water.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

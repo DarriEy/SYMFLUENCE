@@ -6,6 +6,7 @@ LSTM Model Preprocessor.
 
 Handles data loading, cleaning, normalization, and tensor conversion for the LSTM model.
 """
+from __future__ import annotations
 
 import glob
 import logging
@@ -18,15 +19,15 @@ import torch
 import xarray as xr
 from sklearn.preprocessing import StandardScaler
 
+from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.registry import ModelRegistry
 from symfluence.models.spatial_modes import SpatialMode
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-@ModelRegistry.register_preprocessor('LSTM')
+@R.preprocessors.add('LSTM')
 class LSTMPreProcessor(BaseModelPreProcessor):
     """
     Handles data preprocessing for the LSTM model.

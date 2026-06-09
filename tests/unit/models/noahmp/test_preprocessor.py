@@ -1,7 +1,10 @@
 """Tests for Noah-MP preprocessor."""
+from __future__ import annotations
 
 import numpy as np
 import pytest
+
+from symfluence.core.registries import R
 
 
 class TestNoahMPPreProcessorImport:
@@ -15,8 +18,7 @@ class TestNoahMPPreProcessorImport:
     def test_preprocessor_registered(self):
         """Test that preprocessor is registered in ModelRegistry."""
         from symfluence.models.noahmp.preprocessor import NoahMPPreProcessor  # noqa: F401
-        from symfluence.models.registry import ModelRegistry
-        assert 'NOAHMP' in ModelRegistry._preprocessors
+        assert 'NOAHMP' in R.preprocessors
 
     def test_model_name(self):
         """Test MODEL_NAME class attribute."""

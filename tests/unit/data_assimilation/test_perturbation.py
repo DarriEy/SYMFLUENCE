@@ -1,4 +1,5 @@
 """Tests for perturbation strategies."""
+from __future__ import annotations
 
 import numpy as np
 import pytest

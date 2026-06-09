@@ -2,9 +2,11 @@
 
 Tests _run_parallel_tasks() helper and the MAX_ACQUISITION_WORKERS config field.
 """
+from __future__ import annotations
 
 import logging
 import sys
+import tempfile
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -53,7 +55,7 @@ def _make_service(max_workers=3):
 
     mock_config = MagicMock()
     mock_config.data.max_acquisition_workers = max_workers
-    mock_config.system.data_dir = "/tmp/test"
+    mock_config.system.data_dir = tempfile.gettempdir()
     mock_config.domain.name = "test"
 
     logger = logging.getLogger("test_parallel")

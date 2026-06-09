@@ -8,6 +8,7 @@ This module provides shared utilities for MODIS observation handlers
 (ET, Snow Cover, etc.) including time conversion, column standardization,
 and interpolation functions.
 """
+from __future__ import annotations
 
 from typing import Dict, List, Optional
 
