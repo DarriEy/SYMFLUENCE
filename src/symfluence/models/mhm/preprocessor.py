@@ -91,6 +91,172 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 self.spatial_mode = 'lumped'
         logger.info(f"mHM spatial mode: {self.spatial_mode}")
 
+        # Distributed-morphology mode: build a real gridded domain (DEM, soil,
+        # land cover, slope, flow network) at MHM_GRID_RES so Multiscale
+        # Parameter Regionalization actually regionalises parameters over
+        # spatially varying morphology -- mHM's distinctive capability, inert in
+        # the lumped 2-cell layout. The flow network is derived with TauDEM
+        # (the framework's geofabric engine), consistent with delineation.
+        self.distributed_morph = bool(self._get_config_value(
+            lambda: self.config.model.mhm.distributed_morph,
+            default=False, dict_key='MHM_DISTRIBUTED'))
+        self.grid_res = float(self._get_config_value(
+            lambda: self.config.model.mhm.grid_res,
+            default=0.02, dict_key='MHM_GRID_RES'))   # degrees (~2 km lat)
+        self._dist_grid = None  # cache of distributed-grid arrays/metadata
+        if self.distributed_morph:
+            logger.info(f"mHM distributed morphology ON (grid res {self.grid_res} deg, TauDEM flow)")
+
+    def _taudem_dir(self) -> str:
+        """Resolve a *working* TauDEM binary directory.
+
+        The flow network is built in-process with pyflwdir, so this is only a
+        documented fallback for callers that want TauDEM. Multiple installs can
+        coexist (e.g. a per-domain copy with broken shared libraries alongside a
+        good shared install), so candidate locations are validated by checking
+        that ``d8flowdir`` exists and actually loads (a copy with missing dylibs
+        exits 127). The configured TAUDEM_DIR wins if set; otherwise the first
+        runnable candidate is returned, falling back to the framework default.
+        """
+        import subprocess
+        td = self._get_config_value(lambda: self.config.paths.taudem_dir,
+                                    default='default', dict_key='TAUDEM_DIR')
+        if td != 'default':
+            return str(td)
+        data_dir = Path(self._get_config_value(
+            lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        # Candidate install roots: per-domain data dir, its SYMFLUENCE_data
+        # parent, and the sibling code/<->data SYMFLUENCE_data layout.
+        candidates = [
+            data_dir / 'installs' / 'TauDEM' / 'bin',
+            data_dir.parent / 'installs' / 'TauDEM' / 'bin',
+        ]
+        s = str(data_dir)
+        if 'code/SYMFLUENCE_data' in s:
+            alt = Path(s.replace('code/SYMFLUENCE_data', 'data/SYMFLUENCE_data'))
+            candidates.append(alt.parent / 'installs' / 'TauDEM' / 'bin')
+            candidates.append(Path(s.split('code/SYMFLUENCE_data')[0])
+                              / 'data' / 'SYMFLUENCE_data' / 'installs' / 'TauDEM' / 'bin')
+        default = candidates[0]
+        for cand in candidates:
+            exe = cand / 'd8flowdir'
+            if not exe.exists():
+                continue
+            try:
+                rc = subprocess.run([str(exe)], capture_output=True).returncode
+            except OSError:
+                continue
+            if rc not in (126, 127):   # 127/126 => dylib/load failure
+                return str(cand)
+        return str(default)
+
+    def _build_distributed_grids(self) -> dict:
+        """Build the distributed mHM grid: resample the DEM to grid_res, derive
+        the D8 flow network in-process with pyflwdir, mask to the basin upstream
+        of the outlet, and resample soil/land classes. Returns a dict of 2D
+        arrays + grid metadata (cached)."""
+        if self._dist_grid is not None:
+            return self._dist_grid
+        import pyflwdir
+        import rasterio
+        from rasterio.features import geometry_mask
+        from rasterio.warp import Resampling, reproject
+
+        res = self.grid_res
+        dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem'
+        dem_files = sorted(dem_path.glob('*_elv.tif'))
+        catch = self.get_catchment_path()
+
+        # 1. Resample DEM to the (geographic) grid at grid_res.
+        with rasterio.open(dem_files[0]) as src:
+            b = src.bounds
+            ncol = max(3, int(np.ceil((b.right - b.left) / res)))
+            nrow = max(3, int(np.ceil((b.top - b.bottom) / res)))
+            from rasterio.transform import from_origin
+            dst_t = from_origin(b.left, b.top, res, res)
+            dem = np.full((nrow, ncol), -9999.0, 'float32')
+            reproject(rasterio.band(src, 1), dem, src_transform=src.transform,
+                      src_crs=src.crs, dst_transform=dst_t, dst_crs=src.crs,
+                      resampling=Resampling.average, dst_nodata=-9999.0)
+            crs = src.crs
+        # 2. Flow network via pyflwdir (in-process; depression-filled D8). Its
+        # 'd8' encoding IS the ESRI/mHM convention (1=E,2=SE,4=S,...,128=NE), so
+        # no remapping is needed. latlon=True uses geographic cell distances.
+        # (TauDEM produces the same network but fails in the workflow subprocess
+        # due to macOS stripping its GDAL/MPI dyld paths.)
+        dem_filled = np.where(dem > -100.0, dem, np.nan).astype('float32')
+        flw = pyflwdir.from_dem(data=dem_filled, nodata=np.nan,
+                                transform=dst_t, latlon=True)
+        fdir = flw.to_array(ftype='d8').astype('int32')
+        fdir = np.where(fdir > 0, fdir, 0)
+        ad8 = flw.upstream_area(unit='cell').astype('float64')
+        ad8 = np.where(ad8 < 0, 0, ad8)
+        # Slope (m/m) from the filled DEM gradient, using geographic cell sizes.
+        latc = (b.top + b.bottom) / 2.0
+        ym = res * 111320.0
+        xm = res * 111320.0 * max(np.cos(np.radians(latc)), 0.1)
+        dy, dx = np.gradient(np.where(np.isnan(dem_filled), np.nanmean(dem_filled),
+                                      dem_filled), ym, xm)
+        sd8 = np.hypot(dx, dy)
+
+        # 4. Hydrologic mask = the basin upstream of the catchment outlet.
+        # Masking by the raw polygon would cut the flow network (cells draining
+        # to masked neighbours), which makes mHM's mRM routing loop forever.
+        # Using pyflwdir's basin guarantees a single consistent drainage tree
+        # whose pit (outlet) drains off-domain. Intersect with the catchment
+        # polygon to pick which basin is ours.
+        try:
+            import geopandas as gpd
+            gdf = gpd.read_file(catch)
+            if gdf.crs is None:
+                gdf = gdf.set_crs(epsg=4326)
+            gdf = gdf.to_crs(crs)
+            inside = ~geometry_mask(gdf.geometry, (nrow, ncol), dst_t, invert=False)
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Catchment polygon mask failed: {e}; DEM extent", exc_info=True)
+            inside = dem > -100.0
+        # Outlet candidate = highest-accumulation cell inside the polygon.
+        ad8p = np.where(inside & (dem > -100.0), ad8, -1)
+        oi, oj = np.unravel_index(int(np.argmax(ad8p)), ad8p.shape)
+        # Basin upstream of that outlet -> the consistent drainage tree.
+        basins = flw.basins(xy=([dst_t.c + dst_t.a * (oj + 0.5)],
+                                [dst_t.f + dst_t.e * (oi + 0.5)])).astype('int32')
+        mask = (basins > 0) & (dem > -100.0)
+        if mask.sum() < 3:  # fallback if pour-point basin is degenerate
+            mask = inside & (dem > -100.0) & (fdir >= 0)
+        ad8m = np.where(mask, ad8, -1)
+        oi, oj = np.unravel_index(int(np.argmax(ad8m)), ad8m.shape)
+        # The outlet pit drains off-domain; give it a defined edge direction
+        # so mHM sees a clear basin exit rather than a self-pointing pit.
+        if fdir[oi, oj] <= 0:
+            fdir[oi, oj] = 4  # south / off-grid
+
+        # 6. Resample soil / land-cover classes to the grid (nearest).
+        def _resample_class(path):
+            out = np.zeros((nrow, ncol), 'int32')
+            try:
+                with rasterio.open(path) as s:
+                    reproject(rasterio.band(s, 1), out, src_transform=s.transform,
+                              src_crs=s.crs, dst_transform=dst_t, dst_crs=crs,
+                              resampling=Resampling.nearest)
+            except Exception:  # noqa: BLE001
+                pass
+            return out
+        soil = _resample_class(self.project_dir / 'attributes' / 'soilclass'
+                               / f'domain_{self.domain_name}_soil_classes.tif')
+        land = _resample_class(self.project_dir / 'attributes' / 'landclass'
+                               / f'domain_{self.domain_name}_land_classes.tif')
+
+        slope = np.clip(np.abs(sd8), 0.0001, 2.0)
+        self._dist_grid = dict(
+            nrow=nrow, ncol=ncol, res=res, transform=dst_t, crs=crs,
+            dem=dem, fdir=fdir, facc=ad8, slope=slope, mask=mask,
+            soil=soil, land=land, outlet=(int(oi), int(oj)))
+        logger.info(f"mHM distributed grid: {nrow}x{ncol} @ {res} deg, "
+                    f"{int(mask.sum())} active cells, outlet=({oi},{oj}), "
+                    f"max_acc={int(np.nanmax(ad8m))}")
+        return self._dist_grid
+
     def run_preprocessing(self) -> bool:
         """
         Run the complete mHM preprocessing workflow.
@@ -365,9 +531,11 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         props = self._get_catchment_properties()
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='D')
 
-        # Map ERA5 variables to mHM variables
-        precip_candidates = ['precipitation_flux', 'precipitation', 'pr', 'precip', 'tp', 'PREC']
-        temp_candidates = ['air_temperature', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP']
+        # Map forcing variables to mHM variables. Includes the CARRA/SUMMA-style
+        # names (pptrate/airtemp) alongside ERA5; without them CARRA forcing fell
+        # through to zeros/synthetic.
+        precip_candidates = ['precipitation_flux', 'pptrate', 'precipitation', 'pr', 'precip', 'tp', 'PREC']
+        temp_candidates = ['air_temperature', 'airtemp', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP']
 
         # Extract precipitation
         precip = None
@@ -375,8 +543,10 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if candidate in forcing_ds:
                 precip = forcing_ds[candidate].values
                 src_units = forcing_ds[candidate].attrs.get('units', '')
-                # Convert to mm/day
-                if 'mm/s' in src_units or candidate == 'precipitation_flux':
+                # Convert to mm/day. pptrate (CARRA) and precipitation_flux are
+                # mass fluxes in kg m-2 s-1 == mm s-1.
+                if ('mm/s' in src_units or 'kg' in src_units
+                        or candidate in ('precipitation_flux', 'pptrate')):
                     precip = precip * 86400.0
                     logger.info(f"Converted {candidate} from mm/s to mm/day")
                 elif src_units == 'm' or candidate == 'tp':
@@ -443,6 +613,15 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         pet = 0.1651 * D * D * RHOSAT
         pet = np.maximum(pet, 0.0)
 
+        if self.distributed_morph:
+            # Uniform forcing broadcast across the distributed grid (L2 meteo
+            # grid == L0/L1 grid, so resolutions align exactly). Surface forcing
+            # stays lumped; only morphology/parameters are distributed.
+            self._write_distributed_forcing(
+                {'pre': precip, 'tavg': temp, 'pet': pet}, times)
+            logger.info(f"mHM distributed forcing written to {self.forcing_dir}")
+            return
+
         # Write forcing NetCDF files in mHM-expected format
         self._write_mhm_forcing_nc(
             self.forcing_dir / 'pre.nc', 'pre', precip, times, props,
@@ -458,6 +637,56 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self._write_forcing_header(props)
 
         logger.info(f"mHM forcing files written to {self.forcing_dir}")
+
+    def _grid_latlon(self, g):
+        """2D lat/lon (yc,xc) of cell centres for a distributed grid dict."""
+        t = g['transform']
+        nrow, ncol = g['nrow'], g['ncol']
+        xs = t.c + t.a * (np.arange(ncol) + 0.5)
+        ys = t.f + t.e * (np.arange(nrow) + 0.5)   # t.e negative -> descending
+        lon2d, lat2d = np.meshgrid(xs, ys)
+        return lat2d, lon2d
+
+    def _write_distributed_forcing(self, var_data: Dict, times) -> None:
+        """Write pre/tavg/pet NetCDFs + header.txt on the distributed grid,
+        broadcasting each daily series uniformly across active cells."""
+        g = self._build_distributed_grids()
+        nrow, ncol = g['nrow'], g['ncol']
+        lat2d, lon2d = self._grid_latlon(g)
+        fill = -9999.0
+        t0 = pd.Timestamp(times[0])
+        tnum = (pd.DatetimeIndex(times) - t0).days.values.astype('f8')
+        units = {'pre': 'mm/day', 'tavg': 'degC', 'pet': 'mm/day'}
+        for name, series in var_data.items():
+            fp = self.forcing_dir / f'{name}.nc'
+            ds = nc4.Dataset(fp, 'w', format='NETCDF4')
+            try:
+                ds.createDimension('time', None)
+                ds.createDimension('yc', nrow)
+                ds.createDimension('xc', ncol)
+                tv = ds.createVariable('time', 'f8', ('time',))
+                tv.units = f"days since {t0.strftime('%Y-%m-%d')} 00:00:00"
+                tv.calendar = 'standard'
+                tv[:] = tnum
+                lonv = ds.createVariable('lon', 'f8', ('yc', 'xc')); lonv.units = 'degrees_east'; lonv[:] = lon2d
+                latv = ds.createVariable('lat', 'f8', ('yc', 'xc')); latv.units = 'degrees_north'; latv[:] = lat2d
+                dv = ds.createVariable(name, 'f8', ('time', 'yc', 'xc'), fill_value=fill)
+                dv.units = units[name]
+                arr = np.asarray(series, 'f8')
+                arr = np.nan_to_num(arr, nan=0.0)
+                grid = np.broadcast_to(arr[:, None, None], (len(arr), nrow, ncol)).copy()
+                grid[:, ~g['mask']] = fill
+                dv[:] = grid
+            finally:
+                ds.close()
+        # header.txt for the meteo grid (== distributed grid)
+        t = g['transform']
+        xll = t.c
+        yll = t.f + t.e * nrow
+        (self.forcing_dir / 'header.txt').write_text(
+            f"ncols         {ncol}\nnrows         {nrow}\n"
+            f"xllcorner     {xll:.6f}\nyllcorner     {yll:.6f}\n"
+            f"cellsize      {t.a:.8f}\nNODATA_value  -9999\n", encoding='utf-8')
 
     def _generate_synthetic_forcing(self, start_date: datetime, end_date: datetime) -> None:
         """Generate synthetic forcing data for testing."""
@@ -539,6 +768,10 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         props = self._get_catchment_properties()
         start_date, _ = self._get_simulation_dates()
 
+        if self.distributed_morph:
+            self._generate_distributed_morph(start_date)
+            return
+
         # Remove any old .nc morph files (mHM v5.13 requires .asc only)
         for old_nc in self.morph_dir.glob('*.nc'):
             if old_nc.name != 'latlon.nc':
@@ -573,6 +806,75 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
 
         logger.info(f"Morphological ASCII grids written to {self.morph_dir}")
+
+    def _write_asc_array(self, filepath, grid, mask, transform, intfmt=False):
+        """Write a 2D numpy array as an ESRI .asc grid (masked cells = -9999)."""
+        nrow, ncol = grid.shape
+        xll = transform.c
+        yll = transform.f + transform.e * nrow   # transform.e is negative
+        cellsize = transform.a
+        out = np.where(mask, grid, -9999)
+        lines = [f"ncols         {ncol}", f"nrows         {nrow}",
+                 f"xllcorner     {xll:.6f}", f"yllcorner     {yll:.6f}",
+                 f"cellsize      {cellsize:.8f}", "NODATA_value  -9999"]
+        for r in range(nrow):
+            if intfmt:
+                lines.append(" ".join(str(int(v)) if v != -9999 else "-9999"
+                                      for v in out[r]))
+            else:
+                lines.append(" ".join(f"{v:.4f}" if v != -9999 else "-9999"
+                                      for v in out[r]))
+        Path(filepath).write_text("\n".join(lines) + "\n", encoding='utf-8')
+
+    def _generate_distributed_morph(self, start_date) -> None:
+        """Write all morphological .asc grids from the TauDEM-derived
+        distributed grid (real DEM/soil/land/flow over the catchment)."""
+        g = self._build_distributed_grids()
+        m, t = g['mask'], g['transform']
+        oi, oj = g['outlet']
+        md = self.morph_dir
+        self._write_asc_array(md / 'dem.asc', g['dem'], m, t)
+        self._write_asc_array(md / 'slope.asc', g['slope'], m, t)
+        self._write_asc_array(md / 'aspect.asc', np.full(g['dem'].shape, 180.0), m, t)
+        self._write_asc_array(md / 'fdir.asc', g['fdir'], m, t, intfmt=True)
+        self._write_asc_array(md / 'facc.asc', g['facc'], m, t, intfmt=True)
+        # Soil/geology/LAI classes: remap to dense 1..N ids the class
+        # definition files declare. Soil from the datastore; geology uniform
+        # (no Iceland geology raster); LAI from a single class.
+        soil_ids = self._dense_class_grid(g['soil'], m)
+        self._write_asc_array(md / 'soil_class.asc', soil_ids, m, t, intfmt=True)
+        self._write_asc_array(md / 'geology_class.asc',
+                              np.ones(g['dem'].shape, 'int32'), m, t, intfmt=True)
+        self._write_asc_array(md / 'LAI_class.asc',
+                              np.ones(g['dem'].shape, 'int32'), m, t, intfmt=True)
+        # Gauge cell at the outlet only.
+        idg = np.full(g['dem'].shape, -9999, 'int32')
+        idg[oi, oj] = 1
+        self._write_asc_array(md / 'idgauges.asc', idg, m, t, intfmt=True)
+        # Land cover -> mHM 3-class scheme (1=forest,2=impervious,3=pervious).
+        lc = self._landcover_to_mhm(g['land'])
+        self._write_asc_array(self.lcover_dir / f'lc_{start_date.year}.asc',
+                              lc, m, t, intfmt=True)
+        self._n_soil_classes = int(soil_ids[m].max()) if m.any() else 1
+        logger.info(f"Distributed morph grids written ({self._n_soil_classes} soil classes)")
+
+    @staticmethod
+    def _dense_class_grid(grid, mask):
+        """Remap arbitrary class codes within the mask to dense ids 1..N."""
+        out = np.ones(grid.shape, 'int32')
+        vals = sorted(set(int(v) for v in grid[mask].tolist()) - {0})
+        remap = {v: i + 1 for i, v in enumerate(vals)} if vals else {}
+        for v, i in remap.items():
+            out[grid == v] = i
+        return out
+
+    @staticmethod
+    def _landcover_to_mhm(land):
+        """MODIS IGBP -> mHM 3-class (1=forest, 2=impervious, 3=pervious)."""
+        out = np.full(land.shape, 3, 'int32')   # default pervious
+        out[np.isin(land, [1, 2, 3, 4, 5])] = 1  # forests
+        out[land == 13] = 2                       # urban/impervious
+        return out
 
     def _generate_mhm_namelist(self) -> None:
         """
@@ -633,7 +935,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 &mainconfig
   iFlag_cordinate_sys = 1     ! lat/lon coordinates
   nDomains = 1
-  resolution_Hydrology(1) = {self.LUMPED_CELLSIZE}   ! 2-cell lumped layout
+  resolution_Hydrology(1) = {self.grid_res if self.distributed_morph else self.LUMPED_CELLSIZE}
   L0Domain(1) = 1
   write_restart = .FALSE.
   read_opt_domain_data(1) = 0
@@ -642,7 +944,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 &mainconfig_mhm_mrm
   mhm_file_RestartIn(1) = ""
   mrm_file_RestartIn(1) = ""
-  resolution_Routing(1) = {self.LUMPED_CELLSIZE}
+  resolution_Routing(1) = {self.grid_res if self.distributed_morph else self.LUMPED_CELLSIZE}
   timestep = 1
   read_restart = .FALSE.
   optimize = .FALSE.
@@ -812,14 +1114,18 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info("Generating mHM lookup table files...")
 
         # --- soil_classdefinition.txt ---
-        soil_content = (
-            "nSoil_Types  1\n"
-            "MU_GLOBAL\tHORIZON\tUD[mm]\tLD[mm]\tCLAY[%]\tSAND[%]\tBD[gcm-3]\n"
-            "1\t1\t0\t200\t20.0\t50.0\t1.45\n"
-            "1\t2\t200\t1500\t25.0\t45.0\t1.50\n"
-        )
+        # Declare one MU_GLOBAL per soil class present on the grid (distributed
+        # mode may resolve several). Two horizons each; Andosol-leaning texture
+        # (low clay / high sand, typical of Icelandic volcanic soils). MPR's
+        # pedotransfer functions + calibrated coefficients set the actual Ks.
+        n_soil = getattr(self, '_n_soil_classes', 1) if self.distributed_morph else 1
+        rows = ["nSoil_Types  %d" % n_soil,
+                "MU_GLOBAL\tHORIZON\tUD[mm]\tLD[mm]\tCLAY[%]\tSAND[%]\tBD[gcm-3]"]
+        for c in range(1, n_soil + 1):
+            rows.append(f"{c}\t1\t0\t200\t12.0\t60.0\t0.90")
+            rows.append(f"{c}\t2\t200\t1500\t15.0\t55.0\t1.00")
         (self.morph_dir / 'soil_classdefinition.txt').write_text(
-            soil_content, encoding='utf-8'
+            "\n".join(rows) + "\n", encoding='utf-8'
         )
 
         # --- LAI_classdefinition.txt ---
@@ -936,17 +1242,23 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info("Generating latlon.nc...")
 
         props = self._get_catchment_properties()
-        cellsize = self.LUMPED_CELLSIZE
-        lat_val = np.array(
-            [[props['lat']], [props['lat'] - cellsize]], dtype=np.float64
-        )
-        lon_val = np.full((2, 1), props['lon'], dtype=np.float64)
+        if self.distributed_morph:
+            g = self._build_distributed_grids()
+            lat2d, lon2d = self._grid_latlon(g)
+            lat_val, lon_val = lat2d, lon2d
+            nlat, nlon = g['nrow'], g['ncol']
+        else:
+            cellsize = self.LUMPED_CELLSIZE
+            lat_val = np.array(
+                [[props['lat']], [props['lat'] - cellsize]], dtype=np.float64)
+            lon_val = np.full((2, 1), props['lon'], dtype=np.float64)
+            nlat, nlon = 2, 1
 
         latlon_path = self.morph_dir / 'latlon.nc'
         ds = nc4.Dataset(str(latlon_path), 'w', format='NETCDF4')
         try:
-            ds.createDimension('nrows', 2)
-            ds.createDimension('ncols', 1)
+            ds.createDimension('nrows', nlat)
+            ds.createDimension('ncols', nlon)
 
             for vname, data in [
                 ('lat', lat_val), ('lon', lon_val),
@@ -977,14 +1289,23 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info("Generating mrm.nml...")
 
         props = self._get_catchment_properties()
+        if self.distributed_morph:
+            g = self._build_distributed_grids()
+            lat2d, lon2d = self._grid_latlon(g)
+            oi, oj = g['outlet']
+            gauge_lat = float(lat2d[oi, oj])
+            gauge_lon = float(lon2d[oi, oj])
+        else:
+            gauge_lat = props['lat'] - self.LUMPED_CELLSIZE
+            gauge_lon = props['lon']
 
         routing_content = f"""!-- mRM Routing Namelist File --
 !-- Generated by SYMFLUENCE on {datetime.now().isoformat()} --
 
 &routing1
   gaugeID(1)          = 1
-  gauge_lat(1)        = {props['lat'] - self.LUMPED_CELLSIZE:.6f}
-  gauge_lon(1)        = {props['lon']:.6f}
+  gauge_lat(1)        = {gauge_lat:.6f}
+  gauge_lon(1)        = {gauge_lon:.6f}
 /
 
 &routing_general
