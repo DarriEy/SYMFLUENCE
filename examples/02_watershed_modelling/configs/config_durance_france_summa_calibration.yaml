@@ -54,7 +54,6 @@ FORCING_MEASUREMENT_HEIGHT: 2
 # Observations - Hub'Eau French streamflow
 STATION_ID: 'V2634010'  # Durance at Serre-Ponçon
 STREAMFLOW_DATA_PROVIDER: hubeau
-DOWNLOAD_HUBEAU_DATA: true
 
 # Hub'Eau specific settings
 evaluation:
@@ -85,7 +84,6 @@ SETTINGS_SUMMA_USE_PARALLEL_SUMMA: true
 
 # Routing
 ROUTING_MODEL: mizuroute
-ROUTING_EXE: mizuRoute.exe
 
 # SUMMA decision files - Snow-focused for alpine catchment
 SUMMA_DECISIONS:

@@ -40,6 +40,8 @@ NORMALIZATION_ALIASES: Dict[str, str] = {
     # (maps to optimization.metric). Renaming here makes old configs both
     # recognized and functional, rather than silently inert.
     "TARGET_METRIC": "OPTIMIZATION_METRIC",
+    # Legacy SUMMA decisions spelling -> canonical SUMMA_DECISION_OPTIONS.
+    "SUMMA_DECISIONS": "SUMMA_DECISION_OPTIONS",
 }
 
 # Maps deprecated flat keys to their preferred replacements.

@@ -184,9 +184,6 @@ HYPE_SOIL_INIT_WET: true       # Start soil saturated — reduces spinup for wet
 # Routing: rivvel (river velocity), damp (routing damping)
 HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp,wcwp,wcfc,wcep,srrcs,ttpi,cmrefr
 
-# SLC fraction threshold — keep classes covering at least 5% of a sub-basin
-HYPE_FRAC_THRESHOLD: 0.05
-
 # ── Parameter regionalization ──────────────────────────────────────
 # Transfer-function (MPR-style): param = a + b * attribute_norm
 # LU params (ttmp,cmlt,cevp,srrcs) vary by vegetation/glacier/LAI

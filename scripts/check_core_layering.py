@@ -58,19 +58,11 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "Bootstrap seeds R.metrics from the evaluation metric registry (IoC).",
     ),
     (
-        "config/defaults.py",
-        "symfluence.models",
-        "Triggers model package import so config adapters register before defaults are read.",
-    ),
-    (
-        "config/models/domain.py",
-        "symfluence.data.acquisition.attribute_profiles",
-        "Field validator checks ATTRIBUTE_PROFILE against the data-layer profile catalogue.",
-    ),
-    (
         "config/factories.py",
         "symfluence.cli.init_presets",
-        "from_preset factory resolves a named CLI init preset at call time.",
+        "from_preset factory resolves a named CLI init preset at call time; the "
+        "preset catalogue transitively needs the models layer, and from_preset "
+        "is a public SymfluenceConfig classmethod, so this stays a call-time seam.",
     ),
 ]
 
