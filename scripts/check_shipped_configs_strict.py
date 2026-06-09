@@ -120,7 +120,8 @@ def evaluate() -> Tuple[List[Tuple[str, List[str]]], List[Tuple[str, int]], List
         + glob.glob(str(REPO_ROOT / "examples" / "**" / "*.yaml"), recursive=True)
     )
     for f in shipped:
-        rel = str(Path(f).relative_to(REPO_ROOT))
+        # Use POSIX separators so EXEMPT's forward-slash patterns match on Windows too.
+        rel = Path(f).relative_to(REPO_ROOT).as_posix()
         if _is_exempt(rel):
             try:
                 reported.append((rel, len(_unknown_keys(Path(f)))))
