@@ -46,8 +46,6 @@ SETTINGS_SUMMA_ATTRIBUTES: attributes_glac.nc
 SETTINGS_SUMMA_TRIALPARAMS: trialParams.nc
 SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt
 SETTINGS_SUMMA_GLACIER_MODE: True
-SETTINGS_SUMMA_INIT_GRID_FILE: coldState_glacSurfTopo.nc
-SETTINGS_SUMMA_ATTRIB_GRID_FILE: attributes_glacBedTopo.nc
 
 # Calibration and Optimization
 SPINUP_PERIOD: "2008-01-01,2008-09-30"

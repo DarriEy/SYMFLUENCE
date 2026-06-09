@@ -138,8 +138,6 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "SETTINGS_SUMMA_GLACIER_ATTRIBUTES": ("model", "summa", "glacier_attributes"),
     "SETTINGS_SUMMA_GLACIER_COLDSTATE": ("model", "summa", "glacier_coldstate"),
     "SETTINGS_SUMMA_SOILPROFILE": ("model", "summa", "soilprofile"),
-    "SETTINGS_SUMMA_INIT_GRID_FILE": ("model", "summa", "init_grid_file"),
-    "SETTINGS_SUMMA_ATTRIB_GRID_FILE": ("model", "summa", "attrib_grid_file"),
     "SETTINGS_FUSE_FILEMANAGER": ("model", "fuse", "filemanager"),
     "SETTINGS_FUSE_PARAMS_TO_CALIBRATE": ("model", "fuse", "params_to_calibrate"),
     "SETTINGS_GR_CONTROL": ("model", "gr", "control"),
