@@ -121,12 +121,34 @@ case "$(uname -s 2>/dev/null)" in
         ;;
 esac
 
-# Boost (local)
-if [ ! -d "boost_1_79_0" ]; then
+# Boost (local).
+# ngen needs Boost >= 1.79; many distros ship older (e.g. Debian bullseye's
+# 1.74 that libgdal-dev pulls in transitively). We vendor 1.79 headers locally
+# and force CMake onto them. The old guard ([ ! -d boost_1_79_0 ]) accepted a
+# partial dir from a failed download, and a single flaky SourceForge URL with
+# no error check meant a failed fetch silently left BOOST_ROOT empty — FindBoost
+# then fell back to the system 1.74 and configuration failed. Guard on the
+# header CMake actually reads, try reliable mirrors in turn, and fail loudly.
+if [ ! -f "boost_1_79_0/boost/version.hpp" ]; then
   echo "Fetching Boost 1.79.0..."
-  (wget -q https://downloads.sourceforge.net/project/boost/boost/1.79.0/boost_1_79_0.tar.bz2 -O boost_1_79_0.tar.bz2 \
-    || curl -fsSL -o boost_1_79_0.tar.bz2 https://downloads.sourceforge.net/project/boost/boost/1.79.0/boost_1_79_0.tar.bz2)
-  tar -xjf boost_1_79_0.tar.bz2 && rm -f boost_1_79_0.tar.bz2
+  rm -rf boost_1_79_0 boost_1_79_0.tar.bz2
+  for _boost_url in \
+    "https://archives.boost.io/release/1.79.0/source/boost_1_79_0.tar.bz2" \
+    "https://boostorg.jfrog.io/artifactory/main/release/1.79.0/source/boost_1_79_0.tar.bz2" \
+    "https://downloads.sourceforge.net/project/boost/boost/1.79.0/boost_1_79_0.tar.bz2"; do
+    echo "  trying $_boost_url"
+    if (wget -q "$_boost_url" -O boost_1_79_0.tar.bz2 \
+          || curl -fsSL -o boost_1_79_0.tar.bz2 "$_boost_url") \
+       && tar -xjf boost_1_79_0.tar.bz2; then
+      break
+    fi
+    rm -rf boost_1_79_0 boost_1_79_0.tar.bz2
+  done
+  rm -f boost_1_79_0.tar.bz2
+  if [ ! -f "boost_1_79_0/boost/version.hpp" ]; then
+    echo "ERROR: failed to fetch/extract Boost 1.79.0 from all mirrors" >&2
+    exit 1
+  fi
 fi
 export BOOST_ROOT="$(pwd)/boost_1_79_0"
 export CXX=${CXX:-g++}
@@ -369,14 +391,18 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # (ngen's FindUDUNITS2.cmake uses it in IMPORTED_LOCATION).
   case "$_U2_LIB" in
     *.dll.a|*.dylib|*.so)
-      # Shared/import library (e.g. MSYS2 mingw-w64 libudunits2.dll.a): the DLL
-      # carries its own deps (expat/...), so no transitive -lexpat/-ldl/-lm. But
-      # the final ngen.exe must still link udunits2 itself, or its symbols
+      # Shared/import library (e.g. MSYS2 mingw-w64 libudunits2.dll.a, or
+      # Homebrew's libudunits2.dylib): the DLL/dylib carries its own deps
+      # (expat/...), so no transitive -lexpat/-ldl/-lm. But the final ngen
+      # executable must still link udunits2 itself, or its symbols
       # (ut_free/cv_free) are undefined. ngen's FindUDUNITS2 IMPORTED target does
-      # not propagate to the executable on Windows, so add -ludunits2 explicitly
-      # (it's in the mingw64 default lib path). .dll.a ends in ".a" but is NOT a
-      # static archive, so it must not take the static branch below.
-      EXTRA_LIBS="${EXTRA_LIBS:-} -ludunits2"
+      # not propagate to the executable, so add -ludunits2 explicitly. Unlike
+      # mingw64's default lib path, Homebrew's lib dir (/opt/homebrew/lib) is NOT
+      # on the macOS linker search path, so add -L<libdir> too or the bare
+      # -ludunits2 fails with "ld: library 'udunits2' not found". .dll.a ends in
+      # ".a" but is NOT a static archive, so it must not take the static branch.
+      _U2_LIBDIR=$(dirname "$_U2_LIB")
+      EXTRA_LIBS="${EXTRA_LIBS:-} -L${_U2_LIBDIR} -ludunits2"
       ;;
     *.a)
       # True static archive — its transitive deps must follow it on the link
