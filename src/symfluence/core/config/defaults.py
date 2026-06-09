@@ -49,15 +49,12 @@ class ModelDefaults:
         """
         from symfluence.core.config.config_resolution import get_config_defaults
 
-        # Ensure model modules are imported so config adapters are registered.
-        # Importing symfluence.models triggers all model __init__.py files
-        # which register their adapters with the unified registry.
-        try:
-            import symfluence.models  # noqa: F401
-        except (ImportError, OSError):
-            pass
-
-        # Resolve defaults via adapter first, then directly-registered R.config_defaults
+        # Model config adapters are registered at import time by the registry
+        # bootstrap (core/_bootstrap.py), which loads every ``symfluence.models.*``
+        # entry point. That runs on any ``import symfluence``, so adapters are
+        # already present here; if a model's adapter is genuinely absent we fall
+        # through to the empty-defaults warning below rather than reaching up into
+        # the models layer to force an import.
         defaults = get_config_defaults(model.upper()) or {}
 
         if not defaults:
