@@ -20,6 +20,8 @@ import os
 from datetime import datetime
 from typing import Tuple
 
+import geopandas as gpd
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -49,6 +51,53 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # Relative path from setup_dir (CWD at runtime) to sim_output_dir
         self._output_relpath = os.path.relpath(self.sim_output_dir, self.setup_dir)
+
+        # Distributed-groundwater mode: lumped PRMS surface (1 HRU) coupled to a
+        # multi-cell MODFLOW grid carrying real per-cell DEM elevations, with the
+        # stream confined to a single flow path. This creates genuine head
+        # gradients (topography + distance-to-stream) so hydraulic conductivity
+        # and spatial groundwater routing actually matter -- unlike the lumped
+        # single-value-elevation grid where K is inert. Isolates the
+        # groundwater-routing contribution (surface side identical to PRMS).
+        self.distributed_gw = bool(self._get_config_value(
+            lambda: self.config.model.gsflow.distributed_gw,
+            default=False, dict_key='GSFLOW_DISTRIBUTED_GW'))
+        self.gw_grid_n = int(self._get_config_value(
+            lambda: self.config.model.gsflow.gw_grid_n,
+            default=10, dict_key='GSFLOW_GW_GRID_N'))
+        if self.distributed_gw:
+            logger.info(f"GSFLOW distributed GW ON ({self.gw_grid_n}x{self.gw_grid_n} "
+                        "MODFLOW grid, lumped PRMS surface)")
+
+    def _sample_dem_to_grid(self, nrow: int, ncol: int):
+        """Resample the catchment DEM to an nrow x ncol grid of mean elevations.
+
+        Returns a 2D numpy array (nrow x ncol) of cell-mean elevations, or None
+        if no DEM is available (caller falls back to a constant surface).
+        """
+        try:
+            import rasterio
+            from rasterio.enums import Resampling
+            dd = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dems = sorted(dd.glob('*_elv.tif')) if dd.exists() else []
+            if not dems:
+                return None
+            with rasterio.open(dems[0]) as src:
+                arr = src.read(
+                    1, out_shape=(nrow, ncol), resampling=Resampling.average
+                ).astype('float64')
+                nd = src.nodata
+            if nd is not None:
+                arr = np.where(arr == nd, np.nan, arr)
+            arr = np.where(np.isfinite(arr) & (arr > -100.0), arr, np.nan)
+            if np.isnan(arr).all():
+                return None
+            # Fill any NaN cells with the grid mean so the surface is complete.
+            arr = np.where(np.isnan(arr), np.nanmean(arr), arr)
+            return arr
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not resample DEM to grid: {e}", exc_info=True)
+            return None
 
     # ------------------------------------------------------------------
     # Main entry
@@ -105,6 +154,60 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         return start, end
 
     # ------------------------------------------------------------------
+    # 0.  Per-domain geometry from the model-ready datastore
+    # ------------------------------------------------------------------
+    def _get_catchment_properties(self) -> dict:
+        """Catchment lat/lon/area (shapefile) and mean elev/slope/aspect (DEM).
+
+        Projection-safe (mirrors the CRHM/PRMS approach); falls back to
+        physically reasonable Icelandic defaults if the datastore is absent.
+        """
+        props = {'lat': 65.0, 'lon': -19.0, 'area_km2': 100.0,
+                 'elev': 500.0, 'slope': 5.0, 'aspect': 180.0}
+        try:
+            cp = self.get_catchment_path()
+            if cp and cp.exists():
+                gdf = gpd.read_file(cp)
+                if gdf.crs is None:
+                    gdf = gdf.set_crs(epsg=4326)
+                if gdf.crs.is_geographic:
+                    pt = gdf.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326).iloc[0]
+                else:
+                    pt = gdf.geometry.centroid.to_crs(epsg=4326).iloc[0]
+                lon, lat = pt.x, pt.y
+                utm = int((lon + 180) / 6) + 1
+                area_m2 = gdf.to_crs(f"EPSG:{(32600 if lat >= 0 else 32700)+utm}").geometry.area.sum()
+                props.update({'lat': lat, 'lon': lon, 'area_km2': area_m2 / 1e6})
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not read catchment shapefile: {e}; defaults", exc_info=True)
+        try:
+            import rasterio
+            dd = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dems = sorted(dd.glob('*_elv.tif')) if dd.exists() else []
+            if dems:
+                with rasterio.open(dems[0]) as src:
+                    z = src.read(1).astype('float64'); nd = src.nodata
+                    xres, yres = src.res; geo = src.crs is not None and src.crs.is_geographic
+                    bnds = src.bounds
+                m = np.isfinite(z) & (z > -100.0)
+                if nd is not None:
+                    m &= z != nd
+                if m.any():
+                    props['elev'] = float(z[m].mean())
+                    if geo:
+                        lat0 = np.radians((bnds.bottom + bnds.top) / 2.0)
+                        xm = abs(xres) * 111320.0 * max(np.cos(lat0), 0.1); ym = abs(yres) * 111320.0
+                    else:
+                        xm, ym = abs(xres), abs(yres)
+                    dy, dx = np.gradient(np.where(m, z, np.nan), ym, xm)
+                    props['slope'] = float(np.nanmean(np.degrees(np.arctan(np.hypot(dx, dy)))[m]))
+                    props['relief'] = float(np.nanpercentile(z[m], 95) - np.nanpercentile(z[m], 5))
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not read DEM attributes: {e}; defaults", exc_info=True)
+        props.setdefault('relief', 200.0)
+        return props
+
+    # ------------------------------------------------------------------
     # 1.  PRMS data file  (ERA5 → daily P / Tmax / Tmin)
     # ------------------------------------------------------------------
     def _generate_data_file(self, start_date: datetime, end_date: datetime) -> None:
@@ -129,19 +232,30 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
-        airtemp = ds['air_temperature'].values.squeeze()   # K
-        pptrate = ds['precipitation_flux'].values.squeeze()    # mm/s
-        times = pd.DatetimeIndex(ds['time'].values)
+        # Resolve variable names across ERA5 + CARRA/SUMMA conventions and
+        # integrate precip over the ACTUAL timestep (CARRA is 3-hourly), not a
+        # hard-coded hour -- otherwise KeyError on CARRA and ~3x precip undercount.
+        def _pick(*names):
+            for n in names:
+                if n in ds:
+                    return ds[n].values.squeeze()
+            raise KeyError(f"None of {names} in forcing; have {list(ds.data_vars)}")
 
-        hourly = pd.DataFrame({
+        airtemp = _pick('air_temperature', 'airtemp', 'temperature', 't2m')   # K
+        pptrate = _pick('precipitation_flux', 'pptrate', 'precipitation')      # mm s-1
+        times = pd.DatetimeIndex(ds['time'].values)
+        dt_seconds = (float((times[1] - times[0]) / np.timedelta64(1, 's'))
+                      if len(times) > 1 else 3600.0)
+
+        sub = pd.DataFrame({
             'airtemp_C': airtemp - 273.15,
-            'precip_mm': pptrate * 3600.0,
+            'precip_mm': pptrate * dt_seconds,
         }, index=times)
 
         daily = pd.DataFrame({
-            'precip': hourly['precip_mm'].resample('D').sum(),
-            'tmax': hourly['airtemp_C'].resample('D').max(),
-            'tmin': hourly['airtemp_C'].resample('D').min(),
+            'precip': sub['precip_mm'].resample('D').sum(),
+            'tmax': sub['airtemp_C'].resample('D').max(),
+            'tmin': sub['airtemp_C'].resample('D').min(),
         }).dropna(how='all')
 
         ds.close()
@@ -169,19 +283,35 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _generate_parameter_file(self) -> None:
         logger.info("Generating GSFLOW parameter file...")
 
-        nrow, ncol = 3, 3
-        ncells = nrow * ncol
-        nhru = ncells          # 1 HRU per MODFLOW cell (1:1 GVR mapping)
-        nsegment = 1
-        nreach = ncells         # 1 SFR reach per cell (full coverage)
         nmonths = 12
-        nhrucell = ncells      # 1:1 mapping → 9 HRU-cell pairs
+        nsegment = 1
+        if self.distributed_gw:
+            # Lumped PRMS surface (1 HRU) over an N x N MODFLOW grid; the stream
+            # runs down a single column (N reaches), so off-stream cells must
+            # transmit groundwater laterally to reach it (K-dependent).
+            nrow = ncol = self.gw_grid_n
+            ncells = nrow * ncol
+            nhru = 1
+            nreach = nrow            # single-column stream path
+            nhrucell = ncells        # N^2 GVRs, all -> the single HRU
+        else:
+            nrow, ncol = 3, 3
+            ncells = nrow * ncol
+            nhru = ncells            # 1 HRU per MODFLOW cell (1:1 GVR mapping)
+            nreach = ncells          # serpentine: 1 SFR reach per cell
+            nhrucell = ncells
 
-        lat = 51.17
-        lon = -115.57
-        elev = 1500.0
-        area_km2 = 2210.0
-        hru_area_acres = area_km2 * 247.105 / nhru  # each HRU = 1/9 of basin
+        # Geometry from the per-domain model-ready datastore (cached so the
+        # MODFLOW package builder reuses the same values).
+        self._props = self._get_catchment_properties()
+        lat = self._props['lat']
+        lon = self._props['lon']
+        elev = self._props['elev']
+        area_km2 = self._props['area_km2']
+        hru_area_acres = area_km2 * 247.105 / nhru  # each HRU = 1/nhru of basin
+        logger.info(
+            f"GSFLOW HRU from datastore: lat={lat:.3f} lon={lon:.3f} "
+            f"elev={elev:.0f} m area={area_km2:.1f} km2")
 
         out = self.setup_dir / 'params.dat'
         with open(out, 'w') as f:
@@ -323,13 +453,23 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             wp("x_coef", 1, "nsegment", nsegment, 2, 0.2)
             wp("obsin_segment", 1, "nsegment", nsegment, 1, 0)
 
-            # -- GVR mapping (1:1, each HRU maps to one cell) --
-            wp("gvr_hru_id", 1, "nhrucell", nhrucell, 1,
-               list(range(1, nhru + 1)))
-            wp("gvr_cell_id", 1, "nhrucell", nhrucell, 1,
-               list(range(1, ncells + 1)))
-            wp("gvr_cell_pct", 1, "nhrucell", nhrucell, 2,
-               [f"{1.0:.6f}"] * nhrucell)
+            # -- GVR mapping --
+            if self.distributed_gw:
+                # Lumped surface: every cell's GVR belongs to the single HRU,
+                # each carrying 1/ncells of the HRU area.
+                wp("gvr_hru_id", 1, "nhrucell", nhrucell, 1, [1] * nhrucell)
+                wp("gvr_cell_id", 1, "nhrucell", nhrucell, 1,
+                   list(range(1, ncells + 1)))
+                wp("gvr_cell_pct", 1, "nhrucell", nhrucell, 2,
+                   [f"{1.0 / ncells:.8f}"] * nhrucell)
+            else:
+                # 1:1 — each HRU maps to one cell.
+                wp("gvr_hru_id", 1, "nhrucell", nhrucell, 1,
+                   list(range(1, nhru + 1)))
+                wp("gvr_cell_id", 1, "nhrucell", nhrucell, 1,
+                   list(range(1, ncells + 1)))
+                wp("gvr_cell_pct", 1, "nhrucell", nhrucell, 2,
+                   [f"{1.0:.6f}"] * nhrucell)
 
             # -- Cascade routing (each HRU → segment 1) --
             wp("hru_up_id", 1, "ncascade", nhru, 1,
@@ -359,14 +499,36 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info("Generating MODFLOW-NWT packages...")
 
         ndays = (end_date - start_date).days
-        nrow, ncol = 3, 3
-        cell_size = 15700.0  # ~15.7 km → 9 cells ≈ 2210 km²
-        top_elev = 1600.0
-        bot_elev = 1400.0
-        init_head = 1595.0   # shallow water table (5 m below surface)
+        # Grid geometry from the datastore (cached by _generate_parameter_file;
+        # fall back to a fresh read if packages are generated standalone).
+        props = getattr(self, '_props', None) or self._get_catchment_properties()
+        area_m2 = props['area_km2'] * 1e6
+        nrow = ncol = self.gw_grid_n if self.distributed_gw else 3
+        cell_size = float(np.sqrt(area_m2) / nrow)   # m
+        aquifer_thick = max(100.0, float(props.get('relief', 200.0)))
+
+        # Per-cell land-surface elevations. Distributed mode samples the DEM onto
+        # the grid (the head-gradient source that makes K matter); lumped mode
+        # uses a single mean elevation. top_grid is an (nrow x ncol) array.
+        top_grid = None
+        if self.distributed_gw:
+            top_grid = self._sample_dem_to_grid(nrow, ncol)
+        if top_grid is None:
+            top_grid = np.full((nrow, ncol), float(props['elev']))
+        top_elev = float(np.mean(top_grid))          # representative surface
+        bot_grid = top_grid - aquifer_thick          # aquifer base per cell
+        bot_elev = float(np.mean(bot_grid))
+        init_head = top_elev - 5.0   # shallow water table (5 m below surface)
+
+        def _mf_array(grid, fmt='%.2f'):
+            """Format a 2D array as a MODFLOW INTERNAL block (free format)."""
+            lines = ["  INTERNAL  1.0  (FREE)  0"]
+            for r in range(grid.shape[0]):
+                lines.append("    " + " ".join(fmt % v for v in grid[r]))
+            return "\n".join(lines) + "\n"
         hk = 1.0             # m/d  (calibrated as K)
         sy = 0.15            # (-)  (calibrated as SY)
-        stream_elev = 1585.0 # stream bed 15 m below land surface
+        stream_elev = top_elev - 15.0  # stream bed 15 m below land surface
         stream_slope = 0.0001  # gentle slope; total drop ≈ 12.6 m over 9 reaches
         stream_width = 5.0
         strmbed_k = 1.0      # streambed hydraulic conductivity (m/d)
@@ -396,8 +558,12 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write(" 0\n")
             f.write(f"  CONSTANT  {cell_size:.1f}\n")
             f.write(f"  CONSTANT  {cell_size:.1f}\n")
-            f.write(f"  CONSTANT  {top_elev:.1f}\n")
-            f.write(f"  CONSTANT  {bot_elev:.1f}\n")
+            if self.distributed_gw:
+                f.write(_mf_array(top_grid))     # per-cell land surface (DEM)
+                f.write(_mf_array(bot_grid))     # per-cell aquifer base
+            else:
+                f.write(f"  CONSTANT  {top_elev:.1f}\n")
+                f.write(f"  CONSTANT  {bot_elev:.1f}\n")
             f.write("    1.0  1  1.0  SS\n")
             f.write(f"    {float(ndays):.1f}  {ndays}  1.0  TR\n")
         logger.info(f"  DIS: {dis}  ({nrow}x{ncol}, {ndays} days)")
@@ -411,8 +577,12 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("  CONSTANT  1\n")
             # HNOFLO (head assigned to no-flow cells)
             f.write("  -999.99\n")
-            # STRT (starting heads) layer 1
-            f.write(f"  CONSTANT  {init_head:.1f}\n")
+            # STRT (starting heads) layer 1 — start ~5 m below the local surface
+            # in distributed mode so the water table follows topography.
+            if self.distributed_gw:
+                f.write(_mf_array(top_grid - 5.0))
+            else:
+                f.write(f"  CONSTANT  {init_head:.1f}\n")
 
         # -- UPW  (K, SY — updated during calibration) --
         upw = mf / 'bow.upw'
@@ -476,29 +646,51 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("  -1\n")                       # NUZF1 < 0 = reuse
         logger.info(f"  UZF: {uzf}")
 
-        # -- SFR  (1 segment, 9 reaches — serpentine through all cells) --
-        nsfr_reach = nrow * ncol
-        sfr = mf / 'bow.sfr'
-        with open(sfr, 'w') as f:
-            f.write(f"# GSFLOW SFR Package (3x3 grid — {nsfr_reach} reaches)\n")
-            f.write("OPTIONS\nREACHINPUT\nEND\n")
-            f.write(f"    {nsfr_reach}    1    0    0  86400.0  0.0001"
-                    f"  -1  0  3  10  1  40  0\n")
-            # Serpentine path: row1 L→R, row2 R→L, row3 L→R
+        # -- SFR  (1 segment) --
+        # Distributed mode: a single stream down the lowest (valley) column so
+        # off-stream cells must transmit groundwater laterally to it. Lumped
+        # mode: serpentine path visiting every cell (no lateral gradient).
+        if self.distributed_gw:
+            # Valley column = column with the lowest mean surface elevation.
+            col_means = top_grid.mean(axis=0)
+            jcol = int(np.argmin(col_means)) + 1  # 1-based
+            # Reaches ordered downstream = descending land-surface elevation.
+            rows_sorted = sorted(range(1, nrow + 1),
+                                 key=lambda r: -top_grid[r - 1, jcol - 1])
+            reach_cells = [(r, jcol) for r in rows_sorted]
+            # Streambed top: 2 m below local surface, forced strictly decreasing.
+            strtops = []
+            prev = None
+            for (r, c) in reach_cells:
+                s = float(top_grid[r - 1, c - 1]) - 2.0
+                if prev is not None and s >= prev:
+                    s = prev - 0.5
+                strtops.append(s)
+                prev = s
+        else:
             reach_cells = []
             for row in range(1, nrow + 1):
                 cols = range(1, ncol + 1) if row % 2 == 1 else range(ncol, 0, -1)
                 for col in cols:
                     reach_cells.append((row, col))
-            # Write reach data with decreasing STRTOP
+            strtops = [stream_elev + stream_slope * (len(reach_cells) - i) * cell_size
+                       for i in range(1, len(reach_cells) + 1)]
+
+        nsfr_reach = len(reach_cells)
+        sfr = mf / 'bow.sfr'
+        with open(sfr, 'w') as f:
+            f.write(f"# GSFLOW SFR Package ({nrow}x{ncol} grid — {nsfr_reach} reaches)\n")
+            f.write("OPTIONS\nREACHINPUT\nEND\n")
+            f.write(f"    {nsfr_reach}    1    0    0  86400.0  0.0001"
+                    f"  -1  0  3  10  1  40  0\n")
             rchlen = cell_size
-            for ireach, (row, col) in enumerate(reach_cells, 1):
-                strtop = stream_elev + stream_slope * (nsfr_reach - ireach) * cell_size
+            for ireach, ((row, col), strtop) in enumerate(zip(reach_cells, strtops), 1):
+                slope_r = max(stream_slope, 1.0e-4)
                 # KRCH IRCH JRCH ISEG IREACH RCHLEN STRTOP SLOPE
                 #   STRTHICK STRMBD_K THTS THTI EPS UHC
                 f.write(f"    1    {row}    {col}    1    {ireach}"
                         f"  {rchlen:.1f}  {strtop:.1f}"
-                        f"  {stream_slope:.6f}  1.0"
+                        f"  {slope_r:.6f}  1.0"
                         f"  {strmbed_k:.1f}  0.30  0.20  3.5  0.3\n")
             # Stress period 1 (SS): segment data
             f.write("    1    0    0\n")

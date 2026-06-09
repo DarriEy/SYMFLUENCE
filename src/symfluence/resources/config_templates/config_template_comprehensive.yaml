@@ -7197,6 +7197,23 @@ GSFLOW_PARAMS_TO_CALIBRATE: soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coe
 #   Usage:      3
 GSFLOW_TIMEOUT: 7200
 
+# Distributed-groundwater mode: lumped PRMS surface over an NxN MODFLOW grid
+# with per-cell DEM elevations, so hydraulic conductivity / spatial routing matter.
+# GSFLOW_DISTRIBUTED_GW
+#   Type:        bool
+#   Default:     false
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      1
+GSFLOW_DISTRIBUTED_GW: false
+
+# MODFLOW grid dimension (N) for distributed-groundwater mode (N x N cells).
+# GSFLOW_GW_GRID_N
+#   Type:        int
+#   Default:     10
+#   Source:      GSFLOWConfig (model_configs.py)
+#   Usage:      1
+GSFLOW_GW_GRID_N: 10
+
 
 # 9.15. WATFLOOD Model Configuration
 # ================================================================================
