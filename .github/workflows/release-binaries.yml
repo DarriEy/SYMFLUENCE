@@ -342,7 +342,10 @@ jobs:
           RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire"
           for tool in $RELEASE_EXTRAS; do
             echo "::group::Installing $tool"
-            "$PYTHON_CMD" -m symfluence binary install "$tool" || echo "WARNING: $tool install failed (non-fatal)"
+            # Non-fatal, but emit a ::warning:: so a build that stops producing a
+            # tool shows up in the job summary instead of being buried in the log.
+            "$PYTHON_CMD" -m symfluence binary install "$tool" \
+              || echo "::warning::Optional model '$tool' failed to build on ${{ matrix.platform }} (non-fatal — not shipped this release)"
             echo "::endgroup::"
           done
 
@@ -707,7 +710,11 @@ jobs:
             REQUIRED_BINS="mizuroute"
           fi
 
-          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow pihm gsflow clm rhessys hype mesh"
+          # On-disk binary names (not config keys): modflow->mf6, clmparflow->
+          # parflow-clm. `pitremove` stands in for TauDEM's 13 utilities (if the
+          # TauDEM build fails, none exist). Keep this list in sync with what the
+          # build actually stages, or a tool can silently stop shipping unnoticed.
+          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow parflow-clm pitremove pihm gsflow clm rhessys hype mesh"
 
           for binary in $REQUIRED_BINS; do
             if [ -f "$BIN_DIR/$binary" ] || [ -f "$BIN_DIR/$binary.exe" ]; then
@@ -780,6 +787,14 @@ jobs:
           echo "Testing SUMMA...";     check_binary "$SUMMA_MODE" SUMMA     "$BIN_DIR/summa"     --version
           echo "Testing mizuRoute..."; check_binary "$MIZU_MODE"  mizuRoute "$BIN_DIR/mizuroute" --help
           echo "Testing NGEN...";      check_binary optional      NGEN      "$BIN_DIR/ngen"      --version
+
+          # Wider optional smoke set: these ship on most platforms, so actually
+          # executing them (when present) catches a broken/unrelocatable binary
+          # that a mere file-existence check would miss. Absent ones are skipped.
+          echo "Testing FUSE...";      check_binary optional      FUSE      "$BIN_DIR/fuse"      --help
+          echo "Testing HYPE...";      check_binary optional      HYPE      "$BIN_DIR/hype"      --version
+          echo "Testing MESH...";      check_binary optional      MESH      "$BIN_DIR/mesh"      --help
+          echo "Testing TauDEM...";    check_binary optional      TauDEM    "$BIN_DIR/pitremove"
 
           echo "All critical binaries are executable"
 
