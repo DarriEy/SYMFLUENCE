@@ -515,6 +515,8 @@ class MHMConfig(BaseModel):
         alias='MHM_PARAMS_TO_CALIBRATE'
     )
     timeout: int = Field(default=3600, alias='MHM_TIMEOUT', ge=60, le=86400)
+    distributed_morph: bool = Field(default=False, alias='MHM_DISTRIBUTED')
+    grid_res: float = Field(default=0.02, alias='MHM_GRID_RES', gt=0.0)
 
 
 class CRHMConfig(BaseModel):
