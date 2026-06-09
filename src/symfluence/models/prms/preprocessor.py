@@ -341,7 +341,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 props.update({'lat': lat, 'lon': lon,
                               'area_km2': area_m2 / 1e6})
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read catchment shapefile: {e}; using defaults")
+            logger.warning(f"Could not read catchment shapefile: {e}; using defaults", exc_info=True)
 
         # DEM-derived elevation / slope / aspect (mean over the catchment).
         try:
@@ -376,7 +376,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                         (np.degrees(np.arctan2(np.nanmean(np.sin(a)),
                                                np.nanmean(np.cos(a)))) + 360.0) % 360.0)
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read DEM attributes: {e}; using defaults")
+            logger.warning(f"Could not read DEM attributes: {e}; using defaults", exc_info=True)
 
         return props
 
@@ -411,7 +411,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     else:                            # 11 wetland,13 urban,15 ice,16 barren
                         out['cov_type'] = 0
         except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not read land class: {e}; cov_type default")
+            logger.warning(f"Could not read land class: {e}; cov_type default", exc_info=True)
         return out
 
     def _generate_parameter_file(self) -> None:
