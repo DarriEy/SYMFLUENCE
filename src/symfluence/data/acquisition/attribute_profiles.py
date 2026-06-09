@@ -187,3 +187,15 @@ PROFILES: Dict[str, List[ProfileDataset]] = {
     'camels_spat': _CAMELS_SPAT_DATASETS,
     'full': _FULL_DATASETS,
 }
+
+# The canonical set of valid profile names lives in core so the config validator
+# can check ATTRIBUTE_PROFILE without importing the data layer. Keep the two in
+# sync — this mapping is the source of dataset content, that constant is the
+# source of the name contract.
+from symfluence.core.config.constants import VALID_ATTRIBUTE_PROFILES
+
+assert set(PROFILES) == set(VALID_ATTRIBUTE_PROFILES), (
+    "attribute-profile names drifted from core.config.constants."
+    "VALID_ATTRIBUTE_PROFILES: "
+    f"{set(PROFILES) ^ set(VALID_ATTRIBUTE_PROFILES)}"
+)
