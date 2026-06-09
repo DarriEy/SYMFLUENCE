@@ -157,6 +157,17 @@ else:
     replacement = 'GCLIB\t\t= -lgfortran'
 txt = re.sub(gclib_pattern, replacement, txt, flags=re.MULTILINE)
 
+# Pin the C standard to gnu17. PRMS's read_params.c declares
+# 'static char *open_parameter_file();' (empty parens) and calls it with an
+# argument. In C17 () is an unprototyped declaration (arg ignored), so it
+# builds on Linux/macOS, whose gcc defaults to gnu17. GCC 14+ — as shipped by
+# MSYS2/MinGW on the Windows runner — defaults toward the C23 rule where ()
+# means (void), turning that call into a hard error ('too many arguments to
+# function open_parameter_file; expected 0, have 1'). Forcing gnu17 makes the
+# C sources compile identically everywhere (verified locally on gcc 15.2).
+if '-std=' not in txt:
+    txt = re.sub(r'^(CFLAGS\s*=.*)$', r'\1 -std=gnu17', txt, flags=re.MULTILINE)
+
 with open(p, 'w') as f: f.write(txt)
 print('makelist patched successfully')
 "
