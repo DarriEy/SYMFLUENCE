@@ -483,8 +483,14 @@ jobs:
             echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
           fi
 
+      # A manual workflow_dispatch without an explicit tag input resolves the tag
+      # via `git describe`, which points at the latest release (e.g. v0.9.0).
+      # Uploading branch-built binaries there would clobber the real release
+      # assets, so only upload for tag pushes, scheduled rebuilds, or a dispatch
+      # that explicitly names a tag. Dispatch-without-tag still builds + tests
+      # (and keeps the backup workflow artifact) but uploads nothing.
       - name: Upload to Release
-        if: steps.resolve-tag.outputs.tag != ''
+        if: steps.resolve-tag.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.tag != '')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.resolve-tag.outputs.tag }}
