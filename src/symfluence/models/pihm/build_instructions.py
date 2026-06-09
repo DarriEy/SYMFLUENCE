@@ -173,26 +173,38 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
     # Must be sequential: PIHM needs CVODE headers installed before compiling
     cd "${SRC_DIR}"
     make clean 2>/dev/null || true
+    # MM-PIHM's `cvode` Makefile target runs `cmake ../` then a bare `make`.
+    # On Windows the mingw ninja package is installed, so CMake defaults to the
+    # Ninja generator and emits build.ninja — then the target's `make` finds no
+    # Makefile and dies ("No targets specified and no makefile found", Error 2).
+    # CMake honors the CMAKE_GENERATOR env var, so pin Makefiles on Windows.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) export CMAKE_GENERATOR="Unix Makefiles" ;;
+    esac
     make cvode
     make pihm -j "${NCPU}"
 
-    # The Makefile places the binary in the source root (gcc -o pihm ...)
+    # The Makefile places the binary in the source root (gcc -o pihm ...);
+    # on Windows it's pihm.exe.
     PIHM_BIN=""
-    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/bin/pihm"; do
+    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/pihm.exe" "${SRC_DIR}/bin/pihm" "${SRC_DIR}/bin/pihm.exe"; do
         if [ -f "$p" ]; then
             PIHM_BIN="$p"
             break
         fi
     done
     if [ -z "$PIHM_BIN" ]; then
-        # Fallback: search for any executable named pihm
-        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 -name "pihm" -type f 2>/dev/null | head -1)
+        # Fallback: search for any executable named pihm (or pihm.exe)
+        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 \( -name "pihm" -o -name "pihm.exe" \) -type f 2>/dev/null | head -1)
     fi
 
     if [ -n "$PIHM_BIN" ]; then
         mkdir -p "${INSTALL_DIR}/bin"
-        cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm"
-        chmod +x "${INSTALL_DIR}/bin/pihm"
+        case "$PIHM_BIN" in
+            *.exe) cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm.exe" ;;
+            *)     cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm" ;;
+        esac
+        chmod +x "${INSTALL_DIR}/bin/pihm"* 2>/dev/null || true
     else
         echo "ERROR: Build succeeded but pihm binary not found"
         find "${SRC_DIR}" -maxdepth 2 -name "pihm*" -type f 2>/dev/null || echo "No pihm files found"
@@ -221,8 +233,8 @@ fi
         'dependencies': ['cmake', 'make'],
         'test_command': '--version',
         'verify_install': {
-            'file_paths': ['bin/pihm'],
-            'check_type': 'exists'
+            'file_paths': ['bin/pihm', 'bin/pihm.exe'],
+            'check_type': 'exists_any'
         },
         'order': 27,  # After ParFlow (26)
         'optional': True,

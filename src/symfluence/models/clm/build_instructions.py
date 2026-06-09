@@ -154,6 +154,13 @@ _HOME=$($PYTHON3 -c "import pathlib; print(pathlib.Path.home())")
 echo "Resolved HOME via python3: $_HOME"
 export HOME="${_HOME}"
 
+# CIME's create_newcase reads os.environ["USER"] unconditionally. The Linux
+# release runs in a rootless container where $USER is unset, so CLM dies with
+# KeyError: 'USER' before any compile (macOS runners have $USER, so they pass).
+# Provide a fallback so CLM builds on the container too.
+export USER="${USER:-$(id -un 2>/dev/null || whoami 2>/dev/null || echo symfluence)}"
+export LOGNAME="${LOGNAME:-$USER}"
+
 # 1a. Honour pre-set ESMFMKFILE (e.g. from "module load esmf" on HPC)
 if [ -n "${ESMFMKFILE:-}" ] && [ -f "$ESMFMKFILE" ]; then
     echo "Using pre-set ESMFMKFILE: $ESMFMKFILE"

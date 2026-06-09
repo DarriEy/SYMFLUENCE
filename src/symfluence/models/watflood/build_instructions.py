@@ -45,6 +45,12 @@ INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd)"
 BIN_DIR="${INSTALL_DIR}/bin"
 SRC_DIR="${INSTALL_DIR}/src"
 
+# Resolve a Python interpreter for the in-build source patches below. On Windows
+# the build runs under Git Bash, which ships no 'python3' — without this the
+# EF_Module.f eof patches silently no-op ("eof injection failed (non-fatal)").
+PYTHON="$(command -v python3 || command -v python || command -v py || echo python3)"
+echo "Using Python for source patches: $PYTHON"
+
 # === Check for existing native binary ===
 if [ -f "${BIN_DIR}/watflood" ]; then
     file_output=$(file "${BIN_DIR}/watflood" 2>/dev/null || echo "unknown")
@@ -111,8 +117,14 @@ find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
     perl -pi -e 's/==\s*\.true\./\.eqv\.\.true\./gi' "$f"
 done
 
-# Fix integer-as-logical: if(dds_flag)then where dds_flag is integer
-perl -pi -e 's/if\(dds_flag\)then/if(dds_flag.ne.0)then/gi' "${SRC_DIR}/model/dds_code.f" 2>/dev/null || true
+# Fix integer-as-logical: if(dds_flag)then where dds_flag is integer*4. It
+# appears in several built files (model/dds_code.f, common/read_evt.f, ...), so
+# sweep every compiled Fortran source. Only the exact if(dds_flag)then form is
+# rewritten — the genuine logicals 'dds' and 'iopt99' are deliberately untouched.
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+    | while read -r f; do
+        perl -pi -e 's/if\s*\(\s*dds_flag\s*\)\s*then/if(dds_flag.ne.0)then/gi' "$f"
+    done
 
 # Fix character(1) firstpass used as logical in routing subroutines
 for f in "${SRC_DIR}/model/rerout.f" "${SRC_DIR}/model/rules_sl.f" "${SRC_DIR}/model/rules_tl.f90"; do
@@ -149,7 +161,7 @@ done
 # of trying to squeeze it into CONTAINS (which causes host-association errors).
 EF_MOD="${SRC_DIR}/common/EF_Module.f"
 if [ -f "$EF_MOD" ]; then
-    python3 -c "
+    "$PYTHON" -c "
 import re
 with open('$EF_MOD') as f:
     txt = f.read()
@@ -262,7 +274,7 @@ fi
 #     procedure. We must NOT skip this case: EF_Module does not use area_watflood,
 #     so eof is otherwise undeclared here (this was the real watflood build break).
 if [ -f "${SRC_DIR}/common/EF_Module.f" ] && ! grep -q "logical, external :: eof" "${SRC_DIR}/common/EF_Module.f" 2>/dev/null; then
-    python3 -c "
+    "$PYTHON" -c "
 import re
 path = '${SRC_DIR}/common/EF_Module.f'
 with open(path) as f:
