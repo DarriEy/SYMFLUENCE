@@ -189,22 +189,28 @@ if [ -n "${VIC_WIN_COMPAT:-}" ]; then
     # Prepend win_compat path before other includes so pwd.h polyfill is found
     sed -i "s|CFLAGS  =  -fcommon|CFLAGS  = -fcommon ${VIC_WIN_COMPAT}|" Makefile
 
-    # VIC's image-driver Makefile defines the version banner as
+    # VIC's image-driver Makefile bakes a version banner into CFLAGS via
     #   -DGIT_VERSION=\"$(GIT_VERSION)\"  (also -DUSERNAME, -DHOSTNAME)
-    # The \" escaping survives /bin/sh on Linux/macOS but is mangled under
-    # MSYS2/MinGW, so gcc receives the value unquoted — e.g. "8f6c-dirty"
-    # becomes a bare token and fails with "invalid suffix 'f6c' on integer
-    # constant" / "'dirty' undeclared". Wrap the value in single quotes so the
-    # C string literal survives the shell intact ('"$(VAR)"' -> "value").
+    # The \"...\" relies on the recipe shell stripping the backslashes, which
+    # /bin/sh does on Linux/macOS. MSYS2/MinGW make runs recipes through
+    # cmd.exe, where neither \" nor '"..."' survives, so gcc receives e.g.
+    # 8f6c-dirty unquoted and dies: "invalid suffix 'f6c' on integer constant".
+    # No quoting trick is reliable through cmd.exe, so just drop the three
+    # macros on Windows: vic_version.h already #defines GIT_VERSION/USERNAME/
+    # HOSTNAME to "unset" when undefined, and they only feed a cosmetic
+    # "VIC Git Tag" banner, so nothing functional is lost.
     python3 - Makefile <<'PYEOF'
-import sys
+import sys, re
 p = sys.argv[1]
 s = open(p).read()
-bs, dq, sq = chr(92), chr(34), chr(39)
-s = s.replace("=" + bs + dq + "$(", "=" + sq + dq + "$(")
-s = s.replace(")" + bs + dq, ")" + dq + sq)
+s = re.sub(
+    r'(-DLOG_LVL=\$\(LOG_LVL\))\s*\\\s*\n'
+    r'\s*-DGIT_VERSION=.*\\\s*\n'
+    r'\s*-DUSERNAME=.*\\\s*\n'
+    r'\s*-DHOSTNAME=[^\n]*\n',
+    r'\1\n', s)
 open(p, "w").write(s)
-print("  Patched VIC version macros for MSYS2 single-quote survival")
+print("  Dropped VIC version-banner -D macros (MSYS2/cmd.exe quoting is unsafe)")
 PYEOF
 fi
 
