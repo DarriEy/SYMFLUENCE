@@ -639,6 +639,8 @@ class GSFLOWConfig(BaseModel):
         alias='GSFLOW_PARAMS_TO_CALIBRATE'
     )
     gsflow_mode: str = Field(default='COUPLED', alias='GSFLOW_MODE')
+    distributed_gw: bool = Field(default=False, alias='GSFLOW_DISTRIBUTED_GW')
+    gw_grid_n: int = Field(default=10, alias='GSFLOW_GW_GRID_N', ge=2, le=50)
     timeout: int = Field(default=7200, alias='GSFLOW_TIMEOUT', ge=60, le=86400)
 
 

@@ -47,11 +47,18 @@ class GSFLOWWorker(BaseWorker):
                     shutil.rmtree(settings_dir)
                 shutil.copytree(original_setup_dir, settings_dir)
 
-            # Copy forcing data.dat into settings_dir so control file can find it locally
-            forcing_dir = data_dir / f'domain_{domain_name}' / 'data' / 'forcing' / 'GSFLOW_input'
-            data_file = forcing_dir / 'data.dat'
-            if data_file.exists():
-                shutil.copy2(data_file, settings_dir / 'data.dat')
+            # Copy forcing data.dat into settings_dir so the control file (run
+            # with cwd=settings_dir, data_file='data.dat') finds it locally.
+            # The forcing lives under <domain>/forcing/GSFLOW_input (the
+            # preprocessor's forcing_dir); fall back to the legacy data/forcing
+            # layout for older datastores.
+            domain_dir = data_dir / f'domain_{domain_name}'
+            for fdir in (domain_dir / 'forcing' / 'GSFLOW_input',
+                         domain_dir / 'data' / 'forcing' / 'GSFLOW_input'):
+                data_file = fdir / 'data.dat'
+                if data_file.exists():
+                    shutil.copy2(data_file, settings_dir / 'data.dat')
+                    break
 
             params = self._enforce_constraints(params)
 
@@ -194,7 +201,7 @@ class GSFLOWWorker(BaseWorker):
             # Localize control/NAM file paths for this trial:
             # data_file → local data.dat (copied in apply_parameters)
             # output paths → absolute paths into sim_dir
-            control_file = config.get('GSFLOW_CONTROL_FILE', 'control.dat')
+            control_file = config.get('GSFLOW_CONTROL_FILE', 'gsflow.control')
             self._localize_control_paths(settings_dir, sim_dir, control_file)
             self._localize_nam_paths(settings_dir, sim_dir)
 
@@ -335,13 +342,24 @@ class GSFLOWWorker(BaseWorker):
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
             settings_dir = kwargs.get('settings_dir', None)
 
-            output_files = list(sim_dir.glob('statvar*'))
-            if not output_files and settings_dir:
-                output_files = list(Path(settings_dir).glob('statvar*'))
-            if not output_files:
-                return {'kge': self.penalty_score, 'error': 'No output files'}
+            # In COUPLED GSFLOW the basin outlet flow is routed through MODFLOW
+            # SFR and reported as StreamOut_Q in gsflow.csv (m3/day); the PRMS
+            # statvar 'basin_cfs' is NOT the routed streamflow (near-zero in
+            # coupled mode), so the CSV is the authoritative source.
+            sim_series = None
+            csv_files = (list(sim_dir.glob('gsflow.csv'))
+                         or list(sim_dir.glob('gsflow_*.csv'))
+                         or list(sim_dir.glob('*.csv')))
+            if csv_files:
+                sim_series = self._extract_streamflow_from_csv(csv_files[0])
 
-            sim_series = self._extract_streamflow_from_statvar(output_files[0])
+            if sim_series is None or len(sim_series) == 0:
+                output_files = list(sim_dir.glob('statvar*'))
+                if not output_files and settings_dir:
+                    output_files = list(Path(settings_dir).glob('statvar*'))
+                if output_files:
+                    sim_series = self._extract_streamflow_from_statvar(output_files[0])
+
             if sim_series is None or len(sim_series) == 0:
                 return {'kge': self.penalty_score, 'error': 'No streamflow data'}
 
@@ -373,6 +391,30 @@ class GSFLOWWorker(BaseWorker):
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(f"Error calculating GSFLOW metrics: {e}", exc_info=True)
             return {'kge': self.penalty_score, 'error': str(e)}
+
+    def _extract_streamflow_from_csv(self, csv_file: Path) -> Optional[pd.Series]:
+        """Extract basin outlet streamflow from the GSFLOW CSV budget file.
+
+        Uses StreamOut_Q (basin streamflow leaving the SFR network, m3/day)
+        and converts to m3/s. This is the routed streamflow in COUPLED mode.
+        """
+        try:
+            df = pd.read_csv(csv_file)
+            df.columns = [c.strip() for c in df.columns]
+            date_col = df.columns[0]
+            flow_col = next((c for c in df.columns
+                             if c.lower() in ('streamout_q', 'streamflow_out',
+                                              'basinstreamflow_q')), None)
+            if flow_col is None:
+                return None
+            idx = pd.to_datetime(df[date_col])
+            series = pd.Series(pd.to_numeric(df[flow_col], errors='coerce').values,
+                               index=idx, name='GSFLOW_discharge_cms') / 86400.0
+            return series.dropna()
+        except Exception as e:  # noqa: BLE001 — calibration resilience
+            self.logger.error(f"Error reading GSFLOW CSV {csv_file}: {e}",
+                              exc_info=True)
+            return None
 
     def _extract_streamflow_from_statvar(self, statvar_file: Path) -> Optional[pd.Series]:
         """Extract streamflow from GSFLOW statvar file."""
