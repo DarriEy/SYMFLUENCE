@@ -41,7 +41,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -81,7 +81,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -116,7 +116,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -152,7 +152,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -231,7 +231,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -277,7 +277,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 
@@ -337,7 +337,7 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_path = BaseCommand.get_config_path(args)
 

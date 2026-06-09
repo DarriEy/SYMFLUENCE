@@ -84,9 +84,6 @@ src/symfluence/core/profiling/profiler_context.py:_register_worker_export:except
 src/symfluence/core/profiling/system_io_profiler.py:_SubprocessProfiler.run:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/registry.py:Registry._validate_protocol:except Exception:  # noqa: BLE001 — advisory only, never fail
 src/symfluence/core/registry.py:_LazyEntry.resolve:except Exception:  # noqa: BLE001
-src/symfluence/core/system.py:SYMFLUENCE.run_all_diagnostics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/core/system.py:SYMFLUENCE.run_diagnostics_for_step:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/core/system.py:SYMFLUENCE.run_workflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.execute:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.execute:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.read_outputs:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -1236,6 +1233,9 @@ src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optim
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
 src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
+src/symfluence/project/system.py:SYMFLUENCE.run_all_diagnostics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/project/system.py:SYMFLUENCE.run_diagnostics_for_step:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/project/system.py:SYMFLUENCE.run_workflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_individual_steps:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_workflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/reporting/core/base_plotter.py:BasePlotter._plot_safe.decorator.wrapper:except Exception as e:  # noqa: BLE001 — plotting resilience

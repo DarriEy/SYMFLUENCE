@@ -3,10 +3,7 @@
 
 """Common utilities and core system components."""
 
-# CoordinateUtilsMixin is in geospatial module but re-exported here for convenience
 from __future__ import annotations
-
-from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 from .base_manager import BaseManager
 from .constants import ModelDefaults, PhysicalConstants, UnitConversion
@@ -28,11 +25,9 @@ from .profiling import IOProfiler, ProfilerContext, get_profiler, profiling_enab
 # Unified component registry
 from .registries import R, Registries
 from .registry import Registry, model_manifest
-from .system import SYMFLUENCE
 from .validation import validate_config_keys, validate_directory_exists, validate_file_exists
 
 __all__ = [
-    'SYMFLUENCE',
     'BaseManager',
     'resolve_path',
     'resolve_file_path',
@@ -51,7 +46,6 @@ __all__ = [
     'ProjectContextMixin',
     'ConfigurableMixin',
     'ShapefileAccessMixin',
-    'CoordinateUtilsMixin',
     'UnitConversion',
     'PhysicalConstants',
     'ModelDefaults',

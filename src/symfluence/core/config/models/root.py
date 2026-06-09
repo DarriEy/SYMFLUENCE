@@ -21,11 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
-from symfluence.fews.config import FEWSConfig
-
 from .data import DataConfig
 from .domain import DomainConfig
 from .evaluation import EvaluationConfig
+from .fews import FEWSConfig
 from .forcing import ForcingConfig
 from .model_configs import ModelConfig
 from .optimization import OptimizationConfig
@@ -117,7 +116,7 @@ class SymfluenceConfig(BaseModel):
         hydrological_model = values.get('HYDROLOGICAL_MODEL')
         if hydrological_model:
             try:
-                from symfluence.models.config_resolution import get_config_transformers
+                from symfluence.core.config.config_resolution import get_config_transformers
                 model_transformers = get_config_transformers(hydrological_model)
                 if model_transformers:
                     combined_map.update(model_transformers)
@@ -304,9 +303,9 @@ class SymfluenceConfig(BaseModel):
         Delegates to the model config-resolution helpers for all
         model-specific validation.
         """
+        from symfluence.core.config.config_resolution import validate_model_config
         from symfluence.core.config.flattening import flatten_nested_config
         from symfluence.core.exceptions import ConfigurationError
-        from symfluence.models.config_resolution import validate_model_config
 
         models = self._parse_models()
         flat_config = flatten_nested_config(self)

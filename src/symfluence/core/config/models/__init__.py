@@ -20,7 +20,7 @@ Key design features:
 # FEWS adapter config
 from __future__ import annotations
 
-from symfluence.fews.config import FEWSConfig
+from symfluence.core.config.models.fews import FEWSConfig
 
 # Data configs
 from .data import (

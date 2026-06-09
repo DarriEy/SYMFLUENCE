@@ -47,7 +47,7 @@ class ModelDefaults:
             >>> defaults['SUMMA_EXE']
             'summa_sundials.exe'
         """
-        from symfluence.models.config_resolution import get_config_defaults
+        from symfluence.core.config.config_resolution import get_config_defaults
 
         # Ensure model modules are imported so config adapters are registered.
         # Importing symfluence.models triggers all model __init__.py files
