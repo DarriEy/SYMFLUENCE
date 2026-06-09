@@ -28,20 +28,12 @@ def _load_guard():
 
 
 @pytest.mark.unit
-def test_strict_clean_configs_have_no_unknown_keys():
+def test_enforced_configs_have_no_unknown_keys():
     guard = _load_guard()
-    failures, _reported, unclassified = guard.evaluate()
-    assert failures == [], "strict-clean configs regressed:\n" + "\n".join(
+    failures, _reported, enforced = guard.evaluate()
+    assert failures == [], "shipped configs regressed under strict validation:\n" + "\n".join(
         f"{p}: {keys}" for p, keys in failures
     )
-    assert unclassified == [], (
-        "shipped config(s) neither STRICT_CLEAN nor EXEMPT — classify in "
-        "scripts/check_shipped_configs_strict.py:\n" + "\n".join(unclassified)
-    )
-
-
-@pytest.mark.unit
-def test_strict_clean_list_is_non_trivial():
-    """Guard against the clean list silently shrinking to nothing."""
-    guard = _load_guard()
-    assert len(guard.STRICT_CLEAN) >= 2
+    # Enforce-by-default should cover a meaningful number of configs, not collapse
+    # to nothing via an over-broad EXEMPT pattern.
+    assert len(enforced) >= 20

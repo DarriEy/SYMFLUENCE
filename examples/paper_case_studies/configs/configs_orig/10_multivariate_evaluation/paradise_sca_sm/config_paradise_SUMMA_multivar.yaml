@@ -237,29 +237,6 @@ STREAMFLOW_PROCESSED_PATH: default
 
 ### ============================================= 6. Multivariate evaluation settings: ====================================================
 
-# Multivariate comparison settings
-MULTIVAR_EVALUATION: True
-MULTIVAR_TARGETS:
-  - variable: SCA
-    source: MODIS
-    product: MOD10A1
-    metric: accuracy
-    weight: 0.25
-  - variable: soil_moisture
-    source: SMAP
-    product: SMAP_L3_SM_P
-    metric: correlation
-    weight: 0.25
-  - variable: SWE
-    source: SNOTEL
-    metric: KGE
-    weight: 0.25
-  - variable: soil_moisture
-    source: ISMN
-    network: SCAN
-    metric: correlation
-    weight: 0.25
-
 # MODIS Snow Cover settings
 MODIS_SCA_PRODUCT: MOD10A1
 MODIS_SCA_PATH: default

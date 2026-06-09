@@ -85,9 +85,6 @@ OPTIMIZATION_METRIC: KGE
 EVALUATION_DATA: ['SWE']
 NUMBER_OF_ITERATIONS: 100
 
-# DDS settings (simpler than NSGA-II for single-target)
-DDS_POPULATION_SIZE: 20
-
 # Parameters to calibrate - Snow-focused for SNOTEL site
 # Focus on snow accumulation, melt, and albedo processes
 PARAMS_TO_CALIBRATE: snowfrz_scale,z0Snow,albedoMax,albedoMinWinter,albedoMaxVisible,albedoMinVisible
