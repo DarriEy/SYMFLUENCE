@@ -16,7 +16,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 class TestWorkflowRun:
     """Test workflow run command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_success(self, mock_symfluence_class, temp_config_dir):
         """Test successful workflow run."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -36,7 +36,7 @@ class TestWorkflowRun:
         assert result == ExitCode.SUCCESS
         mock_instance.run_workflow.assert_called_once()
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_missing_config(self, mock_symfluence_class):
         """Test workflow run with missing config file."""
         args = Namespace(
@@ -51,7 +51,7 @@ class TestWorkflowRun:
         assert result == ExitCode.CONFIG_ERROR
         mock_symfluence_class.assert_not_called()
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_workflow_error(self, mock_symfluence_class, temp_config_dir):
         """Test workflow run with workflow error."""
         from symfluence.core.exceptions import ModelExecutionError
@@ -73,7 +73,7 @@ class TestWorkflowRun:
 
         assert result == ExitCode.WORKFLOW_ERROR
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_config_error(self, mock_symfluence_class, temp_config_dir):
         """Test workflow run with configuration error."""
         from symfluence.core.exceptions import ConfigurationError
@@ -97,7 +97,7 @@ class TestWorkflowRun:
 class TestWorkflowRunStep:
     """Test workflow run-step command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_step_success(self, mock_symfluence_class, temp_config_dir):
         """Test successful single step execution."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -118,7 +118,7 @@ class TestWorkflowRunStep:
         assert result == ExitCode.SUCCESS
         mock_instance.run_individual_steps.assert_called_once_with(['setup_project'])
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_step_file_not_found(self, mock_symfluence_class, temp_config_dir):
         """Test step execution with file not found error."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -143,7 +143,7 @@ class TestWorkflowRunStep:
 class TestWorkflowRunSteps:
     """Test workflow run-steps command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_run_steps_success(self, mock_symfluence_class, temp_config_dir):
         """Test successful multiple steps execution."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -168,7 +168,7 @@ class TestWorkflowRunSteps:
 class TestWorkflowStatus:
     """Test workflow status command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_status_success(self, mock_symfluence_class, temp_config_dir):
         """Test workflow status retrieval."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -244,7 +244,7 @@ class TestWorkflowListSteps:
 class TestWorkflowResume:
     """Test workflow resume command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_resume_success(self, mock_symfluence_class, temp_config_dir):
         """Test successful workflow resume."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -267,7 +267,7 @@ class TestWorkflowResume:
         called_steps = mock_instance.run_individual_steps.call_args[0][0]
         assert called_steps[0] == 'run_model'
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_resume_unknown_step(self, mock_symfluence_class, temp_config_dir):
         """Test resume with unknown step name."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -287,7 +287,7 @@ class TestWorkflowResume:
 class TestWorkflowClean:
     """Test workflow clean command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_clean_with_method(self, mock_symfluence_class, temp_config_dir):
         """Test clean when clean_workflow_files exists."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -307,7 +307,7 @@ class TestWorkflowClean:
         assert result == ExitCode.SUCCESS
         mock_instance.clean_workflow_files.assert_called_once_with(level='temp', dry_run=False)
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_clean_without_method(self, mock_symfluence_class, temp_config_dir):
         """Test clean when clean_workflow_files doesn't exist (beta message)."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"
@@ -327,7 +327,7 @@ class TestWorkflowClean:
         assert result == ExitCode.SUCCESS
 
     @patch('symfluence.cli.commands.base.BaseCommand.confirm_action', return_value=True)
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     def test_clean_permission_error(self, mock_symfluence_class, mock_confirm, temp_config_dir):
         """Test clean with permission error."""
         config_file = temp_config_dir / "config_files" / "config_template.yaml"

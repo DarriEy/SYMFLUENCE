@@ -112,7 +112,6 @@ except ImportError:
         __version__ = "0.0.0"
 
 # Expose core components for a cleaner API
-from .core import SYMFLUENCE
 from .core.config.models import SymfluenceConfig
 from .core.exceptions import (
     ConfigurationError,
@@ -127,6 +126,10 @@ from .core.exceptions import (
     SYMFLUENCEError,
     ValidationError,
 )
+
+# SYMFLUENCE facade lives in the project layer (it orchestrates project
+# managers); re-exported here as the documented public entry point.
+from .project.system import SYMFLUENCE
 
 __all__ = [
     "SYMFLUENCE",

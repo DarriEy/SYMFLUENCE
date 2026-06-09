@@ -145,7 +145,7 @@ class WorkflowState(param.Parameterized):
         if self.typed_config is None:
             raise RuntimeError("No configuration loaded")
 
-        from symfluence.core.system import SYMFLUENCE
+        from symfluence import SYMFLUENCE
 
         config_input = self.config_path or self.typed_config
         self._symfluence = SYMFLUENCE(config_input)
