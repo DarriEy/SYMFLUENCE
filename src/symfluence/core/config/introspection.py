@@ -186,8 +186,8 @@ def generate_flat_to_nested_map(
     # Add model-specific transformer overrides if requested
     if include_model_overrides:
         try:
+            from symfluence.core.config.config_resolution import get_config_transformers
             from symfluence.core.registries import R
-            from symfluence.models.config_resolution import get_config_transformers
 
             # Get all registered model names from config adapters
             model_names = list(R.config_adapters.keys())

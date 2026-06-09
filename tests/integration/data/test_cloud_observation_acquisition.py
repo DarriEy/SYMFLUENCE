@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 import requests
 
-from symfluence.core import SYMFLUENCE
+from symfluence import SYMFLUENCE
 from symfluence.data.data_manager import DataManager
 from symfluence.data.observation.registry import ObservationRegistry
 

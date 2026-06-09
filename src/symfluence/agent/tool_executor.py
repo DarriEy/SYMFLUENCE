@@ -90,7 +90,7 @@ class ToolExecutor:
             return sf
 
         # Create new instance
-        from symfluence.core import SYMFLUENCE
+        from symfluence import SYMFLUENCE
         sf = SYMFLUENCE(config_path, debug_mode=debug_mode)
         self._sf_cache[config_key] = sf
         return sf

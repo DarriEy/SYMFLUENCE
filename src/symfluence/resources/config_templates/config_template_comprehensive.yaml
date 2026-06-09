@@ -7994,3 +7994,63 @@ ENKF_ENFORCE_NONNEG: true
 #   Source:      EnKFConfig (state_config.py)
 #   Description: Enable joint state-parameter estimation
 ENKF_ESTIMATE_PARAMS: false
+
+# ================================================================================
+# FEWS GENERAL ADAPTER (optional Delft-FEWS integration)
+# ================================================================================
+
+# FEWS_WORK_DIR
+#   Type:        str
+#   Default:     '.'
+#   Source:      FEWSConfig (fews.py)
+#   Description: FEWS module working directory (contains toModel/, toFews/)
+FEWS_WORK_DIR: '.'
+
+# FEWS_DATA_FORMAT
+#   Type:        str (pi-xml | netcdf-cf)
+#   Default:     'netcdf-cf'
+#   Source:      FEWSConfig (fews.py)
+#   Description: Data exchange format between FEWS and SYMFLUENCE
+FEWS_DATA_FORMAT: 'netcdf-cf'
+
+# FEWS_ID_MAP_FILE
+#   Type:        str | null
+#   Default:     null
+#   Source:      FEWSConfig (fews.py)
+#   Description: Path to YAML file with variable ID mappings
+FEWS_ID_MAP_FILE: null
+
+# FEWS_ID_MAP
+#   Type:        list
+#   Default:     [] (empty)
+#   Source:      FEWSConfig (fews.py)
+#   Description: Inline variable ID mappings (FEWS <-> SYMFLUENCE + unit conversion)
+FEWS_ID_MAP: []
+
+# FEWS_STATE_DIR
+#   Type:        str | null
+#   Default:     null
+#   Source:      FEWSConfig (fews.py)
+#   Description: Directory for model warm-start state files
+FEWS_STATE_DIR: null
+
+# FEWS_DIAGNOSTICS_FILE
+#   Type:        str
+#   Default:     'diag.xml'
+#   Source:      FEWSConfig (fews.py)
+#   Description: Name of the PI diagnostics output file
+FEWS_DIAGNOSTICS_FILE: 'diag.xml'
+
+# FEWS_MISSING_VALUE
+#   Type:        float
+#   Default:     -999.0
+#   Source:      FEWSConfig (fews.py)
+#   Description: Missing value sentinel used in PI-XML/NetCDF exchange
+FEWS_MISSING_VALUE: -999.0
+
+# FEWS_AUTO_ID_MAP
+#   Type:        bool
+#   Default:     True
+#   Source:      FEWSConfig (fews.py)
+#   Description: Auto-detect common forcing variable mappings via VariableStandardizer
+FEWS_AUTO_ID_MAP: true
