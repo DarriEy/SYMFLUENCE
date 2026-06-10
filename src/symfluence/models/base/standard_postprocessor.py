@@ -577,13 +577,3 @@ class RoutedModelPostProcessor(StandardModelPostProcessor):
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading routing output: {e}", exc_info=True)
             return None
-
-
-# ---------------------------------------------------------------------------
-# Deprecated pre-1.0 spellings. The canonical class name is *PostProcessor
-# (matching BaseModelPostProcessor). These aliases keep existing
-# imports/subclasses working through the 1.0 transition and should be removed
-# at v1.0 (see RTI review item 23 / open question 1).
-# ---------------------------------------------------------------------------
-StandardModelPostprocessor = StandardModelPostProcessor
-RoutedModelPostprocessor = RoutedModelPostProcessor

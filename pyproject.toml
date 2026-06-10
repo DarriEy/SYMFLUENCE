@@ -84,19 +84,21 @@ dependencies = [
 # JAX-based model plugins (Snow-17, SAC-SMA, Xinanjiang, HBV, HEC-HMS, TOPMODEL).
 # Optional: only needed to run those models, discovered via entry points at runtime.
 #   pip install "symfluence[jax]"
+# Floors require the *PostProcessor-spelling plugin releases (the old
+# *Postprocessor base-class aliases were removed pre-1.0, RTI item 23).
 jax = [
   "jsnow17>=0.1.0",
-  "jsacsma>=0.1.0",
-  "jxaj>=0.1.0",
-  "jhbv>=0.1.0",
-  "jhechms>=0.1.0",
-  "jtopmodel>=0.1.0",
+  "jsacsma>=0.2.3",
+  "jxaj>=0.2.3",
+  "jhbv>=0.2.4",
+  "jhechms>=0.2.3",
+  "jtopmodel>=0.2.3",
 ]
 # dRoute differentiable river routing plugin (C++ engine + SYMFLUENCE integration).
 # Optional: only needed to run dRoute routing/calibration, discovered via entry points at runtime.
 #   pip install "symfluence[droute]"
 droute = [
-  "droute>=0.6.0",
+  "droute>=0.6.1",
 ]
 # LLM agent integration. Optional: only needed for `symfluence agent` features.
 #   pip install "symfluence[llm]"

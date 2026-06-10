@@ -209,7 +209,7 @@ accessible through the ``Registries`` facade (aliased as ``R``):
        preprocessor=MyModelPreprocessor,
        runner=MyModelRunner,
        runner_method="run_mymodel",
-       postprocessor=MyModelPostprocessor,
+       postprocessor=MyModelPostProcessor,
        config_adapter=MyModelConfigAdapter,
    )
 
@@ -542,14 +542,14 @@ Adding a New Model
    from symfluence.core.registry import model_manifest
    from .preprocessor import MyModelPreprocessor
    from .runner import MyModelRunner
-   from .postprocessor import MyModelPostprocessor
+   from .postprocessor import MyModelPostProcessor
 
    model_manifest(
        "MYMODEL",
        preprocessor=MyModelPreprocessor,
        runner=MyModelRunner,
        runner_method="run_mymodel",
-       postprocessor=MyModelPostprocessor,
+       postprocessor=MyModelPostProcessor,
    )
 
 Adding a New Optimization Algorithm
