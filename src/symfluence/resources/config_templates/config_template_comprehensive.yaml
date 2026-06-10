@@ -1138,6 +1138,13 @@ OPTIMIZATION_METHODS: []
 #   Usage:      10
 DDS_R: 0.2
 
+# DDS_STAGNATION_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DDSConfig (optimization.py)
+#   Description: Iterations without improvement before DDS stops early
+DDS_STAGNATION_THRESHOLD: 100
+
 # DE_CROSSOVER_RATE
 #   Type:        float
 #   Default:     0.9
@@ -1757,6 +1764,13 @@ ADAM_BETA2: 0.999
 #   Usage:      Numerical stability epsilon
 ADAM_EPS: 0.00000001
 
+# ADAM_STEPS
+#   Type:        Optional
+#   Default:     None
+#   Source:      AdamConfig (optimization.py)
+#   Description: Number of Adam optimization steps
+ADAM_STEPS: null
+
 # LBFGS_LR
 #   Type:        float
 #   Default:     0.1
@@ -1840,6 +1854,153 @@ CHECKPOINT_INTERVAL: 10
 #   Source:      OptimizationConfig (optimization.py)
 #   Usage:      Calibration seed parameters used before warm-start files and model defaults
 INITIAL_GUESS: null
+
+# SKIP_WARM_START
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Skip warm-starting from previous best parameters
+SKIP_WARM_START: null
+
+# PARAMETER_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Generic parameter bounds override, e.g. {param: [min, max]}
+PARAMETER_BOUNDS: null
+
+# INITIAL_PARAMETERS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Initial parameter values used by parameter managers
+INITIAL_PARAMETERS: null
+
+# LIKELIHOOD_FUNCTION
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Likelihood for uncertainty-aware metrics (e.g. 'gaussian')
+LIKELIHOOD_FUNCTION: null
+
+# MODEL_ERROR_BASE
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Additive model error term for likelihood evaluation
+MODEL_ERROR_BASE: null
+
+# MODEL_ERROR_FRACTION
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Model error as a fraction of simulated value
+MODEL_ERROR_FRACTION: null
+
+# TRANSFER_FUNCTION_TYPE
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Regionalization transfer function form (e.g. 'linear')
+TRANSFER_FUNCTION_TYPE: null
+
+# TRANSFER_FUNCTION_B_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Bounds for the transfer-function slope coefficient b
+TRANSFER_FUNCTION_B_BOUNDS: null
+
+# TRANSFER_FUNCTION_LOG_ATTRS
+#   Type:        Union
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Attributes to log-transform before the transfer function
+TRANSFER_FUNCTION_LOG_ATTRS: null
+
+# MULTI_GAUGE_CALIBRATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Calibrate against multiple observation gauges simultaneously
+MULTI_GAUGE_CALIBRATION: null
+
+# MULTI_GAUGE_OBS_DIR
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Directory containing per-gauge observation files
+MULTI_GAUGE_OBS_DIR: null
+
+# MULTI_GAUGE_IDS
+#   Type:        Union
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Explicit gauge IDs to calibrate against (default: all found)
+MULTI_GAUGE_IDS: null
+
+# MULTI_GAUGE_EXCLUDE_IDS
+#   Type:        Union
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Gauge IDs to exclude from multi-gauge calibration
+MULTI_GAUGE_EXCLUDE_IDS: null
+
+# MULTI_GAUGE_AGGREGATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Aggregation of per-gauge scores: 'mean', 'median' or 'weighted'
+MULTI_GAUGE_AGGREGATION: null
+
+# MULTI_GAUGE_MIN_GAUGES
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum number of usable gauges required
+MULTI_GAUGE_MIN_GAUGES: null
+
+# MULTI_GAUGE_MAX_DISTANCE
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Maximum gauge-to-subbasin mapping distance
+MULTI_GAUGE_MAX_DISTANCE: null
+
+# MULTI_GAUGE_MIN_OBS_CV
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum coefficient of variation of observations
+MULTI_GAUGE_MIN_OBS_CV: null
+
+# MULTI_GAUGE_MIN_SPECIFIC_Q
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum specific discharge for a gauge to be used
+MULTI_GAUGE_MIN_SPECIFIC_Q: null
+
+# MULTI_GAUGE_MIN_OVERLAP_DAYS
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum days of obs/sim overlap for a gauge to be used
+MULTI_GAUGE_MIN_OVERLAP_DAYS: null
+
+# MULTI_GAUGE_KGE_FLOOR
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Floor applied to per-gauge KGE before aggregation
+MULTI_GAUGE_KGE_FLOOR: null
+
+# GAUGE_SEGMENT_MAPPING
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Explicit gauge-ID to river-segment mapping
+GAUGE_SEGMENT_MAPPING: null
 
 # ERROR_LOG_DIR
 #   Type:        str

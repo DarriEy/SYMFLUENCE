@@ -66,6 +66,7 @@ MIZUROUTE_CANONICAL_LEGACY_KEY_PAIRS: Tuple[Tuple[str, str], ...] = (
 # When flattening nested config back to flat format, prefer these names.
 CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
     ("system", "num_processes"): "NUM_PROCESSES",  # Prefer over MPI_PROCESSES
+    ("optimization", "iterations"): "NUMBER_OF_ITERATIONS",  # Prefer over OPTIMIZATION_MAX_ITERATIONS
     ("optimization", "nsga2", "secondary_target"): "NSGA2_SECONDARY_TARGET",
     ("optimization", "nsga2", "secondary_metric"): "NSGA2_SECONDARY_METRIC",
     ("model", "mizuroute", "install_path"): "MIZUROUTE_INSTALL_PATH",
@@ -75,6 +76,7 @@ CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
 # Flat keys that remain supported for backward compatibility but are not canonical.
 LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "MPI_PROCESSES": ("system", "num_processes"),
+    "OPTIMIZATION_MAX_ITERATIONS": ("optimization", "iterations"),
     "INSTALL_PATH_MIZUROUTE": ("model", "mizuroute", "install_path"),
     "EXE_NAME_MIZUROUTE": ("model", "mizuroute", "exe"),
     "OPTIMIZATION_TARGET2": ("optimization", "nsga2", "secondary_target"),
@@ -157,11 +159,12 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
 # docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
 # unbacked feature families are handled separately — see that ADR's follow-on.)
 RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
-    # Multi-gauge calibration
-    "MULTI_GAUGE_AGGREGATION", "MULTI_GAUGE_CALIBRATION", "MULTI_GAUGE_EXCLUDE_IDS",
-    "MULTI_GAUGE_KGE_FLOOR", "MULTI_GAUGE_MAX_DISTANCE", "MULTI_GAUGE_MIN_GAUGES",
-    "MULTI_GAUGE_MIN_OBS_CV", "MULTI_GAUGE_MIN_OVERLAP_DAYS", "MULTI_GAUGE_MIN_SPECIFIC_Q",
-    "MULTI_GAUGE_OBS_DIR",
+    # NOTE: MULTI_GAUGE_* + GAUGE_SEGMENT_MAPPING were promoted to
+    # optimization.multi_gauge (MultiGaugeConfig); the optimizer/evaluator
+    # odds (SKIP_WARM_START, PARAMETER_BOUNDS, INITIAL_PARAMETERS,
+    # LIKELIHOOD_FUNCTION, MODEL_ERROR_*, TRANSFER_FUNCTION_*, ADAM_STEPS,
+    # DDS_STAGNATION_THRESHOLD) to OptimizationConfig fields; and
+    # OPTIMIZATION_MAX_ITERATIONS became a legacy alias of NUMBER_OF_ITERATIONS.
     # NOTE: ENKF_*, STATE_*, and DA_METHOD were removed from this set: their
     # typed models (StateConfig / EnKFConfig / DataAssimilationConfig) are now
     # reached by the introspection walker ('state' and 'data_assimilation'
@@ -183,8 +186,9 @@ RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
     "HYPE_SOIL_LAYER_DEPTHS", "HYPE_SURFACE_RUNOFF",
     # CanSWE snow obs
     "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION",
-    # Per-model parameter bounds & initial params
-    "CLM_PARAM_BOUNDS", "INITIAL_PARAMETERS", "MESH_PARAM_BOUNDS", "PARAMETER_BOUNDS",
+    # Per-model parameter bounds (generic PARAMETER_BOUNDS / INITIAL_PARAMETERS
+    # were promoted to OptimizationConfig)
+    "CLM_PARAM_BOUNDS", "MESH_PARAM_BOUNDS",
     "PARFLOW_PARAM_BOUNDS", "RHESSYS_PARAM_BOUNDS", "VIC_PARAM_BOUNDS",
     # GLEAM ET
     "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH",
@@ -194,23 +198,17 @@ RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
     "GRACE_SUBSET",
     # Catchment shapefile
     "CATCHMENT_SHP_PATH", "CATCHMENT_SHP_SLOPE_UNITS",
-    # DDS
-    "DDS_STAGNATION_THRESHOLD",
     # NGEN module toggles
     "ENABLE_NOAH", "ENABLE_PET", "ENABLE_SLOTH",
     # FUSE run options
     "FUSE_RUN_MODE", "FUSE_TEMPLATE_PATH",
-    # Model-error (DA)
-    "MODEL_ERROR_BASE", "MODEL_ERROR_FRACTION",
-    # Regionalization transfer fn
-    "TRANSFER_FUNCTION_B_BOUNDS", "TRANSFER_FUNCTION_TYPE",
     # Other recognized flat keys
-    "ADAM_STEPS", "CALIBRATION_NEXUS_ID", "CALIBRATION_WARMUP_DAYS", "CARRA_DOMAIN",
+    "CALIBRATION_NEXUS_ID", "CALIBRATION_WARMUP_DAYS", "CARRA_DOMAIN",
     "DECISION_OPTIONS", "DOWNLOAD_CANSWE", "EM_EARTH", "ET_UNIT_CONVERSION",
-    "EXPERIMENT_OUTPUT_NGEN", "FORCING_RAW_PATH", "GAUGE_SEGMENT_MAPPING", "GR_MODEL_TYPE",
-    "HYDROSHEDS_LEVEL", "LIKELIHOOD_FUNCTION", "MIZUROUTE_NUM_THREADS", "MODIS_SNOW",
-    "NWS_HYDROFABRIC_VERSION", "OPTIMIZATION_MAX_ITERATIONS", "SETTINGS_NGEN_REALIZATION",
-    "SKIP_WARM_START", "SMAP_LAYER", "SNOTEL_STATE", "TDX_SOURCE", "USGS_GW",
+    "EXPERIMENT_OUTPUT_NGEN", "FORCING_RAW_PATH", "GR_MODEL_TYPE",
+    "HYDROSHEDS_LEVEL", "MIZUROUTE_NUM_THREADS", "MODIS_SNOW",
+    "NWS_HYDROFABRIC_VERSION", "SETTINGS_NGEN_REALIZATION",
+    "SMAP_LAYER", "SNOTEL_STATE", "TDX_SOURCE", "USGS_GW",
 })
 
 
