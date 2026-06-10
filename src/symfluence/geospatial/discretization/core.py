@@ -356,15 +356,19 @@ class DomainDiscretizer(PathResolverMixin):
         all_hrus = []
         hru_id_counter = 1
 
-        # Process each GRU individually
-        for gru_idx, gru_row in gru_gdf.iterrows():
-            self.logger.info(f"Processing GRU {gru_idx + 1}/{len(gru_gdf)}")
+        # Open the classification raster once and mask per GRU; reopening the
+        # same file inside the loop is pure per-GRU overhead.
+        with rasterio.open(raster_path) as src:
+            nodata_value = src.nodata
 
-            gru_geometry = gru_row.geometry
-            gru_id = gru_row.get("GRU_ID", gru_idx + 1)
+            # Process each GRU individually
+            for gru_idx, gru_row in gru_gdf.iterrows():
+                self.logger.info(f"Processing GRU {gru_idx + 1}/{len(gru_gdf)}")
 
-            # Extract raster data within this GRU
-            with rasterio.open(raster_path) as src:
+                gru_geometry = gru_row.geometry
+                gru_id = gru_row.get("GRU_ID", gru_idx + 1)
+
+                # Extract raster data within this GRU
                 try:
                     # Mask the raster to this GRU's geometry
                     out_image, out_transform = mask(
@@ -375,58 +379,57 @@ class DomainDiscretizer(PathResolverMixin):
                         filled=False,
                     )
                     out_image = out_image[0]
-                    nodata_value = src.nodata
                 except (rasterio.RasterioIOError, ValueError, RuntimeError) as e:
                     self.logger.warning(
                         f"Could not extract raster data for GRU {gru_id}: {str(e)}"
                     )
                     continue
 
-            # Create mask for valid pixels
-            if nodata_value is not None:
-                valid_mask = out_image != nodata_value
-            else:
-                valid_mask = (
-                    ~np.isnan(out_image)
-                    if out_image.dtype == np.float64
-                    else np.ones_like(out_image, dtype=bool)
-                )
+                # Create mask for valid pixels
+                if nodata_value is not None:
+                    valid_mask = out_image != nodata_value
+                else:
+                    valid_mask = (
+                        ~np.isnan(out_image)
+                        if out_image.dtype == np.float64
+                        else np.ones_like(out_image, dtype=bool)
+                    )
 
-            if not np.any(valid_mask):
-                self.logger.warning(f"No valid pixels found in GRU {gru_id}")
-                continue
+                if not np.any(valid_mask):
+                    self.logger.warning(f"No valid pixels found in GRU {gru_id}")
+                    continue
 
-            # Find unique values within this GRU
-            valid_values = out_image[valid_mask]
+                # Find unique values within this GRU
+                valid_values = out_image[valid_mask]
 
-            if attribute_name in ["elevClass", "radiationClass"]:
-                # For continuous data, classify into bands
-                gru_hrus = self._create_hrus_from_bands(
-                    out_image,
-                    valid_mask,
-                    out_transform,
-                    thresholds,
-                    attribute_name,
-                    gru_geometry,
-                    gru_row,
-                    hru_id_counter,
-                )
-            else:
-                # For discrete classes, use unique values
-                unique_values = np.unique(valid_values)
-                gru_hrus = self._create_hrus_from_classes(
-                    out_image,
-                    valid_mask,
-                    out_transform,
-                    unique_values,
-                    attribute_name,
-                    gru_geometry,
-                    gru_row,
-                    hru_id_counter,
-                )
+                if attribute_name in ["elevClass", "radiationClass"]:
+                    # For continuous data, classify into bands
+                    gru_hrus = self._create_hrus_from_bands(
+                        out_image,
+                        valid_mask,
+                        out_transform,
+                        thresholds,
+                        attribute_name,
+                        gru_geometry,
+                        gru_row,
+                        hru_id_counter,
+                    )
+                else:
+                    # For discrete classes, use unique values
+                    unique_values = np.unique(valid_values)
+                    gru_hrus = self._create_hrus_from_classes(
+                        out_image,
+                        valid_mask,
+                        out_transform,
+                        unique_values,
+                        attribute_name,
+                        gru_geometry,
+                        gru_row,
+                        hru_id_counter,
+                    )
 
-            all_hrus.extend(gru_hrus)
-            hru_id_counter += len(gru_hrus)
+                all_hrus.extend(gru_hrus)
+                hru_id_counter += len(gru_hrus)
 
         self.logger.info(f"Created {len(all_hrus)} HRUs across all GRUs")
         return gpd.GeoDataFrame(all_hrus, crs=gru_gdf.crs)
