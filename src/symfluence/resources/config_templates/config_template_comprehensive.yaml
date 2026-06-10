@@ -1078,6 +1078,20 @@ LSTM_USE_SNOW: false
 #   Description: Train LSTM through dRoute routing for distributed models
 LSTM_TRAIN_THROUGH_ROUTING: false
 
+# LSTM_PARAMS_TO_CALIBRATE
+#   Type:        Optional
+#   Default:     None
+#   Source:      LSTMConfig (model_configs_ml_fire.py)
+#   Description: Comma-separated parameter names for LSTM calibration
+LSTM_PARAMS_TO_CALIBRATE: null
+
+# LSTM_PARAMETER_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      LSTMConfig (model_configs_ml_fire.py)
+#   Description: Lstm Parameter Bounds
+LSTM_PARAMETER_BOUNDS: null
+
 # lstm
 #   Type:        LSTMConfig
 #   Default:     None
@@ -6608,6 +6622,181 @@ IGNACIO_SAVE_PERIMETERS: true
 #   Description: Compare fire perimeters with WMFire results
 IGNACIO_COMPARE_WMFIRE: false
 
+# IGNACIO_RANDOM_SEED
+#   Type:        int
+#   Default:     42
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Random seed for reproducibility
+IGNACIO_RANDOM_SEED: 42
+
+# IGNACIO_WORKING_CRS
+#   Type:        str
+#   Default:     EPSG:4326
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Working coordinate reference system
+IGNACIO_WORKING_CRS: "EPSG:4326"
+
+# IGNACIO_OUTPUT_CRS
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Output CRS (defaults to working_crs)
+IGNACIO_OUTPUT_CRS: null
+
+# IGNACIO_SLOPE_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to pre-computed slope raster (optional)
+IGNACIO_SLOPE_PATH: null
+
+# IGNACIO_ASPECT_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to pre-computed aspect raster (optional)
+IGNACIO_ASPECT_PATH: null
+
+# IGNACIO_FUEL_SOURCE_TYPE
+#   Type:        Literal
+#   Default:     raster
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Type of fuel data source
+IGNACIO_FUEL_SOURCE_TYPE: "raster"
+
+# IGNACIO_NON_FUEL_CODES
+#   Type:        List
+#   Default:     PydanticUndefined
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Raster codes to treat as non-fuel
+IGNACIO_NON_FUEL_CODES: PydanticUndefined
+
+# IGNACIO_IGNITION_CAUSE
+#   Type:        str
+#   Default:     Lightning
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Cause of ignition
+IGNACIO_IGNITION_CAUSE: "Lightning"
+
+# IGNACIO_N_ITERATIONS
+#   Type:        int
+#   Default:     1
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Number of simulation iterations
+IGNACIO_N_ITERATIONS: 1
+
+# IGNACIO_FWI_LATITUDE
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Latitude for FWI day length adjustment
+IGNACIO_FWI_LATITUDE: null
+
+# IGNACIO_DEFAULT_FFMC
+#   Type:        float
+#   Default:     88.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Fine Fuel Moisture Code
+IGNACIO_DEFAULT_FFMC: 88.0
+
+# IGNACIO_DEFAULT_DMC
+#   Type:        float
+#   Default:     30.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Duff Moisture Code
+IGNACIO_DEFAULT_DMC: 30.0
+
+# IGNACIO_DEFAULT_DC
+#   Type:        float
+#   Default:     150.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Drought Code
+IGNACIO_DEFAULT_DC: 150.0
+
+# IGNACIO_DEFAULT_ISI
+#   Type:        float
+#   Default:     5.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Initial Spread Index
+IGNACIO_DEFAULT_ISI: 5.0
+
+# IGNACIO_DEFAULT_BUI
+#   Type:        float
+#   Default:     50.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Buildup Index
+IGNACIO_DEFAULT_BUI: 50.0
+
+# IGNACIO_FMC
+#   Type:        float
+#   Default:     100.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Foliar Moisture Content (%)
+IGNACIO_FMC: 100.0
+
+# IGNACIO_CURING
+#   Type:        float
+#   Default:     85.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Grass curing percentage
+IGNACIO_CURING: 85.0
+
+# IGNACIO_N_VERTICES
+#   Type:        int
+#   Default:     300
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Number of vertices for fire perimeter
+IGNACIO_N_VERTICES: 300
+
+# IGNACIO_INITIAL_RADIUS
+#   Type:        float
+#   Default:     10.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Initial fire radius in meters
+IGNACIO_INITIAL_RADIUS: 10.0
+
+# IGNACIO_MIN_ROS
+#   Type:        float
+#   Default:     0.01
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Minimum rate of spread threshold
+IGNACIO_MIN_ROS: 0.01
+
+# IGNACIO_TIME_VARYING_WEATHER
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Use time-varying weather during simulation
+IGNACIO_TIME_VARYING_WEATHER: true
+
+# IGNACIO_SAVE_ROS_GRIDS
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Save rate of spread grids
+IGNACIO_SAVE_ROS_GRIDS: true
+
+# IGNACIO_PERIMETER_FORMAT
+#   Type:        Literal
+#   Default:     shapefile
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Output format for perimeter files
+IGNACIO_PERIMETER_FORMAT: "shapefile"
+
+# IGNACIO_GENERATE_PLOTS
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Generate visualization plots
+IGNACIO_GENERATE_PLOTS: true
+
+# IGNACIO_OBSERVED_PERIMETER
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to observed fire perimeter for validation
+IGNACIO_OBSERVED_PERIMETER: null
+
 
 # 9.6. GNN Model Configuration
 # ================================================================================
@@ -6688,6 +6877,20 @@ GNN_PARAMS_TO_CALIBRATE: precip_mult,temp_offset,routing_velocity
 #   Source:      GNNConfig (model_configs.py)
 #   Usage:      Parameter bounds for GNN calibration
 GNN_PARAMETER_BOUNDS: null
+
+# GNN_OUTPUT_SIZE
+#   Type:        int
+#   Default:     32
+#   Source:      GNNConfig (model_configs_ml_fire.py)
+#   Description: Gnn Output Size
+GNN_OUTPUT_SIZE: 32
+
+# GNN_USE_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      GNNConfig (model_configs_ml_fire.py)
+#   Description: Gnn Use Snow
+GNN_USE_SNOW: false
 
 
 # 9.9. SWAT Model Configuration
