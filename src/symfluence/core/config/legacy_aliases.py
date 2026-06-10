@@ -42,6 +42,10 @@ NORMALIZATION_ALIASES: Dict[str, str] = {
     "TARGET_METRIC": "OPTIMIZATION_METRIC",
     # Legacy SUMMA decisions spelling -> canonical SUMMA_DECISION_OPTIONS.
     "SUMMA_DECISIONS": "SUMMA_DECISION_OPTIONS",
+    # Plain DECISION_OPTIONS historically carried SUMMA decisions (the CLI
+    # preset path wrote it); nothing reads the plain spelling, so normalize
+    # it to the canonical SUMMA key instead of letting it sit inert.
+    "DECISION_OPTIONS": "SUMMA_DECISION_OPTIONS",
 }
 
 # Maps deprecated flat keys to their preferred replacements.
@@ -66,6 +70,7 @@ MIZUROUTE_CANONICAL_LEGACY_KEY_PAIRS: Tuple[Tuple[str, str], ...] = (
 # When flattening nested config back to flat format, prefer these names.
 CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
     ("system", "num_processes"): "NUM_PROCESSES",  # Prefer over MPI_PROCESSES
+    ("optimization", "iterations"): "NUMBER_OF_ITERATIONS",  # Prefer over OPTIMIZATION_MAX_ITERATIONS
     ("optimization", "nsga2", "secondary_target"): "NSGA2_SECONDARY_TARGET",
     ("optimization", "nsga2", "secondary_metric"): "NSGA2_SECONDARY_METRIC",
     ("model", "mizuroute", "install_path"): "MIZUROUTE_INSTALL_PATH",
@@ -75,6 +80,7 @@ CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
 # Flat keys that remain supported for backward compatibility but are not canonical.
 LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "MPI_PROCESSES": ("system", "num_processes"),
+    "OPTIMIZATION_MAX_ITERATIONS": ("optimization", "iterations"),
     "INSTALL_PATH_MIZUROUTE": ("model", "mizuroute", "install_path"),
     "EXE_NAME_MIZUROUTE": ("model", "mizuroute", "exe"),
     "OPTIMIZATION_TARGET2": ("optimization", "nsga2", "secondary_target"),
@@ -156,66 +162,22 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
 # (Resolves the bulk of RTI review open-question Q3 / Tier 3 item 21 noise; see
 # docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
 # unbacked feature families are handled separately — see that ADR's follow-on.)
+# The flat-key audit (docs/config_flat_key_audit.md) emptied this set down
+# to deprecated keys: every formerly-recognized key was either promoted to a
+# typed Pydantic field (state/DA, IGNACIO/GNN/LSTM, multi-gauge,
+# optimizer/evaluator odds, HYPE/NGEN/FUSE/GR/mizuRoute/paths, per-model
+# *_PARAM_BOUNDS, and the data-handler families CanSWE/GLEAM/ESA-CCI/
+# SNOTEL/SMAP/GRACE/GW/CARRA/HydroSHEDS/TDX), turned into an alias
+# (OPTIMIZATION_MAX_ITERATIONS, DECISION_OPTIONS), or deleted as dead
+# (EM_EARTH, MODIS_SNOW, USGS_GW, LSTM — template artifacts, no readers).
+# Policy: this set is CLOSED. New config keys get Pydantic fields (or
+# plugin-declared schemas, ADR-0002); only deprecated keys consumed by
+# compatibility validators may live here, and they leave at the next major.
 RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
-    # Multi-gauge calibration
-    "MULTI_GAUGE_AGGREGATION", "MULTI_GAUGE_CALIBRATION", "MULTI_GAUGE_EXCLUDE_IDS",
-    "MULTI_GAUGE_KGE_FLOOR", "MULTI_GAUGE_MAX_DISTANCE", "MULTI_GAUGE_MIN_GAUGES",
-    "MULTI_GAUGE_MIN_OBS_CV", "MULTI_GAUGE_MIN_OVERLAP_DAYS", "MULTI_GAUGE_MIN_SPECIFIC_Q",
-    "MULTI_GAUGE_OBS_DIR",
-    # NOTE: ENKF_*, STATE_*, and DA_METHOD were removed from this set: their
-    # typed models (StateConfig / EnKFConfig / DataAssimilationConfig) are now
-    # reached by the introspection walker ('state' and 'data_assimilation'
-    # root sections), so those flat keys transform into nested fields instead
-    # of riding in _extra. Before that fix, flat configs silently left the
-    # typed DA sections at their defaults.
-    # ESA CCI soil moisture
-    "ESA_CCI_SM_PATH", "ESA_CCI_SM_RECORD_TYPE", "ESA_CCI_SM_SENSOR",
-    "ESA_CCI_SM_TIME_AGGREGATION", "ESA_CCI_SM_VARIABLE", "ESA_CCI_SM_VERSION",
-    # IGNACIO fire-weather (FWI)
-    "IGNACIO_CURING", "IGNACIO_DEFAULT_BUI", "IGNACIO_DEFAULT_DC", "IGNACIO_DEFAULT_DMC",
-    "IGNACIO_DEFAULT_FFMC", "IGNACIO_DEFAULT_ISI", "IGNACIO_FMC", "IGNACIO_FUEL_SOURCE_TYPE",
-    "IGNACIO_FWI_LATITUDE", "IGNACIO_GENERATE_PLOTS", "IGNACIO_INITIAL_RADIUS",
-    "IGNACIO_MIN_ROS", "IGNACIO_NON_FUEL_CODES", "IGNACIO_N_VERTICES", "IGNACIO_OUTPUT_CRS",
-    "IGNACIO_PERIMETER_FORMAT", "IGNACIO_RANDOM_SEED", "IGNACIO_SAVE_ROS_GRIDS",
-    "IGNACIO_TIME_VARYING_WEATHER", "IGNACIO_WORKING_CRS",
-    # HYPE process options
-    "HYPE_DEEP_GROUND", "HYPE_FROZEN_SOIL_MODEL", "HYPE_INFILTRATION_MODEL",
-    "HYPE_PARAM_BOUNDS", "HYPE_PET_MODEL", "HYPE_SNOW_EVAPORATION", "HYPE_SOIL_INIT_WET",
-    "HYPE_SOIL_LAYER_DEPTHS", "HYPE_SURFACE_RUNOFF",
-    # CanSWE snow obs
-    "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION",
-    # Per-model parameter bounds & initial params
-    "CLM_PARAM_BOUNDS", "INITIAL_PARAMETERS", "MESH_PARAM_BOUNDS", "PARAMETER_BOUNDS",
-    "PARFLOW_PARAM_BOUNDS", "RHESSYS_PARAM_BOUNDS", "VIC_PARAM_BOUNDS",
-    # GNN emulator
-    "GNN_OUTPUT_SIZE", "GNN_USE_SNOW",
-    # LSTM emulator
-    "LSTM", "LSTM_PARAMETER_BOUNDS", "LSTM_PARAMS_TO_CALIBRATE",
-    # GLEAM ET
-    "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH",
-    # Groundwater
-    "GW_AUTO_ALIGN", "GW_BASE_DEPTH",
-    # GRACE
-    "GRACE_SUBSET",
-    # Catchment shapefile
-    "CATCHMENT_SHP_PATH", "CATCHMENT_SHP_SLOPE_UNITS",
-    # DDS
-    "DDS_STAGNATION_THRESHOLD",
-    # NGEN module toggles
+    # Deprecated NGEN module toggles — consumed (and migrated to
+    # NGEN_MODULES_SELECTED) by NGENConfig's before-validator; recognized
+    # until removal at 2.0
     "ENABLE_NOAH", "ENABLE_PET", "ENABLE_SLOTH",
-    # FUSE run options
-    "FUSE_RUN_MODE", "FUSE_TEMPLATE_PATH",
-    # Model-error (DA)
-    "MODEL_ERROR_BASE", "MODEL_ERROR_FRACTION",
-    # Regionalization transfer fn
-    "TRANSFER_FUNCTION_B_BOUNDS", "TRANSFER_FUNCTION_TYPE",
-    # Other recognized flat keys
-    "ADAM_STEPS", "CALIBRATION_NEXUS_ID", "CALIBRATION_WARMUP_DAYS", "CARRA_DOMAIN",
-    "DECISION_OPTIONS", "DOWNLOAD_CANSWE", "EM_EARTH", "ET_UNIT_CONVERSION",
-    "EXPERIMENT_OUTPUT_NGEN", "FORCING_RAW_PATH", "GAUGE_SEGMENT_MAPPING", "GR_MODEL_TYPE",
-    "HYDROSHEDS_LEVEL", "LIKELIHOOD_FUNCTION", "MIZUROUTE_NUM_THREADS", "MODIS_SNOW",
-    "NWS_HYDROFABRIC_VERSION", "OPTIMIZATION_MAX_ITERATIONS", "SETTINGS_NGEN_REALIZATION",
-    "SKIP_WARM_START", "SMAP_LAYER", "SNOTEL_STATE", "TDX_SOURCE", "USGS_GW",
 })
 
 

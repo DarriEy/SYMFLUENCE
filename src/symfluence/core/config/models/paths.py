@@ -8,6 +8,8 @@ Contains ShapefilePathConfig and PathsConfig for file paths and directory struct
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from .base import FROZEN_CONFIG
@@ -35,6 +37,14 @@ class PathsConfig(BaseModel):
     catchment_slope: str = Field(default='slope', alias='CATCHMENT_SHP_SLOPE')
     catchment_hruid: str = Field(default='HRU_ID', alias='CATCHMENT_SHP_HRUID')
     catchment_gruid: str = Field(default='GRU_ID', alias='CATCHMENT_SHP_GRUID')
+    catchment_shp_path: Optional[str] = Field(
+        default=None, alias='CATCHMENT_SHP_PATH',
+        description='Explicit path to the catchment shapefile'
+    )
+    catchment_shp_slope_units: str = Field(
+        default='degrees', alias='CATCHMENT_SHP_SLOPE_UNITS',
+        description="Units of the catchment slope column: 'degrees', 'radians' or 'ratio'"
+    )
 
     river_basins_path: str = Field(default='default', alias='RIVER_BASINS_PATH')
     river_basins_name: str = Field(default='default', alias='RIVER_BASINS_NAME')
@@ -54,6 +64,7 @@ class PathsConfig(BaseModel):
 
     # Common paths
     forcing_path: str = Field(default='default', alias='FORCING_PATH')
+    forcing_raw_path: str = Field(default='default', alias='FORCING_RAW_PATH')
     observations_path: str = Field(default='default', alias='OBSERVATIONS_PATH')
     simulations_path: str = Field(default='default', alias='SIMULATIONS_PATH')
     intersect_soil_path: str = Field(default='default', alias='INTERSECT_SOIL_PATH')
