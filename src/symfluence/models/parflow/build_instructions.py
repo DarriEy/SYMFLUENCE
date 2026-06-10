@@ -237,6 +237,18 @@ PARAMH
 #ifndef S_IXUSR
 #define S_IXUSR 0
 #endif
+#include <stdlib.h>
+/* sys/param.h provides MIN/MAX on POSIX; MinGW's does not. */
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+/* drand48/srand48 are POSIX (used by ParFlow for random fields); MinGW lacks
+   them. A rand()-backed stub is sufficient for the build and basic runs. */
+static __inline__ double drand48(void) { return (double)rand() / ((double)RAND_MAX + 1.0); }
+static __inline__ void srand48(long _s) { srand((unsigned)_s); }
 #endif
 #endif
 PFWIN
