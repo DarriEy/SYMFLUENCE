@@ -34,9 +34,9 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 ZENODO_STREAMFLOW_URL = (
     "https://zenodo.org/api/records/15025488/files/"
@@ -52,7 +52,7 @@ ANA_STATIONS = {
 }
 
 
-@ObservationRegistry.register("ana_streamflow")
+@R.observation_handlers.add("ana_streamflow")
 class ANAStreamflowHandler(BaseObservationHandler):
     """Handles Brazilian ANA streamflow data via CAMELS-BR (Zenodo).
 

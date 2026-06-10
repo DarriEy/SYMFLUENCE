@@ -40,9 +40,10 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # WCS endpoint template
@@ -84,7 +85,7 @@ _ALL_DEPTHS = ['0-5cm', '5-15cm', '15-30cm', '30-60cm', '60-100cm', '100-200cm']
 _DEFAULT_DEPTHS = ['0-5cm', '5-15cm', '15-30cm', '30-60cm', '60-100cm']
 
 
-@AcquisitionRegistry.register('SOILGRIDS_PROPERTIES')
+@R.acquisition_handlers.add('SOILGRIDS_PROPERTIES')
 class SoilGridsPropertiesAcquirer(BaseAcquisitionHandler, RetryMixin):
     """SoilGrids v2 continuous soil property acquisition via WCS.
 

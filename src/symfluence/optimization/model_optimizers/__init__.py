@@ -9,10 +9,9 @@ These provide a unified interface while handling model-specific setup.
 
 Model-specific optimizers are available via:
 1. Direct import: from symfluence.models.{model}.calibration.optimizer import {Model}ModelOptimizer
-2. Registry pattern: OptimizerRegistry.get_optimizer('{MODEL}')
+2. Registry pattern: R.optimizers.get('{MODEL}')
 
-Registration happens via ``@OptimizerRegistry.register_optimizer``
-decorators.  This module auto-discovers all model packages at import time
+Registration happens via ``@R.optimizers.add`` decorators.  This module auto-discovers all model packages at import time
 so that every ``calibration/optimizer.py`` is imported and its decorator
 fires.
 """

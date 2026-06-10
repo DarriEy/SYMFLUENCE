@@ -26,12 +26,13 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('SENTINEL1_SM')
-@AcquisitionRegistry.register('S1_SM')
+@R.acquisition_handlers.add('SENTINEL1_SM')
+@R.acquisition_handlers.add('S1_SM')
 class Sentinel1SMAcquirer(BaseAcquisitionHandler):
     """
     Handles Sentinel-1 soil moisture data acquisition.

@@ -14,10 +14,11 @@ from typing import Dict, List
 
 import xarray as xr
 
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.registries import R
+from symfluence.models.adapters import ForcingAdapter
 
 
-@ForcingAdapterRegistry.register_adapter('SUMMA')
+@R.forcing_adapters.add('SUMMA')
 class SUMMAForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for SUMMA model.

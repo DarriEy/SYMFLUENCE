@@ -22,9 +22,9 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConverter
 from symfluence.core.path_resolver import find_basin_shapefile
+from symfluence.core.registries import R
 from symfluence.data.observation.paths import first_existing_path, streamflow_observation_candidates
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.evaluation.registry import EvaluationRegistry
 
 from .base import ModelEvaluator
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     pass
 
 
-@EvaluationRegistry.register('STREAMFLOW')
+@R.evaluators.add('STREAMFLOW')
 class StreamflowEvaluator(ModelEvaluator):
     """Streamflow evaluator for calibrating hydrological models.
 

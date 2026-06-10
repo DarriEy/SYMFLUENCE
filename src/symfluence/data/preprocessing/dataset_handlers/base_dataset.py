@@ -251,7 +251,7 @@ class BaseDatasetHandler(ABC, ConfigMixin):
         domain_name (str): Domain identifier
 
     Example Subclass:
-        >>> @DatasetRegistry.register('my_dataset')
+        >>> @R.dataset_handlers.add('my_dataset')
         >>> class MyDatasetHandler(BaseDatasetHandler):
         ...     def get_variable_mapping(self):
         ...         return {'t2m': 'air_temperature', 'tp': 'precipitation_flux'}

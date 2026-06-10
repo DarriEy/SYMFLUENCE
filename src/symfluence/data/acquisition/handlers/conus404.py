@@ -16,9 +16,10 @@ import intake
 import numpy as np
 from aiohttp.client_exceptions import ClientError, ClientPayloadError
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer, create_spatial_mask, find_nearest_grid_point, get_bbox_center
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
 def _load_with_retry(dataset, logger, max_retries=5, initial_delay=5):
@@ -54,7 +55,7 @@ def _load_with_retry(dataset, logger, max_retries=5, initial_delay=5):
                 raise
 
 
-@AcquisitionRegistry.register('CONUS404')
+@R.acquisition_handlers.add('CONUS404')
 class CONUS404Acquirer(BaseAcquisitionHandler):
     """
     Acquirer for CONUS404 high-resolution regional climate data.

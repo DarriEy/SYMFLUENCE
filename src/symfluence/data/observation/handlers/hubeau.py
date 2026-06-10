@@ -27,9 +27,9 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Hub'Eau API configuration
 HUBEAU_BASE_URL = "https://hubeau.eaufrance.fr/api/v1/hydrometrie"
@@ -85,7 +85,7 @@ def _hubeau_request(url: str, params: dict, timeout: int = DEFAULT_TIMEOUT) -> r
         raise HubEauAPIError(f"Hub'Eau API request timed out after {timeout}s") from None
 
 
-@ObservationRegistry.register('hubeau_streamflow')
+@R.observation_handlers.add('hubeau_streamflow')
 class HubEauStreamflowHandler(BaseObservationHandler):
     """
     Handles French streamflow (discharge) data from Hub'Eau API.
@@ -407,7 +407,7 @@ class HubEauStreamflowHandler(BaseObservationHandler):
         return df
 
 
-@ObservationRegistry.register('hubeau_waterlevel')
+@R.observation_handlers.add('hubeau_waterlevel')
 class HubEauWaterLevelHandler(BaseObservationHandler):
     """
     Handles French water level data from Hub'Eau API.

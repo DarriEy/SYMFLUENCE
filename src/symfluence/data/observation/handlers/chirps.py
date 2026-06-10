@@ -26,11 +26,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('chirps')
+@R.observation_handlers.add('chirps')
 class CHIRPSHandler(BaseObservationHandler):
     """
     Handles CHIRPS precipitation data acquisition and processing.

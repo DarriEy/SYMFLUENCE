@@ -21,8 +21,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Scale factors and valid ranges
 LST_SCALE_FACTOR = 0.02  # Convert to Kelvin
@@ -33,8 +34,8 @@ LST_FILL_VALUE = 0
 QC_GOOD_QUALITY = [0, 1]  # Bits 0-1: 00=good, 01=other quality
 
 
-@ObservationRegistry.register('modis_lst')
-@ObservationRegistry.register('mod11')
+@R.observation_handlers.add('modis_lst')
+@R.observation_handlers.add('mod11')
 class MODISLSTHandler(BaseObservationHandler):
     """
     Handles MODIS Land Surface Temperature data processing.

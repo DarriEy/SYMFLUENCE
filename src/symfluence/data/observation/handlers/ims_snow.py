@@ -27,12 +27,13 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('ims_snow')
-@ObservationRegistry.register('ims_sca')
+@R.observation_handlers.add('ims_snow')
+@R.observation_handlers.add('ims_sca')
 class IMSSnowHandler(BaseObservationHandler):
     """
     Handles IMS snow cover data acquisition and processing.

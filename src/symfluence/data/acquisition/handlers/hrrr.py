@@ -16,12 +16,13 @@ import pandas as pd
 import s3fs
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins.retry import RetryMixin
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('HRRR')
+@R.acquisition_handlers.add('HRRR')
 class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Download and process High Resolution Rapid Refresh (HRRR) atmospheric forcing data.

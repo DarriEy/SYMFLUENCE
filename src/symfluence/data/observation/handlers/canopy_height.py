@@ -25,8 +25,9 @@ import pandas as pd
 import rasterio
 from rasterio.mask import mask as rio_mask
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Scale factors and valid ranges
 CANOPY_HEIGHT_VALID_RANGE = (0, 100)  # meters
@@ -35,9 +36,9 @@ META_HEIGHT_SCALE = 1.0  # Already in meters
 GLAD_COVER_SCALE = 1.0  # Percentage for tree cover
 
 
-@ObservationRegistry.register('canopy_height')
-@ObservationRegistry.register('tree_height')
-@ObservationRegistry.register('vegetation_height')
+@R.observation_handlers.add('canopy_height')
+@R.observation_handlers.add('tree_height')
+@R.observation_handlers.add('vegetation_height')
 class CanopyHeightHandler(BaseObservationHandler):
     """
     Unified handler for tree canopy height data from multiple sources.
@@ -431,7 +432,7 @@ class CanopyHeightHandler(BaseObservationHandler):
         return None
 
 
-@ObservationRegistry.register('gedi_canopy_height')
+@R.observation_handlers.add('gedi_canopy_height')
 class GEDICanopyHeightHandler(CanopyHeightHandler):
     """
     GEDI-specific canopy height handler.
@@ -446,8 +447,8 @@ class GEDICanopyHeightHandler(CanopyHeightHandler):
         self.canopy_height_source = 'gedi'
 
 
-@ObservationRegistry.register('meta_canopy_height')
-@ObservationRegistry.register('wri_canopy_height')
+@R.observation_handlers.add('meta_canopy_height')
+@R.observation_handlers.add('wri_canopy_height')
 class MetaCanopyHeightHandler(CanopyHeightHandler):
     """
     Meta/WRI-specific canopy height handler.
@@ -462,8 +463,8 @@ class MetaCanopyHeightHandler(CanopyHeightHandler):
         self.canopy_height_source = 'meta'
 
 
-@ObservationRegistry.register('glad_tree_height')
-@ObservationRegistry.register('umd_tree_height')
+@R.observation_handlers.add('glad_tree_height')
+@R.observation_handlers.add('umd_tree_height')
 class GLADTreeHeightHandler(CanopyHeightHandler):
     """
     GLAD/UMD-specific tree height handler.

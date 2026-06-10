@@ -36,9 +36,10 @@ import rasterio
 import requests
 from rasterio.merge import merge as rio_merge
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # =============================================================================
@@ -48,8 +49,8 @@ from ..utils import create_robust_session
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 
 
-@AcquisitionRegistry.register('GEDI_CANOPY_HEIGHT')
-@AcquisitionRegistry.register('GEDI_L2A')
+@R.acquisition_handlers.add('GEDI_CANOPY_HEIGHT')
+@R.acquisition_handlers.add('GEDI_L2A')
 class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
     """
     GEDI L2A canopy height acquisition via NASA AppEEARS.
@@ -382,9 +383,9 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
 # Meta/WRI Global Canopy Height (Planetary Computer)
 # =============================================================================
 
-@AcquisitionRegistry.register('META_CANOPY_HEIGHT')
-@AcquisitionRegistry.register('WRI_CANOPY_HEIGHT')
-@AcquisitionRegistry.register('META_WRI_CANOPY')
+@R.acquisition_handlers.add('META_CANOPY_HEIGHT')
+@R.acquisition_handlers.add('WRI_CANOPY_HEIGHT')
+@R.acquisition_handlers.add('META_WRI_CANOPY')
 class MetaCanopyHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Meta/WRI Global Canopy Height acquisition via Microsoft Planetary Computer.
@@ -604,9 +605,9 @@ class MetaCanopyHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
 # GLAD/UMD Tree Height
 # =============================================================================
 
-@AcquisitionRegistry.register('GLAD_TREE_HEIGHT')
-@AcquisitionRegistry.register('UMD_TREE_HEIGHT')
-@AcquisitionRegistry.register('GLAD_CANOPY')
+@R.acquisition_handlers.add('GLAD_TREE_HEIGHT')
+@R.acquisition_handlers.add('UMD_TREE_HEIGHT')
+@R.acquisition_handlers.add('GLAD_CANOPY')
 class GLADTreeHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     GLAD/UMD tree height acquisition from University of Maryland.

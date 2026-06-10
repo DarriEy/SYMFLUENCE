@@ -21,12 +21,13 @@ import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register("daymet")
+@R.dataset_handlers.add("daymet")
 class DaymetHandler(BaseDatasetHandler):
     """
     Handler for Daymet daily surface weather forcing data.

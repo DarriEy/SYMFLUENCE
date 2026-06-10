@@ -19,12 +19,13 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('NEX-GDDP-CMIP6')
-@AcquisitionRegistry.register('NEX-GDDP')
+@R.acquisition_handlers.add('NEX-GDDP-CMIP6')
+@R.acquisition_handlers.add('NEX-GDDP')
 class NEXGDDPCHandler(BaseAcquisitionHandler):
     """
     Acquires NEX-GDDP-CMIP6 downscaled climate projection data via THREDDS.

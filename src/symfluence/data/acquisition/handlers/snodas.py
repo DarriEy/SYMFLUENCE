@@ -37,11 +37,12 @@ import numpy as np
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('SNODAS')
+@R.acquisition_handlers.add('SNODAS')
 class SNODASAcquirer(BaseAcquisitionHandler):
     """
     Acquires SNODAS snow data from NSIDC.

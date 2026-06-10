@@ -25,13 +25,14 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('jrc_water')
-@ObservationRegistry.register('jrc_gsw')
-@ObservationRegistry.register('surface_water')
+@R.observation_handlers.add('jrc_water')
+@R.observation_handlers.add('jrc_gsw')
+@R.observation_handlers.add('surface_water')
 class JRCWaterHandler(BaseObservationHandler):
     """
     Handles JRC Global Surface Water data acquisition and processing.

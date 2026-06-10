@@ -40,17 +40,18 @@ import numpy as np
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from .fluxnet_constants import (
     FLUXNET_VARIABLE_MAPPING,
     convert_le_to_et,
 )
 
 
-@AcquisitionRegistry.register('FLUXNET')
-@AcquisitionRegistry.register('FLUXNET2015')
-@AcquisitionRegistry.register('AMERIFLUX')
+@R.acquisition_handlers.add('FLUXNET')
+@R.acquisition_handlers.add('FLUXNET2015')
+@R.acquisition_handlers.add('AMERIFLUX')
 class FLUXNETAcquirer(BaseAcquisitionHandler):
     """
     Acquires FLUXNET/AmeriFlux flux tower data for ET calibration.
@@ -660,7 +661,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         return site_db.get(station_id, {'name': station_id, 'lat': None, 'lon': None})
 
 
-@AcquisitionRegistry.register('FLUXNET_ET')
+@R.acquisition_handlers.add('FLUXNET_ET')
 class FLUXNETETAcquirer(FLUXNETAcquirer):
     """Specialized FLUXNET acquirer focused on ET data."""
 

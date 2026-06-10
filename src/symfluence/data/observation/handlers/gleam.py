@@ -19,11 +19,12 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('gleam_et')
+@R.observation_handlers.add('gleam_et')
 class GLEAMETHandler(BaseObservationHandler):
     """
     Handles GLEAM evapotranspiration data.

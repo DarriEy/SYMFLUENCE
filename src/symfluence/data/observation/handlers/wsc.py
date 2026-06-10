@@ -15,12 +15,12 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('wsc_streamflow')
+@R.observation_handlers.add('wsc_streamflow')
 class WSCStreamflowHandler(BaseObservationHandler):
     """
     Handles WSC streamflow data acquisition and processing.

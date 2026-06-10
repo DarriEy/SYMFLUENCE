@@ -20,12 +20,13 @@ import numpy as np
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('CNES_GRGS')
-@AcquisitionRegistry.register('CNES_GRGS_TWS')
+@R.acquisition_handlers.add('CNES_GRGS')
+@R.acquisition_handlers.add('CNES_GRGS_TWS')
 class CNESGRGSAcquirer(BaseAcquisitionHandler):
     """
     Handles CNES/GRGS RL05 GRACE TWS data acquisition.

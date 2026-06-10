@@ -44,9 +44,10 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
-from ..registry import AcquisitionRegistry
 
 
 class _EarthdataSession(requests.Session):
@@ -178,7 +179,7 @@ def _build_subset_url(base_url, variables, lat_indices, lon_indices):
     return f"{base_url}.nc4?{','.join(constraints)}"
 
 
-@AcquisitionRegistry.register('MERRA2')
+@R.acquisition_handlers.add('MERRA2')
 class MERRA2Acquirer(
     BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 ):

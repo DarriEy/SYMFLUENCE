@@ -18,13 +18,13 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('aorc')
+@R.dataset_handlers.add('aorc')
 class AORCHandler(BaseDatasetHandler):
     """
     Handler for AORC (Analysis of Record for Calibration) dataset.

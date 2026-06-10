@@ -16,12 +16,13 @@ import xarray as xr
 from pyproj import CRS, Transformer
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('carra')
+@R.dataset_handlers.add('carra')
 class CARRAHandler(BaseDatasetHandler):
     """Handler for CARRA (Copernicus Arctic Regional Reanalysis) dataset."""
 

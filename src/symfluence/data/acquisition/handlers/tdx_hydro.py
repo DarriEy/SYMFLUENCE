@@ -31,9 +31,10 @@ from pathlib import Path
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # GEOGLOWS V2 S3 base URL (us-west-2, public)
@@ -47,8 +48,8 @@ _CATCHMENTS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/hydrography/vpu={{vpu}}/catchme
 _STREAMS_URL_TEMPLATE = f"{_GEOGLOWS_S3_BASE}/hydrography/vpu={{vpu}}/streams_{{vpu}}.gpkg"
 
 
-@AcquisitionRegistry.register('TDX_HYDRO')
-@AcquisitionRegistry.register('GEOGLOWS')
+@R.acquisition_handlers.add('TDX_HYDRO')
+@R.acquisition_handlers.add('GEOGLOWS')
 class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
     """TDX-Hydro / GEOGLOWS V2 acquisition via public S3.
 

@@ -17,13 +17,14 @@ import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register("nex-gddp-cmip6")
-@DatasetRegistry.register("nex-gddp")
+@R.dataset_handlers.add("nex-gddp-cmip6")
+@R.dataset_handlers.add("nex-gddp")
 class NEXGDDPCMIP6Handler(BaseDatasetHandler):
     """
     Handler for NEX-GDDP-CMIP6 downscaled climate data.

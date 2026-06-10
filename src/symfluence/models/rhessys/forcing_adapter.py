@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.registries import R
+from symfluence.models.adapters import ForcingAdapter
 
 
-@ForcingAdapterRegistry.register_adapter('RHESSYS')
+@R.forcing_adapters.add('RHESSYS')
 class RHESSysForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for RHESSys model.

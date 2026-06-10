@@ -17,13 +17,14 @@ import geopandas as gpd
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('era5')
-@DatasetRegistry.register('era5_cds')
+@R.dataset_handlers.add('era5')
+@R.dataset_handlers.add('era5_cds')
 class ERA5Handler(BaseDatasetHandler):
     """Handler for ERA5 (ECMWF Reanalysis v5) dataset."""
 

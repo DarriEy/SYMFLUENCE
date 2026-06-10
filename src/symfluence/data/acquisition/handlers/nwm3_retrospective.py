@@ -49,8 +49,9 @@ import pandas as pd
 import s3fs
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 _S3_BUCKET = 'noaa-nwm-retrospective-3-0-pds'
 _ZARR_PREFIX = 'CONUS/zarr'
@@ -82,7 +83,7 @@ _NWM_FORCING_VARS = {
 }
 
 
-@AcquisitionRegistry.register('NWM3_RETROSPECTIVE')
+@R.acquisition_handlers.add('NWM3_RETROSPECTIVE')
 class NWM3RetrospectiveAcquirer(BaseAcquisitionHandler):
     """
     Download NOAA NWM v3.0 retrospective outputs from AWS S3 Zarr stores.

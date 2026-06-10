@@ -32,11 +32,12 @@ from typing import List, Optional
 import numpy as np
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('SSEBOP')
+@R.acquisition_handlers.add('SSEBOP')
 class SSEBopAcquirer(BaseAcquisitionHandler):
     """
     Acquires SSEBop ET data from USGS FEWS NET portal.

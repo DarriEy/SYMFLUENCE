@@ -17,12 +17,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('GLDAS')
-@AcquisitionRegistry.register('GLDAS_TWS')
+@R.acquisition_handlers.add('GLDAS')
+@R.acquisition_handlers.add('GLDAS_TWS')
 class GLDASAcquirer(BaseAcquisitionHandler):
     """
     Handles GLDAS-2.1 Noah monthly TWS data acquisition.
