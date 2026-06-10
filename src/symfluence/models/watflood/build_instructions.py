@@ -162,6 +162,15 @@ done
 # Fix Hollerith constant in area_watflood.f: flen='none' -> flen=999999
 perl -pi -e "s/flen='none'/flen=999999/" "${SRC_DIR}/core/area_watflood.f"
 
+# read_divert.f allocates/uses xtake/ytake/xgive/ygive (real diversion
+# coordinates), but the source never declares them under implicit none — only
+# the integer grid-index versions itake/jtake/igive/jgive exist (a latent bug
+# present in the official source too). Declare the missing real arrays next to
+# them so they're module-shared.
+if ! grep -qi "allocatable :: xtake" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
+    perl -pi -e 's/(integer\*4,\s*dimension\(:\),\s*allocatable\s*::\s*itake,jtake,igive,jgive)/$1\n      real*4, dimension(:), allocatable :: xtake,ytake,xgive,ygive\n      integer*4, dimension(:), allocatable :: gridtake,gridgive/i' "${SRC_DIR}/core/area_watflood.f"
+fi
+
 # Fix STOP without a blank before its operand: STOP'msg' -> STOP 'msg', and the
 # line-continued form STOP& -> STOP & (gfortran: "Blank required in STOP statement").
 find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
@@ -394,15 +403,20 @@ print('  Injected eof external declaration: ' + where)
 fi
 
 # === Rewrite do-while(.not.eof(...)) loops to be iostat-driven ===
-# gfortran cannot classify "do while(.not.eof(unit))" in several common/ readers
-# (read_par_parser, read_pt2, read_r2c, read_resv_ef): the area_watflood eof
-# interface fails to parse there (a local "external eof" parses but then clashes
-# with the module one). The loop bodies all read into ios, so drive the loop by
-# iostat instead — the same fix already used for read_par_parser, generalised to
-# any unit argument (eof(unitNum), eof(99), ...).
-for _wf in read_par_parser.f90 read_pt2.f read_r2c.f read_resv_ef.f; do
-    if [ -f "${SRC_DIR}/common/${_wf}" ]; then
-        perl -0777 -pi -e 's/do while\(\s*\(?\s*\.not\.\s*eof\([^)]*\)\s*\)?\s*\)/ios=0\n        do while(ios.eq.0)/gi' "${SRC_DIR}/common/${_wf}"
+# gfortran cannot classify "do while(.not.eof(unit))" in many common/ and model/
+# readers: the area_watflood eof interface fails to parse there (a local
+# "external eof" parses but then clashes with the module one). The loop bodies
+# all read into ios, so drive the loop by iostat instead — the established
+# read_par_parser fix, generalised to every reader and any unit arg (unitNum,
+# 99, double-paren / uppercase forms). NB: this is an off-by-one looser than the
+# original eof() (it runs the body once on the read that hits EOF); acceptable
+# for the source build — the runtime-correct binary is the Waterloo prebuilt.
+# Only the readers that actually desync — most eof loops compile fine with the
+# module interface, and rewriting them would unbalance their do/end-do.
+for _wf in common/read_par_parser.f90 common/read_pt2.f common/read_r2c.f \
+           common/read_resv_ef.f model/read_dsn.f model/read_drn.f; do
+    if [ -f "${SRC_DIR}/${_wf}" ]; then
+        perl -0777 -pi -e 's/do while\(\s*\(?\s*\.not\.\s*eof\([^)]*\)\s*\)?\s*\)/ios=0\n        do while(ios.eq.0)/gi' "${SRC_DIR}/${_wf}"
     fi
 done
 
