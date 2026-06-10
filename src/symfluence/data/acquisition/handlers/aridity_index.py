@@ -33,9 +33,10 @@ import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # Figshare direct file download URLs (v3.1)
@@ -61,9 +62,9 @@ _VARIABLES = {
 _DEFAULT_VARIABLES = ['ai', 'et0']
 
 
-@AcquisitionRegistry.register('ARIDITY_INDEX')
-@AcquisitionRegistry.register('GLOBAL_ARIDITY')
-@AcquisitionRegistry.register('CGIAR_ARIDITY')
+@R.acquisition_handlers.add('ARIDITY_INDEX')
+@R.acquisition_handlers.add('GLOBAL_ARIDITY')
+@R.acquisition_handlers.add('CGIAR_ARIDITY')
 class AridityIndexAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     CGIAR-CSI Global Aridity Index and PET acquisition.

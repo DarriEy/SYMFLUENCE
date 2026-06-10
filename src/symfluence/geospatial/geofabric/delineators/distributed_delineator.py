@@ -15,7 +15,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import geopandas as gpd
 
-from ....geospatial.delineation_registry import DelineationRegistry
+from symfluence.core.registries import R
+
 from ..base.base_delineator import BaseGeofabricDelineator
 from ..methods.curvature import CurvatureMethod
 from ..methods.multi_scale import MultiScaleMethod
@@ -31,7 +32,7 @@ from ..utils.validation import GeofabricValidator
 from .coastal_delineator import CoastalWatershedDelineator
 
 
-@DelineationRegistry.register('semidistributed')
+@R.delineation_strategies.add('semidistributed')
 class GeofabricDelineator(BaseGeofabricDelineator):
     """
     Main geofabric delineation class for distributed and semi-distributed domains.

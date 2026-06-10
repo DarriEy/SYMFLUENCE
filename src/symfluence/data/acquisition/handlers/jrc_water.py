@@ -37,12 +37,13 @@ from typing import List, Optional, Tuple
 import numpy as np
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('JRC_WATER')
-@AcquisitionRegistry.register('JRC_GSW')
+@R.acquisition_handlers.add('JRC_WATER')
+@R.acquisition_handlers.add('JRC_GSW')
 class JRCWaterAcquirer(BaseAcquisitionHandler):
     """
     Acquires JRC Global Surface Water data from Google Cloud Storage.

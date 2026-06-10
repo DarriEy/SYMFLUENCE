@@ -17,11 +17,12 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('daymet')
+@R.observation_handlers.add('daymet')
 class DaymetHandler(BaseObservationHandler):
     """
     Handles Daymet climate data processing.

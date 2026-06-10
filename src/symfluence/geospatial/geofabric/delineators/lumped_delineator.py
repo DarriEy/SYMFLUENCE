@@ -22,13 +22,14 @@ import rasterio
 from rasterio.features import shapes
 from shapely.geometry import shape
 
-from ....geospatial.delineation_registry import DelineationRegistry
+from symfluence.core.registries import R
+
 from ..base.base_delineator import BaseGeofabricDelineator
 from ..processors.gdal_processor import GDALProcessor
 from ..processors.taudem_executor import TauDEMExecutor
 
 
-@DelineationRegistry.register('lumped')
+@R.delineation_strategies.add('lumped')
 class LumpedWatershedDelineator(BaseGeofabricDelineator):
     """
     Delineates lumped watersheds using TauDEM.

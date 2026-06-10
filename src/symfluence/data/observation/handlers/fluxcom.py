@@ -14,11 +14,12 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('fluxcom_et')
+@R.observation_handlers.add('fluxcom_et')
 class FLUXCOMETHandler(BaseObservationHandler):
     """
     Handles FLUXCOM Evapotranspiration data.

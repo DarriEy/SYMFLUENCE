@@ -36,9 +36,10 @@ import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # Cloud-hosted ORNL DAAC (replaces legacy daac.ornl.gov which is intermittent)
@@ -79,9 +80,9 @@ _PELLETIER_FILES = {
 _DEFAULT_VARIABLES = list(_PELLETIER_FILES.keys())
 
 
-@AcquisitionRegistry.register('PELLETIER')
-@AcquisitionRegistry.register('PELLETIER_SOIL_DEPTH')
-@AcquisitionRegistry.register('SOIL_REGOLITH_DEPTH')
+@R.acquisition_handlers.add('PELLETIER')
+@R.acquisition_handlers.add('PELLETIER_SOIL_DEPTH')
+@R.acquisition_handlers.add('SOIL_REGOLITH_DEPTH')
 class PelletierAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Pelletier et al. (2016) global soil/regolith depth acquisition.

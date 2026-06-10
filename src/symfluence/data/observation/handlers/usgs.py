@@ -16,12 +16,12 @@ import requests
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('usgs_streamflow')
+@R.observation_handlers.add('usgs_streamflow')
 class USGSStreamflowHandler(BaseObservationHandler):
     """
     Handles USGS streamflow (discharge) data acquisition and processing.
@@ -231,7 +231,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('usgs_gw')
+@R.observation_handlers.add('usgs_gw')
 class USGSGroundwaterHandler(BaseObservationHandler):
     """
     Handles USGS groundwater level data.

@@ -4,15 +4,15 @@
 """
 SUMMA initialization presets.
 
-This module registers SUMMA-specific presets with the PresetRegistry,
+This module registers SUMMA-specific presets with the unified registry,
 keeping model-specific configuration within the model directory.
 """
 from __future__ import annotations
 
-from symfluence.cli.preset_registry import PresetRegistry
+from symfluence.core.registries import R
 
 
-@PresetRegistry.register_preset('bow-river')
+@R.presets.add('bow-river')
 def bow_river_preset():
     """Bow River at Banff lumped SUMMA setup with ERA5 forcing and DDS calibration."""
     return {
@@ -87,7 +87,7 @@ def bow_river_preset():
     }
 
 
-@PresetRegistry.register_preset('summa-basic')
+@R.presets.add('summa-basic')
 def summa_basic_preset():
     """Generic SUMMA distributed setup with ERA5 forcing."""
     return {

@@ -34,6 +34,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -41,11 +43,10 @@ except ImportError:
     HAS_CDSAPI = False
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('ASCAT')
-@AcquisitionRegistry.register('ASCAT_SM')
+@R.acquisition_handlers.add('ASCAT')
+@R.acquisition_handlers.add('ASCAT_SM')
 class ASCATSMAcquirer(BaseAcquisitionHandler):
     """
     Acquires ASCAT Soil Moisture data via Copernicus CDS.

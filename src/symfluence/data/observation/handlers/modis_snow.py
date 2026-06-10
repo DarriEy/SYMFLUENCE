@@ -16,12 +16,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 HAS_GEO = find_spec("geopandas") is not None
 if HAS_GEO:
     import geopandas as gpd
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 from .modis_utils import (
     CLOUD_VALUE,
     MODIS_FILL_VALUES,
@@ -29,7 +30,7 @@ from .modis_utils import (
 )
 
 
-@ObservationRegistry.register('modis_snow')
+@R.observation_handlers.add('modis_snow')
 class MODISSnowHandler(BaseObservationHandler):
     """
     Handles MODIS Snow Cover Area (SCA) data.
@@ -310,8 +311,8 @@ class MODISSnowHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('modis_sca')
-@ObservationRegistry.register('modis_snow_merged')
+@R.observation_handlers.add('modis_sca')
+@R.observation_handlers.add('modis_snow_merged')
 class MODISSCAHandler(MODISSnowHandler):
     """
     Specialized handler for merged MODIS SCA (MOD10A1 + MYD10A1).

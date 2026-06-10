@@ -12,11 +12,12 @@ from pathlib import Path
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('MODIS_SNOW')
+@R.acquisition_handlers.add('MODIS_SNOW')
 class MODISSnowAcquirer(BaseAcquisitionHandler):
     """
     Acquires MODIS Snow Cover (MOD10A1/MYD10A1) data via THREDDS NCSS.

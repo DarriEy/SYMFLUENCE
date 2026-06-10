@@ -21,13 +21,14 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('modis_et')
-@ObservationRegistry.register('mod16')
-@ObservationRegistry.register('mod16a2')
+@R.observation_handlers.add('modis_et')
+@R.observation_handlers.add('mod16')
+@R.observation_handlers.add('mod16a2')
 class MODISETHandler(BaseObservationHandler):
     """
     Handles MODIS MOD16A2 8-day Evapotranspiration (ET) data.

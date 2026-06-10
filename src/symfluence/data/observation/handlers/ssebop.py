@@ -26,12 +26,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('ssebop')
-@ObservationRegistry.register('ssebop_et')
+@R.observation_handlers.add('ssebop')
+@R.observation_handlers.add('ssebop_et')
 class SSEBopHandler(BaseObservationHandler):
     """
     Handles SSEBop ET data acquisition and processing.

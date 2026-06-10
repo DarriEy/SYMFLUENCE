@@ -20,13 +20,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.data.observation.paths import (
     first_existing_path,
     tws_default_observation_path,
     tws_observation_candidates,
 )
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.evaluation.registry import EvaluationRegistry
 
 from .base import ModelEvaluator
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-@EvaluationRegistry.register('TWS')
+@R.evaluators.add('TWS')
 class TWSEvaluator(ModelEvaluator):
     """Total Water Storage evaluator comparing SUMMA to GRACE satellites.
 

@@ -33,9 +33,10 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
-from ..registry import AcquisitionRegistry
 
 # OPeNDAP base URL for NLDAS-2 at GES DISC
 _OPENDAP_BASE = "https://hydro1.gesdisc.eosdis.nasa.gov/opendap/NLDAS/NLDAS_FORA0125_H.2.0"
@@ -120,9 +121,9 @@ def _build_subset_url(base_url, variables, lat_indices, lon_indices):
     return f"{base_url}.nc4?{','.join(constraints)}"
 
 
-@AcquisitionRegistry.register('NLDAS')
-@AcquisitionRegistry.register('NLDAS2')
-@AcquisitionRegistry.register('NLDAS-2')
+@R.acquisition_handlers.add('NLDAS')
+@R.acquisition_handlers.add('NLDAS2')
+@R.acquisition_handlers.add('NLDAS-2')
 class NLDASAcquirer(
     BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 ):

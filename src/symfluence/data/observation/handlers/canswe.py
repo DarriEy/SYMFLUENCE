@@ -41,9 +41,9 @@ import requests
 import xarray as xr
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Zenodo record IDs for CanSWE versions
 CANSWE_ZENODO_RECORDS = {
@@ -56,8 +56,8 @@ CANSWE_ZENODO_RECORDS = {
 CANSWE_DEFAULT_VERSION = 'v6'
 
 
-@ObservationRegistry.register('canswe')
-@ObservationRegistry.register('canswe_swe')
+@R.observation_handlers.add('canswe')
+@R.observation_handlers.add('canswe_swe')
 class CanSWEHandler(BaseObservationHandler):
     """
     Handles CanSWE data acquisition and processing.
@@ -625,8 +625,8 @@ class CanSWEHandler(BaseObservationHandler):
 
 
 # Also register NorSWE as an alias with extended coverage
-@ObservationRegistry.register('norswe')
-@ObservationRegistry.register('norswe_swe')
+@R.observation_handlers.add('norswe')
+@R.observation_handlers.add('norswe_swe')
 class NorSWEHandler(CanSWEHandler):
     """
     Handles NorSWE (Northern Hemisphere SWE) data acquisition and processing.

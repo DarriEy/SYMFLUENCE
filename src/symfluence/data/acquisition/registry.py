@@ -40,7 +40,7 @@ class AcquisitionRegistry(BaseRegistry):
 
     Usage:
         # Handler registration (in handler module):
-        @AcquisitionRegistry.register('ERA5')
+        @R.acquisition_handlers.add('ERA5')
         class ERA5Acquirer(BaseAcquisitionHandler):
             ...
 

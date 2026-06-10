@@ -40,7 +40,7 @@ class ForcingAdapter(ConfigMixin, ABC):
         - Add model-specific metadata
 
     Example Implementation:
-        >>> @ForcingAdapterRegistry.register_adapter('SUMMA')
+        >>> @R.forcing_adapters.add('SUMMA')
         >>> class SUMMAForcingAdapter(ForcingAdapter):
         ...     def get_variable_mapping(self):
         ...         return {

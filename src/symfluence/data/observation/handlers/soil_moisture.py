@@ -23,11 +23,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('smap')
+@R.observation_handlers.add('smap')
 class SMAPHandler(BaseObservationHandler):
     """
     Handles SMAP Soil Moisture data.
@@ -156,7 +157,7 @@ class SMAPHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('ismn')
+@R.observation_handlers.add('ismn')
 class ISMNHandler(BaseObservationHandler):
     """
     Handles ISMN soil moisture data.
@@ -338,7 +339,7 @@ class ISMNHandler(BaseObservationHandler):
             self.logger.debug(f"Could not convert target_depth '{target_depth}' to float, using default 0.05")
             return 0.05
 
-@ObservationRegistry.register('esa_cci_sm')
+@R.observation_handlers.add('esa_cci_sm')
 class ESACCISMHandler(BaseObservationHandler):
     """
     Handles ESA CCI Soil Moisture data.
@@ -449,8 +450,8 @@ class ESACCISMHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('smos')
-@ObservationRegistry.register('smos_sm')
+@R.observation_handlers.add('smos')
+@R.observation_handlers.add('smos_sm')
 class SMOSSMHandler(BaseObservationHandler):
     """
     Handles SMOS (Soil Moisture and Ocean Salinity) data.
@@ -589,8 +590,8 @@ class SMOSSMHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('ascat')
-@ObservationRegistry.register('ascat_sm')
+@R.observation_handlers.add('ascat')
+@R.observation_handlers.add('ascat_sm')
 class ASCATSMHandler(BaseObservationHandler):
     """
     Handles ASCAT (Advanced Scatterometer) soil moisture data.

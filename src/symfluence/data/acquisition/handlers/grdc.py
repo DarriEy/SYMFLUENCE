@@ -25,11 +25,12 @@ from typing import List, Optional, Tuple
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('GRDC')
+@R.acquisition_handlers.add('GRDC')
 class GRDCAcquirer(BaseAcquisitionHandler):
     """
     Handles GRDC streamflow data acquisition.

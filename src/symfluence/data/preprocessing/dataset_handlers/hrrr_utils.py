@@ -17,12 +17,13 @@ import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register("hrrr")
+@R.dataset_handlers.add("hrrr")
 class HRRRHandler(BaseDatasetHandler):
     """
     Handler for HRRR (High-Resolution Rapid Refresh) forcing data.

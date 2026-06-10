@@ -32,9 +32,10 @@ from typing import List
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # MERIT-Basins data URLs
@@ -57,7 +58,7 @@ _PFAFSTETTER_L1_BBOXES = {
 }
 
 
-@AcquisitionRegistry.register('MERIT_BASINS')
+@R.acquisition_handlers.add('MERIT_BASINS')
 class MERITBasinsAcquirer(BaseAcquisitionHandler, RetryMixin):
     """MERIT-Basins vector data acquisition from reachhydro.org.
 

@@ -17,11 +17,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('grace')
+@R.observation_handlers.add('grace')
 class GRACEHandler(BaseObservationHandler):
     """
     Handles GRACE Total Water Storage anomaly data.

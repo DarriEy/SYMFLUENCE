@@ -18,11 +18,12 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('mswep')
+@R.observation_handlers.add('mswep')
 class MSWEPHandler(BaseObservationHandler):
     """
     Handles MSWEP precipitation data processing.

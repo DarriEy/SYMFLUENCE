@@ -26,8 +26,9 @@ from requests.adapters import HTTPAdapter
 from shapely.geometry import box
 from urllib3.util.retry import Retry
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
 def _create_session(max_retries: int = 3, backoff_factor: float = 1.0):
@@ -72,8 +73,8 @@ KEEP_COLUMNS = [
 ]
 
 
-@AcquisitionRegistry.register("HYDROLAKES")
-@AcquisitionRegistry.register("HYDROLAKES_V10")
+@R.acquisition_handlers.add("HYDROLAKES")
+@R.acquisition_handlers.add("HYDROLAKES_V10")
 class HydroLAKESAcquirer(BaseAcquisitionHandler):
     """
     HydroLAKES global lake database acquisition handler.

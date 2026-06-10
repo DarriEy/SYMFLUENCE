@@ -14,11 +14,12 @@ from __future__ import annotations
 
 from typing import Dict
 
+from symfluence.core.registries import R
+
 from .base import BaseObjective
-from .registry import ObjectiveRegistry
 
 
-@ObjectiveRegistry.register('MULTIVARIATE')
+@R.objectives.add('MULTIVARIATE')
 class MultivariateObjective(BaseObjective):
     """Weighted multi-variable objective function.
 

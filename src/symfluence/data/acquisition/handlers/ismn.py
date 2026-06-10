@@ -30,11 +30,12 @@ import numpy as np
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('ISMN')
+@R.acquisition_handlers.add('ISMN')
 class ISMNAcquirer(BaseAcquisitionHandler):
     """Acquires ISMN (International Soil Moisture Network) soil moisture data.
 

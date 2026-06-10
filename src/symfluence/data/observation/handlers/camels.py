@@ -37,8 +37,9 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # ============================================================================
 # Catchment attribute column mappings per CAMELS variant
@@ -345,7 +346,7 @@ class _BaseCAMELSStreamflowHandler(BaseObservationHandler):
 # CAMELS-US
 # ============================================================================
 
-@ObservationRegistry.register('camels_us_streamflow')
+@R.observation_handlers.add('camels_us_streamflow')
 class CAMELSUSStreamflowHandler(_BaseCAMELSStreamflowHandler):
     """CAMELS-US streamflow handler (671 USGS basins).
 
@@ -392,7 +393,7 @@ class CAMELSUSStreamflowHandler(_BaseCAMELSStreamflowHandler):
 # CAMELS-BR
 # ============================================================================
 
-@ObservationRegistry.register('camels_br_streamflow')
+@R.observation_handlers.add('camels_br_streamflow')
 class CAMELSBRStreamflowHandler(_BaseCAMELSStreamflowHandler):
     """CAMELS-BR streamflow handler (897 Brazilian basins).
 
@@ -469,7 +470,7 @@ class CAMELSBRStreamflowHandler(_BaseCAMELSStreamflowHandler):
 # CAMELS-CL
 # ============================================================================
 
-@ObservationRegistry.register('camels_cl_streamflow')
+@R.observation_handlers.add('camels_cl_streamflow')
 class CAMELSCLStreamflowHandler(_BaseCAMELSStreamflowHandler):
     """CAMELS-CL streamflow handler (516 Chilean basins).
 
@@ -534,7 +535,7 @@ class CAMELSCLStreamflowHandler(_BaseCAMELSStreamflowHandler):
 # CAMELS-AUS
 # ============================================================================
 
-@ObservationRegistry.register('camels_aus_streamflow')
+@R.observation_handlers.add('camels_aus_streamflow')
 class CAMELSAUSStreamflowHandler(_BaseCAMELSStreamflowHandler):
     """CAMELS-AUS streamflow handler (222 Australian basins).
 
@@ -599,7 +600,7 @@ class CAMELSAUSStreamflowHandler(_BaseCAMELSStreamflowHandler):
 # CAMELS-GB
 # ============================================================================
 
-@ObservationRegistry.register('camels_gb_streamflow')
+@R.observation_handlers.add('camels_gb_streamflow')
 class CAMELSGBStreamflowHandler(_BaseCAMELSStreamflowHandler):
     """CAMELS-GB streamflow handler (671 British basins).
 

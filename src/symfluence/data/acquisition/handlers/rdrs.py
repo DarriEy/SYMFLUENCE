@@ -25,8 +25,9 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # PAVICS THREDDS OPeNDAP endpoints
@@ -45,8 +46,8 @@ GPSCC_CASR_V32_BASE_URL = (
 )
 
 
-@AcquisitionRegistry.register('RDRS')
-@AcquisitionRegistry.register('RDRS_v3.1')
+@R.acquisition_handlers.add('RDRS')
+@R.acquisition_handlers.add('RDRS_v3.1')
 class RDRSAcquirer(BaseAcquisitionHandler):
     """
     Acquisition handler for CaSR/RDRS reanalysis data.
