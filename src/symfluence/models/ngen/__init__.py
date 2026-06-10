@@ -104,6 +104,3 @@ def register() -> None:
         plotter=NGENPlotter,
         build_instructions_module="symfluence.models.ngen.build_instructions",
     )
-
-# Deprecated pre-1.0 spelling (RTI item 23) — use NgenPostProcessor.
-NgenPostprocessor = NgenPostProcessor
