@@ -70,7 +70,7 @@ class WATFLOODRunner(BaseModelRunner):
                     cmd,
                     cwd=str(settings_dir),
                     env=env,
-                    stdin=subprocess.DEVNULL,
+                    input=b"\n" * 256,
                     stdout=stdout_f,
                     stderr=stderr_f,
                     timeout=timeout

@@ -1187,7 +1187,8 @@ src/symfluence/models/watflood/postprocessor.py:WATFLOODPostProcessor._extract_f
 src/symfluence/models/watflood/postprocessor.py:WATFLOODPostProcessor._parse_tb0:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/postprocessor.py:WATFLOODPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/preprocessor.py:WATFLOODPreProcessor._generate_streamflow_tb0:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/watflood/preprocessor.py:WATFLOODPreProcessor._load_era5_forcing:except Exception:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/watflood/preprocessor.py:WATFLOODPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/watflood/preprocessor.py:WATFLOODPreProcessor._mean_dem_elev:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/preprocessor.py:WATFLOODPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/watflood/runner.py:WATFLOODRunner.run:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wflow/calibration/parameter_manager.py:WflowParameterManager.update_model_files:except Exception as e:  # noqa: BLE001
