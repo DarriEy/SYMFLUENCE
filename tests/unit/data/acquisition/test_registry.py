@@ -17,6 +17,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fixtures.acquisition_fixtures import MockConfigFactory
 
+from symfluence.core.registries import R
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -76,7 +78,7 @@ class TestHandlerRegistration:
 
     def test_register_decorator(self, isolated_registry, mock_handler_class):
         """Register decorator should add handler to registry."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -84,11 +86,11 @@ class TestHandlerRegistration:
 
     def test_register_multiple_handlers(self, isolated_registry, mock_handler_class):
         """Multiple handlers can be registered."""
-        @isolated_registry.register('handler_a')
+        @R.acquisition_handlers.add('handler_a')
         class HandlerA(mock_handler_class):
             pass
 
-        @isolated_registry.register('handler_b')
+        @R.acquisition_handlers.add('handler_b')
         class HandlerB(mock_handler_class):
             pass
 
@@ -97,7 +99,7 @@ class TestHandlerRegistration:
 
     def test_register_normalizes_to_lowercase(self, isolated_registry, mock_handler_class):
         """Registration should normalize names to lowercase."""
-        @isolated_registry.register('TEST_HANDLER')
+        @R.acquisition_handlers.add('TEST_HANDLER')
         class TestHandler(mock_handler_class):
             pass
 
@@ -106,7 +108,7 @@ class TestHandlerRegistration:
 
     def test_register_returns_class(self, isolated_registry, mock_handler_class):
         """Register decorator should return the class unchanged."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -127,7 +129,7 @@ class TestHandlerRetrieval:
         self, isolated_registry, mock_handler_class, mock_config, mock_logger
     ):
         """get_handler should return an instance of the registered handler."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -140,7 +142,7 @@ class TestHandlerRetrieval:
         self, isolated_registry, mock_handler_class, mock_config, mock_logger
     ):
         """get_handler should be case-insensitive."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -200,7 +202,7 @@ class TestHandlerRetrieval:
         self, isolated_registry, mock_handler_class, mock_config, mock_logger
     ):
         """Error message should list available handlers."""
-        @isolated_registry.register('available_handler')
+        @R.acquisition_handlers.add('available_handler')
         class AvailableHandler(mock_handler_class):
             pass
 
@@ -221,7 +223,7 @@ class TestGetHandlerClass:
 
     def test_get_handler_class_returns_class(self, isolated_registry, mock_handler_class):
         """_get_handler_class should return the class, not instance."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -232,7 +234,7 @@ class TestGetHandlerClass:
 
     def test_get_handler_class_case_insensitive(self, isolated_registry, mock_handler_class):
         """_get_handler_class should be case-insensitive."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -262,11 +264,11 @@ class TestListHandlers:
 
     def test_list_handlers_returns_all(self, isolated_registry, mock_handler_class):
         """list_handlers should return all registered handlers."""
-        @isolated_registry.register('handler_a')
+        @R.acquisition_handlers.add('handler_a')
         class HandlerA(mock_handler_class):
             pass
 
-        @isolated_registry.register('handler_b')
+        @R.acquisition_handlers.add('handler_b')
         class HandlerB(mock_handler_class):
             pass
 
@@ -277,15 +279,15 @@ class TestListHandlers:
 
     def test_list_handlers_sorted(self, isolated_registry, mock_handler_class):
         """list_handlers should return sorted list."""
-        @isolated_registry.register('zebra')
+        @R.acquisition_handlers.add('zebra')
         class Zebra(mock_handler_class):
             pass
 
-        @isolated_registry.register('alpha')
+        @R.acquisition_handlers.add('alpha')
         class Alpha(mock_handler_class):
             pass
 
-        @isolated_registry.register('beta')
+        @R.acquisition_handlers.add('beta')
         class Beta(mock_handler_class):
             pass
 
@@ -296,7 +298,7 @@ class TestListHandlers:
 
     def test_list_datasets_alias(self, isolated_registry, mock_handler_class):
         """list_datasets should be alias for list_handlers."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -316,7 +318,7 @@ class TestIsRegistered:
 
     def test_is_registered_true(self, isolated_registry, mock_handler_class):
         """is_registered should return True for registered handlers."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -328,7 +330,7 @@ class TestIsRegistered:
 
     def test_is_registered_case_insensitive(self, isolated_registry, mock_handler_class):
         """is_registered should be case-insensitive."""
-        @isolated_registry.register('test_handler')
+        @R.acquisition_handlers.add('test_handler')
         class TestHandler(mock_handler_class):
             pass
 
@@ -346,11 +348,11 @@ class TestClearRegistry:
 
     def test_clear_removes_all_handlers(self, isolated_registry, mock_handler_class):
         """clear should remove all registered handlers."""
-        @isolated_registry.register('handler_a')
+        @R.acquisition_handlers.add('handler_a')
         class HandlerA(mock_handler_class):
             pass
 
-        @isolated_registry.register('handler_b')
+        @R.acquisition_handlers.add('handler_b')
         class HandlerB(mock_handler_class):
             pass
 

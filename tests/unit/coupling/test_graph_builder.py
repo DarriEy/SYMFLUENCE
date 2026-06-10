@@ -27,9 +27,14 @@ class TestBMIRegistry:
             registry.get("NONEXISTENT")
 
     def test_register_custom(self):
+        from symfluence.core.registries import R
+
         registry = BMIRegistry()
-        registry.register("MYMODEL", "some.module.MyClass")
-        assert "MYMODEL" in registry.available_models()
+        R.bmi_adapters.add_lazy("MYMODEL", "some.module.MyClass")
+        try:
+            assert "MYMODEL" in registry.available_models()
+        finally:
+            R.bmi_adapters.remove("MYMODEL")
 
     def test_available_models(self):
         registry = BMIRegistry()

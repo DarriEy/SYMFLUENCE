@@ -28,7 +28,7 @@ def _register_parameter_managers():
 
     Scans ``symfluence.models.*`` for sub-packages that contain a
     ``calibration.parameter_manager`` module and imports each one to
-    trigger its ``@register_parameter_manager`` decorator.  Models with no
+    trigger its ``R.parameter_managers`` registration.  Models with no
     calibration support are skipped silently; models whose parameter-manager
     module *exists but fails to import* are surfaced at WARNING (see
     ``discover_calibration_components``) instead of vanishing silently.
