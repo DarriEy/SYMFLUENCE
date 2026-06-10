@@ -260,8 +260,9 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             # Search all forcing directories, filtering by dataset name
             # (e.g. CARRA, ERA5) when multiple datasets coexist.
             forcing_dataset = self.config_dict.get('FORCING_DATASET', 'ERA5')
+            # Store-first basin-averaged forcing, then legacy merged/raw dirs.
             forcing_dirs = [
-                self.project_forcing_dir / 'basin_averaged_data',
+                self.forcing_basin_path,
                 self.project_forcing_dir / 'merged_path',
                 self.project_forcing_dir / 'raw_data',
             ]

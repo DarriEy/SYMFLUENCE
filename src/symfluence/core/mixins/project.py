@@ -28,6 +28,22 @@ def resolve_data_subdir(project_dir: Path, subdir: str) -> Path:
     return new_path
 
 
+def resolve_forcing_basin_path(project_dir: Path) -> Path:
+    """Resolve the basin-averaged forcing directory, store-first.
+
+    Prefers the model-ready forcings store (``data/model_ready/forcings``) when
+    it exists and holds NetCDF files, otherwise falls back to the legacy
+    ``{data/}forcing/basin_averaged_data`` location. Mirrors the logic
+    ``BaseModelPreProcessor`` uses to set ``self.forcing_basin_path`` so that
+    preprocessors which do not call ``super().__init__`` (and therefore lack
+    that attribute) resolve forcing identically.
+    """
+    store = project_dir / 'data' / 'model_ready' / 'forcings'
+    if store.exists() and any(store.glob('*.nc')):
+        return store
+    return resolve_data_subdir(project_dir, 'forcing') / 'basin_averaged_data'
+
+
 class ProjectContextMixin(ConfigMixin):
     """
     Mixin providing standard project context attributes.
