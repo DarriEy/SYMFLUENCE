@@ -188,6 +188,69 @@ HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,da
 #   Usage:      3
 HYPE_SPINUP_DAYS: 365
 
+# HYPE_INFILTRATION_MODEL
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE infiltration model option (info.txt modeloption)
+HYPE_INFILTRATION_MODEL: null
+
+# HYPE_PET_MODEL
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE potential evapotranspiration model option
+HYPE_PET_MODEL: null
+
+# HYPE_FROZEN_SOIL_MODEL
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE frozen soil model option
+HYPE_FROZEN_SOIL_MODEL: null
+
+# HYPE_SNOW_EVAPORATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE snow evaporation option
+HYPE_SNOW_EVAPORATION: null
+
+# HYPE_DEEP_GROUND
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE deep groundwater option
+HYPE_DEEP_GROUND: null
+
+# HYPE_SURFACE_RUNOFF
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: HYPE surface runoff option
+HYPE_SURFACE_RUNOFF: null
+
+# HYPE_SOIL_INIT_WET
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: Initialize soil moisture at field capacity
+HYPE_SOIL_INIT_WET: null
+
+# HYPE_SOIL_LAYER_DEPTHS
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: Soil layer depths (m) for GeoData generation
+HYPE_SOIL_LAYER_DEPTHS: null
+
+# HYPE_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      HYPEConfig (model_configs_hydrology.py)
+#   Description: Hype Param Bounds
+HYPE_PARAM_BOUNDS: null
+
 
 # 11. NGEN Model Configuration
 # ================================================================================
@@ -294,6 +357,34 @@ NGEN_PET_PARAMS_TO_CALIBRATE: ""
 #   Default:     SLOTH,PET,CFE
 #   Source:      NGENConfig (model_configs.py)
 NGEN_MODULES_SELECTED: "SLOTH,PET,CFE"
+
+# SETTINGS_NGEN_REALIZATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      NGENConfig (model_configs_hydrology.py)
+#   Description: Realization config filename (default realization_config.json)
+SETTINGS_NGEN_REALIZATION: null
+
+# CALIBRATION_NEXUS_ID
+#   Type:        Optional
+#   Default:     None
+#   Source:      NGENConfig (model_configs_hydrology.py)
+#   Description: Nexus ID whose output is used for calibration
+CALIBRATION_NEXUS_ID: null
+
+# CALIBRATION_WARMUP_DAYS
+#   Type:        Optional
+#   Default:     None
+#   Source:      NGENConfig (model_configs_hydrology.py)
+#   Description: Warmup days excluded from calibration metrics
+CALIBRATION_WARMUP_DAYS: null
+
+# EXPERIMENT_OUTPUT_NGEN
+#   Type:        str
+#   Default:     default
+#   Source:      NGENConfig (model_configs_hydrology.py)
+#   Description: Experiment Output Ngen
+EXPERIMENT_OUTPUT_NGEN: "default"
 
 # NGEN_NOAH_ET_FALLBACK
 #   Type:        str
@@ -530,6 +621,13 @@ MESH_ENABLE_FROZEN_SOIL: true
 #   Description: Tolerance in days for daily timestep alignment in MESH output
 MESH_DAILY_TOLERANCE_DAYS: 1
 
+# MESH_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Mesh Param Bounds
+MESH_PARAM_BOUNDS: null
+
 
 # 13. Routing Model (mizuRoute)
 # ================================================================================
@@ -725,6 +823,13 @@ CALIBRATE_MIZUROUTE: false
 #   Source:      MizuRouteConfig (model_configs.py)
 #   Usage:      3
 MIZUROUTE_TIMEOUT: 3600
+
+# MIZUROUTE_NUM_THREADS
+#   Type:        Optional
+#   Default:     None
+#   Source:      MizuRouteConfig (model_configs_routing.py)
+#   Description: OpenMP thread count for the mizuRoute subprocess
+MIZUROUTE_NUM_THREADS: null
 
 # MIZUROUTE_TIME_ROUNDING_FREQ
 #   Type:        str
@@ -1078,6 +1183,20 @@ LSTM_USE_SNOW: false
 #   Description: Train LSTM through dRoute routing for distributed models
 LSTM_TRAIN_THROUGH_ROUTING: false
 
+# LSTM_PARAMS_TO_CALIBRATE
+#   Type:        Optional
+#   Default:     None
+#   Source:      LSTMConfig (model_configs_ml_fire.py)
+#   Description: Comma-separated parameter names for LSTM calibration
+LSTM_PARAMS_TO_CALIBRATE: null
+
+# LSTM_PARAMETER_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      LSTMConfig (model_configs_ml_fire.py)
+#   Description: Lstm Parameter Bounds
+LSTM_PARAMETER_BOUNDS: null
+
 # lstm
 #   Type:        LSTMConfig
 #   Default:     None
@@ -1123,6 +1242,13 @@ OPTIMIZATION_METHODS: []
 #   Source:      DDSConfig (optimization.py)
 #   Usage:      10
 DDS_R: 0.2
+
+# DDS_STAGNATION_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DDSConfig (optimization.py)
+#   Description: Iterations without improvement before DDS stops early
+DDS_STAGNATION_THRESHOLD: 100
 
 # DE_CROSSOVER_RATE
 #   Type:        float
@@ -1743,6 +1869,13 @@ ADAM_BETA2: 0.999
 #   Usage:      Numerical stability epsilon
 ADAM_EPS: 0.00000001
 
+# ADAM_STEPS
+#   Type:        Optional
+#   Default:     None
+#   Source:      AdamConfig (optimization.py)
+#   Description: Number of Adam optimization steps
+ADAM_STEPS: null
+
 # LBFGS_LR
 #   Type:        float
 #   Default:     0.1
@@ -1826,6 +1959,153 @@ CHECKPOINT_INTERVAL: 10
 #   Source:      OptimizationConfig (optimization.py)
 #   Usage:      Calibration seed parameters used before warm-start files and model defaults
 INITIAL_GUESS: null
+
+# SKIP_WARM_START
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Skip warm-starting from previous best parameters
+SKIP_WARM_START: null
+
+# PARAMETER_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Generic parameter bounds override, e.g. {param: [min, max]}
+PARAMETER_BOUNDS: null
+
+# INITIAL_PARAMETERS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Initial parameter values used by parameter managers
+INITIAL_PARAMETERS: null
+
+# LIKELIHOOD_FUNCTION
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Likelihood for uncertainty-aware metrics (e.g. 'gaussian')
+LIKELIHOOD_FUNCTION: null
+
+# MODEL_ERROR_BASE
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Additive model error term for likelihood evaluation
+MODEL_ERROR_BASE: null
+
+# MODEL_ERROR_FRACTION
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Model error as a fraction of simulated value
+MODEL_ERROR_FRACTION: null
+
+# TRANSFER_FUNCTION_TYPE
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Regionalization transfer function form (e.g. 'linear')
+TRANSFER_FUNCTION_TYPE: null
+
+# TRANSFER_FUNCTION_B_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Bounds for the transfer-function slope coefficient b
+TRANSFER_FUNCTION_B_BOUNDS: null
+
+# TRANSFER_FUNCTION_LOG_ATTRS
+#   Type:        Union
+#   Default:     None
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Attributes to log-transform before the transfer function
+TRANSFER_FUNCTION_LOG_ATTRS: null
+
+# MULTI_GAUGE_CALIBRATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Calibrate against multiple observation gauges simultaneously
+MULTI_GAUGE_CALIBRATION: null
+
+# MULTI_GAUGE_OBS_DIR
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Directory containing per-gauge observation files
+MULTI_GAUGE_OBS_DIR: null
+
+# MULTI_GAUGE_IDS
+#   Type:        Union
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Explicit gauge IDs to calibrate against (default: all found)
+MULTI_GAUGE_IDS: null
+
+# MULTI_GAUGE_EXCLUDE_IDS
+#   Type:        Union
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Gauge IDs to exclude from multi-gauge calibration
+MULTI_GAUGE_EXCLUDE_IDS: null
+
+# MULTI_GAUGE_AGGREGATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Aggregation of per-gauge scores: 'mean', 'median' or 'weighted'
+MULTI_GAUGE_AGGREGATION: null
+
+# MULTI_GAUGE_MIN_GAUGES
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum number of usable gauges required
+MULTI_GAUGE_MIN_GAUGES: null
+
+# MULTI_GAUGE_MAX_DISTANCE
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Maximum gauge-to-subbasin mapping distance
+MULTI_GAUGE_MAX_DISTANCE: null
+
+# MULTI_GAUGE_MIN_OBS_CV
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum coefficient of variation of observations
+MULTI_GAUGE_MIN_OBS_CV: null
+
+# MULTI_GAUGE_MIN_SPECIFIC_Q
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum specific discharge for a gauge to be used
+MULTI_GAUGE_MIN_SPECIFIC_Q: null
+
+# MULTI_GAUGE_MIN_OVERLAP_DAYS
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Minimum days of obs/sim overlap for a gauge to be used
+MULTI_GAUGE_MIN_OVERLAP_DAYS: null
+
+# MULTI_GAUGE_KGE_FLOOR
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Floor applied to per-gauge KGE before aggregation
+MULTI_GAUGE_KGE_FLOOR: null
+
+# GAUGE_SEGMENT_MAPPING
+#   Type:        Optional
+#   Default:     None
+#   Source:      MultiGaugeConfig (optimization.py)
+#   Description: Explicit gauge-ID to river-segment mapping
+GAUGE_SEGMENT_MAPPING: null
 
 # ERROR_LOG_DIR
 #   Type:        str
@@ -2228,19 +2508,19 @@ GRACE_PRODUCT: "RL06"
 #   Usage:      3
 GRACE_DATA_DIR: default
 
+# GRACE_SUBSET
+#   Type:        Optional
+#   Default:     None
+#   Source:      GRACEConfig (evaluation.py)
+#   Description: Spatially subset GRACE mascons to the domain
+GRACE_SUBSET: null
+
 # HYDAT_PATH
 #   Type:        str
 #   Default:     default
 #   Source:      StreamflowConfig (evaluation.py)
 #   Usage:      4
 HYDAT_PATH: default
-
-# MODIS_SNOW
-#   Type:        MODISSnowConfig
-#   Default:     MODISSnowConfig
-#   Source:      EvaluationConfig (evaluation.py)
-#   Usage:      7
-MODIS_SNOW: "MODISSnowConfig"
 
 # MODIS_SNOW_PATH
 #   Type:        str
@@ -2344,6 +2624,132 @@ MODIS_ET_PRODUCT: "MOD16A2.061"
 #   Usage:      3
 MODIS_ET_PATH: default
 
+# ESA_CCI_SM_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Path
+ESA_CCI_SM_PATH: null
+
+# ESA_CCI_SM_RECORD_TYPE
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Record Type
+ESA_CCI_SM_RECORD_TYPE: null
+
+# ESA_CCI_SM_SENSOR
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Sensor
+ESA_CCI_SM_SENSOR: null
+
+# ESA_CCI_SM_TIME_AGGREGATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Time Aggregation
+ESA_CCI_SM_TIME_AGGREGATION: null
+
+# ESA_CCI_SM_VARIABLE
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Variable
+ESA_CCI_SM_VARIABLE: null
+
+# ESA_CCI_SM_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Version
+ESA_CCI_SM_VERSION: null
+
+# GLEAM_ET_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Et Path
+GLEAM_ET_PATH: null
+
+# GLEAM_ET_DOWNLOAD_URL
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Et Download Url
+GLEAM_ET_DOWNLOAD_URL: null
+
+# ET_UNIT_CONVERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Multiplicative factor applied to GLEAM ET values
+ET_UNIT_CONVERSION: null
+
+# GLEAM_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Version
+GLEAM_VERSION: null
+
+# GLEAM_VARIABLE
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Variable
+GLEAM_VARIABLE: null
+
+# GLEAM_TEMPORAL
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Temporal
+GLEAM_TEMPORAL: null
+
+# GLEAM_USERNAME
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Username
+GLEAM_USERNAME: null
+
+# GLEAM_PASSWORD
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Password
+GLEAM_PASSWORD: null
+
+# DOWNLOAD_CANSWE
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Download Canswe
+DOWNLOAD_CANSWE: null
+
+# CANSWE_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Canswe Path
+CANSWE_PATH: null
+
+# CANSWE_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Canswe Version
+CANSWE_VERSION: null
+
+# CANSWE_MIN_OBSERVATIONS
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Minimum observation count for a CanSWE station to be used
+CANSWE_MIN_OBSERVATIONS: null
+
 # MOD16_ET_DIR
 #   Type:        str
 #   Default:     default
@@ -2400,12 +2806,26 @@ SMAP_SURFACE_DEPTH_M: 0.05
 #   Usage:      Root zone depth in meters
 SMAP_ROOTZONE_DEPTH_M: 1.0
 
+# SMAP_LAYER
+#   Type:        Optional
+#   Default:     None
+#   Source:      SMAPConfig (evaluation.py)
+#   Description: SMAP soil-moisture layer to evaluate (e.g. 'surface', 'rootzone')
+SMAP_LAYER: null
+
 # SNOTEL_PATH
 #   Type:        str
 #   Default:     None
 #   Source:      SNOTELConfig (evaluation.py)
 #   Usage:      5
 SNOTEL_PATH: null
+
+# SNOTEL_STATE
+#   Type:        Optional
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+#   Description: US state code used to query SNOTEL stations (default WA)
+SNOTEL_STATE: null
 
 # SNOTEL_STATION
 #   Type:        str
@@ -2587,19 +3007,26 @@ STREAMFLOW_RAW_NAME: default
 #   Usage:      3
 STREAMFLOW_RAW_PATH: default
 
-# USGS_GW
-#   Type:        USGSGWConfig
-#   Default:     USGSGWConfig
-#   Source:      EvaluationConfig (evaluation.py)
-#   Usage:      5
-USGS_GW: "USGSGWConfig"
-
 # USGS_STATION
 #   Type:        str
 #   Default:     None
 #   Source:      USGSGWConfig (evaluation.py)
 #   Usage:      4
 USGS_STATION: null
+
+# GW_AUTO_ALIGN
+#   Type:        Optional
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+#   Description: Auto-align simulated and observed groundwater depth datums
+GW_AUTO_ALIGN: null
+
+# GW_BASE_DEPTH
+#   Type:        Optional
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+#   Description: Reference depth (m) for groundwater depth conversion
+GW_BASE_DEPTH: null
 
 # ANALYSES
 #   Type:        List[str]
@@ -2780,6 +3207,20 @@ CATCHMENT_SHP_ELEV: "elev_mean"
 #   Source:      PathsConfig (paths.py)
 #   Usage:      10
 CATCHMENT_SHP_GRUID: "GRU_ID"
+
+# CATCHMENT_SHP_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      PathsConfig (paths.py)
+#   Description: Explicit path to the catchment shapefile
+CATCHMENT_SHP_PATH: null
+
+# CATCHMENT_SHP_SLOPE_UNITS
+#   Type:        str
+#   Default:     degrees
+#   Source:      PathsConfig (paths.py)
+#   Description: Units of the catchment slope column: 'degrees', 'radians' or 'ratio'
+CATCHMENT_SHP_SLOPE_UNITS: "degrees"
 
 # CATCHMENT_SHP_HRUID
 #   Type:        str
@@ -3860,13 +4301,6 @@ RADIATION_PATH: default
 #   Usage:      3
 APPLY_LAPSE_RATE: true
 
-# EM_EARTH
-#   Type:        EMEarthConfig
-#   Default:     None
-#   Source:      ForcingConfig (forcing.py)
-#   Usage:      1
-EM_EARTH: null
-
 # EM_EARTH_DATA_TYPE
 #   Type:        str
 #   Default:     deterministic
@@ -3916,6 +4350,13 @@ EM_EARTH_TMEAN_DIR: null
 #   Usage:      3
 ERA5_USE_CDS: null
 
+# CARRA_DOMAIN
+#   Type:        Optional
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+#   Description: CARRA regional domain: 'west_domain' or 'east_domain'
+CARRA_DOMAIN: null
+
 # ERA5_ZARR_PATH
 #   Type:        str
 #   Default:     ''
@@ -3957,6 +4398,13 @@ FORCING_MEASUREMENT_HEIGHT: 2
 #   Source:      PathsConfig (paths.py)
 #   Usage:      11
 FORCING_PATH: default
+
+# FORCING_RAW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+#   Description: Forcing Raw Path
+FORCING_RAW_PATH: "default"
 
 # FORCING_SHAPE_LAT_NAME
 #   Type:        str
@@ -4495,6 +4943,20 @@ FUSE_N_ELEVATION_BANDS: 1
 #   Usage:      Model execution timeout in seconds
 FUSE_TIMEOUT: 3600
 
+# FUSE_RUN_MODE
+#   Type:        Optional
+#   Default:     None
+#   Source:      FUSEConfig (model_configs_hydrology.py)
+#   Description: FUSE execution mode (e.g. 'run_pre', 'run_def')
+FUSE_RUN_MODE: null
+
+# FUSE_TEMPLATE_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      FUSEConfig (model_configs_hydrology.py)
+#   Description: Path to FUSE settings template directory
+FUSE_TEMPLATE_PATH: null
+
 # FUSE_RUN_INTERNAL_CALIBRATION
 #   Type:        bool
 #   Default:     True
@@ -4667,6 +5129,13 @@ GR4J_PARAM_BOUNDS: null
 #   Source:      GRConfig (model_configs.py)
 #   Description: Initial parameter values for GR model
 GR_INITIAL_PARAMS: "default"
+
+# GR_MODEL_TYPE
+#   Type:        Optional
+#   Default:     None
+#   Source:      GRConfig (model_configs_hydrology.py)
+#   Description: GR model variant (e.g. 'GR4J', 'GR5J'); default GR4J
+GR_MODEL_TYPE: null
 
 # GR_DEFAULT_PARAMS
 #   Type:        list
@@ -5299,6 +5768,13 @@ VIC_STEPS_PER_DAY: 24
 #   Source:      VICConfig (model_configs.py)
 VIC_TIMEOUT: 7200
 
+# VIC_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      VICConfig (model_configs_hydrology.py)
+#   Description: Vic Param Bounds
+VIC_PARAM_BOUNDS: null
+
 
 # 9.6a. CLM Model Configuration
 # ================================================================================
@@ -5393,6 +5869,13 @@ CLM_TIMEOUT: 3600
 #   Default:     365
 #   Source:      CLMConfig (model_configs.py)
 CLM_WARMUP_DAYS: 365
+
+# CLM_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      CLMConfig (model_configs_hydrology.py)
+#   Description: Clm Param Bounds
+CLM_PARAM_BOUNDS: null
 
 
 # 9.6. MODFLOW 6 Configuration
@@ -5749,6 +6232,13 @@ PARFLOW_PARAMS_TO_CALIBRATE: "K_SAT,POROSITY,VG_ALPHA,VG_N,MANNINGS_N"
 #   Default:     3600
 #   Source:      ParFlowConfig (model_configs.py)
 PARFLOW_TIMEOUT: 3600
+
+# PARFLOW_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      ParFlowConfig (model_configs_integrated.py)
+#   Description: Parflow Param Bounds
+PARFLOW_PARAM_BOUNDS: null
 
 
 # 9.7b. CLM-ParFlow Coupled Model Configuration
@@ -6331,6 +6821,13 @@ RHESSYS_USE_WMFIRE: false
 #   Usage:      Enable vegetation growth mode in RHESSys
 RHESSYS_USE_GROW_MODE: true
 
+# RHESSYS_PARAM_BOUNDS
+#   Type:        Optional
+#   Default:     None
+#   Source:      RHESSysConfig (model_configs_hydrology.py)
+#   Description: Rhessys Param Bounds
+RHESSYS_PARAM_BOUNDS: null
+
 # WMFIRE_INSTALL_PATH
 #   Type:        str
 #   Default:     installs/wmfire/lib
@@ -6608,6 +7105,181 @@ IGNACIO_SAVE_PERIMETERS: true
 #   Description: Compare fire perimeters with WMFire results
 IGNACIO_COMPARE_WMFIRE: false
 
+# IGNACIO_RANDOM_SEED
+#   Type:        int
+#   Default:     42
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Random seed for reproducibility
+IGNACIO_RANDOM_SEED: 42
+
+# IGNACIO_WORKING_CRS
+#   Type:        str
+#   Default:     EPSG:4326
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Working coordinate reference system
+IGNACIO_WORKING_CRS: "EPSG:4326"
+
+# IGNACIO_OUTPUT_CRS
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Output CRS (defaults to working_crs)
+IGNACIO_OUTPUT_CRS: null
+
+# IGNACIO_SLOPE_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to pre-computed slope raster (optional)
+IGNACIO_SLOPE_PATH: null
+
+# IGNACIO_ASPECT_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to pre-computed aspect raster (optional)
+IGNACIO_ASPECT_PATH: null
+
+# IGNACIO_FUEL_SOURCE_TYPE
+#   Type:        Literal
+#   Default:     raster
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Type of fuel data source
+IGNACIO_FUEL_SOURCE_TYPE: "raster"
+
+# IGNACIO_NON_FUEL_CODES
+#   Type:        List
+#   Default:     PydanticUndefined
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Raster codes to treat as non-fuel
+IGNACIO_NON_FUEL_CODES: PydanticUndefined
+
+# IGNACIO_IGNITION_CAUSE
+#   Type:        str
+#   Default:     Lightning
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Cause of ignition
+IGNACIO_IGNITION_CAUSE: "Lightning"
+
+# IGNACIO_N_ITERATIONS
+#   Type:        int
+#   Default:     1
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Number of simulation iterations
+IGNACIO_N_ITERATIONS: 1
+
+# IGNACIO_FWI_LATITUDE
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Latitude for FWI day length adjustment
+IGNACIO_FWI_LATITUDE: null
+
+# IGNACIO_DEFAULT_FFMC
+#   Type:        float
+#   Default:     88.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Fine Fuel Moisture Code
+IGNACIO_DEFAULT_FFMC: 88.0
+
+# IGNACIO_DEFAULT_DMC
+#   Type:        float
+#   Default:     30.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Duff Moisture Code
+IGNACIO_DEFAULT_DMC: 30.0
+
+# IGNACIO_DEFAULT_DC
+#   Type:        float
+#   Default:     150.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Drought Code
+IGNACIO_DEFAULT_DC: 150.0
+
+# IGNACIO_DEFAULT_ISI
+#   Type:        float
+#   Default:     5.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Initial Spread Index
+IGNACIO_DEFAULT_ISI: 5.0
+
+# IGNACIO_DEFAULT_BUI
+#   Type:        float
+#   Default:     50.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Default Buildup Index
+IGNACIO_DEFAULT_BUI: 50.0
+
+# IGNACIO_FMC
+#   Type:        float
+#   Default:     100.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Foliar Moisture Content (%)
+IGNACIO_FMC: 100.0
+
+# IGNACIO_CURING
+#   Type:        float
+#   Default:     85.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Grass curing percentage
+IGNACIO_CURING: 85.0
+
+# IGNACIO_N_VERTICES
+#   Type:        int
+#   Default:     300
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Number of vertices for fire perimeter
+IGNACIO_N_VERTICES: 300
+
+# IGNACIO_INITIAL_RADIUS
+#   Type:        float
+#   Default:     10.0
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Initial fire radius in meters
+IGNACIO_INITIAL_RADIUS: 10.0
+
+# IGNACIO_MIN_ROS
+#   Type:        float
+#   Default:     0.01
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Minimum rate of spread threshold
+IGNACIO_MIN_ROS: 0.01
+
+# IGNACIO_TIME_VARYING_WEATHER
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Use time-varying weather during simulation
+IGNACIO_TIME_VARYING_WEATHER: true
+
+# IGNACIO_SAVE_ROS_GRIDS
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Save rate of spread grids
+IGNACIO_SAVE_ROS_GRIDS: true
+
+# IGNACIO_PERIMETER_FORMAT
+#   Type:        Literal
+#   Default:     shapefile
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Output format for perimeter files
+IGNACIO_PERIMETER_FORMAT: "shapefile"
+
+# IGNACIO_GENERATE_PLOTS
+#   Type:        bool
+#   Default:     True
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Generate visualization plots
+IGNACIO_GENERATE_PLOTS: true
+
+# IGNACIO_OBSERVED_PERIMETER
+#   Type:        Optional
+#   Default:     None
+#   Source:      IGNACIOConfig (model_configs_ml_fire.py)
+#   Description: Path to observed fire perimeter for validation
+IGNACIO_OBSERVED_PERIMETER: null
+
 
 # 9.6. GNN Model Configuration
 # ================================================================================
@@ -6688,6 +7360,20 @@ GNN_PARAMS_TO_CALIBRATE: precip_mult,temp_offset,routing_velocity
 #   Source:      GNNConfig (model_configs.py)
 #   Usage:      Parameter bounds for GNN calibration
 GNN_PARAMETER_BOUNDS: null
+
+# GNN_OUTPUT_SIZE
+#   Type:        int
+#   Default:     32
+#   Source:      GNNConfig (model_configs_ml_fire.py)
+#   Description: Gnn Output Size
+GNN_OUTPUT_SIZE: 32
+
+# GNN_USE_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      GNNConfig (model_configs_ml_fire.py)
+#   Description: Gnn Use Snow
+GNN_USE_SNOW: false
 
 
 # 9.9. SWAT Model Configuration
