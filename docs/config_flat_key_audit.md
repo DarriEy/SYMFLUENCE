@@ -1,11 +1,18 @@
 # Flat config key audit (`RECOGNIZED_FLAT_KEYS`)
 
-**Date:** 2026-06-10 · **Scope:** the 125 keys that were in
+**Date:** 2026-06-10 · **Status: EXECUTED — the set is now closed.** Every
+key below was promoted to a typed Pydantic field, turned into an alias, or
+deleted as dead; only the three deprecated `ENABLE_*` NGEN toggles remain
+(consumed by `NGENConfig`'s compatibility validator, removal at 2.0).
+`tests/unit/config/test_recognized_flat_keys.py` enforces closure: new
+config keys get Pydantic fields or plugin-declared schemas, never
+recognition entries.
+
+**Original scope:** the 125 keys that were in
 `core/config/legacy_aliases.py::RECOGNIZED_FLAT_KEYS` — real, consumed-in-code
 flat keys with no nested Pydantic field, riding in the config `_extra`
 passthrough. This audit is the pre-1.0 step of pinning the Pydantic schema as
-the canonical config contract (every key should either have a typed field or
-be an explicitly blessed extra).
+the canonical config contract.
 
 Method: automated reader census over `src/symfluence` for every key
 (`config.get('KEY')` flat reads, `_get_config_value(..., dict_key='KEY')`
@@ -69,14 +76,43 @@ Reader pattern legend: *flat* = `config.get('KEY')`; *hybrid* =
 | Model misc (8: `FUSE_RUN_MODE`, `FUSE_TEMPLATE_PATH`, `GR_MODEL_TYPE`, `MIZUROUTE_NUM_THREADS`, `CATCHMENT_SHP_PATH`, `CATCHMENT_SHP_SLOPE_UNITS`, `FORCING_RAW_PATH`, `DECISION_OPTIONS`) | respective model code | mixed | **Promote** into the owning model configs. Note `DECISION_OPTIONS` is the model-agnostic spelling; `SUMMA_DECISION_OPTIONS`/`FUSE_DECISION_OPTIONS` already have typed fields — decide alias-vs-promote. |
 | Cross-cutting (2: `GAUGE_SEGMENT_MAPPING`, `STATE…` n/a) | multi-model workers | flat | **Promote** alongside the multi-gauge sub-model (same consumers). |
 
-## Recommended sequencing
+## Execution record (all done 2026-06-10)
 
-1. ~~Wire `state` + `data_assimilation` (this change — fixes a real bug).~~
-2. Reconcile divergent schemas (IGNACIO, GNN, LSTM) — pure wiring, ~30 keys.
-3. Promote the multi-gauge family (one sub-model, three workers to migrate).
-4. Promote optimization/evaluation odds and HYPE/NGEN/model-misc families.
-5. Leave data-handler keys as blessed extras for 1.0; revisit with per-handler
-   key declaration (mirrors the external-plugin mechanism, ADR-0002).
+1. ~~Wire `state` + `data_assimilation`~~ — fixed the silent-defaults DA bug.
+2. ~~Reconcile divergent schemas~~ — full IGNACIO field set moved into the
+   registered core `IGNACIOConfig` (models-side class now subclasses it,
+   keeping only `to_ignacio_config()`); `GNNConfig` gained
+   `output_size`/`use_snow`; `LSTMConfig` gained
+   `params_to_calibrate`/`parameter_bounds`. The bare `LSTM` entry had no
+   reader and was dropped.
+3. ~~Promote multi-gauge~~ — `MultiGaugeConfig` under
+   `optimization.multi_gauge` (12 fields incl. `MULTI_GAUGE_IDS`, which was
+   read by workers but previously false-warned, and
+   `GAUGE_SEGMENT_MAPPING`).
+4. ~~Promote optimizer/evaluator odds + model families~~ — fields on
+   `OptimizationConfig` (skip_warm_start, parameter_bounds,
+   initial_parameters, likelihood_function, model_error_*,
+   transfer_function_*), `DDSConfig.stagnation_threshold`,
+   `AdamConfig.steps`, HYPE process options, NGEN family, FUSE/GR/mizuRoute
+   misc, per-model `*_PARAM_BOUNDS`, paths keys.
+   `OPTIMIZATION_MAX_ITERATIONS` became a legacy alias of
+   `NUMBER_OF_ITERATIONS`; `DECISION_OPTIONS` a normalization alias of
+   `SUMMA_DECISION_OPTIONS` (the CLI preset path wrote it but nothing read
+   it — also fixed the writer).
+5. ~~Promote data-handler extras~~ (originally planned as blessed extras;
+   promoted instead per maintainer decision) — new `CanSWEConfig`,
+   `GLEAMConfig` (incl. `GLEAM_VERSION/VARIABLE/TEMPORAL/USERNAME/PASSWORD`,
+   which were read but neither mapped nor recognized — false-warning fix),
+   `ESACCISMConfig` under evaluation; fields on
+   `SNOTELConfig`/`SMAPConfig`/`GRACEConfig`/`USGSGWConfig`;
+   `forcing.carra_domain`; `data.hydrosheds_level`/`data.tdx_source`.
+   `EM_EARTH`, `MODIS_SNOW`, `USGS_GW` turned out to be dataset names /
+   template artifacts with zero readers — deleted, not promoted.
+
+All promoted fields default to `None` (or match the reader's default where
+a typed lambda already existed), so the flat view is unchanged when keys
+are unset and reader-side fallback defaults keep applying. Flat
+`config.get('KEY')` reads keep working via `flatten_nested_config`.
 
 Rule of thumb established by the `state` fix: **promote key and reader
 together** — a key given a nested path leaves `_extra`, so any remaining flat

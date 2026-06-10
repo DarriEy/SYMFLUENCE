@@ -2508,19 +2508,19 @@ GRACE_PRODUCT: "RL06"
 #   Usage:      3
 GRACE_DATA_DIR: default
 
+# GRACE_SUBSET
+#   Type:        Optional
+#   Default:     None
+#   Source:      GRACEConfig (evaluation.py)
+#   Description: Spatially subset GRACE mascons to the domain
+GRACE_SUBSET: null
+
 # HYDAT_PATH
 #   Type:        str
 #   Default:     default
 #   Source:      StreamflowConfig (evaluation.py)
 #   Usage:      4
 HYDAT_PATH: default
-
-# MODIS_SNOW
-#   Type:        MODISSnowConfig
-#   Default:     MODISSnowConfig
-#   Source:      EvaluationConfig (evaluation.py)
-#   Usage:      7
-MODIS_SNOW: "MODISSnowConfig"
 
 # MODIS_SNOW_PATH
 #   Type:        str
@@ -2624,6 +2624,132 @@ MODIS_ET_PRODUCT: "MOD16A2.061"
 #   Usage:      3
 MODIS_ET_PATH: default
 
+# ESA_CCI_SM_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Path
+ESA_CCI_SM_PATH: null
+
+# ESA_CCI_SM_RECORD_TYPE
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Record Type
+ESA_CCI_SM_RECORD_TYPE: null
+
+# ESA_CCI_SM_SENSOR
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Sensor
+ESA_CCI_SM_SENSOR: null
+
+# ESA_CCI_SM_TIME_AGGREGATION
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Time Aggregation
+ESA_CCI_SM_TIME_AGGREGATION: null
+
+# ESA_CCI_SM_VARIABLE
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Variable
+ESA_CCI_SM_VARIABLE: null
+
+# ESA_CCI_SM_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      ESACCISMConfig (evaluation.py)
+#   Description: Esa Cci Sm Version
+ESA_CCI_SM_VERSION: null
+
+# GLEAM_ET_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Et Path
+GLEAM_ET_PATH: null
+
+# GLEAM_ET_DOWNLOAD_URL
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Et Download Url
+GLEAM_ET_DOWNLOAD_URL: null
+
+# ET_UNIT_CONVERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Multiplicative factor applied to GLEAM ET values
+ET_UNIT_CONVERSION: null
+
+# GLEAM_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Version
+GLEAM_VERSION: null
+
+# GLEAM_VARIABLE
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Variable
+GLEAM_VARIABLE: null
+
+# GLEAM_TEMPORAL
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Temporal
+GLEAM_TEMPORAL: null
+
+# GLEAM_USERNAME
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Username
+GLEAM_USERNAME: null
+
+# GLEAM_PASSWORD
+#   Type:        Optional
+#   Default:     None
+#   Source:      GLEAMConfig (evaluation.py)
+#   Description: Gleam Password
+GLEAM_PASSWORD: null
+
+# DOWNLOAD_CANSWE
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Download Canswe
+DOWNLOAD_CANSWE: null
+
+# CANSWE_PATH
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Canswe Path
+CANSWE_PATH: null
+
+# CANSWE_VERSION
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Canswe Version
+CANSWE_VERSION: null
+
+# CANSWE_MIN_OBSERVATIONS
+#   Type:        Optional
+#   Default:     None
+#   Source:      CanSWEConfig (evaluation.py)
+#   Description: Minimum observation count for a CanSWE station to be used
+CANSWE_MIN_OBSERVATIONS: null
+
 # MOD16_ET_DIR
 #   Type:        str
 #   Default:     default
@@ -2680,12 +2806,26 @@ SMAP_SURFACE_DEPTH_M: 0.05
 #   Usage:      Root zone depth in meters
 SMAP_ROOTZONE_DEPTH_M: 1.0
 
+# SMAP_LAYER
+#   Type:        Optional
+#   Default:     None
+#   Source:      SMAPConfig (evaluation.py)
+#   Description: SMAP soil-moisture layer to evaluate (e.g. 'surface', 'rootzone')
+SMAP_LAYER: null
+
 # SNOTEL_PATH
 #   Type:        str
 #   Default:     None
 #   Source:      SNOTELConfig (evaluation.py)
 #   Usage:      5
 SNOTEL_PATH: null
+
+# SNOTEL_STATE
+#   Type:        Optional
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+#   Description: US state code used to query SNOTEL stations (default WA)
+SNOTEL_STATE: null
 
 # SNOTEL_STATION
 #   Type:        str
@@ -2867,19 +3007,26 @@ STREAMFLOW_RAW_NAME: default
 #   Usage:      3
 STREAMFLOW_RAW_PATH: default
 
-# USGS_GW
-#   Type:        USGSGWConfig
-#   Default:     USGSGWConfig
-#   Source:      EvaluationConfig (evaluation.py)
-#   Usage:      5
-USGS_GW: "USGSGWConfig"
-
 # USGS_STATION
 #   Type:        str
 #   Default:     None
 #   Source:      USGSGWConfig (evaluation.py)
 #   Usage:      4
 USGS_STATION: null
+
+# GW_AUTO_ALIGN
+#   Type:        Optional
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+#   Description: Auto-align simulated and observed groundwater depth datums
+GW_AUTO_ALIGN: null
+
+# GW_BASE_DEPTH
+#   Type:        Optional
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+#   Description: Reference depth (m) for groundwater depth conversion
+GW_BASE_DEPTH: null
 
 # ANALYSES
 #   Type:        List[str]
@@ -4154,13 +4301,6 @@ RADIATION_PATH: default
 #   Usage:      3
 APPLY_LAPSE_RATE: true
 
-# EM_EARTH
-#   Type:        EMEarthConfig
-#   Default:     None
-#   Source:      ForcingConfig (forcing.py)
-#   Usage:      1
-EM_EARTH: null
-
 # EM_EARTH_DATA_TYPE
 #   Type:        str
 #   Default:     deterministic
@@ -4209,6 +4349,13 @@ EM_EARTH_TMEAN_DIR: null
 #   Source:      ForcingConfig (forcing.py)
 #   Usage:      3
 ERA5_USE_CDS: null
+
+# CARRA_DOMAIN
+#   Type:        Optional
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+#   Description: CARRA regional domain: 'west_domain' or 'east_domain'
+CARRA_DOMAIN: null
 
 # ERA5_ZARR_PATH
 #   Type:        str
