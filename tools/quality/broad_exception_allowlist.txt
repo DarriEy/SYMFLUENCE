@@ -235,6 +235,7 @@ src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._b
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hru_identity_group:except Exception:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hydrogeology_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._read_shapefile:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/model_ready/attributes_reader.py:open_canonical_attributes:except Exception as e:  # noqa: BLE001 — absent/corrupt store ⇒ legacy fallback
 src/symfluence/data/model_ready/forcings_builder.py:ForcingsStoreBuilder._enrich_metadata:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/forcings_builder.py:ForcingsStoreBuilder._forcing_timestep_seconds:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/observations_builder.py:ObservationsNetCDFBuilder._read_timeseries_csv:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -1071,6 +1072,7 @@ src/symfluence/models/rhessys/worldfile_generator.py:RHESSysWorldfileGenerator.g
 src/symfluence/models/state/manager.py:StateManager.export_to_fews:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._calculate_aspect_from_dem:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._calculate_tan_slope_from_dem:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._load_store_elevation:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager.insert_aspect:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager.insert_land_class:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager.insert_soil_class:except Exception as e:  # noqa: BLE001 — model execution resilience
