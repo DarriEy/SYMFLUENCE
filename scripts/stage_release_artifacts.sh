@@ -530,7 +530,9 @@ print_info "Staging CLM-ParFlow..."
 
 CLMPARFLOW_DIR="$INSTALLS_DIR/clmparflow"
 if [ -d "$CLMPARFLOW_DIR" ]; then
-    stage_binary "$CLMPARFLOW_DIR/bin/parflow" "parflow-clm" "CLM-ParFlow" || print_warning "CLM-ParFlow binary not found"
+    stage_binary "$CLMPARFLOW_DIR/bin/parflow" "parflow-clm" "CLM-ParFlow" \
+        || stage_binary "$CLMPARFLOW_DIR/bin/parflow.exe" "parflow-clm.exe" "CLM-ParFlow" \
+        || print_warning "CLM-ParFlow binary not found"
     stage_license "$CLMPARFLOW_DIR" "CLM-ParFlow"
 else
     print_warning "CLM-ParFlow not installed"
