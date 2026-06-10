@@ -4,7 +4,7 @@
 """Routing model configuration classes."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -44,6 +44,10 @@ class MizuRouteConfig(BaseModel):
     )
     calibrate: bool = Field(default=False, alias='CALIBRATE_MIZUROUTE')
     timeout: int = Field(default=3600, alias='MIZUROUTE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+    num_threads: Optional[int] = Field(
+        default=None, alias='MIZUROUTE_NUM_THREADS', ge=1,
+        description='OpenMP thread count for the mizuRoute subprocess'
+    )
     time_rounding_freq: str = Field(
         default='h',
         alias='MIZUROUTE_TIME_ROUNDING_FREQ',
