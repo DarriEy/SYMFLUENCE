@@ -299,13 +299,9 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
         if forcing_path and forcing_path != 'default':
             return Path(forcing_path)
-        domain_name = self._get_config_value(
-            lambda: self.config.domain.name, default='Bow_at_Banff', dict_key='DOMAIN_NAME'
-        )
-        data_dir = self._get_config_value(
-            lambda: self.config.system.data_dir, default='.', dict_key='SYMFLUENCE_DATA_DIR'
-        )
-        return Path(data_dir) / f'domain_{domain_name}' / 'forcing' / 'basin_averaged_data'
+        # Store-first basin-averaged forcing (model_ready/forcings when present,
+        # else legacy forcing/basin_averaged_data) — resolved by the base class.
+        return self.forcing_basin_path
 
     def _generate_toml_config(self) -> None:
         self.logger.info("Generating Wflow TOML configuration...")
