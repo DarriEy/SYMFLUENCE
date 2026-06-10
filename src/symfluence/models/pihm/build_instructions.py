@@ -169,6 +169,18 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
 
     NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
+    # MM-PIHM aliases timegm/strcasecmp to their _-prefixed MSVCRT equivalents,
+    # but guards them with `#if defined(_MSC_VER)` — MSVC only. MinGW (GCC) has
+    # those same MSVCRT functions yet defines _WIN32, not _MSC_VER, so the
+    # aliases are skipped and time_func.c fails ("implicit declaration of
+    # timegm"). Widen the guard to _WIN32 so MinGW gets them too.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            perl -0777 -pi -e 's/#if defined\(_MSC_VER\)\s*\n(# define timegm)/#if defined(_WIN32)\n$1/' \
+                "${SRC_DIR}/src/include/pihm_func.h" 2>/dev/null || true
+            ;;
+    esac
+
     # Build CVODE first (bundled SUNDIALS solver), then PIHM
     # Must be sequential: PIHM needs CVODE headers installed before compiling
     cd "${SRC_DIR}"

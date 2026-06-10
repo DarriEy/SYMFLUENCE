@@ -468,24 +468,28 @@ print_info "Staging WATFLOOD..."
 
 WATFLOOD_DIR="$INSTALLS_DIR/watflood"
 if [ -d "$WATFLOOD_DIR" ]; then
-    if stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
+    # Try watflood.exe FIRST: under MSYS bash `[ -f bin/watflood ]` is true via
+    # the .exe stat-fallback, so checking it first would stage the Windows
+    # prebuilt as a bare `watflood` and skip the DLL copy below.
+    if stage_binary "$WATFLOOD_DIR/bin/watflood.exe" "watflood.exe" "WATFLOOD"; then
         :
-    elif stage_binary "$WATFLOOD_DIR/bin/watflood.exe" "watflood.exe" "WATFLOOD"; then
-        # Windows: the official Waterloo CHARM prebuilt (charm64x.exe) ships with
-        # its own netCDF/HDF5/Intel/Cygwin runtime DLLs. ntldd-based bundling only
-        # walks the mingw-w64 tree, so copy CHARM's DLLs next to the exe ourselves
-        # (Windows resolves them from the executable's directory).
-        for _dll in "$WATFLOOD_DIR"/bin/*.dll; do
-            if [ -f "$_dll" ]; then
-                cp "$_dll" "bin/$(basename "$_dll")"
-                print_success "Staged WATFLOOD DLL → bin/$(basename "$_dll")"
-            fi
-        done
+    elif stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
+        :
     elif stage_binary "$WATFLOOD_DIR/bin/charm" "watflood" "WATFLOOD"; then
         :
     else
         print_warning "WATFLOOD binary not found"
     fi
+    # Always bundle any DLLs shipped next to the binary (the official Waterloo
+    # CHARM prebuilt carries its own netCDF/HDF5/Intel runtime DLLs, which the
+    # ntldd mingw-tree bundler won't pick up). Windows resolves DLLs from the
+    # executable's own directory, so place them in bin/.
+    for _dll in "$WATFLOOD_DIR"/bin/*.dll; do
+        if [ -f "$_dll" ]; then
+            cp "$_dll" "bin/$(basename "$_dll")"
+            print_success "Staged WATFLOOD DLL → bin/$(basename "$_dll")"
+        fi
+    done
     stage_license "$WATFLOOD_DIR" "WATFLOOD"
 else
     print_warning "WATFLOOD not installed"
