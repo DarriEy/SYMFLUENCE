@@ -20,11 +20,10 @@ import calendar
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
@@ -40,6 +39,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         super().__init__(config, logger)
         self.watflood_dir = self.project_dir / 'WATFLOOD_input'
         self.settings_dir = self.watflood_dir / 'settings'
+        self._catch_props: Optional[dict] = None   # cached catchment properties
 
     # ------------------------------------------------------------------
     # Main entry
@@ -49,7 +49,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         try:
             # Create directory tree
             for d in ('basin', 'event', 'raing', 'tempg', 'strfw',
-                      'results', 'debug', 'moist', 'snow1'):
+                      'results', 'debug', 'moist', 'snow1', 'radcl', 'tempr'):
                 (self.settings_dir / d).mkdir(parents=True, exist_ok=True)
 
             start, end = self._get_simulation_dates()
@@ -63,6 +63,18 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             # 2. Parameter file
             self._generate_par_file()
+
+            # 2b. Snow-cover depletion curve (snwflg=y requires it; rdsdc).
+            self._generate_sdc_file()
+
+            # CHARM's read_shd_ef opens the shd/par by bare name from the run cwd
+            # (settings/), not the basin/ subdir referenced in the event file, so
+            # mirror them to the settings root (matching a working WATFLOOD layout).
+            import shutil
+            for name in ('bow_shd.r2c', 'bow.par', 'bow.sdc'):
+                srcf = self.settings_dir / 'basin' / name
+                if srcf.exists():
+                    shutil.copy2(srcf, self.settings_dir / name)
 
             # 3. Monthly forcing + event files
             self._generate_monthly_files(hourly, start, end)
@@ -97,6 +109,62 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         return start, end
 
     # ------------------------------------------------------------------
+    # Catchment geometry (from the model-ready datastore)
+    # ------------------------------------------------------------------
+    def _get_catchment_properties(self) -> dict:
+        """Area / centroid lat-lon / mean elevation / projected origin from the
+        catchment shapefile + DEM (replaces the Bow-at-Banff hardcoded values).
+        Cached on first call."""
+        if self._catch_props is not None:
+            return self._catch_props
+        props = {'area_km2': 2210.0, 'lat': 65.0, 'lon': -19.0, 'elev': 800.0,
+                 'x_origin': 0.0, 'y_origin': 0.0, 'epsg': 32627}
+        try:
+            import geopandas as gpd
+            catch = self.get_catchment_path()
+            if catch and catch.exists():
+                gdf = gpd.read_file(catch)
+                if gdf.crs is None:
+                    gdf = gdf.set_crs(epsg=4326)
+                if gdf.crs.is_geographic:
+                    cpt = gdf.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326).iloc[0]
+                else:
+                    cpt = gdf.geometry.centroid.to_crs(epsg=4326).iloc[0]
+                props['lon'], props['lat'] = float(cpt.x), float(cpt.y)
+                utm = int((props['lon'] + 180) / 6) + 1
+                props['epsg'] = (32600 if props['lat'] >= 0 else 32700) + utm
+                gproj = gdf.to_crs(epsg=props['epsg'])
+                props['area_km2'] = float(gproj.geometry.area.sum()) / 1e6
+                pc = gproj.geometry.centroid.iloc[0]
+                # 3x3 grid of 5 km cells centred on the catchment.
+                props['x_origin'] = float(pc.x) - 1.5 * 5000.0
+                props['y_origin'] = float(pc.y) - 1.5 * 5000.0
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"WATFLOOD catchment properties failed: {e}", exc_info=True)
+        props['elev'] = self._mean_dem_elev(props['elev'])
+        self._catch_props = props
+        return props
+
+    def _mean_dem_elev(self, default: float) -> float:
+        """Mean catchment elevation (m) from the model-ready DEM."""
+        try:
+            import numpy as np
+            import rasterio
+            dd = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dems = sorted(dd.glob('*_elv.tif')) if dd.exists() else []
+            if dems:
+                with rasterio.open(dems[0]) as src:
+                    a = src.read(1).astype('float64'); nd = src.nodata
+                m = np.isfinite(a) & (a > -100.0)
+                if nd is not None:
+                    m &= a != nd
+                if m.any():
+                    return float(a[m].mean())
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"WATFLOOD DEM elevation failed: {e}", exc_info=True)
+        return default
+
+    # ------------------------------------------------------------------
     # ERA5 loading
     # ------------------------------------------------------------------
     def _load_era5_forcing(self, start: datetime, end: datetime) -> pd.DataFrame:
@@ -109,24 +177,38 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not forcing_files:
             raise FileNotFoundError(f"No NetCDF files in {forcing_path}")
 
-        logger.info(f"Loading ERA5 forcing ({len(forcing_files)} files)")
-        try:
-            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-        except Exception:  # noqa: BLE001 — model execution resilience
-            datasets = [xr.open_dataset(f) for f in forcing_files]
-            ds = xr.concat(datasets, dim='time')
-
+        logger.info(f"Loading forcing ({len(forcing_files)} files)")
+        # Canonical model-ready forcing: pptrate (kg m-2 s-1 == mm s-1) and airtemp
+        # (K) under canonical names, with the real timestep on
+        # ds.attrs['timestep_seconds'] -- integrate precip over the ACTUAL step
+        # (CARRA is 3-hourly) rather than a hardcoded hour.
+        from symfluence.data.model_ready.forcing_reader import (
+            forcing_timestep_seconds,
+            open_canonical_forcing,
+        )
+        ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start), str(end)))
 
-        airtemp = ds['air_temperature'].values.squeeze()   # K
-        pptrate = ds['precipitation_flux'].values.squeeze()    # mm/s
+        airtemp = ds['airtemp'].values.squeeze()   # K
+        pptrate = ds['pptrate'].values.squeeze()   # mm/s
+        dt_seconds = forcing_timestep_seconds(ds)
         times = pd.DatetimeIndex(ds['time'].values)
 
-        hourly = pd.DataFrame({
+        # Resample to a strict hourly series WATFLOOD expects: temperature
+        # interpolated, precip distributed evenly across each forcing interval.
+        raw = pd.DataFrame({
             'temp_C': airtemp - 273.15,
-            'precip_mm': pptrate * 3600.0,
+            'precip_mm': pptrate * dt_seconds,   # mm per forcing timestep
         }, index=times)
         ds.close()
+        step_h = max(int(round(dt_seconds / 3600.0)), 1)
+        if step_h > 1:
+            hourly = raw.resample('1h').ffill()
+            hourly['temp_C'] = raw['temp_C'].resample('1h').interpolate()
+            # spread each interval's precip evenly over its hours
+            hourly['precip_mm'] = raw['precip_mm'].resample('1h').ffill() / step_h
+        else:
+            hourly = raw
 
         logger.info(f"ERA5: {len(hourly)} hours, "
                      f"P [{hourly['precip_mm'].min():.2f}–{hourly['precip_mm'].max():.2f}] mm/h, "
@@ -145,12 +227,13 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
           rank, next, DA, bankfull, slope, elevation, channel_length,
           IAK, int_slope, chnl, reach, then one grid per land class.
         """
-        area_km2 = 2210.0
+        props = self._get_catchment_properties()
+        area_km2 = props['area_km2']
         cell_m = 5000.0   # 5 km cells
-        elev = 1600.0
-        x_origin = 560000.0
-        y_origin = 5670000.0
-        da = area_km2 / ((cell_m / 1000.0) ** 2)  # ~88.4 grid units
+        elev = props['elev']
+        x_origin = props['x_origin']
+        y_origin = props['y_origin']
+        da = area_km2 / ((cell_m / 1000.0) ** 2)  # drainage area in grid units
         bankfull = 20.0
         slope = 0.005
         ch_len = cell_m
@@ -188,11 +271,11 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write(f":NominalGridSize_AL     {cell_m:.3f}\n")
             f.write(":ContourInterval           1.000\n")
             f.write(":ImperviousArea            0.000\n")
-            f.write(":ClassCount                    1\n")
+            f.write(":ClassCount                    3\n")
             f.write(":NumRiverClasses               1\n")
             f.write(":ElevConversion            1.000\n")
-            f.write(":TotalNumOfGrids               1\n")
-            f.write(":numGridsInBasin               1\n")
+            f.write(":TotalNumOfGrids               2\n")
+            f.write(":numGridsInBasin               2\n")
             f.write(":DebugGridNo                   1\n")
             f.write("#                                       \n")
             f.write(":Projection         CARTESIAN \n")
@@ -212,7 +295,10 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write(":AttributeName 9 IntSlope     \n")
             f.write(":AttributeName 10 Chnl        \n")
             f.write(":AttributeName 11 Reach       \n")
-            f.write(":AttributeName 12 conifer     \n")
+            f.write(":AttributeName 12 GridArea    \n")
+            f.write(":AttributeName 13 conifer     \n")
+            f.write(":AttributeName 14 water       \n")
+            f.write(":AttributeName 15 impervious  \n")
             f.write("#                                       \n")
             f.write(f":xCount                       {nc}\n")
             f.write(f":yCount                       {nc}\n")
@@ -221,65 +307,51 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("#                                       \n")
             f.write(":EndHeader                              \n")
 
-            # 1. Rank grid (3x3 integers) — cell (2,2) = 1
-            f.write(_grid_line(z3))
-            f.write(_grid_line([0, 1, 0]))
-            f.write(_grid_line(z3))
-
-            # 2. Next grid (downstream cell) — 0 everywhere (outlet)
-            for _ in range(nc):
-                f.write(_grid_line(z3))
-
-            # 3. DA grid (drainage area in grid units, scientific notation)
+            # TWO active cells in the middle row: (2,1)=upstream (rank 1) drains
+            # east into (2,2)=outlet (rank 2). CHARM cannot run a single-cell
+            # watershed -- it computes xxx(naa/2), which is xxx(0) when naa=1
+            # (process_temp.f) -> out-of-bounds. naa=2 gives naa/2=1.
             z3f = [0.0, 0.0, 0.0]
+
+            def _row3i(up, out):
+                return _grid_line([up, out, 0])
+
+            def _row3f(up, out, fmt='10.3f'):
+                return _grid_line_fx([up, out, 0.0], fmt)
+
+            # 1. Rank: upstream=1, outlet=2
+            f.write(_grid_line(z3)); f.write(_row3i(1, 2)); f.write(_grid_line(z3))
+            # 2. Next: upstream -> rank 2; outlet -> 0
+            f.write(_grid_line(z3)); f.write(_row3i(2, 0)); f.write(_grid_line(z3))
+            # 3. DA (grid units): upstream half, outlet accumulates full
             f.write(_grid_line_f(z3f))
-            f.write(_grid_line_f([0.0, da, 0.0]))
+            f.write(_grid_line_f([da / 2.0, da, 0.0]))
             f.write(_grid_line_f(z3f))
-
-            # 4. Bankfull grid (fixed format)
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-            f.write(_grid_line_fx([0.0, bankfull, 0.0]))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-
-            # 5. Channel slope grid
-            f.write(_grid_line_fx([0.0, 0.0, 0.0], '10.7f'))
-            f.write(_grid_line_fx([0.0, slope, 0.0], '10.7f'))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0], '10.7f'))
-
-            # 6. Elevation grid
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-            f.write(_grid_line_fx([0.0, elev, 0.0]))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-
-            # 7. Channel length grid
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-            f.write(_grid_line_fx([0.0, ch_len, 0.0]))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-
-            # 8. IAK grid (interflow active key: 1=active)
-            f.write(_grid_line(z3))
-            f.write(_grid_line([0, 1, 0]))
-            f.write(_grid_line(z3))
-
-            # 9. Internal slope grid
-            f.write(_grid_line_fx([0.0, 0.0, 0.0], '10.7f'))
-            f.write(_grid_line_fx([0.0, slope, 0.0], '10.7f'))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0], '10.7f'))
-
-            # 10. Channel class grid (1=river)
-            f.write(_grid_line(z3))
-            f.write(_grid_line([0, 1, 0]))
-            f.write(_grid_line(z3))
-
-            # 11. Reach grid (0=no reach)
+            # 4. Bankfull
+            f.write(_row3f(0, 0)); f.write(_row3f(bankfull, bankfull)); f.write(_row3f(0, 0))
+            # 5. Channel slope
+            f.write(_row3f(0, 0, '10.7f')); f.write(_row3f(slope, slope, '10.7f')); f.write(_row3f(0, 0, '10.7f'))
+            # 6. Elevation
+            f.write(_row3f(0, 0)); f.write(_row3f(elev, elev)); f.write(_row3f(0, 0))
+            # 7. Channel length
+            f.write(_row3f(0, 0)); f.write(_row3f(ch_len, ch_len)); f.write(_row3f(0, 0))
+            # 8. IAK (interflow active key)
+            f.write(_grid_line(z3)); f.write(_row3i(1, 1)); f.write(_grid_line(z3))
+            # 9. Internal slope
+            f.write(_row3f(0, 0, '10.7f')); f.write(_row3f(slope, slope, '10.7f')); f.write(_row3f(0, 0, '10.7f'))
+            # 10. Channel class (1=river)
+            f.write(_grid_line(z3)); f.write(_row3i(1, 1)); f.write(_grid_line(z3))
+            # 11. Reach (0=no reach)
             for _ in range(nc):
-
                 f.write(_grid_line(z3))
-
-            # 12. Land class fraction: conifer = 1.0 at active cell
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
-            f.write(_grid_line_fx([0.0, 1.0, 0.0]))
-            f.write(_grid_line_fx([0.0, 0.0, 0.0]))
+            # 12. GridArea (m^2) on both active cells
+            cell_area = cell_m * cell_m
+            f.write(_grid_line_f(z3f))
+            f.write(_grid_line_f([cell_area, cell_area, 0.0]))
+            f.write(_grid_line_f(z3f))
+            # 13-15. Land-class fractions (par's 3 classes): conifer=1, rest=0
+            for frac in (1.0, 0.0, 0.0):
+                f.write(_row3f(0, 0)); f.write(_row3f(frac, frac)); f.write(_row3f(0, 0))
 
         logger.info(f"Wrote watershed file: {out}")
 
@@ -297,7 +369,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         The second-to-last class must be water (ak<0), last is impervious.
         """
         out = self.settings_dir / 'basin' / 'bow.par'
-        lat = 51.17
+        lat = self._get_catchment_properties()['lat']
 
         def sv(v):
             """Format scalar value in g12.3-like notation."""
@@ -617,13 +689,29 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     # ------------------------------------------------------------------
     # 3. Monthly event + forcing files
+    def _generate_sdc_file(self) -> None:
+        """Snow-cover depletion curve file (.sdc) — one curve per land class.
+        Required by CHARM (rdsdc) whenever snwflg=y. Format: a 3-value header
+        line (curve#, flag, max SWE mm) then a depletion pair (fraction, value)
+        per class. Three classes: conifer, water, impervious."""
+        out = self.settings_dir / 'basin' / 'bow.sdc'
+        with open(out, 'w') as f:
+            f.write("Snow Depletion Curves - SYMFLUENCE\n")
+            for _ in range(3):  # one per land class (ClassCount = 3)
+                f.write("    1    0      500.\n")
+                f.write("     1.000     1.000\n")
+        logger.info(f"Wrote snow depletion curve: {out}")
+
     # ------------------------------------------------------------------
     def _generate_monthly_files(self, hourly: pd.DataFrame,
                                 start: datetime, end: datetime) -> None:
         """Generate per-month .evt, .rag, .tag files."""
-        # Coordinate info for forcing headers (UTM zone 11N, km)
-        y_km = 5670
-        x_km = 560
+        # Forcing-grid headers MUST match the shd grid origin, or CHARM indexes
+        # the gauge onto a cell outside the watershed grid and segfaults. Derive
+        # the grid (km) from the catchment's projected origin, not Bow's.
+        props = self._get_catchment_properties()
+        x_km = int(round(props['x_origin'] / 1000.0))
+        y_km = int(round(props['y_origin'] / 1000.0))
         ymin, ymax = y_km, y_km + 15  # 3 cells * 5km = 15km span
         xmin, xmax = x_km, x_km + 15
 
@@ -632,6 +720,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         logger.info(f"Generating {len(months)} monthly event files")
 
         evt_files = []
+        datestrs = []
         for i, month_start in enumerate(months):
             year = month_start.year
             month = month_start.month
@@ -675,32 +764,81 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 for h in range(nhours):
                     f.write(f"    {temp_vals[h]:.2f}\n")
 
-            # Write .evt file
-            evt_path = self.settings_dir / 'event' / f'{datestr}.evt'
-            is_last = (i == len(months) - 1)
-            next_month = months[i + 1] if not is_last else None
-            self._write_evt_file(evt_path, year, month, nhours,
-                                 datestr, is_last, next_month)
-            evt_files.append(evt_path)
+            # Gridded met (CHARM with modelflg=n reads these as fln(10)/temp):
+            # hourly r2c frames, value in the active centre cell of the 3x3 grid.
+            x0, y0 = props['x_origin'], props['y_origin']
+            self._write_gridded_r2c(
+                self.settings_dir / 'radcl' / f'{datestr}_met.r2c',
+                'Precipitation', 'mm', precip_vals, month_start, nhours, x0, y0)
+            self._write_gridded_r2c(
+                self.settings_dir / 'tempr' / f'{datestr}_tem.r2c',
+                'Temperature', 'dC', temp_vals, month_start, nhours, x0, y0)
 
-        # Write the master event.evt pointing to the first month
+            # Each monthly event is a leaf (no chained follower); the master
+            # event.evt lists them all as followers (WATFLOOD's flat structure).
+            evt_path = self.settings_dir / 'event' / f'{datestr}.evt'
+            self._write_evt_file(evt_path, year, month, nhours,
+                                 datestr, True, None)
+            evt_files.append(evt_path)
+            datestrs.append(datestr)
+
+        # Master event.evt = the first month + a flat list of all the rest as
+        # followers (matches a working WATFLOOD setup; a recursive 1-follower
+        # chain mis-sizes CHARM's event arrays and segfaults).
         if evt_files:
-            first_datestr = f"{months[0].year:04d}{months[0].month:02d}01"
+            first_datestr = datestrs[0]
             master_evt = self.settings_dir / 'event' / 'event.evt'
             first_month = months[0]
             ndays_first = calendar.monthrange(first_month.year, first_month.month)[1]
             nhours_first = ndays_first * 24
             self._write_evt_file(master_evt, first_month.year, first_month.month,
-                                 nhours_first, first_datestr,
-                                 len(months) <= 1,
-                                 months[1] if len(months) > 1 else None)
+                                 nhours_first, first_datestr, True, None,
+                                 followers=datestrs[1:])
 
         logger.info(f"Wrote {len(evt_files)} monthly event/forcing files")
 
+    def _write_gridded_r2c(self, path: Path, name: str, units: str,
+                           vals, month_start, nhours: int,
+                           x0: float, y0: float) -> None:
+        """Write a gridded met r2c (hourly frames on the 3x3 grid). The value
+        goes in the active centre cell (row 2, col 2); other cells are 0."""
+        cell_m = 5000.0
+        with open(path, 'w') as f:
+            f.write("########################################\n")
+            f.write(":FileType r2c  ASCII  EnSim 1.0\n")
+            f.write("#\n# DataType               2D Rect Cell\n#\n")
+            f.write(":Application             EnSimHydrologic\n")
+            f.write(":Version                 2.1.23\n")
+            f.write(":WrittenBy          SYMFLUENCE\n")
+            f.write("#\n")
+            f.write(f":Name               {name}\n")
+            f.write(f":AttributeUnits     {units}\n")
+            f.write(":UnitConversion            1.000\n")
+            f.write("#\n:Projection         CARTESIAN\n:Ellipsoid          unknown\n#\n")
+            f.write(f":xOrigin              {x0:.6f}\n")
+            f.write(f":yOrigin             {y0:.6f}\n")
+            f.write("#\n:xCount                       3\n:yCount                       3\n")
+            f.write(f":xDelta                {cell_m:.6f}\n")
+            f.write(f":yDelta                {cell_m:.6f}\n")
+            f.write("#\n:EndHeader\n")
+            ts = month_start
+            for h in range(nhours):
+                stamp = (ts + pd.Timedelta(hours=h)).strftime("%Y/%m/%d %H:00:00.000")
+                v = float(vals[h])
+                f.write(f":Frame {h + 1:9d} {h + 1:9d}   \"{stamp}\"\n")
+                f.write("   0.000   0.000   0.000\n")
+                f.write(f"   {v:.3f}   {v:.3f}   0.000\n")  # both active cells
+                f.write("   0.000   0.000   0.000\n")
+                f.write(":EndFrame\n")
+
     def _write_evt_file(self, path: Path, year: int, month: int,
                         nhours: int, datestr: str,
-                        is_last: bool, next_month) -> None:
-        """Write a single .evt file."""
+                        is_last: bool, next_month, followers=None) -> None:
+        """Write a single .evt file.
+
+        If ``followers`` (a list of YYYYMMDD strings) is given, this is the
+        master event and lists them all under :noeventstofollow.
+        """
         with open(path, 'w') as f:
             f.write("#\n")
             f.write(":filetype                     .evt\n")
@@ -745,9 +883,12 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("#\n")
             f.write(":basinfilename                basin/bow_shd.r2c\n")
             f.write(":parfilename                  basin/bow.par\n")
+            f.write(":snowcoverdepletioncurve      basin/bow.sdc\n")
             f.write("#\n")
             f.write(f":pointprecip                  raing/{datestr}.rag\n")
+            f.write(f":griddedrainfile              radcl/{datestr}_met.r2c\n")
             f.write(f":pointtemps                   tempg/{datestr}.tag\n")
+            f.write(f":griddedtemperaturefile       tempr/{datestr}_tem.r2c\n")
             f.write(":pointnetradiation\n")
             f.write(":pointhumidity\n")
             f.write(":pointwind\n")
@@ -757,13 +898,13 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("#\n")
             f.write(f":streamflowdatafile           strfw/{datestr}_str.tb0\n")
             f.write("#\n")
-            if is_last:
-                f.write(":noeventstofollow                 00\n")
-            else:
-                next_datestr = f"{next_month.year:04d}{next_month.month:02d}01"
-                f.write(":noeventstofollow                 01\n")
+            if followers:
+                f.write(f":noeventstofollow            {len(followers):6d}\n")
                 f.write("#\n")
-                f.write(f"event/{next_datestr}.evt\n")
+                for fd in followers:
+                    f.write(f"event/{fd}.evt\n")
+            else:
+                f.write(":noeventstofollow                 00\n")
             f.write("eof\n")
 
     # ------------------------------------------------------------------
@@ -796,6 +937,11 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     def _generate_streamflow_tb0(self, start: datetime, end: datetime) -> None:
         """Generate streamflow .tb0 files from observations for each month."""
         try:
+            props = self._get_catchment_properties()
+            # Gauge sits at the active (centre) cell of the 3x3 grid.
+            gauge_x = int(round(props['x_origin'] + 1.5 * 5000.0))
+            gauge_y = int(round(props['y_origin'] + 1.5 * 5000.0))
+            utm_zone = int(props['epsg']) - (32600 if props['lat'] >= 0 else 32700)
             obs_path = self._find_observation_file()
             if obs_path is None:
                 logger.warning("No observation file found, skipping .tb0 generation")
@@ -838,7 +984,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     f.write("#\n")
                     f.write(":Projection         UTM\n")
                     f.write(":Ellipsoid          WGS84\n")
-                    f.write(":Zone                       11\n")
+                    f.write(f":Zone                       {utm_zone}\n")
                     f.write("#\n")
                     f.write(":StartTime         00:00:00.00\n")
                     f.write(f":StartDate            {month_start:%Y/%m/%d}\n")
@@ -848,13 +994,23 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     f.write(":ColumnMetaData\n")
                     f.write("   :ColumnUnits             m3/s\n")
                     f.write("   :ColumnType             float\n")
-                    f.write("   :ColumnName          05BB001\n")
-                    f.write("   :ColumnLocationX      583000\n")
-                    f.write("   :ColumnLocationY     5673000\n")
+                    f.write("   :ColumnName          GAUGE001\n")
+                    f.write(f"   :ColumnLocationX      {gauge_x}\n")
+                    f.write(f"   :ColumnLocationY     {gauge_y}\n")
+                    # CHARM's read_flow_ef reads these per-column function
+                    # coefficients (colCoeff1..4) + nopt (colValue1); without
+                    # them the coeff arrays are size 0 and it crashes at l=1.
+                    f.write("   :Coeff1                  0.0\n")
+                    f.write("   :Coeff2                  0.0\n")
+                    f.write("   :Coeff3                  0.0\n")
+                    f.write("   :Coeff4                  0.0\n")
+                    f.write("   :Value1                    1\n")
                     f.write(":EndColumnMetaData\n")
                     f.write("#\n")
                     f.write(":endHeader\n")
-                    # Write daily obs at hour 0
+                    # One value per timestep (DeltaT=1 h), single column to match
+                    # the 1-gauge header. Daily obs are held across the 24 hours
+                    # of the day; -1 = missing.
                     ndays = calendar.monthrange(month_start.year, month_start.month)[1]
                     for day in range(1, ndays + 1):
                         date = pd.Timestamp(year=month_start.year,
@@ -862,8 +1018,8 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                         val = month_obs.get(date, -1.0)
                         if pd.isna(val):
                             val = -1.0
-                        f.write(f" {month_start.year} {month_start.month:2d}"
-                                f" {day:2d}  0 {val:10.3f}\n")
+                        for _ in range(24):   # hourly
+                            f.write(f"    {val:10.3f}\n")
 
             logger.info(f"Wrote {len(months)} streamflow .tb0 files")
 
