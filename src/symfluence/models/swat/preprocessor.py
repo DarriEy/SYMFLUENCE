@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -73,6 +73,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self._basin_generator = None
         self._subbasin_generator = None
         self._routing_generator = None
+        self._catch_props: Optional[Dict] = None   # cached catchment properties
 
     # ------------------------------------------------------------------
     # Lazy-init properties for sub-module generators
@@ -154,8 +155,6 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.error(f"SWAT preprocessing failed: {e}", exc_info=True)
-            import traceback
-            logger.error(traceback.format_exc())
             return False
 
     # ------------------------------------------------------------------
@@ -181,52 +180,158 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _get_catchment_properties(self) -> Dict:
         """
-        Get catchment properties from shapefile.
+        Get catchment properties from the model-ready datastore (shapefile +
+        DEM + land/soil rasters). Cached: the DEM/raster reads run once.
 
         Returns:
-            Dict with centroid lat/lon, area, and elevation
+            Dict with centroid lat/lon, area, elevation, mean slope, and the
+            dominant land-use / soil-hydrologic-group / CN2 for the lumped HRU.
         """
+        if self._catch_props is not None:
+            return self._catch_props
         try:
             import geopandas as gpd
             catchment_path = self.get_catchment_path()
             if catchment_path.exists():
                 gdf = gpd.read_file(catchment_path)
+                if gdf.crs is None:
+                    gdf = gdf.set_crs(epsg=4326)
 
-                # Get centroid
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon, lat = centroid.x, centroid.y
+                # Centroid in GEOGRAPHIC degrees. The shapefile is often in a
+                # projected CRS (e.g. EPSG:3057 metres); a centroid taken there
+                # yields lon/lat in metres -> an absurd UTM zone and wrong area.
+                if gdf.crs.is_geographic:
+                    cpt = gdf.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326).iloc[0]
+                else:
+                    cpt = gdf.geometry.centroid.to_crs(epsg=4326).iloc[0]
+                lon, lat = cpt.x, cpt.y
 
-                # Project to UTM for accurate area
+                # Accurate area via the UTM zone derived from the degree centroid.
                 utm_zone = int((lon + 180) / 6) + 1
-                hemisphere = 'north' if lat >= 0 else 'south'
-                utm_crs = f"EPSG:{32600 + utm_zone if hemisphere == 'north' else 32700 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
-                area_m2 = gdf_proj.geometry.area.sum()
+                utm_crs = f"EPSG:{(32600 if lat >= 0 else 32700) + utm_zone}"
+                area_m2 = gdf.to_crs(utm_crs).geometry.area.sum()
 
-                elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
+                elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else None
+                if elev is None:
+                    elev = self._mean_dem_elev()
 
-                return {
+                cls = self._dominant_classes()
+                self._catch_props = {
                     'lat': lat,
                     'lon': lon,
                     'area_m2': area_m2,
                     'area_km2': area_m2 / 1e6,
-                    'elev': elev
+                    'elev': elev,
+                    'slope': self._mean_dem_slope(),
+                    'lulc': cls['lulc'],
+                    'hydgrp': cls['hydgrp'],
+                    'cn2': cls['cn2'],
                 }
+                return self._catch_props
         except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.warning(f"Could not read catchment properties: {e}", exc_info=True)
 
         return {
-            'lat': 51.0,
-            'lon': -115.0,
+            'lat': 65.0,
+            'lon': -19.0,
             'area_m2': 1e8,
             'area_km2': 100.0,
-            'elev': 1000.0
+            'elev': 500.0,
+            'slope': 0.05,
+            'lulc': 'RNGE',
+            'hydgrp': 'C',
+            'cn2': 78.0,
         }
 
-    def _load_forcing_data(self):
-        """Load basin-averaged forcing data from ERA5 NetCDF files."""
-        import xarray as xr
+    def _mean_dem_elev(self) -> float:
+        """Mean catchment elevation from the model-ready DEM (fallback 500 m)."""
+        try:
+            import rasterio
+            dd = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dems = sorted(dd.glob('*_elv.tif')) if dd.exists() else []
+            if dems:
+                with rasterio.open(dems[0]) as src:
+                    a = src.read(1).astype('float64')
+                    nd = src.nodata
+                m = np.isfinite(a) & (a > -100.0)
+                if nd is not None:
+                    m &= a != nd
+                if m.any():
+                    return float(a[m].mean())
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not read DEM elevation: {e}", exc_info=True)
+        return 500.0
 
+    def _mean_dem_slope(self) -> float:
+        """Mean catchment slope (m/m) from the DEM (fallback 0.05)."""
+        try:
+            import rasterio
+            dd = self.project_dir / 'attributes' / 'elevation' / 'dem'
+            dems = sorted(dd.glob('*_elv.tif')) if dd.exists() else []
+            if dems:
+                with rasterio.open(dems[0]) as src:
+                    a = src.read(1).astype('float64')
+                    nd = src.nodata
+                    xr_, yr_ = src.res
+                    geo = src.crs is not None and src.crs.is_geographic
+                    bnds = src.bounds
+                m = np.isfinite(a) & (a > -100.0)
+                if nd is not None:
+                    m &= a != nd
+                if m.sum() > 4:
+                    if geo:
+                        lat0 = np.radians((bnds.bottom + bnds.top) / 2.0)
+                        xm = abs(xr_) * 111320.0 * max(np.cos(lat0), 0.1)
+                        ym = abs(yr_) * 111320.0
+                    else:
+                        xm, ym = abs(xr_), abs(yr_)
+                    z = np.where(m, a, np.nan)
+                    dy, dx = np.gradient(z, ym, xm)
+                    slope = np.hypot(dx, dy)
+                    return float(np.clip(np.nanmean(slope[m]), 0.001, 1.0))
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not read DEM slope: {e}", exc_info=True)
+        return 0.05
+
+    def _dominant_classes(self) -> dict:
+        """Dominant land-use (SWAT 4-char LULC) and soil hydrologic group from
+        the model-ready land/soil rasters, for the lumped HRU."""
+        out = {'lulc': 'RNGE', 'hydgrp': 'C', 'cn2': 78.0}
+        try:
+            import rasterio
+            lc = self.project_dir / 'attributes' / 'landclass'
+            tifs = sorted(lc.glob('domain_*_land_classes.tif')) if lc.exists() else []
+            if tifs:
+                with rasterio.open(tifs[0]) as s:
+                    a = s.read(1); nd = s.nodata
+                v = a[a != nd] if nd is not None else a.ravel()
+                v = v[(v > 0) & (v != 17)]
+                if v.size:
+                    dom = int(np.bincount(v).argmax())
+                    # MODIS IGBP -> SWAT LULC + a representative CN2 (HSG C).
+                    if dom in (1, 2, 3, 4, 5):
+                        out.update(lulc='FRST', cn2=70.0)
+                    elif dom in (6, 7):
+                        out.update(lulc='RNGB', cn2=74.0)   # shrubland
+                    elif dom in (8, 9, 10):
+                        out.update(lulc='RNGE', cn2=79.0)   # grassland/savanna
+                    elif dom in (12, 14):
+                        out.update(lulc='AGRL', cn2=82.0)   # cropland
+                    elif dom in (11,):
+                        out.update(lulc='WETL', cn2=80.0)
+                    else:                                    # 15 ice, 16 barren
+                        out.update(lulc='BARR', cn2=88.0)
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            logger.warning(f"Could not read land class: {e}", exc_info=True)
+        return out
+
+    def _load_forcing_data(self):
+        """Load basin-averaged forcing from the canonical model-ready store.
+
+        Returns the dataset under the canonical vocabulary (pptrate/airtemp/...)
+        with ds.attrs['timestep_seconds'] set, so the forcing generator never
+        re-parses raw variable names.
+        """
         forcing_files = list(self.forcing_basin_path.glob("*.nc"))
 
         if not forcing_files:
@@ -238,16 +343,8 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path}")
 
         logger.info(f"Loading forcing from {len(forcing_files)} files")
-
-        try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
-        except ValueError:
-            try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except Exception:  # noqa: BLE001 — model execution resilience
-                datasets = [xr.open_dataset(f) for f in forcing_files]
-                ds = xr.merge(datasets)
-
+        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
+        ds = open_canonical_forcing(forcing_files)
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds
 
