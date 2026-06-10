@@ -345,6 +345,16 @@ jobs:
           # Install experimental models for release
           RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire"
           for tool in $RELEASE_EXTRAS; do
+            # CLM/CTSM is explicitly unsupported on Windows: its build pulls
+            # external components via git-fleximod (which loops to a MemoryError
+            # on MSYS path layout) and then needs ESMF + a full CIME machine port
+            # on MinGW — a multi-week effort with no upstream support. Skip it on
+            # Windows rather than emit a perpetual non-fatal failure warning.
+            # (clmparflow ships on Windows via the standalone ParFlow POSIX shims.)
+            if [ "$tool" = "clm" ] && [ "${{ runner.os }}" = "Windows" ]; then
+              echo "::notice::Skipping clm on Windows — ESMF/CIME on MinGW is unsupported"
+              continue
+            fi
             echo "::group::Installing $tool"
             # Non-fatal, but emit a ::warning:: so a build that stops producing a
             # tool shows up in the job summary instead of being buried in the log.
