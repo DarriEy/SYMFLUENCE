@@ -233,8 +233,8 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
-        airtemp = ds['airtemp'].values.squeeze()    # K
-        pptrate = ds['pptrate'].values.squeeze()     # mm s-1 (== kg m-2 s-1)
+        airtemp = ds['air_temperature'].values.squeeze()      # K
+        pptrate = ds['precipitation_flux'].values.squeeze()   # mm s-1 (== kg m-2 s-1)
         times = pd.DatetimeIndex(ds['time'].values)
         dt_seconds = forcing_timestep_seconds(ds)
 

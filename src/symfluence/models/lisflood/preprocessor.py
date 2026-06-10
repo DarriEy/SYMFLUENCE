@@ -394,15 +394,15 @@ class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         lat = np.array([props["lat"] - dx, props["lat"], props["lat"] + dx])
         lon = np.array([props["lon"] - dx, props["lon"], props["lon"] + dx])
 
-        # Precipitation: canonical pptrate is a rate (kg m-2 s-1 = mm s-1);
-        # scale by the declared timestep to mm per source step.
-        precip = self._extract_forcing_var(ds_forcing, ["pptrate"], props["lat"], props["lon"])
+        # Precipitation: canonical precipitation_flux is a rate (kg m-2 s-1 = mm
+        # s-1); scale by the declared timestep to mm per source step.
+        precip = self._extract_forcing_var(ds_forcing, ["precipitation_flux"], props["lat"], props["lon"])
         raw_times = pd.DatetimeIndex(ds_forcing.time.values)
         source_dt = forcing_timestep_seconds(ds_forcing)
         precip = np.maximum(precip * source_dt, 0.0)
 
-        # Temperature: canonical airtemp is in kelvin.
-        temp = self._extract_forcing_var(ds_forcing, ["airtemp"], props["lat"], props["lon"]) - 273.15
+        # Temperature: canonical air_temperature is in kelvin.
+        temp = self._extract_forcing_var(ds_forcing, ["air_temperature"], props["lat"], props["lon"]) - 273.15
 
         ds_forcing.close()
 
