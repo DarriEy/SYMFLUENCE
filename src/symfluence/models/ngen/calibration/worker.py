@@ -15,8 +15,8 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel as PydanticBaseModel
 
-from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
+from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
@@ -444,16 +444,16 @@ class NgenWorker(BaseWorker):
                     var = next(iter(ds.data_vars))
                     sim = ds[var].values.flatten()
 
-            # Load observations
+            # Load observations — store-first via the shared loader, CSV fallback.
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
-            obs_file = (resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
-                       f'{domain_name}_streamflow_processed.csv')
-
-            if not obs_file.exists():
+            obs_values, obs_index = StreamflowMetrics().load_observations(
+                config, project_dir, domain_name, resample_freq=None,
+            )
+            if obs_values is None or obs_index is None:
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+            obs_df = pd.DataFrame({'discharge_cms': obs_values}, index=obs_index)
 
             # Robust alignment (CSV with index) or simple length match (NetCDF/fallback)
             if 'sim_df' in locals() and sim_df is not None:

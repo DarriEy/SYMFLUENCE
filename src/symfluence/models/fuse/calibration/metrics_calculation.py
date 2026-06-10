@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import UnitConversion
-from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
@@ -40,34 +39,22 @@ def load_observations(
 
     Returns:
         Daily-resampled observed discharge series, or None if not found
+
+    Delegates to the shared ``StreamflowMetrics`` loader, which prefers the
+    model-ready observations store and falls back to the legacy preprocessed
+    CSV — keeping FUSE consistent with the other models' calibration loaders.
     """
     log = log or logger
     domain_name = config.get('DOMAIN_NAME')
 
-    obs_file_path = config.get('OBSERVATIONS_PATH', 'default')
-    if obs_file_path == 'default':
-        obs_file_path = (
-            resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' /
-            f"{domain_name}_streamflow_processed.csv"
-        )
-    else:
-        obs_file_path = Path(obs_file_path)
-
-    if not obs_file_path.exists():
-        log.error(f"Observation file not found: {obs_file_path}")
+    values, index = StreamflowMetrics().load_observations(
+        config, project_dir, domain_name, resample_freq='D',
+    )
+    if values is None or index is None:
+        log.error("Observations not found (model-ready store or preprocessed CSV)")
         return None
 
-    df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
-
-    if not isinstance(df_obs.index, pd.DatetimeIndex):
-        try:
-            df_obs.index = pd.to_datetime(df_obs.index)
-            log.debug("Converted observation index to DatetimeIndex")
-        except Exception as e:  # noqa: BLE001 — calibration resilience
-            log.error(f"Failed to convert observation time index to DatetimeIndex: {e}", exc_info=True)
-            return None
-
-    return df_obs['discharge_cms'].resample('D').mean()
+    return pd.Series(values, index=index, name='discharge_cms')
 
 
 def find_simulation_output(
