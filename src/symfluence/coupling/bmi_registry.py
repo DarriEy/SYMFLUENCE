@@ -15,7 +15,6 @@ dCoupler component adapter for any SYMFLUENCE model.
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import Type
 
 from symfluence.core.registries import R
@@ -98,25 +97,6 @@ class BMIRegistry:
                 f"Unknown model '{model_name}'. Available: {available}"
             )
         return result
-
-    def register(self, model_name: str, class_path: str) -> None:
-        """Register a custom model adapter.
-
-        Args:
-            model_name: Model identifier (will be uppercased)
-            class_path: Fully qualified class path, e.g.
-                "my_package.adapters.MyComponent"
-
-        .. deprecated::
-            Use ``R.bmi_adapters.add_lazy()`` instead.
-        """
-        warnings.warn(
-            "BMIRegistry.register() is deprecated; "
-            "use R.bmi_adapters.add_lazy() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        R.bmi_adapters.add_lazy(model_name, class_path)
 
     def is_jax_model(self, model_name: str) -> bool:
         """Check if a model uses JAX (differentiable) backend."""
