@@ -353,10 +353,14 @@ subroutine isotopes(iz, jz, time2, route_dt, iflag)
 end subroutine isotopes
 FORTRAN_EOF
 
-# === Add eof interface to area_watflood.f ===
-if ! grep -q "eof_compat" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
-    # Add eof interface before 'end module'
-    perl -0777 -pi -e 's/(^\s*end module area_watflood)/c     Interface for eof() — Intel built-in, provided by eof_compat.f90\n      interface\n        logical function eof(unit_num)\n          integer, intent(in) :: unit_num\n        end function eof\n      end interface\n\1/mi' "${SRC_DIR}/core/area_watflood.f"
+# === Declare eof() in area_watflood.f so every "use area_watflood" gets it ===
+# eof() is Intel's EOF builtin; gfortran uses our eof_compat.f90 implementation.
+# It MUST be declared as a module-level "logical, external" — NOT an interface
+# block: with an explicit interface, gfortran misparses "do while(.not.eof(u))"
+# and "if(eof(u))then" as "Unclassifiable statement" in many readers. A plain
+# external declaration parses cleanly in all forms (verified on gfortran 12/15).
+if ! grep -q "external :: eof" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
+    perl -0777 -pi -e 's/(^\s*end module area_watflood)/c     eof() (Intel EOF builtin) provided by eof_compat.f90\n      logical, external :: eof\n\1/mi' "${SRC_DIR}/core/area_watflood.f"
 fi
 
 # === Add eof external declaration to EF_Module.f ===
@@ -379,46 +383,23 @@ with open(path) as f:
     txt = f.read()
 if 'CountDataLinesAfterHeader' not in txt:
     raise SystemExit(0)
-decl = '      logical, external :: eof\n'
-end_mod = re.search(r'END\s+MODULE', txt, re.IGNORECASE)
-func_pos = txt.find('CountDataLinesAfterHeader')
-if end_mod and func_pos > end_mod.start():
-    # Function is AFTER END MODULE (external procedure): declare inside it.
-    txt = txt.replace(
-        'INTEGER FUNCTION CountDataLinesAfterHeader',
-        'INTEGER FUNCTION CountDataLinesAfterHeader\n' + decl, 1)
-    where = 'inside function (after END MODULE)'
-else:
-    # Module procedure: inject at module scope, just before CONTAINS, so it is
-    # host-associated into the contained function(s) that call eof().
-    m = re.search(r'^[ \t]*CONTAINS', txt, re.IGNORECASE | re.MULTILINE)
-    if not m:
-        raise SystemExit(0)
-    txt = txt[:m.start()] + decl + txt[m.start():]
-    where = 'module scope before CONTAINS (host association)'
-with open(path, 'w') as f:
-    f.write(txt)
-print('  Injected eof external declaration: ' + where)
+# Declare eof LOCALLY in the function (after its full signature line, so the
+# closing paren isn't split). Local — not module scope — so 'use EF_Module'
+# does not export it and clash with area_watflood's eof (ambiguous reference ->
+# 'Unclassifiable statement') in readers that use both.
+new, n = re.subn(
+    r'(INTEGER\s+FUNCTION\s+CountDataLinesAfterHeader\s*\([^)]*\))',
+    r'\1\n      logical, external :: eof',
+    txt, count=1, flags=re.IGNORECASE)
+if n:
+    with open(path, 'w') as f:
+        f.write(new)
+    print('  Injected eof external declaration into CountDataLinesAfterHeader')
 " 2>/dev/null || echo "  WARNING: EF_Module.f eof injection failed (non-fatal)"
 fi
 
-# === Rewrite do-while(.not.eof(...)) loops to be iostat-driven ===
-# gfortran cannot classify "do while(.not.eof(unit))" in many common/ and model/
-# readers: the area_watflood eof interface fails to parse there (a local
-# "external eof" parses but then clashes with the module one). The loop bodies
-# all read into ios, so drive the loop by iostat instead — the established
-# read_par_parser fix, generalised to every reader and any unit arg (unitNum,
-# 99, double-paren / uppercase forms). NB: this is an off-by-one looser than the
-# original eof() (it runs the body once on the read that hits EOF); acceptable
-# for the source build — the runtime-correct binary is the Waterloo prebuilt.
-# Only the readers that actually desync — most eof loops compile fine with the
-# module interface, and rewriting them would unbalance their do/end-do.
-for _wf in common/read_par_parser.f90 common/read_pt2.f common/read_r2c.f \
-           common/read_resv_ef.f model/read_dsn.f model/read_drn.f; do
-    if [ -f "${SRC_DIR}/${_wf}" ]; then
-        perl -0777 -pi -e 's/do while\(\s*\(?\s*\.not\.\s*eof\([^)]*\)\s*\)?\s*\)/ios=0\n        do while(ios.eq.0)/gi' "${SRC_DIR}/${_wf}"
-    fi
-done
+# (The do-while(.not.eof(...)) loops no longer need rewriting: the module-level
+#  "logical, external :: eof" above makes every eof() form parse natively.)
 
 # === Create/update CMakeLists.txt files ===
 echo "Setting up CMake build system..."
@@ -463,7 +444,7 @@ endif()
 
 # Legacy Fortran compat flags for GCC 10+
 IF(${CMAKE_Fortran_COMPILER_ID} MATCHES "GNU")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -fallow-invalid-boz -ffixed-line-length-none -fd-lines-as-comments -fdec -fno-range-check -std=legacy -w")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -fallow-invalid-boz -ffixed-line-length-none -ffree-line-length-none -fd-lines-as-comments -fdec -fno-range-check -std=legacy -w")
 ENDIF()
 
 IF(${CMAKE_BUILD_TYPE} MATCHES "DEBUG")
