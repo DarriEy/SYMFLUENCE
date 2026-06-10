@@ -396,15 +396,12 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         logger.info(f"Loading forcing from {len(forcing_files)} files")
 
-        try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
-        except ValueError:
-            try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except Exception:  # noqa: BLE001 — model execution resilience
-                datasets = [xr.open_dataset(f) for f in forcing_files]
-                ds = xr.merge(datasets)
-
+        # Read through the canonical model-ready forcing reader: variables come
+        # back under the canonical vocabulary (pptrate/airtemp/...) with the
+        # forcing timestep on ds.attrs['timestep_seconds'] -- no per-model alias
+        # lists or timestep guessing.
+        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
+        ds = open_canonical_forcing(forcing_files)
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds
 
@@ -531,46 +528,20 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         props = self._get_catchment_properties()
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='D')
 
-        # Map forcing variables to mHM variables. Includes the CARRA/SUMMA-style
-        # names (pptrate/airtemp) alongside ERA5; without them CARRA forcing fell
-        # through to zeros/synthetic.
-        precip_candidates = ['precipitation_flux', 'pptrate', 'precipitation', 'pr', 'precip', 'tp', 'PREC']
-        temp_candidates = ['air_temperature', 'airtemp', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP']
-
-        # Extract precipitation
-        precip = None
-        for candidate in precip_candidates:
-            if candidate in forcing_ds:
-                precip = forcing_ds[candidate].values
-                src_units = forcing_ds[candidate].attrs.get('units', '')
-                # Convert to mm/day. pptrate (CARRA) and precipitation_flux are
-                # mass fluxes in kg m-2 s-1 == mm s-1.
-                if ('mm/s' in src_units or 'kg' in src_units
-                        or candidate in ('precipitation_flux', 'pptrate')):
-                    precip = precip * 86400.0
-                    logger.info(f"Converted {candidate} from mm/s to mm/day")
-                elif src_units == 'm' or candidate == 'tp':
-                    precip = precip * 1000.0
-                    logger.info(f"Converted {candidate} from m to mm")
-                break
-
-        if precip is None:
-            logger.warning("No precipitation variable found, using zeros")
+        # Forcing arrives under the canonical vocabulary (pptrate kg m-2 s-1 == mm
+        # s-1, airtemp K) from open_canonical_forcing -- read by canonical name.
+        if 'pptrate' in forcing_ds:
+            precip = forcing_ds['pptrate'].values * 86400.0  # mm/s -> mm/day rate
+        else:
+            logger.warning("No canonical precip (pptrate); using zeros")
             precip = np.zeros(len(times))
 
-        # Extract temperature
-        temp = None
-        for candidate in temp_candidates:
-            if candidate in forcing_ds:
-                temp = forcing_ds[candidate].values
-                src_units = forcing_ds[candidate].attrs.get('units', '')
-                if src_units == 'K' or np.nanmean(temp) > 100:
-                    temp = temp - 273.15
-                    logger.info(f"Converted {candidate} from K to deg C")
-                break
-
-        if temp is None:
-            logger.warning("No temperature variable found, estimating")
+        if 'airtemp' in forcing_ds:
+            temp = forcing_ds['airtemp'].values
+            if np.nanmean(temp) > 100:   # Kelvin
+                temp = temp - 273.15
+        else:
+            logger.warning("No canonical airtemp; estimating")
             day_frac = np.arange(len(times)) / 365.0
             temp = 10 + 10 * np.sin(2 * np.pi * day_frac)
 

@@ -23,7 +23,6 @@ from typing import Tuple
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
@@ -223,29 +222,21 @@ class GSFLOWPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(
                 f"No NetCDF forcing files in {forcing_path}")
 
-        logger.info(f"Loading ERA5 forcing ({len(forcing_files)} files)")
-        try:
-            ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-        except Exception:  # noqa: BLE001 — model execution resilience
-            datasets = [xr.open_dataset(f) for f in forcing_files]
-            ds = xr.concat(datasets, dim='time')
-
+        logger.info(f"Loading forcing ({len(forcing_files)} files)")
+        # Canonical model-ready forcing: variables under the canonical vocabulary
+        # (pptrate kg m-2 s-1, airtemp K) with the timestep on
+        # ds.attrs['timestep_seconds'] -- no per-model alias lists or hardcoded step.
+        from symfluence.data.model_ready.forcing_reader import (
+            forcing_timestep_seconds,
+            open_canonical_forcing,
+        )
+        ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
-        # Resolve variable names across ERA5 + CARRA/SUMMA conventions and
-        # integrate precip over the ACTUAL timestep (CARRA is 3-hourly), not a
-        # hard-coded hour -- otherwise KeyError on CARRA and ~3x precip undercount.
-        def _pick(*names):
-            for n in names:
-                if n in ds:
-                    return ds[n].values.squeeze()
-            raise KeyError(f"None of {names} in forcing; have {list(ds.data_vars)}")
-
-        airtemp = _pick('air_temperature', 'airtemp', 'temperature', 't2m')   # K
-        pptrate = _pick('precipitation_flux', 'pptrate', 'precipitation')      # mm s-1
+        airtemp = ds['airtemp'].values.squeeze()    # K
+        pptrate = ds['pptrate'].values.squeeze()     # mm s-1 (== kg m-2 s-1)
         times = pd.DatetimeIndex(ds['time'].values)
-        dt_seconds = (float((times[1] - times[0]) / np.timedelta64(1, 's'))
-                      if len(times) > 1 else 3600.0)
+        dt_seconds = forcing_timestep_seconds(ds)
 
         sub = pd.DataFrame({
             'airtemp_C': airtemp - 273.15,

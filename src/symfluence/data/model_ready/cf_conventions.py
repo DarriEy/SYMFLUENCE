@@ -96,6 +96,57 @@ CF_STANDARD_NAMES: Dict[str, Dict[str, str]] = {
 
 
 # ---------------------------------------------------------------------------
+# Canonical forcing vocabulary (single source of truth)
+# ---------------------------------------------------------------------------
+# The model-ready store exposes forcing under these canonical names (the SUMMA
+# vocabulary, which the CARRA/EASYMORE store already uses). Every accepted source
+# alias maps to the canonical name + its CF standard key + canonical units, so
+# the CARRA/ERA5-specific knowledge lives HERE and nowhere else. Model adapters
+# must resolve through this map (see open_canonical_forcing / resolve_forcing_var)
+# rather than carrying their own ``_find_variable`` candidate lists.
+CANONICAL_FORCING: Dict[str, Dict[str, object]] = {
+    'pptrate':  {'cf': 'precipitation_flux', 'units': 'kg m-2 s-1', 'kind': 'rate',
+                 'aliases': ['pptrate', 'precipitation_flux', 'precipitation',
+                             'pr', 'precip', 'tp', 'PREC', 'total_precipitation']},
+    'airtemp':  {'cf': 'air_temperature', 'units': 'K', 'kind': 'state',
+                 'aliases': ['airtemp', 'air_temperature', 'temperature',
+                             'tas', 'temp', 't2m', 'AIR_TEMP', '2m_temperature']},
+    'SWRadAtm': {'cf': 'surface_downwelling_shortwave_flux', 'units': 'W m-2', 'kind': 'state',
+                 'aliases': ['SWRadAtm', 'surface_downwelling_shortwave_flux',
+                             'shortwave', 'rsds', 'swdown', 'ssrd']},
+    'LWRadAtm': {'cf': 'surface_downwelling_longwave_flux', 'units': 'W m-2', 'kind': 'state',
+                 'aliases': ['LWRadAtm', 'surface_downwelling_longwave_flux',
+                             'longwave', 'rlds', 'lwdown', 'strd']},
+    'windspd':  {'cf': 'wind_speed', 'units': 'm s-1', 'kind': 'state',
+                 'aliases': ['windspd', 'wind_speed', 'sfcWind', 'wind', 'ws', 'si10']},
+    'spechum':  {'cf': 'specific_humidity', 'units': 'kg kg-1', 'kind': 'state',
+                 'aliases': ['spechum', 'specific_humidity', 'huss', 'q', 'qair']},
+    'airpres':  {'cf': 'surface_air_pressure', 'units': 'Pa', 'kind': 'state',
+                 'aliases': ['airpres', 'surface_air_pressure', 'surface_pressure',
+                             'ps', 'sp', 'pres']},
+}
+
+# Reverse map: any accepted alias -> the CF standard key (for metadata enrichment).
+CANONICAL_FORCING_ALIASES: Dict[str, str] = {
+    str(alias): str(spec['cf'])
+    for spec in CANONICAL_FORCING.values()
+    for alias in spec['aliases']  # type: ignore[union-attr]
+}
+
+
+def resolve_forcing_var(ds, canonical_name: str) -> Optional[str]:
+    """Return the variable name in ``ds`` that supplies ``canonical_name``,
+    trying the canonical name first then its registered aliases."""
+    spec = CANONICAL_FORCING.get(canonical_name)
+    if spec is None:
+        return canonical_name if canonical_name in ds else None
+    for alias in [canonical_name, *spec['aliases']]:  # type: ignore[misc]
+        if alias in ds:
+            return alias
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Global attribute builder
 # ---------------------------------------------------------------------------
 
