@@ -380,7 +380,12 @@ class HYPEGeoDataManager:
         intersect_base_path: Optional[Path],
         basin_id_col: str
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Robustly load GIS statistics from CSV or shapefile fallbacks."""
+        """Robustly load GIS statistics from the model-ready attributes store,
+        falling back to gistool CSVs or intersection shapefiles."""
+        store_stats = self._load_gis_stats_from_store(basin_id_col)
+        if store_stats is not None:
+            return store_stats
+
         def find_data(pattern: str, fallback_shp_path: Optional[str] = None) -> Optional[pd.DataFrame]:
             files = list(gistool_output.glob(pattern))
             if files:
@@ -408,6 +413,89 @@ class HYPEGeoDataManager:
             )
 
         return soil, land, elev
+
+    @staticmethod
+    def _coerce_basin_ids(ids: list) -> list:
+        """Coerce store HRU ids to integers where possible (basin ids are ints)."""
+        out = []
+        for hid in ids:
+            try:
+                out.append(int(float(hid)))
+            except (ValueError, TypeError):
+                out.append(hid)
+        return out
+
+    def _store_class_frame(
+        self, reader, group: str, frac_var: str, name_var: str, index_name: str
+    ) -> Optional[pd.DataFrame]:
+        """Build a per-basin class-fraction DataFrame from an attributes group.
+
+        Columns are the class names (``USGS_<id>`` / ``IGBP_<id>``) and the index
+        is the basin id, matching the gistool/shapefile layout ``_process_slc``
+        consumes. Returns ``None`` when the group is unavailable.
+        """
+        if not reader.has_group(group):
+            return None
+        ids = reader.hru_ids(group)
+        if not ids:
+            return None
+        with reader.group(group) as ds:
+            if frac_var not in ds.variables or name_var not in ds.variables:
+                return None
+            frac = np.asarray(ds[frac_var].values)
+            names = [str(x) for x in np.atleast_1d(ds[name_var].values)]
+        if frac.ndim != 2 or frac.shape[0] != len(ids):
+            return None
+        df = pd.DataFrame(frac, columns=names, index=self._coerce_basin_ids(ids))
+        df.index.name = index_name
+        return df
+
+    def _load_gis_stats_from_store(
+        self, basin_id_col: str
+    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+        """Build (soil, landcover, elevation) stats from the model-ready
+        attributes store, or ``None`` when unavailable.
+
+        No drift: the store's soil/landcover/terrain values originate from the
+        same intersection shapefiles the CSV/shapefile fallback reads.
+        """
+        try:
+            from symfluence.data.model_ready import open_canonical_attributes
+
+            data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
+            domain = self.config.get('DOMAIN_NAME')
+            if not data_dir or not domain:
+                return None
+            project_dir = Path(data_dir) / f'domain_{domain}'
+            reader = open_canonical_attributes(project_dir, domain)
+            if reader is None:
+                return None
+
+            soil = self._store_class_frame(
+                reader, 'soil', 'soil_fraction', 'soil_class_name', basin_id_col)
+            land = self._store_class_frame(
+                reader, 'landcover', 'land_fraction', 'land_class_name', basin_id_col)
+
+            elev = None
+            if reader.has_group('terrain'):
+                ids = reader.hru_ids('terrain')
+                elev_vals = reader.variable('terrain', 'elev_mean')
+                if ids and elev_vals is not None and len(elev_vals) == len(ids):
+                    elev = pd.DataFrame(
+                        {'elev_mean': np.asarray(elev_vals)},
+                        index=self._coerce_basin_ids(ids),
+                    )
+                    elev.index.name = basin_id_col
+
+            if soil is None or land is None or elev is None:
+                return None
+            self.logger.info(
+                "Loaded HYPE GIS statistics from the model-ready attributes store")
+            return soil, land, elev
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.debug(
+                f"Could not load GIS stats from attributes store: {e}", exc_info=True)
+            return None
 
     def _process_slc(
         self,
