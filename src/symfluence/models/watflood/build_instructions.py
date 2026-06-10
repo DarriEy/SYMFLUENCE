@@ -150,12 +150,12 @@ echo "Applying GNU Fortran compatibility patches..."
 # invalid character that cascades into "Invalid character in name" / "Expecting
 # END IF" / "Unclassifiable statement" in several common/ files (read_r2c.f,
 # read_pt2.f, ...). Strip it before any other patch runs.
-find "${SRC_DIR}" \( -name "*.f" -o -name "*.f90" \) -exec perl -pi -e 's/\r//g' {} +
+find "${SRC_DIR}" \( -name "*.f" -o -name "*.f90" -o -name "*.for" \) -exec perl -pi -e 's/\r//g' {} +
 
 # Fix Intel <variable> format descriptors (not supported by gfortran). Allow
 # arithmetic inside the brackets too, e.g. "<ncols-1>" in read_pt2.f, not just
 # bare identifiers.
-find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
+find "${SRC_DIR}" -name "*.f" -o -name "*.f90" -o -name "*.for" | while read -r f; do
     perl -pi -e 's/<[A-Za-z0-9_][A-Za-z0-9_ +\-*\/()]*>/999/g' "$f"
 done
 
@@ -171,9 +171,16 @@ if ! grep -qi "allocatable :: xtake" "${SRC_DIR}/core/area_watflood.f" 2>/dev/nu
     perl -pi -e 's/(integer\*4,\s*dimension\(:\),\s*allocatable\s*::\s*itake,jtake,igive,jgive)/$1\n      real*4, dimension(:), allocatable :: xtake,ytake,xgive,ygive\n      integer*4, dimension(:), allocatable :: gridtake,gridgive/i' "${SRC_DIR}/core/area_watflood.f"
 fi
 
+# lake_evaporation is allocated in sub.f but never declared (like the diversion
+# arrays). It's a real array; add it to the real allocatable block next to its
+# sibling evap_convert.
+if ! grep -qi "lake_evaporation" "${SRC_DIR}/core/area_watflood.f" 2>/dev/null; then
+    perl -pi -e 's/\bevap_convert,/evap_convert,lake_evaporation,/i' "${SRC_DIR}/core/area_watflood.f"
+fi
+
 # Fix STOP without a blank before its operand: STOP'msg' -> STOP 'msg', and the
 # line-continued form STOP& -> STOP & (gfortran: "Blank required in STOP statement").
-find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
+find "${SRC_DIR}" -name "*.f" -o -name "*.f90" -o -name "*.for" | while read -r f; do
     perl -pi -e "s/STOP\s*'/STOP '/gi" "$f"
     perl -pi -e 's/\bSTOP&/STOP &/gi' "$f"
 done
@@ -182,7 +189,7 @@ done
 # must emit ".eqv. .true." — the previous "\.eqv\.\.\s*true\." injected a literal
 # "s*" (\s is not a regex in a replacement), producing ".eqv..s*true." and a
 # "Syntax error in expression" once the build reached read_flow_ef.f.
-find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
+find "${SRC_DIR}" -name "*.f" -o -name "*.f90" -o -name "*.for" | while read -r f; do
     perl -pi -e 's/\.eq\.\s*\.true\./.eqv. .true./gi' "$f"
     perl -pi -e 's/\.eq\.\s*\.false\./.eqv. .false./gi' "$f"
     perl -pi -e 's/==\s*\.false\./.eqv. .false./gi' "$f"
@@ -196,7 +203,7 @@ done
 # appears in several built files (model/dds_code.f, common/read_evt.f, ...), so
 # sweep every compiled Fortran source. Only the exact if(dds_flag)then form is
 # rewritten — the genuine logicals 'dds' and 'iopt99' are deliberately untouched.
-find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' -o -name '*.for' \) 2>/dev/null \
     | while read -r f; do
         perl -pi -e 's/if\s*\(\s*dds_flag\s*\)\s*then/if(dds_flag.ne.0)then/gi' "$f"
     done
@@ -216,6 +223,15 @@ for f in "${SRC_DIR}/model/sub.f90" "${SRC_DIR}/model/sub.f"; do
     if [ -f "$f" ]; then
         perl -pi -e "s/ssmc_firstpass=\.false\./ssmc_firstpass='n'/" "$f"
         perl -pi -e "s/if\(\.not\.netCDFflg\.or\.dds\.eq\.0\.or\.iopt99\)then/if(.not.netCDFflg.or..not.dds.or.iopt99)then/" "$f"
+        # sub.f also "use area_watflood" yet re-declares npick and
+        # wfo_spec_version_number locally — gfortran flags the use-association
+        # conflict and rejects the whole declaration statement, cascading into
+        # ~60 "no IMPLICIT type" errors. They're declared-but-unused locals, so
+        # drop them from the fixed-form continuation lines ('*'/'&' in col 6 —
+        # never executable code) and let them come from the module. Use [ \t]
+        # (not \s, which would eat the newline and merge continuation lines);
+        # drop a continuation line left empty after the var is removed.
+        perl -ni -e 'if (/^\s{0,5}[*&]/) { s/\b(?:npick|wfo_spec_version_number)\b[ \t]*,[ \t]*//gi; s/,[ \t]*\b(?:npick|wfo_spec_version_number)\b//gi; next if /^\s{0,5}[*&][ \t]*$/; } print;' "$f"
     fi
 done
 
@@ -235,7 +251,7 @@ done
 
 # Fix integer-as-logical: if(inbsnflg(idx))then where inbsnflg is integer*4
 # (appears in dds_code.f, read_resv_ef.f, synflw.f, lst.f, tracer4.f, ...).
-find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' -o -name '*.for' \) 2>/dev/null \
     | while read -r f; do
         perl -pi -e 's/if\(\s*inbsnflg\(([^)]*)\)\s*\)then/if(inbsnflg($1).ne.0)then/gi' "$f"
     done
@@ -249,7 +265,7 @@ fi
 
 # 'dds' is a LOGICAL in area_watflood, but several sources compare it to 0/1
 # (Intel let you treat logicals as integers): dds.eq.0 -> .not.dds, dds.ne.0 -> dds.
-find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' -o -name '*.for' \) 2>/dev/null \
     | while read -r f; do
         perl -pi -e 's/\bdds\.eq\.0\b/.not.dds/gi; s/\bdds\.ne\.0\b/dds/gi' "$f"
     done
@@ -295,7 +311,7 @@ fi
 # Fix WRITE statements with misquoted format strings
 # e.g. write(un,3020)':SourceFile         ',source_file_name
 # The colon inside the string confuses some compilers.  Ensure proper quoting.
-find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
+find "${SRC_DIR}" -name "*.f" -o -name "*.f90" -o -name "*.for" | while read -r f; do
     perl -pi -e "s/write\(([^)]+)\)'/write(\$1) '/gi" "$f"
 done
 
@@ -351,6 +367,43 @@ subroutine isotopes(iz, jz, time2, route_dt, iflag)
   real(4), intent(in) :: time2, route_dt
   return
 end subroutine isotopes
+FORTRAN_EOF
+
+# Stub the optional 2D-grid / time-series / NetCDF-update I/O routines that
+# CHARM.f90 and sub.f call but that have no implementation anywhere in the
+# repo (or upstream watflood/model). Argument-less external stubs link against
+# any call (no explicit interface) and no-op at runtime — enough to produce a
+# working executable for the core simulation. The runtime-complete binary is
+# the Waterloo Windows prebuilt.
+cat > "${SRC_DIR}/core/watflood_io_stubs.f90" << 'FORTRAN_EOF'
+      subroutine read_2d_pcp_nc
+      end subroutine
+      subroutine read_2d_tmp_nc
+      end subroutine
+      subroutine read_swe_update
+      end subroutine
+      subroutine read_ts_flow_nc
+      end subroutine
+      subroutine read_uzs_update
+      end subroutine
+      subroutine write_2d_cumm_et
+      end subroutine
+      subroutine write_2d_flow
+      end subroutine
+      subroutine write_2d_grid_runoff
+      end subroutine
+      subroutine write_2d_swe
+      end subroutine
+      subroutine write_2d_uzs
+      end subroutine
+      subroutine write_ts_flow
+      end subroutine
+      subroutine write_ts_lake_inflow
+      end subroutine
+      subroutine write_ts_lake_levels
+      end subroutine
+      subroutine write_ts_lake_outflow
+      end subroutine
 FORTRAN_EOF
 
 # === Declare eof() in area_watflood.f so every "use area_watflood" gets it ===
@@ -466,12 +519,12 @@ CMAKE_EOF
 # Core CMakeLists
 cat > "${SRC_DIR}/core/CMakeLists.txt" << 'CMAKE_EOF'
 project(core Fortran)
-set(CORE_SOURCES area17.f Areacg.f area_debug.f90 area_watflood.f eof_compat.f90 intel_compat.f90 isotopes_stub.f90)
+set(CORE_SOURCES area17.f Areacg.f area_debug.f90 area_watflood.f eof_compat.f90 intel_compat.f90 isotopes_stub.f90 watflood_io_stubs.f90)
 add_library(${PROJECT_NAME} STATIC ${CORE_SOURCES})
 CMAKE_EOF
 
 # Common CMakeLists
-COMMON_SOURCES=$(cd "${SRC_DIR}/common" && ls -1 *.f *.f90 2>/dev/null | tr '\n' ';')
+COMMON_SOURCES=$(cd "${SRC_DIR}/common" && ls -1 *.f *.f90 *.for 2>/dev/null | tr '\n' ';')
 cat > "${SRC_DIR}/common/CMakeLists.txt" << CMAKE_EOF
 project(common Fortran)
 set(COMMON_SOURCES ${COMMON_SOURCES})
@@ -480,7 +533,7 @@ add_dependencies(\${PROJECT_NAME} core)
 CMAKE_EOF
 
 # Model CMakeLists — exclude iso/ and utilities/
-MODEL_SOURCES=$(cd "${SRC_DIR}/model" && ls -1 *.f *.f90 2>/dev/null | grep -v "^CHARM.f90$" | tr '\n' ';')
+MODEL_SOURCES=$(cd "${SRC_DIR}/model" && ls -1 *.f *.f90 *.for 2>/dev/null | grep -v "^CHARM.f90$" | tr '\n' ';')
 cat > "${SRC_DIR}/model/CMakeLists.txt" << CMAKE_EOF
 project(model Fortran)
 set(MODEL_SOURCES ${MODEL_SOURCES})
@@ -491,7 +544,9 @@ target_link_libraries(\${PROJECT_NAME} common)
 set(PROJECT_EXECUTABLE charm)
 add_executable(\${PROJECT_EXECUTABLE} CHARM.f90)
 add_dependencies(\${PROJECT_EXECUTABLE} core common model)
-target_link_libraries(\${PROJECT_EXECUTABLE} core common model)
+# Link most-dependent first: model/common reference core symbols (area_watflood,
+# isotopes, ...), so core must come LAST for GNU ld's single-pass resolution.
+target_link_libraries(\${PROJECT_EXECUTABLE} model common core)
 CMAKE_EOF
 
 # === Build with CMake ===
