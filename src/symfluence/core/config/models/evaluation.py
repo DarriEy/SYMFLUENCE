@@ -41,6 +41,10 @@ class SNOTELConfig(BaseModel):
     download: bool = Field(default=False, alias='DOWNLOAD_SNOTEL')
     station: Optional[str] = Field(default=None, alias='SNOTEL_STATION')
     path: Optional[str] = Field(default=None, alias='SNOTEL_PATH')
+    state: Optional[str] = Field(
+        default=None, alias='SNOTEL_STATE',
+        description='US state code used to query SNOTEL stations (default WA)'
+    )
 
 
 class FluxNetConfig(BaseModel):
@@ -58,6 +62,14 @@ class USGSGWConfig(BaseModel):
 
     download: bool = Field(default=False, alias='DOWNLOAD_USGS_GW')
     station: Optional[str] = Field(default=None, alias='USGS_STATION')
+    auto_align: Optional[bool] = Field(
+        default=None, alias='GW_AUTO_ALIGN',
+        description='Auto-align simulated and observed groundwater depth datums'
+    )
+    base_depth: Optional[float] = Field(
+        default=None, alias='GW_BASE_DEPTH',
+        description='Reference depth (m) for groundwater depth conversion'
+    )
 
 
 class SMAPConfig(BaseModel):
@@ -71,6 +83,10 @@ class SMAPConfig(BaseModel):
     use_opendap: bool = Field(default=False, alias='SMAP_USE_OPENDAP')
     surface_depth_m: float = Field(default=0.05, alias='SMAP_SURFACE_DEPTH_M')
     rootzone_depth_m: float = Field(default=1.0, alias='SMAP_ROOTZONE_DEPTH_M')
+    layer: Optional[str] = Field(
+        default=None, alias='SMAP_LAYER',
+        description="SMAP soil-moisture layer to evaluate (e.g. 'surface', 'rootzone')"
+    )
 
 
 class ISMNConfig(BaseModel):
@@ -99,6 +115,10 @@ class GRACEConfig(BaseModel):
     product: str = Field(default='RL06', alias='GRACE_PRODUCT')
     path: str = Field(default='default', alias='GRACE_PATH')
     data_dir: str = Field(default='default', alias='GRACE_DATA_DIR')
+    subset: Optional[bool] = Field(
+        default=None, alias='GRACE_SUBSET',
+        description='Spatially subset GRACE mascons to the domain'
+    )
 
 
 class MODISSnowConfig(BaseModel):
@@ -119,6 +139,48 @@ class MODISSnowConfig(BaseModel):
     min_valid_ratio: float = Field(default=0.1, alias='MODIS_SCA_MIN_VALID_RATIO')
     normalize: bool = Field(default=True, alias='MODIS_SCA_NORMALIZE')
     use_catchment_mask: bool = Field(default=False, alias='MODIS_SCA_USE_CATCHMENT_MASK')
+
+
+class CanSWEConfig(BaseModel):
+    """CanSWE Canadian snow water equivalent observation settings"""
+    model_config = FROZEN_CONFIG
+
+    download: Optional[bool] = Field(default=None, alias='DOWNLOAD_CANSWE')
+    path: Optional[str] = Field(default=None, alias='CANSWE_PATH')
+    version: Optional[str] = Field(default=None, alias='CANSWE_VERSION')
+    min_observations: Optional[int] = Field(
+        default=None, alias='CANSWE_MIN_OBSERVATIONS',
+        description='Minimum observation count for a CanSWE station to be used'
+    )
+
+
+class GLEAMConfig(BaseModel):
+    """GLEAM evapotranspiration observation settings"""
+    model_config = FROZEN_CONFIG
+
+    et_path: Optional[str] = Field(default=None, alias='GLEAM_ET_PATH')
+    et_download_url: Optional[str] = Field(default=None, alias='GLEAM_ET_DOWNLOAD_URL')
+    et_unit_conversion: Optional[float] = Field(
+        default=None, alias='ET_UNIT_CONVERSION',
+        description='Multiplicative factor applied to GLEAM ET values'
+    )
+    version: Optional[str] = Field(default=None, alias='GLEAM_VERSION')
+    variable: Optional[str] = Field(default=None, alias='GLEAM_VARIABLE')
+    temporal: Optional[str] = Field(default=None, alias='GLEAM_TEMPORAL')
+    username: Optional[str] = Field(default=None, alias='GLEAM_USERNAME')
+    password: Optional[str] = Field(default=None, alias='GLEAM_PASSWORD')
+
+
+class ESACCISMConfig(BaseModel):
+    """ESA CCI soil moisture observation settings"""
+    model_config = FROZEN_CONFIG
+
+    path: Optional[str] = Field(default=None, alias='ESA_CCI_SM_PATH')
+    record_type: Optional[str] = Field(default=None, alias='ESA_CCI_SM_RECORD_TYPE')
+    sensor: Optional[str] = Field(default=None, alias='ESA_CCI_SM_SENSOR')
+    time_aggregation: Optional[str] = Field(default=None, alias='ESA_CCI_SM_TIME_AGGREGATION')
+    variable: Optional[str] = Field(default=None, alias='ESA_CCI_SM_VARIABLE')
+    version: Optional[str] = Field(default=None, alias='ESA_CCI_SM_VERSION')
 
 
 class MODISETConfig(BaseModel):
@@ -224,6 +286,9 @@ class EvaluationConfig(BaseModel):
     ismn: Optional[ISMNConfig] = Field(default_factory=ISMNConfig)
     grace: Optional[GRACEConfig] = Field(default_factory=GRACEConfig)
     modis_snow: Optional[MODISSnowConfig] = Field(default_factory=MODISSnowConfig)
+    canswe: Optional[CanSWEConfig] = Field(default_factory=CanSWEConfig)
+    gleam: Optional[GLEAMConfig] = Field(default_factory=GLEAMConfig)
+    esa_cci_sm: Optional[ESACCISMConfig] = Field(default_factory=ESACCISMConfig)
     modis_et: Optional[MODISETConfig] = Field(default_factory=MODISETConfig)
     attributes: Optional[AttributesConfig] = Field(default_factory=AttributesConfig)
     smhi: Optional[SMHIConfig] = Field(default_factory=SMHIConfig)

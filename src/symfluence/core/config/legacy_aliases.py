@@ -162,40 +162,18 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
 # (Resolves the bulk of RTI review open-question Q3 / Tier 3 item 21 noise; see
 # docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
 # unbacked feature families are handled separately — see that ADR's follow-on.)
-# BLESSED EXTRAS — the deliberate remainder of the flat-key audit
-# (docs/config_flat_key_audit.md). Each key below has exactly one in-tree
-# owner (a data-acquisition/observation handler or evaluator) that reads it
-# flat from the config _extra passthrough. They are intentionally NOT
-# Pydantic fields: the long-term home is per-handler key declaration (the
-# same mechanism external plugins use, ADR-0002), not one giant DataConfig.
-# Policy: a key may live here only while it has an in-tree reader (enforced
-# by tests/unit/config/test_recognized_flat_keys.py); when a handler grows a
-# typed schema, move its keys there and delete them here.
-# Everything else from the original 125-key set was promoted to typed
-# fields (state/DA, IGNACIO/GNN/LSTM, multi-gauge, optimizer/evaluator
-# odds, HYPE/NGEN/FUSE/GR/mizuRoute/paths, per-model *_PARAM_BOUNDS) or
-# turned into aliases (OPTIMIZATION_MAX_ITERATIONS, DECISION_OPTIONS).
+# The flat-key audit (docs/config_flat_key_audit.md) emptied this set down
+# to deprecated keys: every formerly-recognized key was either promoted to a
+# typed Pydantic field (state/DA, IGNACIO/GNN/LSTM, multi-gauge,
+# optimizer/evaluator odds, HYPE/NGEN/FUSE/GR/mizuRoute/paths, per-model
+# *_PARAM_BOUNDS, and the data-handler families CanSWE/GLEAM/ESA-CCI/
+# SNOTEL/SMAP/GRACE/GW/CARRA/HydroSHEDS/TDX), turned into an alias
+# (OPTIMIZATION_MAX_ITERATIONS, DECISION_OPTIONS), or deleted as dead
+# (EM_EARTH, MODIS_SNOW, USGS_GW, LSTM — template artifacts, no readers).
+# Policy: this set is CLOSED. New config keys get Pydantic fields (or
+# plugin-declared schemas, ADR-0002); only deprecated keys consumed by
+# compatibility validators may live here, and they leave at the next major.
 RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
-    # CanSWE snow observations (data/observation/handlers/canswe.py)
-    "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION", "DOWNLOAD_CANSWE",
-    # ESA CCI soil moisture (data/acquisition/handlers/esa_cci_sm.py,
-    # data/observation/handlers/soil_moisture.py)
-    "ESA_CCI_SM_PATH", "ESA_CCI_SM_RECORD_TYPE", "ESA_CCI_SM_SENSOR",
-    "ESA_CCI_SM_TIME_AGGREGATION", "ESA_CCI_SM_VARIABLE", "ESA_CCI_SM_VERSION",
-    # GLEAM ET (data/observation/handlers/gleam.py)
-    "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH", "ET_UNIT_CONVERSION",
-    # Groundwater evaluator (evaluation/evaluators/groundwater.py)
-    "GW_AUTO_ALIGN", "GW_BASE_DEPTH",
-    # Single-owner acquisition/observation keys
-    "CARRA_DOMAIN",      # data/acquisition/handlers/cds_datasets.py
-    "EM_EARTH",          # data/acquisition/acquisition_service.py
-    "GRACE_SUBSET",      # data/acquisition/handlers/grace.py
-    "HYDROSHEDS_LEVEL",  # data/acquisition/handlers/hydrosheds.py
-    "MODIS_SNOW",        # data/acquisition/acquisition_service.py
-    "SMAP_LAYER",        # evaluation/evaluators/soil_moisture.py
-    "SNOTEL_STATE",      # data/observation/handlers/snotel.py
-    "TDX_SOURCE",        # data/acquisition/handlers/tdx_hydro.py
-    "USGS_GW",           # data/acquisition/acquisition_service.py
     # Deprecated NGEN module toggles — consumed (and migrated to
     # NGEN_MODULES_SELECTED) by NGENConfig's before-validator; recognized
     # until removal at 2.0
