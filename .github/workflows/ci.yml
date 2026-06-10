@@ -140,3 +140,9 @@ jobs:
           python -c "import symfluence; from symfluence.core.registries import R; \
             assert R.runners.get('SUMMA') is not None, 'SUMMA not registered via entry points'; \
             print('import + entry-point registration OK')"
+
+      - name: CLI performance regression tests
+        # Lazy-import guard: fails if a heavy dependency creeps into CLI
+        # startup. Serial (-n 0) so subprocess wall-clock timings are stable.
+        run: |
+          pytest -m performance -n 0 tests/performance/

@@ -324,7 +324,8 @@ class ForcingDataProcessor:
         """
         Resample dataset to target frequency.
 
-        Uses xarray options to avoid issues with flox/numbagg.
+        Reductions run with flox/numbagg/bottleneck disabled so the output is
+        bit-identical regardless of which optional accelerators are installed.
 
         Args:
             ds: Dataset to resample
@@ -349,7 +350,13 @@ class ForcingDataProcessor:
 
         self.logger.debug(f"Resampling forcing data to {target_freq} frequency using {method}")
 
-        # Use explicit options to avoid numbagg/flox issues
+        # Deliberately pin the plain-numpy reduction path: flox/numbagg/bottleneck
+        # change summation order, so the resampled forcing would differ at the
+        # floating-point level depending on which optional accelerators happen to
+        # be installed (conda envs often pull flox in with xarray). Disabling them
+        # keeps forcing bit-identical across pip/uv/conda/HPC environments. This
+        # runs in one-time preprocessing, not the calibration loop, so the cost is
+        # small. (RTI architecture review item 20: investigated, kept deliberately.)
         with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
             resampler = ds.resample({time_var: target_freq})
             if method == 'mean':
