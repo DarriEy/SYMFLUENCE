@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 # Third-party imports
 import geopandas as gpd
@@ -768,33 +768,76 @@ class SummaAttributesManager(ConfigurableMixin):
         intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
         elev_column = 'elev_mean'
 
-        shp = gpd.read_file(intersect_path / intersect_name)
-
         connect_hrus = self._get_config_value(
             lambda: self.config.model.summa.connect_hrus, default='no'
         )
         do_downHRUindex = connect_hrus == 'yes'
+
+        # Prefer the model-ready attributes store (terrain/elev_mean keyed by
+        # hru_id); fall back to the DEM intersection shapefile when the store is
+        # absent or a given HRU is missing. The store's elev_mean is copied from
+        # the same shapefile, so per-HRU values are identical — no objective drift.
+        store_elev = self._load_store_elevation()
+        shp = None if store_elev else gpd.read_file(intersect_path / intersect_name)
 
         with nc4.Dataset(attribute_file, "r+") as att:
             gru_data: Dict[int, List[Tuple[Any, float]]] = {}
             for idx in range(len(att['hruId'])):
                 hru_id = att['hruId'][idx]
                 gru_id = att['hru2gruId'][idx]
-                shp_mask = (shp[intersect_hruId_var].astype(int) == hru_id)
 
-                if any(shp_mask):
-                    elevation = shp[elev_column][shp_mask].values[0]
+                elevation = store_elev.get(int(hru_id)) if store_elev else None
+                if elevation is None:
+                    if shp is None:
+                        shp = gpd.read_file(intersect_path / intersect_name)
+                    shp_mask = (shp[intersect_hruId_var].astype(int) == hru_id)
+                    if any(shp_mask):
+                        elevation = float(shp[elev_column][shp_mask].values[0])
+
+                if elevation is not None:
                     att['elevation'][idx] = elevation
-
                     if do_downHRUindex:
-                        if gru_id not in gru_data:
-                            gru_data[gru_id] = []
-                        gru_data[gru_id].append((hru_id, elevation))
+                        gru_data.setdefault(gru_id, []).append((hru_id, elevation))
                 else:
                     self.logger.warning(f"No elevation data found for HRU {hru_id}")
 
             if do_downHRUindex:
                 self._set_downHRUindex(att, gru_data)
+
+    def _load_store_elevation(self) -> Optional[Dict[int, float]]:
+        """Load per-HRU mean elevation from the model-ready attributes store.
+
+        Returns an ``{hru_id: elevation}`` mapping keyed by integer HRU id, or
+        ``None`` when the store/terrain group is unavailable so the caller falls
+        back to the DEM intersection shapefile.
+        """
+        try:
+            from symfluence.data.model_ready import open_canonical_attributes
+
+            domain_name = self.project_dir.name.replace('domain_', '', 1)
+            reader = open_canonical_attributes(self.project_dir, domain_name)
+            if reader is None:
+                return None
+            raw = reader.per_hru_values('terrain', 'elev_mean')
+            if not raw:
+                return None
+            mapping: Dict[int, float] = {}
+            for key, value in raw.items():
+                try:
+                    mapping[int(float(key))] = float(value)
+                except (ValueError, TypeError):
+                    continue
+            if mapping:
+                self.logger.info(
+                    f"Using elevation from model-ready attributes store ({len(mapping)} HRUs)"
+                )
+                return mapping
+            return None
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.debug(
+                f"Could not read elevation from attributes store: {e}", exc_info=True
+            )
+            return None
 
     def _set_downHRUindex(self, att, gru_data):
         """Set the downHRUindex based on elevation data or D8 flow direction."""
