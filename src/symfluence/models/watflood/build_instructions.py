@@ -156,7 +156,7 @@ find "${SRC_DIR}" \( -name "*.f" -o -name "*.f90" \) -exec perl -pi -e 's/\r//g'
 # arithmetic inside the brackets too, e.g. "<ncols-1>" in read_pt2.f, not just
 # bare identifiers.
 find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
-    perl -pi -e 's/<[A-Za-z_][A-Za-z0-9_ +\-*\/]*>/999/g' "$f"
+    perl -pi -e 's/<[A-Za-z0-9_][A-Za-z0-9_ +\-*\/()]*>/999/g' "$f"
 done
 
 # Fix Hollerith constant in area_watflood.f: flen='none' -> flen=999999
@@ -216,11 +216,34 @@ if [ -f "${SRC_DIR}/model/CHARM.f90" ]; then
     perl -pi -e 's/if\(status1\.ne\.1\)buf=.*//' "${SRC_DIR}/model/CHARM.f90"
 fi
 
-# Fix stray trailing quotes exposed by -ffixed-line-length-none
-# Files may be in model/ or common/ depending on repo version.
+# Fix stray trailing quotes exposed by -ffixed-line-length-none. Strip a trailing
+# quote ONLY when the line has an odd number of quotes (so the last one is an
+# unmatched stray, e.g. lst.f's "write(...) '...Various   '   '"). A position-only
+# rule wrongly strips the legitimate closing quote of long even-quote strings.
 find "${SRC_DIR}" \( -name "write_tb0.f" -o -name "write_diversion_tb0.f" -o -name "lst.f" \) | while read -r f; do
-    perl -pi -e "s/^(.{72,})'\s*$/\$1 /" "$f"
+    perl -pi -e "if ((tr/'//) % 2 == 1) { s/'(\s*)\$/\$1/ }" "$f"
 done
+
+# Fix integer-as-logical: if(inbsnflg(idx))then where inbsnflg is integer*4
+# (appears in dds_code.f, read_resv_ef.f, synflw.f, lst.f, tracer4.f, ...).
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+    | while read -r f; do
+        perl -pi -e 's/if\(\s*inbsnflg\(([^)]*)\)\s*\)then/if(inbsnflg($1).ne.0)then/gi' "$f"
+    done
+
+# lake_ice.f declares firstpass as LOGICAL (not the character(1) it is elsewhere),
+# so its source if(firstpass.eq.'y') compares logical to character. Use it as the
+# logical it is here.
+if [ -f "${SRC_DIR}/model/lake_ice.f" ]; then
+    perl -pi -e "s/if\(firstpass\.eq\.'y'\)then/if(firstpass)then/g" "${SRC_DIR}/model/lake_ice.f"
+fi
+
+# 'dds' is a LOGICAL in area_watflood, but several sources compare it to 0/1
+# (Intel let you treat logicals as integers): dds.eq.0 -> .not.dds, dds.ne.0 -> dds.
+find "${SRC_DIR}/common" "${SRC_DIR}/model" -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \) 2>/dev/null \
+    | while read -r f; do
+        perl -pi -e 's/\bdds\.eq\.0\b/.not.dds/gi; s/\bdds\.ne\.0\b/dds/gi' "$f"
+    done
 
 # Fix EF_Module.f: CountDataLinesAfterHeader is placed after END MODULE
 # which confuses gfortran.  Extract it into a separate source file instead
@@ -370,10 +393,18 @@ print('  Injected eof external declaration: ' + where)
 " 2>/dev/null || echo "  WARNING: EF_Module.f eof injection failed (non-fatal)"
 fi
 
-# === Fix read_par_parser.f90 eof() usage ===
-if [ -f "${SRC_DIR}/common/read_par_parser.f90" ]; then
-    perl -0777 -pi -e 's/do while\(\.not\.eof\(unitNum\)\)/ios=0\n      do while(ios.eq.0)/g' "${SRC_DIR}/common/read_par_parser.f90"
-fi
+# === Rewrite do-while(.not.eof(...)) loops to be iostat-driven ===
+# gfortran cannot classify "do while(.not.eof(unit))" in several common/ readers
+# (read_par_parser, read_pt2, read_r2c, read_resv_ef): the area_watflood eof
+# interface fails to parse there (a local "external eof" parses but then clashes
+# with the module one). The loop bodies all read into ios, so drive the loop by
+# iostat instead — the same fix already used for read_par_parser, generalised to
+# any unit argument (eof(unitNum), eof(99), ...).
+for _wf in read_par_parser.f90 read_pt2.f read_r2c.f read_resv_ef.f; do
+    if [ -f "${SRC_DIR}/common/${_wf}" ]; then
+        perl -0777 -pi -e 's/do while\(\s*\(?\s*\.not\.\s*eof\([^)]*\)\s*\)?\s*\)/ios=0\n        do while(ios.eq.0)/gi' "${SRC_DIR}/common/${_wf}"
+    fi
+done
 
 # === Create/update CMakeLists.txt files ===
 echo "Setting up CMake build system..."
