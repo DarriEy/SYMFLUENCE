@@ -26,8 +26,9 @@ from typing import Any, Dict, List
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # Variable mapping for ERA5-Land
 ERA5_LAND_VARIABLES = {
@@ -67,8 +68,8 @@ ALL_ERA5_LAND_VARIABLES = [
 ]
 
 
-@AcquisitionRegistry.register('ERA5_LAND')
-@AcquisitionRegistry.register('ERA5-LAND')
+@R.acquisition_handlers.add('ERA5_LAND')
+@R.acquisition_handlers.add('ERA5-LAND')
 class ERA5LandAcquirer(BaseAcquisitionHandler):
     """
     Handles ERA5-Land data acquisition from Copernicus CDS.

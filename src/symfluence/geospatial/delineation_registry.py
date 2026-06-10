@@ -15,7 +15,7 @@ Pattern:
 
 Usage:
     # In delineator module:
-    @DelineationRegistry.register('lumped')
+    @R.delineation_strategies.add('lumped')
     class LumpedWatershedDelineator(BaseGeofabricDelineator):
         ...
 
@@ -52,7 +52,7 @@ class DelineationRegistry:
         _aliases: Dictionary mapping alternate names to canonical names.
 
     Example:
-        >>> @DelineationRegistry.register('lumped')
+        >>> @R.delineation_strategies.add('lumped')
         ... class LumpedDelineator:
         ...     pass
         >>> DelineationRegistry.get_strategy('lumped')

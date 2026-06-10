@@ -14,12 +14,12 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('smhi_streamflow')
+@R.observation_handlers.add('smhi_streamflow')
 class SMHIStreamflowHandler(BaseObservationHandler):
     """
     Handles SMHI streamflow data acquisition and processing.

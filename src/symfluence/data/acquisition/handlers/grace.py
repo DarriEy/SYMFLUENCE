@@ -17,8 +17,9 @@ from typing import Any, Optional, Tuple
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..utils import resolve_earthdata_token
 from .merra2 import _EarthdataSession
 
@@ -56,7 +57,7 @@ def _ca_bundle() -> str:
         return certifi.where()
 
 
-@AcquisitionRegistry.register('GRACE')
+@R.acquisition_handlers.add('GRACE')
 class GRACEAcquirer(BaseAcquisitionHandler):
     """
     Handles GRACE/GRACE-FO data acquisition.

@@ -19,13 +19,13 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 from symfluence.core.constants import PhysicalConstants, UnitConversion
+from symfluence.core.registries import R
 
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('casr')
+@R.dataset_handlers.add('casr')
 class CASRHandler(BaseDatasetHandler):
     """Handler for CASR (Canadian Arctic System Reanalysis) dataset."""
 

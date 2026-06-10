@@ -13,12 +13,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('gldas')
-@ObservationRegistry.register('gldas_tws')
+@R.observation_handlers.add('gldas')
+@R.observation_handlers.add('gldas_tws')
 class GLDASHandler(BaseObservationHandler):
     """
     Handles GLDAS-2.1 Noah Total Water Storage data.

@@ -17,6 +17,8 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -25,11 +27,10 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
-from ..registry import AcquisitionRegistry
 from .era5_processing import era5_to_summa_schema
 
 
-@AcquisitionRegistry.register('ERA5_CDS')
+@R.acquisition_handlers.add('ERA5_CDS')
 class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin):
     """
     ERA5 data acquisition handler using the Copernicus Climate Data Store (CDS) API.

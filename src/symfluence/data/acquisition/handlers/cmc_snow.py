@@ -37,8 +37,9 @@ from typing import Dict, Optional
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # NSIDC data endpoint
 CMC_BASE_URL = (
@@ -50,8 +51,8 @@ CMC_BASE_URL = (
 DEFAULT_SNOW_DENSITY = 200.0
 
 
-@AcquisitionRegistry.register('CMC_SNOW')
-@AcquisitionRegistry.register('CMC')
+@R.acquisition_handlers.add('CMC_SNOW')
+@R.acquisition_handlers.add('CMC')
 class CMCSnowAcquirer(BaseAcquisitionHandler):
     """
     Acquires CMC Daily Snow Depth Analysis data from NSIDC.

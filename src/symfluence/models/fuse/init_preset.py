@@ -4,15 +4,15 @@
 """
 FUSE initialization presets.
 
-This module registers FUSE-specific presets with the PresetRegistry,
+This module registers FUSE-specific presets with the unified registry,
 keeping model-specific configuration within the model directory.
 """
 from __future__ import annotations
 
-from symfluence.cli.preset_registry import PresetRegistry
+from symfluence.core.registries import R
 
 
-@PresetRegistry.register_preset('fuse-provo')
+@R.presets.add('fuse-provo')
 def fuse_provo_preset():
     """FUSE model for Provo River, Utah with ERA5 forcing."""
     return {
@@ -86,7 +86,7 @@ def fuse_provo_preset():
     }
 
 
-@PresetRegistry.register_preset('fuse-basic')
+@R.presets.add('fuse-basic')
 def fuse_basic_preset():
     """Generic FUSE lumped setup with ERA5 forcing."""
     return {

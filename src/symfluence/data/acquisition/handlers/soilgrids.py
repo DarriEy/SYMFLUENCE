@@ -43,13 +43,14 @@ import rasterio
 import requests
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 
-@AcquisitionRegistry.register('SOILGRIDS')
+@R.acquisition_handlers.add('SOILGRIDS')
 class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
     """SoilGrids v2 soil classification acquisition with dual-source strategy.
 

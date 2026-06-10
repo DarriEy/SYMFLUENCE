@@ -16,11 +16,12 @@ from typing import Optional
 import geopandas as gpd
 from shapely.geometry import Polygon
 
-from ....geospatial.delineation_registry import DelineationRegistry
+from symfluence.core.registries import R
+
 from ..base.base_delineator import BaseGeofabricDelineator
 
 
-@DelineationRegistry.register('point')
+@R.delineation_strategies.add('point')
 class PointDelineator(BaseGeofabricDelineator):
     """
     Handles point-scale domain delineation by creating a small square basin

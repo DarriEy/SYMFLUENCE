@@ -48,11 +48,12 @@ import rasterio
 import requests
 from rasterio.windows import Window, from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('MODIS_LANDCOVER')
+@R.acquisition_handlers.add('MODIS_LANDCOVER')
 class MODISLandcoverAcquirer(BaseAcquisitionHandler):
     """MODIS MCD12Q1 land cover acquisition with multi-year support.
 
@@ -318,7 +319,7 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
         return out_path
 
 
-@AcquisitionRegistry.register('USGS_NLCD')
+@R.acquisition_handlers.add('USGS_NLCD')
 class USGSLandcoverAcquirer(BaseAcquisitionHandler):
     """USGS National Land Cover Database (NLCD) acquisition handler.
 

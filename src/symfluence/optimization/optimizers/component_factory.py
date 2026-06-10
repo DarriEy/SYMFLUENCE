@@ -61,7 +61,7 @@ class OptimizerComponentFactory:
             raise RuntimeError(
                 f"No parameter manager registered for model '{model_name}'. "
                 f"Ensure the parameter manager is decorated with "
-                f"@OptimizerRegistry.register_parameter_manager('{model_name}')"
+                f"@R.parameter_managers.add('{model_name}')"
             )
 
         settings_dir = self.get_settings_directory(model_name)
@@ -91,7 +91,7 @@ class OptimizerComponentFactory:
             raise RuntimeError(
                 f"No worker registered for model '{model_name}'. "
                 f"Ensure the worker is decorated with "
-                f"@OptimizerRegistry.register_worker('{model_name}')"
+                f"@R.workers.add('{model_name}')"
             )
 
         self.logger.debug(f"Creating worker: {worker_cls.__name__} for {model_name}")

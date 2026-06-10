@@ -53,8 +53,9 @@ import numpy as np
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # Latent heat of vaporization (J/kg)
 LATENT_HEAT_VAPORIZATION = 2.45e6
@@ -62,8 +63,8 @@ SECONDS_PER_DAY = 86400
 HOURS_PER_DAY = 24
 
 
-@AcquisitionRegistry.register('FLUXCOM_ET')
-@AcquisitionRegistry.register('FLUXCOM')
+@R.acquisition_handlers.add('FLUXCOM_ET')
+@R.acquisition_handlers.add('FLUXCOM')
 class FLUXCOMETAcquirer(BaseAcquisitionHandler):
     """
     Acquires FLUXCOM Evapotranspiration data.

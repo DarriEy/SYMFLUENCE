@@ -37,11 +37,12 @@ from typing import List
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('GPM_IMERG')
+@R.acquisition_handlers.add('GPM_IMERG')
 class GPMIMERGAcquirer(BaseAcquisitionHandler):
     """
     Acquires GPM IMERG precipitation data via GES DISC.

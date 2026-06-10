@@ -32,9 +32,10 @@ from typing import List, Optional
 import rasterio
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # Figshare direct file download URLs for GLWD v2.0
@@ -49,9 +50,9 @@ _DOWNLOAD_URLS = {
 }
 
 
-@AcquisitionRegistry.register('GLWD')
-@AcquisitionRegistry.register('GLWD_V2')
-@AcquisitionRegistry.register('WETLANDS')
+@R.acquisition_handlers.add('GLWD')
+@R.acquisition_handlers.add('GLWD_V2')
+@R.acquisition_handlers.add('WETLANDS')
 class GLWDAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     GLWD v2.0 global wetland database acquisition.

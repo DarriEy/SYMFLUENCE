@@ -29,8 +29,9 @@ from urllib.parse import urlparse
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
 class _EarthdataSession(requests.Session):
@@ -74,7 +75,7 @@ class _EarthdataTokenSession(requests.Session):
             prepared_request.headers['Authorization'] = f'Bearer {self._token}'
 
 
-@AcquisitionRegistry.register('DAYMET')
+@R.acquisition_handlers.add('DAYMET')
 class DaymetAcquirer(BaseAcquisitionHandler):
     """
     Handles Daymet climate data acquisition from ORNL DAAC.

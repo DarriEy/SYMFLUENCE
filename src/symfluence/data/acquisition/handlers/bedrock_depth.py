@@ -32,9 +32,10 @@ import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # Global GeoTIFF URL (supports HTTP range requests for remote subsetting)
@@ -44,9 +45,9 @@ _GLOBAL_URL = (
 _VSICURL_URL = f"/vsicurl/{_GLOBAL_URL}"
 
 
-@AcquisitionRegistry.register('BEDROCK_DEPTH')
-@AcquisitionRegistry.register('BDTICM')
-@AcquisitionRegistry.register('DEPTH_TO_BEDROCK')
+@R.acquisition_handlers.add('BEDROCK_DEPTH')
+@R.acquisition_handlers.add('BDTICM')
+@R.acquisition_handlers.add('DEPTH_TO_BEDROCK')
 class BedrockDepthAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     SoilGrids 2017 depth to bedrock acquisition.

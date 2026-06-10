@@ -19,12 +19,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('sentinel1_sm')
-@ObservationRegistry.register('s1_sm')
+@R.observation_handlers.add('sentinel1_sm')
+@R.observation_handlers.add('s1_sm')
 class Sentinel1SMHandler(BaseObservationHandler):
     """
     Handles Sentinel-1 SAR soil moisture data processing.

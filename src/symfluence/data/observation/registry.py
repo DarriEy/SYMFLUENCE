@@ -15,7 +15,7 @@ Phase 4 delegation shim: all state lives in ``R.observation_handlers``.
 Example:
     Register a custom handler:
 
-    >>> @ObservationRegistry.register('custom_sensor')
+    >>> @R.observation_handlers.add('custom_sensor')
     ... class CustomHandler(BaseObservationHandler):
     ...     def acquire(self): ...
     ...     def process(self, input_path): ...
