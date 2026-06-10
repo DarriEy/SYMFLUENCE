@@ -151,7 +151,8 @@ jobs:
             libhdf5-dev libudunits2-dev \
             libopenblas-dev liblapack-dev \
             patchelf \
-            tcl-dev libxml2-utils libexpat1-dev
+            tcl-dev libxml2-utils libexpat1-dev \
+            libxml-libxml-perl
 
       - name: Configure compiler env (Linux)
         if: runner.os == 'Linux'
