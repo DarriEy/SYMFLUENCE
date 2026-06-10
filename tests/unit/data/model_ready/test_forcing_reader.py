@@ -88,3 +88,72 @@ def test_resolve_forcing_var_accepts_cf_key_and_aliases(tmp_path):
         assert resolve_forcing_var(ds, "precipitation_flux") == "pptrate"
     finally:
         ds.close()
+
+
+# ---------------------------------------------------------------------------
+# resample_canonical_forcing
+# ---------------------------------------------------------------------------
+from symfluence.data.model_ready.forcing_reader import resample_canonical_forcing  # noqa: E402
+
+
+def _forcing(times, pptrate, airtemp):
+    return xr.Dataset(
+        {
+            "precipitation_flux": ("time", np.asarray(pptrate, dtype="f8")),
+            "air_temperature": ("time", np.asarray(airtemp, dtype="f8")),
+        },
+        coords={"time": pd.DatetimeIndex(times)},
+    )
+
+
+def test_resample_is_noop_when_already_at_target():
+    times = pd.date_range("2020-01-01", periods=6, freq="h")
+    ds = _forcing(times, np.full(6, 1e-4), np.full(6, 283.15))
+    out = resample_canonical_forcing(ds, 3600)
+    assert out["time"].size == 6
+    np.testing.assert_array_equal(out["precipitation_flux"].values, ds["precipitation_flux"].values)
+
+
+def test_resample_3hourly_to_hourly_conserves_precip_total():
+    # 4 source steps at 3h spacing, constant rate.
+    times = pd.date_range("2020-01-01", periods=4, freq="3h")
+    rate = 2e-4
+    ds = _forcing(times, np.full(4, rate), np.full(4, 283.15))
+
+    out = resample_canonical_forcing(ds, 3600)
+
+    # 4 intervals * 3 h = 12 hourly steps covering the full source span.
+    assert out["time"].size == 12
+    assert float(out.attrs["timestep_seconds"]) == 3600.0
+    # Rate is a step function -> every hour carries the source rate.
+    np.testing.assert_allclose(out["precipitation_flux"].values, rate, rtol=1e-9)
+    # Accumulated total conserved: source sum(rate*3h) == hourly sum(rate*1h).
+    src_total = float((ds["precipitation_flux"] * 10800).sum())
+    out_total = float((out["precipitation_flux"] * 3600).sum())
+    assert out_total == pytest.approx(src_total, rel=1e-9)
+
+
+def test_resample_interpolates_state_variables():
+    # Temperature ramps 280 -> 286 over two 3h steps; hourly interp is linear.
+    times = pd.date_range("2020-01-01", periods=3, freq="3h")
+    ds = _forcing(times, np.full(3, 1e-4), [280.0, 283.0, 286.0])
+
+    out = resample_canonical_forcing(ds, 3600)
+    temps = out["air_temperature"].values
+
+    # First hour equals the first source value; interior is linearly interpolated.
+    assert temps[0] == pytest.approx(280.0)
+    assert temps[1] == pytest.approx(281.0, abs=1e-6)   # 1/3 of the way 280->283
+    assert temps[3] == pytest.approx(283.0, abs=1e-6)   # the second source point
+    assert not np.isnan(temps).any()
+
+
+def test_resample_daily_to_hourly_conserves_precip():
+    times = pd.date_range("2020-01-01", periods=3, freq="D")
+    rate = 1e-4
+    ds = _forcing(times, np.full(3, rate), np.full(3, 283.15))
+    out = resample_canonical_forcing(ds, 3600)
+    assert out["time"].size == 72  # 3 days * 24 h
+    out_total = float((out["precipitation_flux"] * 3600).sum())
+    src_total = float((ds["precipitation_flux"] * 86400).sum())
+    assert out_total == pytest.approx(src_total, rel=1e-9)
