@@ -158,12 +158,15 @@ find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
     perl -pi -e "s/STOP\s*'/STOP '/gi" "$f"
 done
 
-# Fix .eq./.ne. with logical operands -> .eqv./.neqv.
+# Fix .eq./.ne. with logical operands -> .eqv./.neqv. NB: the .true. replacement
+# must emit ".eqv. .true." — the previous "\.eqv\.\.\s*true\." injected a literal
+# "s*" (\s is not a regex in a replacement), producing ".eqv..s*true." and a
+# "Syntax error in expression" once the build reached read_flow_ef.f.
 find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
-    perl -pi -e 's/\.eq\.\s*\.true\./\.eqv\.\.\s*true\./gi' "$f"
-    perl -pi -e 's/\.eq\.\s*\.false\./\.eqv\.\.false\./gi' "$f"
-    perl -pi -e 's/==\s*\.false\./\.eqv\.\.false\./gi' "$f"
-    perl -pi -e 's/==\s*\.true\./\.eqv\.\.true\./gi' "$f"
+    perl -pi -e 's/\.eq\.\s*\.true\./.eqv. .true./gi' "$f"
+    perl -pi -e 's/\.eq\.\s*\.false\./.eqv. .false./gi' "$f"
+    perl -pi -e 's/==\s*\.false\./.eqv. .false./gi' "$f"
+    perl -pi -e 's/==\s*\.true\./.eqv. .true./gi' "$f"
 done
 
 # Fix integer-as-logical: if(dds_flag)then where dds_flag is integer*4. It
