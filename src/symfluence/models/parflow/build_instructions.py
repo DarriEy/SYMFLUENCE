@@ -240,8 +240,13 @@ PARAMH
 #endif
 #endif
 PFWIN
-            WIN_COMPAT_FLAG="-I${_WC} -include ${_WC}/pf_win_compat.h"
-            echo "Windows: added sys/times.h + sys/param.h + mkdir/stat compat at ${_WC}"
+            # mingw gcc is a native Windows program and cannot resolve the MSYS
+            # "/tmp/..." path (it reads it as C:\tmp\...), so -I/-include with the
+            # raw path fail ("No such file") — and the bad -include even broke
+            # CMake's compiler-detection test. Convert to a Windows path.
+            _WCW=$(cygpath -m "${_WC}" 2>/dev/null || echo "${_WC}")
+            WIN_COMPAT_FLAG="-I${_WCW} -include ${_WCW}/pf_win_compat.h"
+            echo "Windows: added sys/times.h + sys/param.h + mkdir/stat compat at ${_WCW}"
             ;;
     esac
 
