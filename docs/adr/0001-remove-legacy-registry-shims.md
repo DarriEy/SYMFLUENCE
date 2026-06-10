@@ -34,10 +34,17 @@ two categories that this decision does **not** remove:
    (e.g. `ParameterBoundsRegistry`, `ObjectiveRegistry`, `ForcingAdapterRegistry`,
    the `data/` `BaseRegistry` hierarchy). These were never compatibility shims.
 2. **Thin documented facades over `R`** that exist for ergonomics, not
-   backward compatibility — e.g. `BuildInstructionsRegistry.register(...)` is
-   the supported public spelling of `R.build_instructions.add(...)` and is used
-   by infrastructure tooling. These forward to the unified registry by design
-   and remain supported.
+   backward compatibility — e.g. `BuildInstructionsRegistry` forwards to
+   `R.build_instructions` by design and remains supported.
+
+For both categories the supported surface is split by direction: the
+**lookup/factory API** (`get_adapter`, `get_handler`, `get_strategy`,
+`get_all_instructions`, …) is first-class and stays; **registration** happens
+only through `R.*.add()` / `model_manifest()`. The residual `register*`
+methods on these classes therefore emit `DeprecationWarning` and exist solely
+so out-of-tree plugins written against the old spelling keep working — all
+in-tree registration was moved to the `R` facade (PR #211). They may be
+deleted in any pre-1.0 release.
 
 ## Consequences
 
@@ -53,4 +60,5 @@ two categories that this decision does **not** remove:
 ## References
 
 - PR #138 — registry migration Phase A (shim deletion)
+- PR #211 — migration of all remaining in-tree registrations to the `R` facade
 - GOVERNANCE.md §4 — Interface Stewardship
