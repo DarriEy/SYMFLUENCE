@@ -420,14 +420,14 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 f"will resample to daily for PCR-GLOBWB"
             )
 
-        # Precipitation: canonical pptrate is a rate (kg m-2 s-1); convert to
-        # metres per source step (m = mm / 1000).
-        precip_raw = self._extract_forcing_var(ds_forcing, ['pptrate'], props['lat'], props['lon'])
+        # Precipitation: canonical precipitation_flux is a rate (kg m-2 s-1);
+        # convert to metres per source step (m = mm / 1000).
+        precip_raw = self._extract_forcing_var(ds_forcing, ['precipitation_flux'], props['lat'], props['lon'])
         precip_raw = np.maximum(precip_raw, 0.0)
         precip_m_per_step = precip_raw * dt_seconds / 1000.0
 
-        # Temperature: canonical airtemp is in kelvin.
-        temp_raw = self._extract_forcing_var(ds_forcing, ['airtemp'], props['lat'], props['lon']) - 273.15
+        # Temperature: canonical air_temperature is in kelvin.
+        temp_raw = self._extract_forcing_var(ds_forcing, ['air_temperature'], props['lat'], props['lon']) - 273.15
 
         ds_forcing.close()
 

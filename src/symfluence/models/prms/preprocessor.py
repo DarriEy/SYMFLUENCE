@@ -200,8 +200,8 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
-        airtemp = ds['airtemp'].values.squeeze()   # K
-        pptrate = ds['pptrate'].values.squeeze()   # mm s-1 (== kg m-2 s-1)
+        airtemp = ds['air_temperature'].values.squeeze()      # K
+        pptrate = ds['precipitation_flux'].values.squeeze()   # mm s-1 (== kg m-2 s-1)
 
         times = pd.DatetimeIndex(ds['time'].values)
         dt_seconds = forcing_timestep_seconds(ds)
@@ -221,12 +221,14 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # (PRMS swrad units). 1 W m-2 sustained over a day = 86400 J m-2 =
         # 86400/41840 = 2.0651 Langleys.
         if self.use_obs_solar:
-            if 'SWRadAtm' in ds:
-                sw = pd.Series(ds['SWRadAtm'].values.squeeze(), index=times).clip(lower=0.0)
+            if 'surface_downwelling_shortwave_flux' in ds:
+                sw = pd.Series(ds['surface_downwelling_shortwave_flux'].values.squeeze(),
+                               index=times).clip(lower=0.0)
                 daily['swrad'] = (sw.resample('D').mean() * 2.0651)
             else:
                 logger.warning("PRMS_USE_OBS_SOLAR set but no canonical shortwave "
-                               "(SWRadAtm) in forcing; falling back to ddsolrad estimate")
+                               "(surface_downwelling_shortwave_flux) in forcing; "
+                               "falling back to ddsolrad estimate")
 
         # Drop any days with all NaN
         daily = daily.dropna(how='all')

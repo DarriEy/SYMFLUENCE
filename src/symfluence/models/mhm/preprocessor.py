@@ -528,16 +528,16 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         props = self._get_catchment_properties()
         times = forcing_ds['time'].values if 'time' in forcing_ds else pd.date_range(start_date, end_date, freq='D')
 
-        # Forcing arrives under the canonical vocabulary (pptrate kg m-2 s-1 == mm
-        # s-1, airtemp K) from open_canonical_forcing -- read by canonical name.
-        if 'pptrate' in forcing_ds:
-            precip = forcing_ds['pptrate'].values * 86400.0  # mm/s -> mm/day rate
+        # Forcing arrives under the canonical CFIF vocabulary (precipitation_flux
+        # kg m-2 s-1 == mm s-1, air_temperature K) from open_canonical_forcing.
+        if 'precipitation_flux' in forcing_ds:
+            precip = forcing_ds['precipitation_flux'].values * 86400.0  # mm/s -> mm/day rate
         else:
-            logger.warning("No canonical precip (pptrate); using zeros")
+            logger.warning("No canonical precip (precipitation_flux); using zeros")
             precip = np.zeros(len(times))
 
-        if 'airtemp' in forcing_ds:
-            temp = forcing_ds['airtemp'].values
+        if 'air_temperature' in forcing_ds:
+            temp = forcing_ds['air_temperature'].values
             if np.nanmean(temp) > 100:   # Kelvin
                 temp = temp - 273.15
         else:

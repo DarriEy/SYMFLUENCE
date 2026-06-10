@@ -5,10 +5,13 @@
 Canonical forcing reader for the model-ready store.
 
 Single entry point every model adapter should use to load basin-averaged
-forcing. It guarantees the canonical SYMFLUENCE vocabulary (pptrate, airtemp,
-SWRadAtm, LWRadAtm, windspd, spechum, airpres) regardless of the source dataset
-(CARRA, ERA5, ...) and exposes the forcing timestep via ``ds.attrs['timestep_seconds']``,
-so adapters never re-parse raw variable names, units, or guess the timestep.
+forcing. It guarantees the canonical CFIF vocabulary — CF standard names with
+underscores (precipitation_flux, air_temperature, surface_downwelling_shortwave_flux,
+surface_downwelling_longwave_flux, wind_speed, specific_humidity, surface_air_pressure)
+— regardless of the source dataset (CARRA, ERA5, ...) and exposes the forcing
+timestep via ``ds.attrs['timestep_seconds']``, so adapters never re-parse raw
+variable names, units, or guess the timestep. Model-native layers (e.g. SUMMA's
+Fortran binary) translate these to their shorthand via cfif.CFIF_TO_SUMMA_MAPPING.
 """
 from __future__ import annotations
 
@@ -27,10 +30,10 @@ logger = logging.getLogger(__name__)
 def open_canonical_forcing(
     forcing_files: Union[Path, List[Path]],
 ) -> xr.Dataset:
-    """Open model-ready forcing and return it under canonical names.
+    """Open model-ready forcing and return it under canonical CFIF names.
 
-    - Aliased source variables (e.g. ``precipitation_flux`` -> ``pptrate``) are
-      renamed to the canonical vocabulary.
+    - Aliased source variables (e.g. ``pptrate`` -> ``precipitation_flux``) are
+      renamed to the canonical CF vocabulary.
     - ``ds.attrs['timestep_seconds']`` is set from the store's declared attribute
       or, failing that, inferred from the time axis.
 
