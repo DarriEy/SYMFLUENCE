@@ -94,6 +94,3 @@ def register() -> None:
         config_adapter=GRConfigAdapter,
         result_extractor=GRResultExtractor,
     )
-
-# Deprecated pre-1.0 spelling (RTI item 23) — use GRPostProcessor.
-GRPostprocessor = GRPostProcessor

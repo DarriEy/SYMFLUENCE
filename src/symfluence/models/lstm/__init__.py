@@ -26,9 +26,6 @@ _LAZY_ALIASES = {
     'FlashRunner': ('.runner', 'LSTMRunner'),
     'FlashPreProcessor': ('.preprocessor', 'LSTMPreProcessor'),
     'FlashPostProcessor': ('.postprocessor', 'LSTMPostProcessor'),
-    # Deprecated pre-1.0 spellings (RTI item 23) — use *PostProcessor.
-    'LSTMPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
-    'FlashPostprocessor': ('.postprocessor', 'LSTMPostProcessor'),
 }
 
 

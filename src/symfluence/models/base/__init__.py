@@ -29,8 +29,3 @@ __all__ = [
     'ModelPreProcessor',
     'ModelPostProcessor',
 ]
-
-
-# Deprecated pre-1.0 spellings (RTI review item 23) — use the *PostProcessor names.
-StandardModelPostprocessor = StandardModelPostProcessor
-RoutedModelPostprocessor = RoutedModelPostProcessor
