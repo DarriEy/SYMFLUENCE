@@ -304,7 +304,10 @@ class TestFlatteningMapping:
 
     def test_section_names_are_valid(self):
         """Test that all section names are valid"""
-        valid_sections = {'system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'fews'}
+        valid_sections = {
+            'system', 'domain', 'data', 'forcing', 'model', 'optimization',
+            'evaluation', 'paths', 'fews', 'state', 'data_assimilation',
+        }
 
         for key, path in FLAT_TO_NESTED_MAP.items():
             section = path[0]
