@@ -4,7 +4,7 @@
 """Groundwater and integrated surface-subsurface model configuration classes."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -146,6 +146,7 @@ class ParFlowConfig(BaseModel):
 
     # Execution
     timeout: int = Field(default=3600, alias='PARFLOW_TIMEOUT', ge=60, le=86400)
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='PARFLOW_PARAM_BOUNDS')
 
 
 class CLMParFlowConfig(BaseModel):

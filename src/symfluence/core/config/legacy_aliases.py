@@ -42,6 +42,10 @@ NORMALIZATION_ALIASES: Dict[str, str] = {
     "TARGET_METRIC": "OPTIMIZATION_METRIC",
     # Legacy SUMMA decisions spelling -> canonical SUMMA_DECISION_OPTIONS.
     "SUMMA_DECISIONS": "SUMMA_DECISION_OPTIONS",
+    # Plain DECISION_OPTIONS historically carried SUMMA decisions (the CLI
+    # preset path wrote it); nothing reads the plain spelling, so normalize
+    # it to the canonical SUMMA key instead of letting it sit inert.
+    "DECISION_OPTIONS": "SUMMA_DECISION_OPTIONS",
 }
 
 # Maps deprecated flat keys to their preferred replacements.
@@ -158,57 +162,44 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
 # (Resolves the bulk of RTI review open-question Q3 / Tier 3 item 21 noise; see
 # docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
 # unbacked feature families are handled separately — see that ADR's follow-on.)
+# BLESSED EXTRAS — the deliberate remainder of the flat-key audit
+# (docs/config_flat_key_audit.md). Each key below has exactly one in-tree
+# owner (a data-acquisition/observation handler or evaluator) that reads it
+# flat from the config _extra passthrough. They are intentionally NOT
+# Pydantic fields: the long-term home is per-handler key declaration (the
+# same mechanism external plugins use, ADR-0002), not one giant DataConfig.
+# Policy: a key may live here only while it has an in-tree reader (enforced
+# by tests/unit/config/test_recognized_flat_keys.py); when a handler grows a
+# typed schema, move its keys there and delete them here.
+# Everything else from the original 125-key set was promoted to typed
+# fields (state/DA, IGNACIO/GNN/LSTM, multi-gauge, optimizer/evaluator
+# odds, HYPE/NGEN/FUSE/GR/mizuRoute/paths, per-model *_PARAM_BOUNDS) or
+# turned into aliases (OPTIMIZATION_MAX_ITERATIONS, DECISION_OPTIONS).
 RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
-    # NOTE: MULTI_GAUGE_* + GAUGE_SEGMENT_MAPPING were promoted to
-    # optimization.multi_gauge (MultiGaugeConfig); the optimizer/evaluator
-    # odds (SKIP_WARM_START, PARAMETER_BOUNDS, INITIAL_PARAMETERS,
-    # LIKELIHOOD_FUNCTION, MODEL_ERROR_*, TRANSFER_FUNCTION_*, ADAM_STEPS,
-    # DDS_STAGNATION_THRESHOLD) to OptimizationConfig fields; and
-    # OPTIMIZATION_MAX_ITERATIONS became a legacy alias of NUMBER_OF_ITERATIONS.
-    # NOTE: ENKF_*, STATE_*, and DA_METHOD were removed from this set: their
-    # typed models (StateConfig / EnKFConfig / DataAssimilationConfig) are now
-    # reached by the introspection walker ('state' and 'data_assimilation'
-    # root sections), so those flat keys transform into nested fields instead
-    # of riding in _extra. Before that fix, flat configs silently left the
-    # typed DA sections at their defaults.
-    # ESA CCI soil moisture
+    # CanSWE snow observations (data/observation/handlers/canswe.py)
+    "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION", "DOWNLOAD_CANSWE",
+    # ESA CCI soil moisture (data/acquisition/handlers/esa_cci_sm.py,
+    # data/observation/handlers/soil_moisture.py)
     "ESA_CCI_SM_PATH", "ESA_CCI_SM_RECORD_TYPE", "ESA_CCI_SM_SENSOR",
     "ESA_CCI_SM_TIME_AGGREGATION", "ESA_CCI_SM_VARIABLE", "ESA_CCI_SM_VERSION",
-    # NOTE: IGNACIO_* keys were removed from this set: the registered core
-    # IGNACIOConfig now carries the full field set (it had been a subset of
-    # models/ignacio/config.py), so those flat keys transform into
-    # config.model.ignacio.* fields. Same for GNN_OUTPUT_SIZE / GNN_USE_SNOW
-    # and LSTM_PARAMS_TO_CALIBRATE / LSTM_PARAMETER_BOUNDS (fields added to
-    # the registered GNNConfig / LSTMConfig).
-    # HYPE process options
-    "HYPE_DEEP_GROUND", "HYPE_FROZEN_SOIL_MODEL", "HYPE_INFILTRATION_MODEL",
-    "HYPE_PARAM_BOUNDS", "HYPE_PET_MODEL", "HYPE_SNOW_EVAPORATION", "HYPE_SOIL_INIT_WET",
-    "HYPE_SOIL_LAYER_DEPTHS", "HYPE_SURFACE_RUNOFF",
-    # CanSWE snow obs
-    "CANSWE_MIN_OBSERVATIONS", "CANSWE_PATH", "CANSWE_VERSION",
-    # Per-model parameter bounds (generic PARAMETER_BOUNDS / INITIAL_PARAMETERS
-    # were promoted to OptimizationConfig)
-    "CLM_PARAM_BOUNDS", "MESH_PARAM_BOUNDS",
-    "PARFLOW_PARAM_BOUNDS", "RHESSYS_PARAM_BOUNDS", "VIC_PARAM_BOUNDS",
-    # GLEAM ET
-    "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH",
-    # Groundwater
+    # GLEAM ET (data/observation/handlers/gleam.py)
+    "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH", "ET_UNIT_CONVERSION",
+    # Groundwater evaluator (evaluation/evaluators/groundwater.py)
     "GW_AUTO_ALIGN", "GW_BASE_DEPTH",
-    # GRACE
-    "GRACE_SUBSET",
-    # Catchment shapefile
-    "CATCHMENT_SHP_PATH", "CATCHMENT_SHP_SLOPE_UNITS",
-    # NGEN module toggles
+    # Single-owner acquisition/observation keys
+    "CARRA_DOMAIN",      # data/acquisition/handlers/cds_datasets.py
+    "EM_EARTH",          # data/acquisition/acquisition_service.py
+    "GRACE_SUBSET",      # data/acquisition/handlers/grace.py
+    "HYDROSHEDS_LEVEL",  # data/acquisition/handlers/hydrosheds.py
+    "MODIS_SNOW",        # data/acquisition/acquisition_service.py
+    "SMAP_LAYER",        # evaluation/evaluators/soil_moisture.py
+    "SNOTEL_STATE",      # data/observation/handlers/snotel.py
+    "TDX_SOURCE",        # data/acquisition/handlers/tdx_hydro.py
+    "USGS_GW",           # data/acquisition/acquisition_service.py
+    # Deprecated NGEN module toggles — consumed (and migrated to
+    # NGEN_MODULES_SELECTED) by NGENConfig's before-validator; recognized
+    # until removal at 2.0
     "ENABLE_NOAH", "ENABLE_PET", "ENABLE_SLOTH",
-    # FUSE run options
-    "FUSE_RUN_MODE", "FUSE_TEMPLATE_PATH",
-    # Other recognized flat keys
-    "CALIBRATION_NEXUS_ID", "CALIBRATION_WARMUP_DAYS", "CARRA_DOMAIN",
-    "DECISION_OPTIONS", "DOWNLOAD_CANSWE", "EM_EARTH", "ET_UNIT_CONVERSION",
-    "EXPERIMENT_OUTPUT_NGEN", "FORCING_RAW_PATH", "GR_MODEL_TYPE",
-    "HYDROSHEDS_LEVEL", "MIZUROUTE_NUM_THREADS", "MODIS_SNOW",
-    "NWS_HYDROFABRIC_VERSION", "SETTINGS_NGEN_REALIZATION",
-    "SMAP_LAYER", "SNOTEL_STATE", "TDX_SOURCE", "USGS_GW",
 })
 
 
