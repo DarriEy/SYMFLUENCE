@@ -9,7 +9,7 @@ Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Type
+from typing import List
 
 from symfluence.data.base_registry import BaseRegistry
 
@@ -23,8 +23,6 @@ class DatasetRegistry(BaseRegistry):
     """
 
     _r_registry_name = "dataset_handlers"
-
-    _handlers: Dict[str, Type] = {}
 
     @classmethod
     def get_handler(
