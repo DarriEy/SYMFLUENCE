@@ -15,12 +15,13 @@ import pandas as pd
 import s3fs
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('EM-EARTH')
-@AcquisitionRegistry.register('EM_EARTH')
+@R.acquisition_handlers.add('EM-EARTH')
+@R.acquisition_handlers.add('EM_EARTH')
 class EMEarthAcquirer(BaseAcquisitionHandler):
     """
     Acquires EM-Earth global climate reanalysis data from AWS S3.

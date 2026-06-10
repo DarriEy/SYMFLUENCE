@@ -25,12 +25,13 @@ from typing import List, Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('gpm_imerg')
-@ObservationRegistry.register('gpm')
+@R.observation_handlers.add('gpm_imerg')
+@R.observation_handlers.add('gpm')
 class GPMIMERGHandler(BaseObservationHandler):
     """
     Handles GPM IMERG precipitation data acquisition and processing.

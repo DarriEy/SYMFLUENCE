@@ -15,11 +15,12 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('openet')
+@R.observation_handlers.add('openet')
 class OpenETHandler(BaseObservationHandler):
     """
     Handles OpenET evapotranspiration data processing.

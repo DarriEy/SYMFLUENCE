@@ -6,8 +6,9 @@
 Provides a central registry for objective functions used in calibration.
 
 This module implements a plugin pattern for objective functions. Objective classes
-register themselves using the @ObjectiveRegistry.register() decorator, enabling
+register themselves via the unified registry (``@R.objectives.add()``), enabling
 dynamic instantiation by type string from configuration without hardcoded imports.
+``ObjectiveRegistry`` is a deprecated delegation shim kept for plugin compatibility.
 
 This design allows users to select different objective functions (single-variable,
 multi-variable, custom) via configuration and enables straightforward addition of
@@ -16,7 +17,7 @@ new objectives without modifying the registry code.
 Example:
     Register a custom objective:
 
-    >>> @ObjectiveRegistry.register('CUSTOM_OBJECTIVE')
+    >>> @R.objectives.add('CUSTOM_OBJECTIVE')
     ... class CustomObjective(BaseObjective):
     ...     def calculate(self, evaluation_results): ...
 

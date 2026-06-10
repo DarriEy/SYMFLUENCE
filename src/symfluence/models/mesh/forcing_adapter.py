@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.registries import R
+from symfluence.models.adapters import ForcingAdapter
 
 
-@ForcingAdapterRegistry.register_adapter('MESH')
+@R.forcing_adapters.add('MESH')
 class MESHForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for MESH model.

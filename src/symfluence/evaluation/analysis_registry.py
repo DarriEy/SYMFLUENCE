@@ -16,12 +16,12 @@ Architecture:
        - Decision Analyzers: Model structure/decision comparison analysis
 
     2. Registration Mechanism (Decorator Pattern):
-       Each model registers its analyzers using class decorators:
+       Each model registers its analyzers via the unified registry:
 
-       @AnalysisRegistry.register_sensitivity_analyzer('SUMMA')
+       @R.sensitivity_analyzers.add('SUMMA')
        class SummaSensitivityAnalyzer: ...
 
-       @AnalysisRegistry.register_decision_analyzer('SUMMA')
+       @R.decision_analyzers.add('SUMMA')
        class SummaStructureAnalyzer: ...
 
     3. Discovery and Instantiation (Factory Pattern):
@@ -37,9 +37,9 @@ Benefits:
 
 Example Registration:
     # In models/summa/__init__.py
-    from symfluence.evaluation.analysis_registry import AnalysisRegistry
+    from symfluence.core.registries import R
 
-    @AnalysisRegistry.register_decision_analyzer('SUMMA')
+    @R.decision_analyzers.add('SUMMA')
     class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         def run_full_analysis(self):
             ...
@@ -86,7 +86,7 @@ class AnalysisRegistry:
 
     Example:
         >>> # Register a decision analyzer
-        >>> @AnalysisRegistry.register_decision_analyzer('SUMMA')
+        >>> @R.decision_analyzers.add('SUMMA')
         ... class SummaStructureAnalyzer:
         ...     def run_full_analysis(self): ...
 

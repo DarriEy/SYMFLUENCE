@@ -27,6 +27,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -34,11 +36,10 @@ except ImportError:
     HAS_CDSAPI = False
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('SMOS')
-@AcquisitionRegistry.register('SMOS_SM')
+@R.acquisition_handlers.add('SMOS')
+@R.acquisition_handlers.add('SMOS_SM')
 class SMOSSMAcquirer(BaseAcquisitionHandler):
     """
     Acquires SMOS Soil Moisture data via Copernicus CDS.

@@ -22,15 +22,16 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # AppEEARS API endpoints
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 
 
-@AcquisitionRegistry.register('MODIS_LST')
-@AcquisitionRegistry.register('MOD11')
+@R.acquisition_handlers.add('MODIS_LST')
+@R.acquisition_handlers.add('MOD11')
 class MODISLSTAcquirer(BaseAcquisitionHandler):
     """
     Handles MODIS LST data acquisition via NASA AppEEARS.

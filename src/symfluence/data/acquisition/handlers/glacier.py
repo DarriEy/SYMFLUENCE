@@ -24,8 +24,9 @@ from requests.adapters import HTTPAdapter
 from shapely.geometry import box
 from urllib3.util.retry import Retry
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
 def create_robust_session(max_retries: int = 5, backoff_factor: float = 1.0):
@@ -78,8 +79,8 @@ GLIMS_WFS_URL = "https://www.glims.org/geoserver/GLIMS/wfs"
 GLIMS_WFS_TIMEOUT = 300  # Increased timeout for slow server
 
 
-@AcquisitionRegistry.register('GLACIER')
-@AcquisitionRegistry.register('RGI')
+@R.acquisition_handlers.add('GLACIER')
+@R.acquisition_handlers.add('RGI')
 class GlacierAcquirer(BaseAcquisitionHandler):
     """
     Glacier data acquisition handler.

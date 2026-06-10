@@ -13,10 +13,11 @@ from typing import Callable, Dict, List
 
 import xarray as xr
 
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.registries import R
+from symfluence.models.adapters import ForcingAdapter
 
 
-@ForcingAdapterRegistry.register_adapter('NGEN')
+@R.forcing_adapters.add('NGEN')
 class NGENForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for NOAA NextGen framework.

@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -32,7 +34,6 @@ except ImportError:
 
 from ...utils import VariableStandardizer
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from .era5 import diagnose_cds_credentials
 
 
@@ -1032,7 +1033,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         return T_celsius + 243.5
 
 
-@AcquisitionRegistry.register('CARRA')
+@R.acquisition_handlers.add('CARRA')
 class CARRAAcquirer(CDSRegionalReanalysisHandler):
     """CARRA (Copernicus Arctic Regional Reanalysis) data acquisition handler.
 
@@ -1182,7 +1183,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return T_celsius + 243.5  # Standard Magnus formula
 
 
-@AcquisitionRegistry.register('CERRA')
+@R.acquisition_handlers.add('CERRA')
 class CERRAAcquirer(CDSRegionalReanalysisHandler):
     """CERRA (Copernicus European Regional Reanalysis) data acquisition handler.
 

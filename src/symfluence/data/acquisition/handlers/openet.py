@@ -26,12 +26,13 @@ from typing import Optional
 import pandas as pd
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('OPENET')
-@AcquisitionRegistry.register('OpenET')
+@R.acquisition_handlers.add('OPENET')
+@R.acquisition_handlers.add('OpenET')
 class OpenETAcquirer(BaseAcquisitionHandler):
     """
     Handles OpenET data acquisition via OpenET API.

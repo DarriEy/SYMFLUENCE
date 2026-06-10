@@ -20,14 +20,15 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ...acquisition.handlers.fluxnet_constants import convert_le_to_et
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('fluxnet')
-@ObservationRegistry.register('fluxnet_et')
-@ObservationRegistry.register('ameriflux')
+@R.observation_handlers.add('fluxnet')
+@R.observation_handlers.add('fluxnet_et')
+@R.observation_handlers.add('ameriflux')
 class FLUXNETObservationHandler(BaseObservationHandler):
 
     obs_type = "et"

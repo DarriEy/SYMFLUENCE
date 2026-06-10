@@ -18,16 +18,17 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # VIIRS NDSI snow cover valid ranges and QA flags
 NDSI_VALID_RANGE = (0, 100)  # 0-100% snow cover
 NDSI_FILL_VALUES = [200, 201, 211, 237, 239, 250, 251, 252, 253, 254, 255]
 
 
-@ObservationRegistry.register('viirs_snow')
-@ObservationRegistry.register('vnp10')
+@R.observation_handlers.add('viirs_snow')
+@R.observation_handlers.add('vnp10')
 class VIIRSSnowHandler(BaseObservationHandler):
     """
     Handles VIIRS snow cover data processing.

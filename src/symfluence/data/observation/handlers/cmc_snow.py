@@ -28,15 +28,16 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Default bulk snow density (kg/m^3) for depth-to-SWE conversion
 DEFAULT_SNOW_DENSITY = 200.0
 
 
-@ObservationRegistry.register('cmc_snow')
-@ObservationRegistry.register('cmc_swe')
+@R.observation_handlers.add('cmc_snow')
+@R.observation_handlers.add('cmc_swe')
 class CMCSnowHandler(BaseObservationHandler):
     """
     Handles CMC Snow Depth Analysis data acquisition and processing.

@@ -35,9 +35,10 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # GlobSnow v3.0 archive URL
@@ -55,7 +56,7 @@ _URL_PATTERNS = {
 }
 
 
-@AcquisitionRegistry.register('GLOBSNOW')
+@R.acquisition_handlers.add('GLOBSNOW')
 class GlobSnowAcquirer(
     BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin
 ):

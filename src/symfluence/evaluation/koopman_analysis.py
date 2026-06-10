@@ -19,10 +19,10 @@ Architecture:
     This module follows the same pattern as SensitivityAnalyzer and Benchmarker:
     - Standalone class with __init__(config, logger, reporting_manager)
     - Main entry point: run_koopman_analysis() -> Dict[str, Any]
-    - Registered with AnalysisRegistry for discovery by AnalysisManager
+    - Registered with the unified registry for discovery by AnalysisManager
 
 Registration:
-    @AnalysisRegistry.register_koopman_analyzer()
+    @R.koopman_analyzers.add('DEFAULT')
     class KoopmanAnalyzer: ...
 
 Example:
@@ -40,10 +40,10 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.mixins import ConfigMixin
-from symfluence.evaluation.analysis_registry import AnalysisRegistry
+from symfluence.core.registries import R
 
 
-@AnalysisRegistry.register_koopman_analyzer()
+@R.koopman_analyzers.add('DEFAULT')
 class KoopmanAnalyzer(ConfigMixin):
     """Koopman operator analysis of multi-model hydrological ensembles.
 

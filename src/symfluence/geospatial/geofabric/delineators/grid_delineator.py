@@ -19,7 +19,8 @@ import numpy as np
 import rasterio
 from shapely.geometry import box
 
-from ....geospatial.delineation_registry import DelineationRegistry
+from symfluence.core.registries import R
+
 from ....geospatial.raster_utils import _scipy_mode_compat
 from ..base.base_delineator import BaseGeofabricDelineator
 from ..processors.gdal_processor import GDALProcessor
@@ -39,7 +40,7 @@ D8_OFFSETS = {
 }
 
 
-@DelineationRegistry.register('distributed')
+@R.delineation_strategies.add('distributed')
 class GridDelineator(BaseGeofabricDelineator):
     """
     Creates a regular mesh grid for fully distributed modeling.

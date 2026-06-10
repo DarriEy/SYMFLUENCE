@@ -18,9 +18,11 @@ class DatasetRegistry(BaseRegistry):
     """
     Registry for dataset preprocessing handlers.
 
-    Handlers are registered using the @register decorator and retrieved
-    using get_handler(). All keys are normalized to lowercase.
+    Handlers register via the unified registry (``@R.dataset_handlers.add('x')``)
+    and are retrieved using get_handler(). All keys are normalized to lowercase.
     """
+
+    _r_registry_name = "dataset_handlers"
 
     _handlers: Dict[str, Type] = {}
 

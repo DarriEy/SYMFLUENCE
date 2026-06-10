@@ -15,12 +15,12 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('ggmn')
+@R.observation_handlers.add('ggmn')
 class GGMNHandler(BaseObservationHandler):
     """
     Handles GGMN groundwater data acquisition and processing.

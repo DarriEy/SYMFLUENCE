@@ -24,11 +24,12 @@ class ForcingAdapterRegistry:
     """
     Registry for model forcing adapters.
 
-    Adapters register themselves using the @register_adapter decorator,
-    enabling dynamic discovery without hardcoded model names.
+    Deprecated delegation shim: adapters now register via the unified
+    registry (``@R.forcing_adapters.add('SUMMA')``); lookups here read
+    from ``R.forcing_adapters``.
 
     Example:
-        >>> @ForcingAdapterRegistry.register_adapter('SUMMA')
+        >>> @R.forcing_adapters.add('SUMMA')
         >>> class SUMMAForcingAdapter(ForcingAdapter):
         ...     pass
         ...

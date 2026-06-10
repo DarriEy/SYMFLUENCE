@@ -36,12 +36,13 @@ from typing import TYPE_CHECKING, Optional, Set, Tuple
 
 import requests
 
+from symfluence.core.registries import R
+
 if TYPE_CHECKING:
     import geopandas as gpd
 
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # Community Hydrofabric S3 — public bucket, anonymous access
@@ -82,8 +83,8 @@ _NWS_VPU_BBOXES = {
 }
 
 
-@AcquisitionRegistry.register('NWS_HYDROFABRIC')
-@AcquisitionRegistry.register('NWS')
+@R.acquisition_handlers.add('NWS_HYDROFABRIC')
+@R.acquisition_handlers.add('NWS')
 class NWSHydrofabricAcquirer(BaseAcquisitionHandler, RetryMixin):
     """NWS NextGen Hydrofabric acquisition with local subsetting.
 

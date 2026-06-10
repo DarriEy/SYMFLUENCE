@@ -16,12 +16,13 @@ import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('cerra')
+@R.dataset_handlers.add('cerra')
 class CERRAHandler(BaseDatasetHandler):
     """Handler for CERRA (Copernicus European Regional Reanalysis) dataset."""
 

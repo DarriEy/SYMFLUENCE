@@ -10,10 +10,10 @@ This module provides build configurations for external tools required by SYMFLUE
 
 Architecture:
     - Infrastructure tools (sundials, taudem, gistool, datatool, ngiab) are defined
-      directly in this file and registered via BuildInstructionsRegistry.register_instructions()
+      directly in this file and registered via R.build_instructions.add()
     - Model-specific tools (summa, fuse, mizuroute, etc.) are defined in their
       respective model directories (e.g., src/symfluence/models/summa/build_instructions.py)
-      and registered via @BuildInstructionsRegistry.register() decorator
+      and registered via the @R.build_instructions.add() decorator
 
 Public API:
     get_external_tools_definitions() -> Dict[str, Dict[str, Any]]
@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from symfluence.core.registries import R
+
 from .external_tools_build_commands import (
     ENZYME_BUILD_COMMAND,
     OPENFEWS_BUILD_COMMAND,
@@ -59,7 +61,7 @@ def _register_sundials(common_env: str) -> None:
     # ================================================================
     # SUNDIALS - Solver Library (Install First - Required by SUMMA)
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('sundials', {
+    R.build_instructions.add('sundials', {
         'description': 'SUNDIALS - SUite of Nonlinear and DIfferential/ALgebraic equation Solvers',
         'config_path_key': 'SUNDIALS_INSTALL_PATH',
         'config_exe_key': 'SUNDIALS_DIR',
@@ -91,7 +93,7 @@ def _register_taudem(common_env: str) -> None:
     # ================================================================
     # TauDEM - Terrain Analysis
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('taudem', {
+    R.build_instructions.add('taudem', {
         'description': 'Terrain Analysis Using Digital Elevation Models',
         'config_path_key': 'TAUDEM_INSTALL_PATH',
         'config_exe_key': 'TAUDEM_EXE',
@@ -121,7 +123,7 @@ def _register_gistool() -> None:
     # ================================================================
     # GIStool - Geospatial Data Extraction
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('gistool', {
+    R.build_instructions.add('gistool', {
         'description': 'Geospatial data extraction and processing tool',
         'config_path_key': 'INSTALL_PATH_GISTOOL',
         'config_exe_key': 'EXE_NAME_GISTOOL',
@@ -150,7 +152,7 @@ def _register_datatool() -> None:
     # ================================================================
     # Datatool - Meteorological Data Processing
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('datatool', {
+    R.build_instructions.add('datatool', {
         'description': 'Meteorological data extraction and processing tool',
         'config_path_key': 'DATATOOL_PATH',
         'config_exe_key': 'DATATOOL_SCRIPT',
@@ -179,7 +181,7 @@ def _register_openfews() -> None:
     # ================================================================
     # openFEWS - Delft-FEWS Flood Early Warning System
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('openfews', {
+    R.build_instructions.add('openfews', {
         'description': 'openFEWS - Delft Flood Early Warning System (open-source distribution)',
         'config_path_key': 'OPENFEWS_INSTALL_PATH',
         'config_exe_key': 'OPENFEWS_EXE',
@@ -206,7 +208,7 @@ def _register_ngiab() -> None:
     # ================================================================
     # NGIAB - NextGen In A Box
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('ngiab', {
+    R.build_instructions.add('ngiab', {
         'description': 'NextGen In A Box - Container-based ngen deployment',
         'config_path_key': 'NGIAB_INSTALL_PATH',
         'config_exe_key': 'NGIAB_SCRIPT',
@@ -268,7 +270,7 @@ def _register_enzyme() -> None:
     # ================================================================
     # Enzyme AD - Automatic Differentiation (used by cFUSE)
     # ================================================================
-    BuildInstructionsRegistry.register_instructions('enzyme', {
+    R.build_instructions.add('enzyme', {
         'description': 'Enzyme AD - Automatic Differentiation via LLVM',
         'config_path_key': None,
         'config_exe_key': None,
@@ -361,7 +363,7 @@ def _load_build_module_directly(module_name: str, pkg_root: object) -> None:
         mod = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = mod
         spec.loader.exec_module(mod)
-        # The @BuildInstructionsRegistry.register decorator has now fired.
+        # The @R.build_instructions.add decorator has now fired.
 
     finally:
         # Restore original sys.modules state for parent packages so that

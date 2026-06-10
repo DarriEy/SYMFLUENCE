@@ -13,10 +13,11 @@ from typing import Callable, Dict, List
 
 import xarray as xr
 
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.registries import R
+from symfluence.models.adapters import ForcingAdapter
 
 
-@ForcingAdapterRegistry.register_adapter('GR')
+@R.forcing_adapters.add('GR')
 class GRForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for GR family models (GR4J, GR5J, etc.).

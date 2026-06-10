@@ -41,11 +41,12 @@ from typing import List, Set
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('MSWEP')
+@R.acquisition_handlers.add('MSWEP')
 class MSWEPAcquirer(BaseAcquisitionHandler):
     """
     Handles MSWEP precipitation data acquisition via Rclone + Google Drive.

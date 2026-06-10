@@ -28,8 +28,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Scale factors and valid ranges for MODIS LAI/FPAR
 LAI_SCALE_FACTOR = 0.1  # To get LAI in m²/m²
@@ -39,9 +40,9 @@ FPAR_VALID_RANGE = (0, 100)  # Valid DN range (0-1 after scaling)
 FILL_VALUE = 255
 
 
-@ObservationRegistry.register('modis_lai')
-@ObservationRegistry.register('mcd15')
-@ObservationRegistry.register('lai')
+@R.observation_handlers.add('modis_lai')
+@R.observation_handlers.add('mcd15')
+@R.observation_handlers.add('lai')
 class MODISLAIHandler(BaseObservationHandler):
     """
     Handles MODIS LAI/FPAR data processing.

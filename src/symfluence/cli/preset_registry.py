@@ -26,11 +26,12 @@ class PresetRegistry:
     """
     Registry for model-specific initialization presets.
 
-    Models register their presets using the @register_preset decorator,
-    enabling dynamic discovery without hardcoding preset definitions centrally.
+    Deprecated delegation shim: presets now register via the unified
+    registry (``@R.presets.add('fuse-basic')``); lookups here read from
+    ``R.presets``.
 
     Example:
-        >>> @PresetRegistry.register_preset('fuse-basic')
+        >>> @R.presets.add('fuse-basic')
         >>> def fuse_basic_preset():
         ...     return {
         ...         'description': 'Basic FUSE setup',

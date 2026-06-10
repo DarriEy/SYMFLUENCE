@@ -42,9 +42,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
 from symfluence.data.observation.paths import first_existing_path, groundwater_observation_candidates
 from symfluence.evaluation.output_file_locator import OutputFileLocator
-from symfluence.evaluation.registry import EvaluationRegistry
 
 from .base import ModelEvaluator
 
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-@EvaluationRegistry.register('GROUNDWATER')
+@R.evaluators.add('GROUNDWATER')
 class GroundwaterEvaluator(ModelEvaluator):
     """Groundwater evaluator comparing SUMMA to well or GRACE observations.
 
