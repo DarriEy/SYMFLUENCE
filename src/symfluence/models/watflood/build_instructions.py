@@ -145,17 +145,21 @@ fi
 # === Apply source patches for GNU Fortran compatibility ===
 echo "Applying GNU Fortran compatibility patches..."
 
-# Fix Intel <variable> format descriptors (not supported by gfortran)
+# Fix Intel <variable> format descriptors (not supported by gfortran). Allow
+# arithmetic inside the brackets too, e.g. "<ncols-1>" in read_pt2.f, not just
+# bare identifiers.
 find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
-    perl -pi -e 's/<[a-zA-Z_][a-zA-Z0-9_]*>/999/g' "$f"
+    perl -pi -e 's/<[A-Za-z_][A-Za-z0-9_ +\-*\/]*>/999/g' "$f"
 done
 
 # Fix Hollerith constant in area_watflood.f: flen='none' -> flen=999999
 perl -pi -e "s/flen='none'/flen=999999/" "${SRC_DIR}/core/area_watflood.f"
 
-# Fix STOP without space before string
+# Fix STOP without a blank before its operand: STOP'msg' -> STOP 'msg', and the
+# line-continued form STOP& -> STOP & (gfortran: "Blank required in STOP statement").
 find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
     perl -pi -e "s/STOP\s*'/STOP '/gi" "$f"
+    perl -pi -e 's/\bSTOP&/STOP &/gi' "$f"
 done
 
 # Fix .eq./.ne. with logical operands -> .eqv./.neqv. NB: the .true. replacement
@@ -167,6 +171,9 @@ find "${SRC_DIR}" -name "*.f" -o -name "*.f90" | while read -r f; do
     perl -pi -e 's/\.eq\.\s*\.false\./.eqv. .false./gi' "$f"
     perl -pi -e 's/==\s*\.false\./.eqv. .false./gi' "$f"
     perl -pi -e 's/==\s*\.true\./.eqv. .true./gi' "$f"
+    # parenthesised forms, e.g. read_shed_hype.f90: ".eq.(.true.)"
+    perl -pi -e 's/\.eq\.\s*\(\s*\.true\.\s*\)/.eqv.(.true.)/gi' "$f"
+    perl -pi -e 's/\.eq\.\s*\(\s*\.false\.\s*\)/.eqv.(.false.)/gi' "$f"
 done
 
 # Fix integer-as-logical: if(dds_flag)then where dds_flag is integer*4. It
