@@ -91,7 +91,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             # Create a single polygon from all existing watersheds
             try:
                 watersheds_polygon = gpd.GeoDataFrame(
-                    geometry=[river_basins.unary_union],
+                    geometry=[river_basins.union_all()],
                     crs=river_basins.crs
                 )
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -156,7 +156,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             # If we still don't have valid coastal watersheds, use a simpler approach
             if coastal_watersheds is None or coastal_watersheds.empty:
                 self.logger.warning("Failed to create divided coastal watersheds. Using buffer method.")
-                coastal_watersheds = self._divide_coastal_strip_by_buffer_method(coastal_strip, river_basins)
+                coastal_watersheds = self._divide_coastal_strip_by_buffer_method(coastal_strip, river_basins_proj)
 
             if coastal_watersheds is None or coastal_watersheds.empty:
                 self.logger.info("No valid coastal watersheds created.")
@@ -441,7 +441,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             voronoi_gdf = gpd.GeoDataFrame(geometry=regions, crs=points_gdf.crs)
 
             # Create a convex hull around the points to limit Voronoi extent
-            convex_hull = points_gdf.unary_union.convex_hull
+            convex_hull = points_gdf.union_all().convex_hull
 
             # Use a large buffer around the convex hull (projected CRS, metres)
             buffer_distance = 10000.0  # ~10 km
@@ -476,31 +476,8 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             GeoDataFrame with divided coastal watersheds or None if failed
         """
         try:
-            # Get the exterior boundaries of each basin
-            basin_boundaries = []
-            for idx, basin in river_basins.iterrows():
-                # Get the exterior of the basin
-                if basin.geometry.geom_type == 'Polygon':
-                    boundary = basin.geometry.exterior
-                elif basin.geometry.geom_type == 'MultiPolygon':
-                    # Get the longest boundary for multipolygons
-                    boundary = max([poly.exterior for poly in basin.geometry.geoms],
-                                key=lambda x: x.length)
-                else:
-                    continue
-
-                basin_boundaries.append({
-                    'boundary': boundary,
-                    'gru_id': basin['GRU_ID']
-                })
-
-            # Create a convex hull around all basins and extend it outward
-            convex_hull = river_basins.unary_union.convex_hull
-            ext_distance = 10000.0  # ~10 km (projected CRS, metres)
-            shapely.geometry.Polygon(convex_hull).buffer(ext_distance)
-
             # Use a buffer-based approach to divide the coastal strip
-            coastal_geom = coastal_strip.geometry.unary_union
+            coastal_geom = coastal_strip.geometry.union_all()
             divided_coastal = []
 
             for idx, basin in river_basins.iterrows():
@@ -556,23 +533,39 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
         Divide the coastal strip using a buffer-based method.
 
         This is a more robust fallback method that uses buffers around each basin
-        to claim portions of the coastal strip.
+        to claim portions of the coastal strip: progressively wider bands (up to
+        1 km) around each basin claim first-come-first-served, and whatever the
+        bands do not reach is split into contiguous fragments, each assigned
+        whole to its nearest basin. A contiguous fragment equidistant to several
+        basins (e.g. the outer part of a strip wider than 1 km) therefore goes
+        entirely to the first spatial-index match; the choice is deterministic
+        for a given input. Fine-grained partitioning is the job of the primary
+        Voronoi path — this method only guarantees no coastal area is lost.
 
         Args:
-            coastal_strip: Coastal areas to divide
+            coastal_strip: Coastal areas to divide (projected CRS, metres)
             river_basins: Existing river basins
 
         Returns:
             GeoDataFrame with divided coastal watersheds or None if failed
         """
         try:
-            coastal_geom = coastal_strip.geometry.unary_union
+            # The strip is reprojected to UTM upstream while basins may arrive in
+            # the original (possibly geographic) CRS; every intersection and
+            # distance below is meaningless across mixed CRSes, so align first.
+            if river_basins.crs != coastal_strip.crs:
+                river_basins = river_basins.to_crs(coastal_strip.crs)
+
+            coastal_geom = coastal_strip.geometry.union_all()
 
             # Create an empty list to store divided coastal watersheds
             divided_coastal = []
 
-            # Create multiple buffer sizes for more uniform coverage
-            buffer_sizes = [0.001, 0.002, 0.003, 0.005, 0.008, 0.01]  # In decimal degrees
+            # Progressively wider claim bands, in metres (the strip is in a
+            # projected CRS). These match the intent of the original
+            # degree-sized bands (~0.001-0.01 deg) from when this method
+            # operated on geographic coordinates.
+            buffer_sizes = [100.0, 200.0, 300.0, 500.0, 800.0, 1000.0]
             remaining_coastal = coastal_geom
 
             for buffer_size in buffer_sizes:
@@ -600,39 +593,32 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                     except Exception as e:  # noqa: BLE001 — preprocessing resilience
                         self.logger.warning(f"Error processing basin {basin['GRU_ID']} with buffer {buffer_size}: {str(e)}", exc_info=True)
 
-            # Handle any remaining coastal strip by assigning to nearest basin
+            # Handle any remaining coastal strip by assigning each contiguous
+            # fragment to its nearest basin (vectorized via the spatial index).
             if not remaining_coastal.is_empty:
                 self.logger.info("Assigning remaining coastal areas to nearest basins.")
 
-                # Convert to GeoDataFrame for easier processing
                 remaining_gdf = gpd.GeoDataFrame(
                     geometry=[remaining_coastal],
-                    crs=river_basins.crs
+                    crs=coastal_strip.crs
                 )
 
                 # Explode to get individual polygons
-                try:
-                    # For newer geopandas versions
-                    remaining_gdf = remaining_gdf.explode(index_parts=True).reset_index(drop=True)
-                except TypeError:
-                    # For older geopandas versions that don't support index_parts
-                    remaining_gdf = remaining_gdf.explode().reset_index(drop=True)
+                remaining_gdf = remaining_gdf.explode(index_parts=True).reset_index(drop=True)
 
-                # For each remaining polygon, find the nearest basin
-                for idx, row in remaining_gdf.iterrows():
-                    nearest_basin = None
-                    min_distance = float('inf')
+                joined = gpd.sjoin_nearest(
+                    remaining_gdf,
+                    river_basins[['GRU_ID', 'geometry']],
+                    how='left',
+                )
+                # Exact-tie matches duplicate the fragment row; keep the first.
+                joined = joined[~joined.index.duplicated(keep='first')]
 
-                    for basin_idx, basin in river_basins.iterrows():
-                        distance = row.geometry.distance(basin.geometry)
-                        if distance < min_distance:
-                            min_distance = distance
-                            nearest_basin = basin['GRU_ID']
-
-                    if nearest_basin is not None:
+                for geometry, basin_id in zip(joined.geometry, joined['GRU_ID']):
+                    if pd.notna(basin_id):
                         divided_coastal.append({
-                            'geometry': row.geometry,
-                            'basin_id': nearest_basin
+                            'geometry': geometry,
+                            'basin_id': basin_id
                         })
 
             # Create GeoDataFrame from divided coastal watersheds
