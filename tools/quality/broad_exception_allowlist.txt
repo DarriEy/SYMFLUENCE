@@ -1073,6 +1073,7 @@ src/symfluence/models/rhessys/worldfile_generator.py:RHESSysWorldfileGenerator.g
 src/symfluence/models/state/manager.py:StateManager.export_to_fews:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._calculate_aspect_from_dem:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._calculate_tan_slope_from_dem:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._load_store_class_fractions:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager._load_store_elevation:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager.insert_aspect:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/summa/attributes_manager.py:SummaAttributesManager.insert_land_class:except Exception as e:  # noqa: BLE001 — model execution resilience
