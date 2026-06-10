@@ -444,6 +444,23 @@ include_directories(${CMAKE_Fortran_MODULE_DIRECTORY})
 file(MAKE_DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
+# NetCDF-Fortran: read_2D_swe_nc.f90 does "use netcdf". Discover its module
+# include dir and link flags via nf-config (Linux/macOS/MSYS2) so the model
+# library compiles and the executable links. Without this the build dies at
+# "Cannot open module file netcdf.mod".
+find_program(NF_CONFIG NAMES nf-config)
+if(NF_CONFIG)
+    execute_process(COMMAND ${NF_CONFIG} --includedir
+        OUTPUT_VARIABLE NF_INCDIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process(COMMAND ${NF_CONFIG} --flibs
+        OUTPUT_VARIABLE NF_FLIBS OUTPUT_STRIP_TRAILING_WHITESPACE)
+    include_directories(${NF_INCDIR})
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NF_FLIBS}")
+    message(STATUS "NetCDF-Fortran: inc=${NF_INCDIR} flibs=${NF_FLIBS}")
+else()
+    message(WARNING "nf-config not found — read_2D_swe_nc.f90 may fail to build")
+endif()
+
 # Legacy Fortran compat flags for GCC 10+
 IF(${CMAKE_Fortran_COMPILER_ID} MATCHES "GNU")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch -fallow-invalid-boz -ffixed-line-length-none -fd-lines-as-comments -fdec -fno-range-check -std=legacy -w")
