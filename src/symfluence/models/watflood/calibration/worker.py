@@ -141,9 +141,13 @@ class WATFLOODWorker(BaseWorker):
             try:
                 with open(sim_dir / 'watflood_stdout.log', 'w') as out, \
                      open(sim_dir / 'watflood_stderr.log', 'w') as err:
+                    # CHARM issues an unconditional `read(*,*)` "hit any key"
+                    # prompt on the first event (sub.f, id<=1). With no stdin it
+                    # hits EOF and the read crashes; feed blank lines so it
+                    # continues non-interactively.
                     result = subprocess.run(
                         cmd, cwd=str(settings_dir), env=env,
-                        stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                        input=b'\n' * 256, stdout=out, stderr=err,
                         timeout=timeout
                     )
             except subprocess.TimeoutExpired:
@@ -153,7 +157,6 @@ class WATFLOODWorker(BaseWorker):
             # WATFLOOD may exit non-zero but still produce valid output
             if result.returncode != 0:
                 self.logger.warning(f"WATFLOOD exited with code {result.returncode}")
-
             # Collect outputs from settings_dir and results/
             for src in [settings_dir, settings_dir / 'results']:
                 if src.exists():
