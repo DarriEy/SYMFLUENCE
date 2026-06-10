@@ -508,6 +508,13 @@ fi
 ./xmlchange STOP_N=1
 ./xmlchange RUN_STARTDATE=2000-01-01
 
+# ESMF is built in mpiuni (serial) mode, but the homebrew machine defaults the
+# case to MPILIB=mpich — case.build then tries to compile gptl/components against
+# MPICH headers that aren't installed and fails. Pin the serial MPI so the whole
+# case matches the mpiuni ESMF (single-process build, which is all we need to
+# produce cesm.exe).
+./xmlchange MPILIB=mpi-serial
+
 # Keep build/run directories inside the case to avoid stale scratch conflicts
 ./xmlchange CIME_OUTPUT_ROOT="${CASE_DIR}/output"
 ./xmlchange EXEROOT="${CASE_DIR}/bld"
