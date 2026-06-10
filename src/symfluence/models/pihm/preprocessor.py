@@ -30,7 +30,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_forcing_basin_path
 from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
@@ -133,7 +133,7 @@ class PIHMPreProcessor(BaseModelPreProcessor):
 
     def _find_forcing_files(self, start_dt, end_dt):
         """Find ERA5 basin-averaged forcing NetCDF files covering the time range."""
-        forcing_dir = resolve_data_subdir(self.project_dir, 'forcing') / "basin_averaged_data"
+        forcing_dir = resolve_forcing_basin_path(self.project_dir)
         if not forcing_dir.exists():
             self.logger.warning(
                 f"Forcing directory not found: {forcing_dir}. "

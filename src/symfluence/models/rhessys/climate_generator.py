@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
 from symfluence.data.utils.variable_utils import VariableHandler
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class RHESSysClimateGenerator:
 
         # Setup paths — climate files are forcing data
         self.climate_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'RHESSys_input' / 'clim'
-        self.forcing_basin_path = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        self.forcing_basin_path = resolve_forcing_basin_path(self.project_dir)
         self.forcing_raw_path = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
 
         # Get forcing dataset info

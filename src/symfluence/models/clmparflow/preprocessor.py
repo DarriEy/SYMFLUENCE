@@ -31,7 +31,7 @@ from typing import Optional
 
 import numpy as np
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
 from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
@@ -89,7 +89,7 @@ class CLMParFlowPreProcessor(BaseModelPreProcessor):
         return default
 
     def _get_forcing_dir(self) -> Optional[Path]:
-        basin_avg = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        basin_avg = resolve_forcing_basin_path(self.project_dir)
         if basin_avg.exists():
             nc_files = list(basin_avg.glob('*_remapped*.nc'))
             if nc_files:

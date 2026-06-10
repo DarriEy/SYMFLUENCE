@@ -18,7 +18,7 @@ import pytest
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.configurable import ConfigurableMixin
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
 
 
 class _Configurable(ConfigurableMixin):
@@ -88,6 +88,32 @@ def test_resolve_data_subdir_prefers_new_then_legacy(tmp_path):
     # New layout present -> preferred over legacy.
     (project / "data" / "shapefiles").mkdir(parents=True)
     assert resolve_data_subdir(project, "shapefiles") == project / "data" / "shapefiles"
+
+
+def test_resolve_forcing_basin_path_prefers_store_then_legacy(tmp_path):
+    project = tmp_path / "domain_x"
+    # Establish the legacy forcing layout so resolve_data_subdir resolves to it.
+    legacy = project / "forcing" / "basin_averaged_data"
+    legacy.mkdir(parents=True)
+    store = project / "data" / "model_ready" / "forcings"
+
+    # No store -> legacy basin_averaged_data path.
+    assert resolve_forcing_basin_path(project) == legacy
+
+    # Store dir exists but is empty -> still legacy (must hold NetCDF files).
+    store.mkdir(parents=True)
+    assert resolve_forcing_basin_path(project) == legacy
+
+    # Store populated with a NetCDF -> store wins.
+    (store / "forcing_2020.nc").write_bytes(b"")
+    assert resolve_forcing_basin_path(project) == store
+
+
+def test_resolve_forcing_basin_path_respects_data_layout(tmp_path):
+    """When no store, falls back through resolve_data_subdir (data/forcing)."""
+    project = tmp_path / "domain_y"
+    (project / "data" / "forcing").mkdir(parents=True)
+    assert resolve_forcing_basin_path(project) == project / "data" / "forcing" / "basin_averaged_data"
 
 
 # ---- LoggingMixin / TimingMixin -----------------------------------------
