@@ -16,6 +16,10 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.registries import R
+from symfluence.data.model_ready.forcing_reader import (
+    forcing_timestep_seconds,
+    open_canonical_forcing,
+)
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 _OPENDAP_BASE = (
@@ -401,15 +405,14 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not forcing_files:
             raise FileNotFoundError(f"No forcing files found in {forcing_path}")
 
-        ds_forcing = xr.open_mfdataset(forcing_files, combine='by_coords')
+        # Canonical reader: variables under SYMFLUENCE names with a declared
+        # timestep, so we no longer guess source names, units, or the timestep.
+        ds_forcing = open_canonical_forcing(forcing_files)
         ds_forcing = ds_forcing.sel(time=slice(str(start_date), str(end_date)))
 
-        # Detect timestep
         time_vals = pd.DatetimeIndex(ds_forcing.time.values)
-        if len(time_vals) > 1:
-            dt_hours = (time_vals[1] - time_vals[0]).total_seconds() / 3600.0
-        else:
-            dt_hours = 24.0
+        dt_seconds = forcing_timestep_seconds(ds_forcing)
+        dt_hours = dt_seconds / 3600.0
         is_subdaily = dt_hours < 24.0
         if is_subdaily:
             self.logger.info(
@@ -417,35 +420,14 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 f"will resample to daily for PCR-GLOBWB"
             )
 
-        # Extract precipitation
-        precip_raw = self._extract_forcing_var(
-            ds_forcing,
-            ['pptrate', 'precipitation_flux', 'mtpr', 'tp', 'precipitation', 'PREC', 'precip'],
-            props['lat'], props['lon'],
-        )
+        # Precipitation: canonical pptrate is a rate (kg m-2 s-1); convert to
+        # metres per source step (m = mm / 1000).
+        precip_raw = self._extract_forcing_var(ds_forcing, ['pptrate'], props['lat'], props['lon'])
         precip_raw = np.maximum(precip_raw, 0.0)
+        precip_m_per_step = precip_raw * dt_seconds / 1000.0
 
-        # Convert precipitation rate to m/day
-        # kg/m2/s (= mm/s): max typically < 0.1
-        # mm/hr: max typically 1-50
-        # mm/day: max typically 1-200
-        if precip_raw.max() < 0.1:
-            # kg/m2/s — convert rate to m per timestep-hour, then daily sum handles the rest
-            precip_m_per_step = precip_raw * (dt_hours * 3600.0) / 1000.0
-        elif precip_raw.max() < 200:
-            # mm/timestep — convert to m/timestep
-            precip_m_per_step = precip_raw / 1000.0
-        else:
-            precip_m_per_step = precip_raw
-
-        # Extract temperature, ensure Celsius
-        temp_raw = self._extract_forcing_var(
-            ds_forcing,
-            ['airtemp', 't2m', 'temperature', 'TEMP', 'air_temperature', 'tas'],
-            props['lat'], props['lon'],
-        )
-        if temp_raw.mean() > 100:
-            temp_raw = temp_raw - 273.15
+        # Temperature: canonical airtemp is in kelvin.
+        temp_raw = self._extract_forcing_var(ds_forcing, ['airtemp'], props['lat'], props['lon']) - 273.15
 
         ds_forcing.close()
 
