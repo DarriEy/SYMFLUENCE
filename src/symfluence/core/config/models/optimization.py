@@ -66,6 +66,10 @@ class DDSConfig(BaseModel):
     async_pool_size: int = Field(default=10, alias='ASYNC_DDS_POOL_SIZE', ge=1)
     async_batch_size: int = Field(default=10, alias='ASYNC_DDS_BATCH_SIZE', ge=1)
     max_stagnation_batches: int = Field(default=10, alias='MAX_STAGNATION_BATCHES', ge=1)
+    stagnation_threshold: int = Field(
+        default=100, alias='DDS_STAGNATION_THRESHOLD', ge=1,
+        description='Iterations without improvement before DDS stops early'
+    )
 
 
 class SCEUAConfig(BaseModel):
@@ -326,6 +330,10 @@ class AdamConfig(BaseModel):
     beta1: float = Field(default=0.9, alias='ADAM_BETA1', ge=0, lt=1.0)
     beta2: float = Field(default=0.999, alias='ADAM_BETA2', ge=0, lt=1.0)
     eps: float = Field(default=1e-8, alias='ADAM_EPS', gt=0)
+    steps: Optional[int] = Field(
+        default=None, alias='ADAM_STEPS', ge=1,
+        description='Number of Adam optimization steps'
+    )
 
 
 class LBFGSConfig(BaseModel):
@@ -352,6 +360,65 @@ class EmulationConfig(BaseModel):
     max_iterations: int = Field(default=3, alias='EMULATION_MAX_ITERATIONS', ge=1)
 
 
+class MultiGaugeConfig(BaseModel):
+    """Multi-gauge calibration settings.
+
+    All fields default to None so the flat view stays unchanged when unset
+    and the calibration workers' own fallback defaults keep applying
+    (e.g. aggregation 'mean', min_gauges 5).
+    """
+    model_config = FROZEN_CONFIG
+
+    calibration: Optional[bool] = Field(
+        default=None, alias='MULTI_GAUGE_CALIBRATION',
+        description='Calibrate against multiple observation gauges simultaneously'
+    )
+    obs_dir: Optional[str] = Field(
+        default=None, alias='MULTI_GAUGE_OBS_DIR',
+        description='Directory containing per-gauge observation files'
+    )
+    gauge_ids: Optional[Union[List[str], str]] = Field(
+        default=None, alias='MULTI_GAUGE_IDS',
+        description='Explicit gauge IDs to calibrate against (default: all found)'
+    )
+    exclude_ids: Optional[Union[List[str], str]] = Field(
+        default=None, alias='MULTI_GAUGE_EXCLUDE_IDS',
+        description='Gauge IDs to exclude from multi-gauge calibration'
+    )
+    aggregation: Optional[str] = Field(
+        default=None, alias='MULTI_GAUGE_AGGREGATION',
+        description="Aggregation of per-gauge scores: 'mean', 'median' or 'weighted'"
+    )
+    min_gauges: Optional[int] = Field(
+        default=None, alias='MULTI_GAUGE_MIN_GAUGES',
+        description='Minimum number of usable gauges required'
+    )
+    max_distance: Optional[float] = Field(
+        default=None, alias='MULTI_GAUGE_MAX_DISTANCE',
+        description='Maximum gauge-to-subbasin mapping distance'
+    )
+    min_obs_cv: Optional[float] = Field(
+        default=None, alias='MULTI_GAUGE_MIN_OBS_CV',
+        description='Minimum coefficient of variation of observations'
+    )
+    min_specific_q: Optional[float] = Field(
+        default=None, alias='MULTI_GAUGE_MIN_SPECIFIC_Q',
+        description='Minimum specific discharge for a gauge to be used'
+    )
+    min_overlap_days: Optional[int] = Field(
+        default=None, alias='MULTI_GAUGE_MIN_OVERLAP_DAYS',
+        description='Minimum days of obs/sim overlap for a gauge to be used'
+    )
+    kge_floor: Optional[float] = Field(
+        default=None, alias='MULTI_GAUGE_KGE_FLOOR',
+        description='Floor applied to per-gauge KGE before aggregation'
+    )
+    gauge_segment_mapping: Optional[Dict[str, Any]] = Field(
+        default=None, alias='GAUGE_SEGMENT_MAPPING',
+        description='Explicit gauge-ID to river-segment mapping'
+    )
+
+
 class OptimizationConfig(BaseModel):
     """Calibration and optimization configuration"""
     model_config = FROZEN_CONFIG
@@ -373,6 +440,51 @@ class OptimizationConfig(BaseModel):
         alias='INITIAL_GUESS',
         description="Calibration seed parameters. If set, these take precedence over "
                     "warm-start files and model defaults."
+    )
+    skip_warm_start: Optional[bool] = Field(
+        default=None,
+        alias='SKIP_WARM_START',
+        description='Skip warm-starting from previous best parameters'
+    )
+    parameter_bounds: Optional[Dict[str, Any]] = Field(
+        default=None,
+        alias='PARAMETER_BOUNDS',
+        description='Generic parameter bounds override, e.g. {param: [min, max]}'
+    )
+    initial_parameters: Optional[Dict[str, Any]] = Field(
+        default=None,
+        alias='INITIAL_PARAMETERS',
+        description='Initial parameter values used by parameter managers'
+    )
+    likelihood_function: Optional[str] = Field(
+        default=None,
+        alias='LIKELIHOOD_FUNCTION',
+        description="Likelihood for uncertainty-aware metrics (e.g. 'gaussian')"
+    )
+    model_error_base: Optional[float] = Field(
+        default=None,
+        alias='MODEL_ERROR_BASE',
+        description='Additive model error term for likelihood evaluation'
+    )
+    model_error_fraction: Optional[float] = Field(
+        default=None,
+        alias='MODEL_ERROR_FRACTION',
+        description='Model error as a fraction of simulated value'
+    )
+    transfer_function_type: Optional[str] = Field(
+        default=None,
+        alias='TRANSFER_FUNCTION_TYPE',
+        description="Regionalization transfer function form (e.g. 'linear')"
+    )
+    transfer_function_b_bounds: Optional[List[float]] = Field(
+        default=None,
+        alias='TRANSFER_FUNCTION_B_BOUNDS',
+        description='Bounds for the transfer-function slope coefficient b'
+    )
+    transfer_function_log_attrs: Optional[Union[List[str], str]] = Field(
+        default=None,
+        alias='TRANSFER_FUNCTION_LOG_ATTRS',
+        description='Attributes to log-transform before the transfer function'
     )
 
     # Gradient-based optimization settings (Adam, L-BFGS)
@@ -506,6 +618,7 @@ class OptimizationConfig(BaseModel):
     adam: Optional[AdamConfig] = Field(default_factory=AdamConfig)
     lbfgs: Optional[LBFGSConfig] = Field(default_factory=LBFGSConfig)
     emulation: Optional[EmulationConfig] = Field(default_factory=EmulationConfig)
+    multi_gauge: Optional[MultiGaugeConfig] = Field(default_factory=MultiGaugeConfig)
 
     @field_validator('methods', mode='before')
     @classmethod
