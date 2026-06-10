@@ -166,6 +166,76 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
 
     mkdir -p "${BUILD_TMPDIR}/parflow_src/build"
 
+    # Windows (MSYS2/MinGW): ParFlow's AMPS seq layer needs POSIX shims MinGW
+    # lacks (sys/times.h, sys/param.h's MIN/MAX, mkdir(path,mode), drand48). Same
+    # shims as the standalone parflow build; CLM=ON adds Fortran that compiles
+    # fine. Paths go through cygpath -m so native mingw gcc can read them.
+    WIN_COMPAT_FLAG=""
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            _WC="${BUILD_TMPDIR}/parflow_src/win_compat"
+            mkdir -p "${_WC}/sys"
+            cat > "${_WC}/sys/times.h" <<'TIMESH'
+#ifndef SF_WIN_SYS_TIMES_H
+#define SF_WIN_SYS_TIMES_H
+#include <time.h>
+struct tms { clock_t tms_utime, tms_stime, tms_cutime, tms_cstime; };
+static __inline__ clock_t times(struct tms *buf) {
+    clock_t c = clock();
+    if (buf) { buf->tms_utime = c; buf->tms_stime = 0;
+               buf->tms_cutime = 0; buf->tms_cstime = 0; }
+    return c;
+}
+#ifndef _SC_CLK_TCK
+#define _SC_CLK_TCK 2
+#endif
+static __inline__ long sysconf(int name) { (void)name; return (long)CLOCKS_PER_SEC; }
+#endif
+TIMESH
+            cat > "${_WC}/sys/param.h" <<'PARAMH'
+#ifndef SF_WIN_SYS_PARAM_H
+#define SF_WIN_SYS_PARAM_H
+#include <limits.h>
+#ifndef MAXPATHLEN
+#define MAXPATHLEN 4096
+#endif
+#endif
+PARAMH
+            cat > "${_WC}/pf_win_compat.h" <<'PFWIN'
+#ifndef PF_WIN_COMPAT_H
+#define PF_WIN_COMPAT_H
+#ifdef _WIN32
+#include <direct.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#undef mkdir
+#define mkdir(path, mode) _mkdir(path)
+#ifndef S_IRUSR
+#define S_IRUSR 0
+#endif
+#ifndef S_IWUSR
+#define S_IWUSR 0
+#endif
+#ifndef S_IXUSR
+#define S_IXUSR 0
+#endif
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+static __inline__ double drand48(void) { return (double)rand() / ((double)RAND_MAX + 1.0); }
+static __inline__ void srand48(long _s) { srand((unsigned)_s); }
+#endif
+#endif
+PFWIN
+            _WCW=$(cygpath -m "${_WC}" 2>/dev/null || echo "${_WC}")
+            WIN_COMPAT_FLAG="-I${_WCW} -include ${_WCW}/pf_win_compat.h "
+            echo "Windows: added ParFlow POSIX compat shims at ${_WCW}"
+            ;;
+    esac
+
     echo "Configuring CMake build with CLM=ON..."
     cmake -S "${BUILD_TMPDIR}/parflow_src" \
           -B "${BUILD_TMPDIR}/parflow_src/build" \
@@ -173,7 +243,7 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
         -DPARFLOW_AMPS_LAYER=seq \
         -DPARFLOW_ENABLE_TIMING=FALSE \
         -DPARFLOW_HAVE_CLM=ON \
-        -DCMAKE_C_FLAGS="-Wno-int-conversion -Wno-implicit-function-declaration -Wno-incompatible-pointer-types" \
+        -DCMAKE_C_FLAGS="${WIN_COMPAT_FLAG}-Wno-int-conversion -Wno-implicit-function-declaration -Wno-incompatible-pointer-types" \
         -DCMAKE_Fortran_FLAGS="-w"
 
     echo "Compiling (with CLM Fortran modules)..."
@@ -208,8 +278,8 @@ fi
         'dependencies': ['cmake', 'make', 'gfortran'],
         'test_command': '--version',
         'verify_install': {
-            'file_paths': ['bin/parflow'],
-            'check_type': 'exists'
+            'file_paths': ['bin/parflow', 'bin/parflow.exe'],
+            'check_type': 'exists_any'
         },
         'order': 27,  # After ParFlow (26)
         'optional': True,
