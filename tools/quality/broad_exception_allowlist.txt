@@ -452,6 +452,7 @@ src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.perform_se
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.analyze_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.run_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.visualize_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics._read_observations_store:except Exception as e:  # noqa: BLE001 — must-not-raise; CSV fallback follows
 src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.evaluate_streamflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
