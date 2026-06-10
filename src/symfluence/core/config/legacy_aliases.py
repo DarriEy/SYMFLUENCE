@@ -171,13 +171,12 @@ RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
     # ESA CCI soil moisture
     "ESA_CCI_SM_PATH", "ESA_CCI_SM_RECORD_TYPE", "ESA_CCI_SM_SENSOR",
     "ESA_CCI_SM_TIME_AGGREGATION", "ESA_CCI_SM_VARIABLE", "ESA_CCI_SM_VERSION",
-    # IGNACIO fire-weather (FWI)
-    "IGNACIO_CURING", "IGNACIO_DEFAULT_BUI", "IGNACIO_DEFAULT_DC", "IGNACIO_DEFAULT_DMC",
-    "IGNACIO_DEFAULT_FFMC", "IGNACIO_DEFAULT_ISI", "IGNACIO_FMC", "IGNACIO_FUEL_SOURCE_TYPE",
-    "IGNACIO_FWI_LATITUDE", "IGNACIO_GENERATE_PLOTS", "IGNACIO_INITIAL_RADIUS",
-    "IGNACIO_MIN_ROS", "IGNACIO_NON_FUEL_CODES", "IGNACIO_N_VERTICES", "IGNACIO_OUTPUT_CRS",
-    "IGNACIO_PERIMETER_FORMAT", "IGNACIO_RANDOM_SEED", "IGNACIO_SAVE_ROS_GRIDS",
-    "IGNACIO_TIME_VARYING_WEATHER", "IGNACIO_WORKING_CRS",
+    # NOTE: IGNACIO_* keys were removed from this set: the registered core
+    # IGNACIOConfig now carries the full field set (it had been a subset of
+    # models/ignacio/config.py), so those flat keys transform into
+    # config.model.ignacio.* fields. Same for GNN_OUTPUT_SIZE / GNN_USE_SNOW
+    # and LSTM_PARAMS_TO_CALIBRATE / LSTM_PARAMETER_BOUNDS (fields added to
+    # the registered GNNConfig / LSTMConfig).
     # HYPE process options
     "HYPE_DEEP_GROUND", "HYPE_FROZEN_SOIL_MODEL", "HYPE_INFILTRATION_MODEL",
     "HYPE_PARAM_BOUNDS", "HYPE_PET_MODEL", "HYPE_SNOW_EVAPORATION", "HYPE_SOIL_INIT_WET",
@@ -187,10 +186,6 @@ RECOGNIZED_FLAT_KEYS: frozenset[str] = frozenset({
     # Per-model parameter bounds & initial params
     "CLM_PARAM_BOUNDS", "INITIAL_PARAMETERS", "MESH_PARAM_BOUNDS", "PARAMETER_BOUNDS",
     "PARFLOW_PARAM_BOUNDS", "RHESSYS_PARAM_BOUNDS", "VIC_PARAM_BOUNDS",
-    # GNN emulator
-    "GNN_OUTPUT_SIZE", "GNN_USE_SNOW",
-    # LSTM emulator
-    "LSTM", "LSTM_PARAMETER_BOUNDS", "LSTM_PARAMS_TO_CALIBRATE",
     # GLEAM ET
     "GLEAM_ET_DOWNLOAD_URL", "GLEAM_ET_PATH",
     # Groundwater
