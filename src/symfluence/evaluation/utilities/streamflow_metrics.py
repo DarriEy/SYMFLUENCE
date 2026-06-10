@@ -67,6 +67,21 @@ class StreamflowMetrics:
             Tuple of (values, datetime_index), or (None, None) on error
         """
         try:
+            # Strategy 0: model-ready observations store (grouped NetCDF).
+            # Mirrors StreamflowEvaluator.get_observed_data_path(), which already
+            # prefers the store — keeps the two streamflow loaders consistent.
+            # Any miss falls through to the legacy preprocessed-CSV path below.
+            store_path = (
+                project_dir / 'data' / 'model_ready' / 'observations'
+                / f'{domain_name}_observations.nc'
+            )
+            if store_path.exists():
+                store_series = self._read_observations_store(store_path, domain_name, discharge_col)
+                if store_series is not None and not store_series.empty:
+                    if resample_freq:
+                        store_series = store_series.resample(resample_freq).mean()
+                    return np.asarray(store_series.values), cast(pd.DatetimeIndex, store_series.index)
+
             obs_file = config.get('OBSERVATIONS_PATH', 'default')
             if obs_file == 'default' or not obs_file:
                 obs_file = resolve_data_subdir(project_dir, 'observations') / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
@@ -102,6 +117,69 @@ class StreamflowMetrics:
         except Exception as e:  # noqa: BLE001 — must-not-raise contract
             logger.error(f"Error loading observations: {e}")
             return None, None
+
+    def _read_observations_store(
+        self,
+        store_path: Path,
+        domain_name: str,
+        discharge_col: str = 'discharge_cms',
+    ) -> Optional[pd.Series]:
+        """Read the streamflow series from the model-ready observations store.
+
+        Opens the ``streamflow`` group of the grouped NetCDF written by
+        ``ObservationsNetCDFBuilder`` and returns a datetime-indexed Series in
+        m3 s-1, or ``None`` when the group/variable is missing or unreadable.
+        Never raises — callers fall back to the legacy CSV on ``None``.
+
+        Args:
+            store_path: Path to ``{domain}_observations.nc``.
+            domain_name: Used to pick the matching gauge when multi-gauge.
+            discharge_col: Preferred data-variable name (fuzzy fallback applied).
+        """
+        try:
+            import xarray as xr
+
+            with xr.open_dataset(store_path, group='streamflow') as ds:
+                if not ds.data_vars:
+                    return None
+
+                # Pick the discharge variable (exact, then fuzzy — mirrors the CSV path).
+                if discharge_col in ds.data_vars:
+                    var = discharge_col
+                else:
+                    cands = [v for v in ds.data_vars
+                             if 'discharge' in str(v).lower() or 'flow' in str(v).lower()]
+                    if not cands:
+                        return None
+                    var = cands[0]
+
+                da = ds[var]
+                if 'time' not in da.dims:
+                    return None
+
+                # Collapse the spatial (gauge) dim to a single series: prefer the
+                # gauge whose id matches the domain, else the first.
+                spatial = [d for d in da.dims if d != 'time']
+                if spatial:
+                    dim = spatial[0]
+                    idx = 0
+                    id_var = next(
+                        (c for c in ('gauge_id', f'{dim}_id', dim) if c in ds.variables),
+                        None,
+                    )
+                    if id_var is not None:
+                        ids = [str(x) for x in np.atleast_1d(ds[id_var].values)]
+                        if domain_name in ids:
+                            idx = ids.index(domain_name)
+                    da = da.isel({dim: idx})
+
+                # xarray decodes time -> datetime64 and masks _FillValue (-9999.0) to NaN.
+                series = da.to_series().dropna()
+                return series if not series.empty else None
+
+        except Exception as e:  # noqa: BLE001 — must-not-raise; CSV fallback follows
+            logger.debug(f"Could not read observations store {store_path}: {e}")
+            return None
 
     def get_catchment_area(
         self,
