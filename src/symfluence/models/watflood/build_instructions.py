@@ -145,6 +145,13 @@ fi
 # === Apply source patches for GNU Fortran compatibility ===
 echo "Applying GNU Fortran compatibility patches..."
 
+# Normalize DOS/CRLF line endings FIRST. The upstream source ships with CRLF,
+# and on Linux/macOS gfortran reads the trailing CR as part of the line — an
+# invalid character that cascades into "Invalid character in name" / "Expecting
+# END IF" / "Unclassifiable statement" in several common/ files (read_r2c.f,
+# read_pt2.f, ...). Strip it before any other patch runs.
+find "${SRC_DIR}" \( -name "*.f" -o -name "*.f90" \) -exec perl -pi -e 's/\r//g' {} +
+
 # Fix Intel <variable> format descriptors (not supported by gfortran). Allow
 # arithmetic inside the brackets too, e.g. "<ncols-1>" in read_pt2.f, not just
 # bare identifiers.
