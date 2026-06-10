@@ -217,8 +217,31 @@ TIMESH
 #endif
 #endif
 PARAMH
-            WIN_COMPAT_FLAG="-I${_WC}"
-            echo "Windows: added sys/times.h + sys/param.h shims at ${_WC}"
+            # Force-included compat header for POSIX functions MinGW spells
+            # differently: mkdir() takes a mode arg on POSIX but only a path on
+            # MinGW (_mkdir), and the S_I*USR permission bits may be absent.
+            cat > "${_WC}/pf_win_compat.h" <<'PFWIN'
+#ifndef PF_WIN_COMPAT_H
+#define PF_WIN_COMPAT_H
+#ifdef _WIN32
+#include <direct.h>
+#include <sys/stat.h>
+#undef mkdir
+#define mkdir(path, mode) _mkdir(path)
+#ifndef S_IRUSR
+#define S_IRUSR 0
+#endif
+#ifndef S_IWUSR
+#define S_IWUSR 0
+#endif
+#ifndef S_IXUSR
+#define S_IXUSR 0
+#endif
+#endif
+#endif
+PFWIN
+            WIN_COMPAT_FLAG="-I${_WC} -include ${_WC}/pf_win_compat.h"
+            echo "Windows: added sys/times.h + sys/param.h + mkdir/stat compat at ${_WC}"
             ;;
     esac
 
