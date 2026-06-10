@@ -106,6 +106,11 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     _flatten_section('paths', config.paths, ('paths',))
     if hasattr(config, 'fews') and config.fews is not None:
         _flatten_section('fews', config.fews, ('fews',))
+    if getattr(config, 'state', None) is not None:
+        _flatten_section('state', config.state, ('state',))
+    if getattr(config, 'data_assimilation', None) is not None:
+        _flatten_section('data_assimilation', config.data_assimilation,
+                         ('data_assimilation',))
 
     # Include extra fields from root config (e.g. CUSTOM_PATH in tests)
     # Extra fields can be at top-level or nested inside '_extra' dict
