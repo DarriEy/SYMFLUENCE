@@ -251,8 +251,6 @@ INCOMPLETE_MODELS: dict[str, str] = {
     "LSTM": "ML model; runs via adapter (config_adapter + result_extractor only)",
     "SNOW17": "conceptual/BMI model; runs via NGEN/BMI coupling, not standalone",
     "MIZUROUTE": "routing model; output handled by coupled postprocessing",
-    "WATFLOOD": "no standalone postprocessor registered",
-    "GSFLOW": "no standalone postprocessor registered",
     "WMFIRE": "wildfire model; postprocessor-only registration",
 }
 

@@ -48,6 +48,7 @@ def register() -> None:
         "WATFLOOD",
         preprocessor=WATFLOODPreProcessor,
         runner=WATFLOODRunner,
+        postprocessor=WATFLOODPostProcessor,
         result_extractor=WATFLOODResultExtractor,
         config_adapter=WATFLOODConfigAdapter,
         build_instructions_module="symfluence.models.watflood.build_instructions",
