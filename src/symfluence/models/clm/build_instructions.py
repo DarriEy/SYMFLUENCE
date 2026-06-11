@@ -154,6 +154,24 @@ _HOME=$($PYTHON3 -c "import pathlib; print(pathlib.Path.home())")
 echo "Resolved HOME via python3: $_HOME"
 export HOME="${_HOME}"
 
+# The workflow set 'safe.directory *' in the bootstrap step's HOME, but we just
+# changed HOME — so git in this build reads a fresh, empty global config and
+# trips "detected dubious ownership" inside the rootless container. CIME/PIO read
+# the ParallelIO version via 'git describe'; when git fails there, the version
+# comes back as None and PIO's clib CMake configure aborts ("closing tag ...").
+# Re-assert it (and at system scope) for the HOME this build actually uses, so
+# git describe works and pio_version_major resolves. macOS isn't a container, so
+# this is a no-op there.
+git config --global --add safe.directory '*' 2>/dev/null || true
+git config --system --add safe.directory '*' 2>/dev/null || true
+
+# CIME's create_newcase reads os.environ["USER"] unconditionally. The Linux
+# release runs in a rootless container where $USER is unset, so CLM dies with
+# KeyError: 'USER' before any compile (macOS runners have $USER, so they pass).
+# Provide a fallback so CLM builds on the container too.
+export USER="${USER:-$(id -un 2>/dev/null || whoami 2>/dev/null || echo symfluence)}"
+export LOGNAME="${LOGNAME:-$USER}"
+
 # 1a. Honour pre-set ESMFMKFILE (e.g. from "module load esmf" on HPC)
 if [ -n "${ESMFMKFILE:-}" ] && [ -f "$ESMFMKFILE" ]; then
     echo "Using pre-set ESMFMKFILE: $ESMFMKFILE"
@@ -422,6 +440,29 @@ CMAKEEOF
     echo "  cmake macros set for $UNAME_S"
 fi
 
+# === STEP 4b: Make NetCDF discoverable under <prefix>/lib on Debian multiarch ===
+# ParallelIO's CMake requires the NetCDF-C library and searches NETCDF_C_PATH
+# (= nc-config --prefix = /usr) under /usr/lib. On Debian/Ubuntu multiarch the
+# libs actually live in /usr/lib/x86_64-linux-gnu, so PIO fails with "Must have
+# PnetCDF and/or NetCDF C libraries" even though NetCDF is installed. (macOS
+# Homebrew has no multiarch split, so it's fine.) Symlink the netcdf libraries
+# into <prefix>/lib so PIO's prefix-based search finds them.
+if [ "$(uname -s)" = "Linux" ] && command -v nc-config >/dev/null 2>&1; then
+    _NCPREFIX=$(nc-config --prefix 2>/dev/null || echo /usr)
+    if [ ! -e "${_NCPREFIX}/lib/libnetcdf.so" ]; then
+        for _ncdir in \
+            "$(nc-config --libs 2>/dev/null | grep -oE '\-L[^ ]+' | head -1 | sed 's/^-L//')" \
+            "$(nf-config --flibs 2>/dev/null | grep -oE '\-L[^ ]+' | head -1 | sed 's/^-L//')" \
+            "/usr/lib/$(uname -m)-linux-gnu"; do
+            [ -n "${_ncdir}" ] && [ -d "${_ncdir}" ] || continue
+            for _lib in "${_ncdir}"/libnetcdf.so* "${_ncdir}"/libnetcdff.so*; do
+                [ -e "${_lib}" ] && ln -sf "${_lib}" "${_NCPREFIX}/lib/" 2>/dev/null || true
+            done
+        done
+        echo "  Symlinked NetCDF libs into ${_NCPREFIX}/lib for PIO (Debian multiarch)"
+    fi
+fi
+
 # === STEP 5: Create single-point case ===
 CASE_DIR="${CTSM_ROOT}/cases/symfluence_build"
 COMPSET="I2000Clm50SpRs"
@@ -500,6 +541,15 @@ fi
 ./xmlchange STOP_OPTION=nyears
 ./xmlchange STOP_N=1
 ./xmlchange RUN_STARTDATE=2000-01-01
+
+# On Linux the homebrew machine defaults the case to MPILIB=mpich, so case.build
+# tries to compile gptl/components against absent MPICH headers and fails; pin
+# the serial MPI to match the mpiuni ESMF. NB: Linux ONLY — on macOS the default
+# MPILIB already resolves to a working serial toolchain and builds cesm.exe, and
+# forcing mpi-serial there regresses it. Keep macOS on its working default.
+if [ "$(uname -s)" = "Linux" ]; then
+    ./xmlchange MPILIB=mpi-serial
+fi
 
 # Keep build/run directories inside the case to avoid stale scratch conflicts
 ./xmlchange CIME_OUTPUT_ROOT="${CASE_DIR}/output"

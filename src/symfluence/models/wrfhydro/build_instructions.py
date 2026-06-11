@@ -46,6 +46,14 @@ def get_wrfhydro_build_instructions():
         'default_exe': 'wrf_hydro.exe',
         'repository': 'https://github.com/NCAR/wrf_hydro_nwm_public.git',
         'branch': 'main',
+        # The repo's tests/ tree ships restart fixtures named with ':' timestamps
+        # (e.g. HYDRO_RST.2011-08-26_00:00_DOMAIN1.cdl) — illegal on NTFS, so a
+        # normal checkout aborts on Windows ("invalid path / unable to checkout
+        # working tree"). tests/ isn't needed to build, so exclude it from the
+        # checkout (handled by the installer's sparse-checkout path).
+        'sparse_exclude': [
+            'tests/',
+        ],
         'install_dir': 'wrfhydro',
         'build_commands': [
             common_env,

@@ -268,8 +268,12 @@ fi
         'dependencies': ['gfortran'],
         'test_command': None,
         'verify_install': {
-            'file_paths': ['bin/gsflow'],
-            'check_type': 'exists'
+            # GSFLOW compiles and links fine on Windows (gfortran writes
+            # bin/gsflow.exe), but Python's Path.exists() — unlike MSYS bash —
+            # does no .exe fallback, so verifying only 'bin/gsflow' reported a
+            # false "not found". Accept either name (ngen/VIC use the same idiom).
+            'file_paths': ['bin/gsflow', 'bin/gsflow.exe'],
+            'check_type': 'exists_any'
         },
         'order': 23,
         'optional': True,

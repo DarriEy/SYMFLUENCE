@@ -113,12 +113,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # bullseye ships cmake 3.18; several model builds need >= 3.20. Use the pip
-      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH.
+      # wheels (recent cmake/ninja), placed ahead of /usr/bin on PATH. meson is
+      # here too: MODFLOW 6's USGS prebuilt needs GLIBC_2.34 (above our 2.31
+      # floor), so on this container it's source-built via meson — but the
+      # installer only auto-installs meson inside a venv/conda, and this is bare
+      # system Python, so provide it up front or mf6 silently won't ship on Linux.
       - name: Upgrade build tools in container (old-glibc Linux)
         if: matrix.container != ''
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cmake>=3.22" ninja
+          python -m pip install "cmake>=3.22" ninja meson
 
       # ========================================================================
       # Pre-Release Validation
@@ -147,7 +151,8 @@ jobs:
             libhdf5-dev libudunits2-dev \
             libopenblas-dev liblapack-dev \
             patchelf \
-            tcl-dev libxml2-utils libexpat1-dev
+            tcl-dev libxml2-utils libexpat1-dev \
+            libxml-libxml-perl
 
       - name: Configure compiler env (Linux)
         if: runner.os == 'Linux'
@@ -308,11 +313,25 @@ jobs:
           # Install GDAL Python bindings (needed when gdal-config is available)
           # Skip on Windows — conda's gdal-config is a batch file, not bash-compatible
           if [ "${{ runner.os }}" != "Windows" ] && command -v gdal-config >/dev/null 2>&1; then
-            echo "Installing GDAL Python bindings..."
             GDAL_VERSION=$(gdal-config --version)
-            # Use strict version range to match system libgdal precisely
-            # e.g., if 3.12.0, allow 3.12.0.post1 but NOT 3.12.1
-            "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+            GDAL_MAJOR=${GDAL_VERSION%%.*}
+            GDAL_MINOR=$(echo "$GDAL_VERSION" | cut -d. -f2)
+            # GDAL's SWIG Python bindings before 3.3.0 do `Py_REFCNT(o) = ...`,
+            # which stopped being an lvalue in Python 3.10 — building them from
+            # sdist on the 3.11 runners fails with "object.h: lvalue required"
+            # (this is what bit the old-glibc Debian bullseye container, whose
+            # system libgdal is 3.2.2). The release ships binaries, and python-gdal
+            # is an optional, lazily-imported extra not needed to compile them, so
+            # skip the un-buildable old bindings rather than fail the wheel build.
+            # Newer system GDAL (e.g. macOS Homebrew) still installs as before.
+            if [ "${GDAL_MAJOR:-0}" -lt 3 ] || { [ "${GDAL_MAJOR:-0}" -eq 3 ] && [ "${GDAL_MINOR:-0}" -lt 3 ]; }; then
+              echo "::warning::System GDAL $GDAL_VERSION (<3.3) has no Python 3.10+-compatible bindings; skipping (not needed for binary builds)"
+            else
+              echo "Installing GDAL Python bindings ($GDAL_VERSION)..."
+              # Use strict version range to match system libgdal precisely
+              # e.g., if 3.12.0, allow 3.12.0.post1 but NOT 3.12.1
+              "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+            fi
           fi
 
           # Install SYMFLUENCE package
@@ -327,8 +346,21 @@ jobs:
           # Install experimental models for release
           RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire"
           for tool in $RELEASE_EXTRAS; do
+            # CLM/CTSM is explicitly unsupported on Windows: its build pulls
+            # external components via git-fleximod (which loops to a MemoryError
+            # on MSYS path layout) and then needs ESMF + a full CIME machine port
+            # on MinGW — a multi-week effort with no upstream support. Skip it on
+            # Windows rather than emit a perpetual non-fatal failure warning.
+            # (clmparflow ships on Windows via the standalone ParFlow POSIX shims.)
+            if [ "$tool" = "clm" ] && [ "${{ runner.os }}" = "Windows" ]; then
+              echo "::notice::Skipping clm on Windows — ESMF/CIME on MinGW is unsupported"
+              continue
+            fi
             echo "::group::Installing $tool"
-            "$PYTHON_CMD" -m symfluence binary install "$tool" || echo "WARNING: $tool install failed (non-fatal)"
+            # Non-fatal, but emit a ::warning:: so a build that stops producing a
+            # tool shows up in the job summary instead of being buried in the log.
+            "$PYTHON_CMD" -m symfluence binary install "$tool" \
+              || echo "::warning::Optional model '$tool' failed to build on ${{ matrix.platform }} (non-fatal — not shipped this release)"
             echo "::endgroup::"
           done
 
@@ -469,8 +501,14 @@ jobs:
             echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
           fi
 
+      # A manual workflow_dispatch without an explicit tag input resolves the tag
+      # via `git describe`, which points at the latest release (e.g. v0.9.0).
+      # Uploading branch-built binaries there would clobber the real release
+      # assets, so only upload for tag pushes, scheduled rebuilds, or a dispatch
+      # that explicitly names a tag. Dispatch-without-tag still builds + tests
+      # (and keeps the backup workflow artifact) but uploads nothing.
       - name: Upload to Release
-        if: steps.resolve-tag.outputs.tag != ''
+        if: steps.resolve-tag.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.tag != '')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.resolve-tag.outputs.tag }}
@@ -687,7 +725,11 @@ jobs:
             REQUIRED_BINS="mizuroute"
           fi
 
-          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow pihm gsflow clm rhessys hype mesh"
+          # On-disk binary names (not config keys): modflow->mf6, clmparflow->
+          # parflow-clm. `pitremove` stands in for TauDEM's 13 utilities (if the
+          # TauDEM build fails, none exist). Keep this list in sync with what the
+          # build actually stages, or a tool can silently stop shipping unnoticed.
+          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow parflow-clm pitremove pihm gsflow clm rhessys hype mesh"
 
           for binary in $REQUIRED_BINS; do
             if [ -f "$BIN_DIR/$binary" ] || [ -f "$BIN_DIR/$binary.exe" ]; then
@@ -719,32 +761,55 @@ jobs:
           set -e
           BIN_DIR=$(symfluence path)
 
-          # Fail on loader errors (unix or Windows DLL load) or no output at all,
-          # rather than swallowing a broken binary with `|| echo`. Non-zero
-          # --version/--help exit codes are tolerated.
+          # Hard-fail only on (a) a missing *required* binary or (b) a loader
+          # error (unix or Windows DLL load). Empty --version/--help output is
+          # tolerated — some tools print nothing and exit non-zero — matching
+          # the relocatability check. Optional binaries that aren't bundled for
+          # a given platform are skipped, not failed. Required/optional must
+          # mirror the "Verify critical binaries exist" step above.
+          LOADER_ERRORS="dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"
+
           check_binary() {
-            local name="$1" bin="$2"; shift 2
+            local mode="$1" name="$2" bin="$3"; shift 3
             if [ ! -f "$bin" ] && [ ! -f "$bin.exe" ]; then
-              echo "::error::$name binary not found at $bin"
-              return 1
+              if [ "$mode" = required ]; then
+                echo "::error::$name (required) binary not found at $bin"
+                return 1
+              fi
+              echo "  - $name not bundled (optional) — skipping"
+              return 0
             fi
             local out
             out="$("$bin" "$@" 2>&1 | head -20 || true)"
             echo "$out"
-            if echo "$out" | grep -qiE "dyld|library not loaded|image not found|error while loading shared|cannot open shared object|symbol not found|code execution cannot proceed|0xc0000135"; then
+            if echo "$out" | grep -qiE "$LOADER_ERRORS"; then
               echo "::error::$name failed to load shared libraries"
-              return 1
-            fi
-            if [ -z "$out" ]; then
-              echo "::error::$name produced no output (likely failed to start / missing library)"
               return 1
             fi
             echo "  ✓ $name is executable"
           }
 
-          echo "Testing SUMMA...";     check_binary SUMMA     "$BIN_DIR/summa"     --version
-          echo "Testing mizuRoute..."; check_binary mizuRoute "$BIN_DIR/mizuroute" --help
-          echo "Testing NGEN...";      check_binary NGEN      "$BIN_DIR/ngen"      --version
+          # Platform-specific required set. Windows Fortran cross-compilation is
+          # unreliable, so nothing is required there; ngen is optional everywhere.
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            SUMMA_MODE=required; MIZU_MODE=required
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            SUMMA_MODE=optional; MIZU_MODE=optional
+          else
+            SUMMA_MODE=optional; MIZU_MODE=required
+          fi
+
+          echo "Testing SUMMA...";     check_binary "$SUMMA_MODE" SUMMA     "$BIN_DIR/summa"     --version
+          echo "Testing mizuRoute..."; check_binary "$MIZU_MODE"  mizuRoute "$BIN_DIR/mizuroute" --help
+          echo "Testing NGEN...";      check_binary optional      NGEN      "$BIN_DIR/ngen"      --version
+
+          # Wider optional smoke set: these ship on most platforms, so actually
+          # executing them (when present) catches a broken/unrelocatable binary
+          # that a mere file-existence check would miss. Absent ones are skipped.
+          echo "Testing FUSE...";      check_binary optional      FUSE      "$BIN_DIR/fuse"      --help
+          echo "Testing HYPE...";      check_binary optional      HYPE      "$BIN_DIR/hype"      --version
+          echo "Testing MESH...";      check_binary optional      MESH      "$BIN_DIR/mesh"      --help
+          echo "Testing TauDEM...";    check_binary optional      TauDEM    "$BIN_DIR/pitremove"
 
           echo "All critical binaries are executable"
 
