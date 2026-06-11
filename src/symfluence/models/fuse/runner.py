@@ -468,8 +468,9 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
     def _execute_fuse_distributed(self) -> bool:
         """Execute FUSE with the complete distributed forcing file.
 
-        Prefers run_pre mode to avoid the NC_UNLIMITED NETCDF3 conflict
-        that breaks run_def in many FUSE builds.
+        Two-phase flow: ``run_def`` runs only as the initial default run
+        (when no para_def.nc exists yet, generating it); ``run_pre`` is the
+        production mode for every subsequent simulation.
         """
 
         try:
@@ -1443,12 +1444,19 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         return expected_path
 
     def _run_lumped_fuse(self) -> bool:
-        """Run FUSE in lumped mode using the original workflow.
+        """Run FUSE in lumped mode using the two-phase workflow.
 
-        Prefers run_pre mode because run_def is broken in many FUSE builds
-        (NC_UNLIMITED conflict in NETCDF3_CLASSIC). If para_def.nc doesn't
-        exist yet, uses run_def once to generate it (FUSE creates para_def.nc
-        as a side effect even when run_def crashes), then retries with run_pre.
+        FUSE's two run modes have distinct roles:
+
+        - ``run_def`` is the *initial default run only*: it derives
+          para_def.nc from the constraints file and produces the
+          default-parameter baseline. It runs exactly once, when no
+          para_def.nc exists yet (FUSE creates para_def.nc even when the
+          run itself crashes on the NC_UNLIMITED NETCDF3 conflict present
+          in some builds).
+        - ``run_pre`` is the production mode for every subsequent
+          simulation — and the only mode calibration uses — reading
+          parameters directly from para_def.nc.
         """
         self.logger.info("Running lumped FUSE workflow")
 

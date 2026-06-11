@@ -49,7 +49,6 @@ src/symfluence/cli/commands/fews_commands.py:FEWSCommands.run_full:except Except
 src/symfluence/cli/external_tools_config.py:_import_model_build_instructions:except Exception as exc:  # noqa: BLE001
 src/symfluence/cli/external_tools_config.py:_import_model_build_instructions:except Exception:  # noqa: BLE001
 src/symfluence/cli/preset_registry.py:PresetRegistry.get_all_presets:except Exception:  # noqa: BLE001
-src/symfluence/cli/preset_registry.py:PresetRegistry.get_all_presets:except Exception:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
@@ -756,6 +755,7 @@ src/symfluence/models/gsflow/coupling.py:GSFLOWCouplingManager.update_modflow_pa
 src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor._parse_statvar_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/extractor.py:GSFLOWResultExtractor.extract_variable:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/gsflow/postprocessor.py:GSFLOWPostProcessor._extract_from_file:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/gsflow/postprocessor.py:GSFLOWPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gsflow/preprocessor.py:GSFLOWPreProcessor._sample_dem_to_grid:except Exception as e:  # noqa: BLE001 — model execution resilience

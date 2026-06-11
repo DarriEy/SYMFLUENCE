@@ -96,7 +96,7 @@ class FUSEWorker(BaseWorker):
         """
         Apply parameters to FUSE constraints file AND para_def.nc.
 
-        In run_pre mode (the default for calibration), FUSE reads parameters
+        Calibration always runs FUSE in run_pre mode, which reads parameters
         from para_def.nc. We update BOTH the constraints file (for consistency)
         AND the para_def.nc file (which run_pre reads directly).
         """

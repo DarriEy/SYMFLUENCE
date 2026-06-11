@@ -42,7 +42,6 @@ from .model_configs_hydrology import (
 )
 from .model_configs_integrated import (
     CLMParFlowConfig,
-    HydroGeoSphereConfig,
     MODFLOWConfig,
     ParFlowConfig,
     PIHMConfig,
@@ -89,7 +88,6 @@ IN_TREE_CONFIG_SCHEMAS: dict[str, type[BaseModel]] = {
     'WRFHYDRO': WRFHydroConfig,
     'PRMS': PRMSConfig,
     'PIHM': PIHMConfig,
-    'HYDROGEOSPHERE': HydroGeoSphereConfig,
     'GSFLOW': GSFLOWConfig,
     'WATFLOOD': WATFLOODConfig,
     'WFLOW': WflowConfig,
@@ -311,7 +309,6 @@ __all__ = [
     'ParFlowConfig',
     'CLMParFlowConfig',
     'PIHMConfig',
-    'HydroGeoSphereConfig',
     'GNNConfig',
     'IGNACIOConfig',
     'SWATConfig',
