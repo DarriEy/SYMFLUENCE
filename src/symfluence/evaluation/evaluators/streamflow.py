@@ -693,10 +693,16 @@ class StreamflowEvaluator(ModelEvaluator):
                 return validated
             # Fall through to other methods if fixed area is invalid
 
-        # Priority 1: Try SUMMA attributes file first (most reliable)
+        # Priority 1: SUMMA attributes file — model-specific, so only consult
+        # it when SUMMA is actually the configured model (most reliable there;
+        # other models must not read another model's settings files).
+        active_model = str(self._get_config_value(
+            lambda: self.config.model.hydrological_model,
+            default='', dict_key='HYDROLOGICAL_MODEL'
+        ) or '').upper()
         try:
             attrs_file = self.project_dir / 'settings' / 'SUMMA' / 'attributes.nc'
-            if attrs_file.exists():
+            if active_model == 'SUMMA' and attrs_file.exists():
                 with xr.open_dataset(attrs_file) as attrs:
                     if 'HRUarea' in attrs.data_vars:
                         catchment_area_m2 = float(attrs['HRUarea'].values.sum())
