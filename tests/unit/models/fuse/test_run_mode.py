@@ -24,6 +24,8 @@ class TestDetectFuseRunMode:
         assert detect_fuse_run_mode({'FUSE_RUN_MODE': 'run_pre'}, {}) == 'run_pre'
 
     def test_config_run_def_is_rejected_with_warning(self, caplog):
+        from symfluence.models.fuse.calibration import model_execution
+        model_execution._REJECTED_MODES_WARNED.clear()
         with caplog.at_level(logging.WARNING):
             mode = detect_fuse_run_mode({'FUSE_RUN_MODE': 'run_def'}, {})
         assert mode == 'run_pre'
@@ -31,10 +33,22 @@ class TestDetectFuseRunMode:
                    for r in caplog.records)
 
     def test_kwargs_run_def_is_rejected_with_warning(self, caplog):
+        from symfluence.models.fuse.calibration import model_execution
+        model_execution._REJECTED_MODES_WARNED.clear()
         with caplog.at_level(logging.WARNING):
             mode = detect_fuse_run_mode({}, {'mode': 'run_def'})
         assert mode == 'run_pre'
         assert any('run_def' in r.message for r in caplog.records)
+
+    def test_rejection_warning_fires_once_per_run(self, caplog):
+        """A 1000-iteration calibration must not log the warning 1000 times."""
+        from symfluence.models.fuse.calibration import model_execution
+        model_execution._REJECTED_MODES_WARNED.clear()
+        with caplog.at_level(logging.WARNING):
+            for _ in range(5):
+                assert detect_fuse_run_mode({'FUSE_RUN_MODE': 'run_def'}, {}) == 'run_pre'
+        warnings_logged = [r for r in caplog.records if 'ignored' in r.message]
+        assert len(warnings_logged) == 1
 
     def test_regionalization_methods_all_use_run_pre(self):
         for method in ('lumped', 'semi_distributed', 'transfer_function'):

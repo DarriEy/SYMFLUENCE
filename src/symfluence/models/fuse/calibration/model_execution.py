@@ -21,6 +21,10 @@ from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
 
+# Run modes already warned about — the rejection fires on every calibration
+# trial, so without dedupe a 1000-iteration run logs it 1000 times.
+_REJECTED_MODES_WARNED: set = set()
+
 
 def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
                          log: Optional[logging.Logger] = None) -> str:
@@ -49,12 +53,13 @@ def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
     log = log or logger
 
     requested = config.get('FUSE_RUN_MODE') or kwargs.get('mode')
-    if requested and requested != 'run_pre':
+    if requested and requested != 'run_pre' and requested not in _REJECTED_MODES_WARNED:
+        _REJECTED_MODES_WARNED.add(requested)
         log.warning(
-            f"FUSE run mode '{requested}' requested for calibration — ignored. "
-            "Calibration always uses run_pre (trial parameters are read from "
-            "para_def.nc); run_def is only used by the runner's initial "
-            "default run to generate para_def.nc."
+            f"FUSE run mode '{requested}' requested for calibration — ignored "
+            "(warning shown once per run). Calibration always uses run_pre "
+            "(trial parameters are read from para_def.nc); run_def is only "
+            "used by the runner's initial default run to generate para_def.nc."
         )
 
     return 'run_pre'
