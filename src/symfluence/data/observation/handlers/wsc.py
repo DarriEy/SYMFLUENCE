@@ -118,28 +118,52 @@ class WSCStreamflowHandler(BaseObservationHandler):
         base_url = "https://api.weather.gc.ca/collections/hydrometric-daily-mean/items"
         page_limit = 10000
 
+        # Server-side temporal filter (GeoMet OGC API syntax: datetime=START/END,
+        # inclusive). Pad the start by one day so boundary records are never lost
+        # to timezone offsets. Only fall back to the full station record when no
+        # experiment window is configured.
+        datetime_filter = None
+        if self.start_date is not None and self.end_date is not None \
+                and not pd.isna(self.start_date) and not pd.isna(self.end_date):
+            window_start = self.start_date - pd.Timedelta(days=1)
+            datetime_filter = (
+                f"{window_start.strftime('%Y-%m-%dT%H:%M:%SZ')}/"
+                f"{self.end_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            )
+
         try:
             all_rows = []
             offset = 0
+            number_matched = None
 
             while True:
                 params = {
                     'STATION_NUMBER': station_id,
                     'f': 'json',
                     'limit': page_limit,
-                    'offset': offset
+                    'offset': offset,
+                    # Stable ordering is REQUIRED for offset paging: without
+                    # sortby, GeoMet's backend ordering is unstable across
+                    # pages and rows are silently duplicated/dropped
+                    # (observed live: 9,243 duplicates on a 42k-record station).
+                    'sortby': 'DATE',
                 }
+                if datetime_filter:
+                    params['datetime'] = datetime_filter
 
                 response = requests.get(base_url, params=params, timeout=60)
                 response.raise_for_status()
 
                 data = response.json()
                 features = data.get('features', [])
+                if number_matched is None:
+                    number_matched = data.get('numberMatched')
 
                 if not features:
                     if offset == 0:
                         raise DataAcquisitionError(
                             f"No data found for WSC station {station_id} in GeoMet API"
+                            + (f" within window {datetime_filter}" if datetime_filter else "")
                         )
                     break
 
@@ -154,6 +178,25 @@ class WSCStreamflowHandler(BaseObservationHandler):
                     break
 
                 offset += page_limit
+
+            # Integrity guard: this is observation data feeding calibration, so
+            # a silently corrupted record set must hard-fail, never warn-and-continue.
+            if number_matched is not None and len(all_rows) != number_matched:
+                raise DataAcquisitionError(
+                    f"WSC GeoMet paging integrity check failed for station {station_id}: "
+                    f"collected {len(all_rows)} rows but the API reported "
+                    f"numberMatched={number_matched}. The server returned an "
+                    f"inconsistent page sequence; re-run the acquisition."
+                )
+
+            dates = [row.get('DATE') for row in all_rows]
+            n_duplicates = len(dates) - len(set(dates))
+            if n_duplicates > 0:
+                raise DataAcquisitionError(
+                    f"WSC GeoMet returned {n_duplicates} duplicate DATE values for "
+                    f"station {station_id}; the record set is corrupted. "
+                    f"Re-run the acquisition."
+                )
 
             df = pd.DataFrame(all_rows)
             df.to_csv(output_path, index=False)

@@ -45,6 +45,17 @@ class SMHIStreamflowHandler(BaseObservationHandler):
         raw_file = raw_dir / f"smhi_{station_id}_raw.csv"
 
         if data_access == 'cloud':
+            # Idempotency guard (mirrors the WSC handler): acquire() is invoked
+            # twice in a single process_observed_data() run, and the SMHI
+            # corrected-archive endpoint returns the full ~73 MB station record
+            # on every call. Reuse the already-downloaded raw CSV unless
+            # FORCE_DOWNLOAD is set.
+            force_download = self._get_config_value(
+                lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'
+            )
+            if raw_file.exists() and not force_download:
+                self.logger.info(f"Using existing SMHI data: {raw_file}")
+                return raw_file
             return self._download_from_smhi(station_id, raw_file)
 
         if raw_file.exists():
