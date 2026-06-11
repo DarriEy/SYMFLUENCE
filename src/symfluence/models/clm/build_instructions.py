@@ -154,6 +154,17 @@ _HOME=$($PYTHON3 -c "import pathlib; print(pathlib.Path.home())")
 echo "Resolved HOME via python3: $_HOME"
 export HOME="${_HOME}"
 
+# The workflow set 'safe.directory *' in the bootstrap step's HOME, but we just
+# changed HOME — so git in this build reads a fresh, empty global config and
+# trips "detected dubious ownership" inside the rootless container. CIME/PIO read
+# the ParallelIO version via 'git describe'; when git fails there, the version
+# comes back as None and PIO's clib CMake configure aborts ("closing tag ...").
+# Re-assert it (and at system scope) for the HOME this build actually uses, so
+# git describe works and pio_version_major resolves. macOS isn't a container, so
+# this is a no-op there.
+git config --global --add safe.directory '*' 2>/dev/null || true
+git config --system --add safe.directory '*' 2>/dev/null || true
+
 # CIME's create_newcase reads os.environ["USER"] unconditionally. The Linux
 # release runs in a rootless container where $USER is unset, so CLM dies with
 # KeyError: 'USER' before any compile (macOS runners have $USER, so they pass).
