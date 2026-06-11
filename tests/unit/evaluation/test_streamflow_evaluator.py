@@ -245,7 +245,7 @@ class TestGetCatchmentArea:
         assert result == 1e8
 
     def test_reads_from_summa_attributes(self, streamflow_evaluator, tmp_path):
-        """Test reading area from SUMMA attributes.nc."""
+        """SUMMA attributes.nc is consulted when SUMMA is the active model."""
         # Create attributes file
         attrs_dir = tmp_path / 'settings' / 'SUMMA'
         attrs_dir.mkdir(parents=True)
@@ -259,11 +259,33 @@ class TestGetCatchmentArea:
         ds.to_netcdf(attrs_file)
 
         streamflow_evaluator._project_dir = tmp_path
-        streamflow_evaluator.config_dict = {}
+        streamflow_evaluator.config_dict = {'HYDROLOGICAL_MODEL': 'SUMMA'}
 
         result = streamflow_evaluator._get_catchment_area()
 
         assert result == pytest.approx(8e6)
+
+    def test_summa_attributes_ignored_for_other_models(
+        self, streamflow_evaluator, tmp_path
+    ):
+        """A non-SUMMA run never reads SUMMA's settings files for area."""
+        attrs_dir = tmp_path / 'settings' / 'SUMMA'
+        attrs_dir.mkdir(parents=True)
+        ds = xr.Dataset(
+            {'HRUarea': (['hru'], [5e6, 3e6])}, coords={'hru': [0, 1]}
+        )
+        ds.to_netcdf(attrs_dir / 'attributes.nc')
+
+        streamflow_evaluator._project_dir = tmp_path
+        streamflow_evaluator.config_dict = {
+            'HYDROLOGICAL_MODEL': 'FUSE',
+            'FIXED_CATCHMENT_AREA': None,
+            'REQUIRE_EXPLICIT_CATCHMENT_AREA': False,
+        }
+
+        result = streamflow_evaluator._get_catchment_area()
+
+        assert result == pytest.approx(1e6)
 
     def test_default_fallback(self, streamflow_evaluator, tmp_path):
         """Test default fallback to 1 km²."""
