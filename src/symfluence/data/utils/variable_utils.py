@@ -45,6 +45,31 @@ if TYPE_CHECKING:
     pass  # Type hints only
 
 
+# NLDAS-2 v2.0 NetCDF (ALMA convention) names as downloaded by the NLDAS
+# acquisition handler. Legacy GRIB-era spellings (TMP2m, ...) are included
+# for files acquired before the v2.0 migration. Shared by the NLDAS /
+# NLDAS2 / NLDAS-2 dataset aliases.
+_NLDAS_RENAME_MAP: Dict[str, str] = {
+    'Tair': 'air_temperature',
+    'Qair': 'specific_humidity',
+    'PSurf': 'surface_air_pressure',
+    'Wind_E': 'eastward_wind',
+    'Wind_N': 'northward_wind',
+    'LWdown': 'surface_downwelling_longwave_flux',
+    'SWdown': 'surface_downwelling_shortwave_flux',
+    'Rainf': 'precipitation_flux',
+    # Legacy GRIB spellings (pre-v2.0 NetCDF migration)
+    'TMP2m': 'air_temperature',
+    'SPFH2m': 'specific_humidity',
+    'PRESsfc': 'surface_air_pressure',
+    'UGRD10m': 'eastward_wind',
+    'VGRD10m': 'northward_wind',
+    'DLWRFsfc': 'surface_downwelling_longwave_flux',
+    'DSWRFsfc': 'surface_downwelling_shortwave_flux',
+    'APCPsfc': 'precipitation_flux',
+}
+
+
 def _get_cfif_mappings():
     """Lazy load CFIF mappings to avoid circular imports."""
     from symfluence.data.preprocessing.cfif.variables import (
@@ -184,6 +209,9 @@ class VariableStandardizer:
             'UGRD_10maboveground': 'eastward_wind',
             'VGRD_10maboveground': 'northward_wind',
         },
+        'NLDAS': _NLDAS_RENAME_MAP,
+        'NLDAS2': _NLDAS_RENAME_MAP,
+        'NLDAS-2': _NLDAS_RENAME_MAP,
         'NWM3_RETROSPECTIVE': {
             'RAINRATE': 'precipitation_flux',
             'T2D': 'air_temperature',

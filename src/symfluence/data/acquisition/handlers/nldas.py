@@ -41,22 +41,26 @@ from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
 # OPeNDAP base URL for NLDAS-2 at GES DISC
 _OPENDAP_BASE = "https://hydro1.gesdisc.eosdis.nasa.gov/opendap/NLDAS/NLDAS_FORA0125_H.2.0"
 
-# Core forcing variables for hydrological modelling
+# Core forcing variables for hydrological modelling.
+# NOTE: These are the NLDAS-2 v2.0 NetCDF variable names (ALMA convention).
+# The legacy GRIB-era names (TMP2m, SPFH2m, PRESsfc, ...) do NOT exist in the
+# v2.0 NetCDF files served at NLDAS_FORA0125_H.2.0 — requesting them returns
+# HTTP 400 from the OPeNDAP server.
 _DEFAULT_VARIABLES = [
-    'TMP2m',      # 2-m temperature (K)
-    'SPFH2m',     # 2-m specific humidity (kg/kg)
-    'PRESsfc',    # Surface pressure (Pa)
-    'UGRD10m',    # 10-m u-wind (m/s)
-    'VGRD10m',    # 10-m v-wind (m/s)
-    'DLWRFsfc',   # Downward longwave radiation (W/m2)
-    'DSWRFsfc',   # Downward shortwave radiation (W/m2)
-    'APCPsfc',    # Precipitation hourly total (kg/m2)
+    'Tair',       # 2-m air temperature (K)
+    'Qair',       # 2-m specific humidity (kg/kg)
+    'PSurf',      # Surface pressure (Pa)
+    'Wind_E',     # 10-m eastward wind (m/s)
+    'Wind_N',     # 10-m northward wind (m/s)
+    'LWdown',     # Downward longwave radiation (W/m2)
+    'SWdown',     # Downward shortwave radiation (W/m2)
+    'Rainf',      # Precipitation hourly total (kg/m2)
 ]
 
 _EXTENDED_VARIABLES = _DEFAULT_VARIABLES + [
-    'CAPE180_0mb',  # Convective available potential energy (J/kg)
-    'PEVAPsfc',     # Potential evaporation (kg/m2)
-    'CONVfract',    # Convective fraction (fraction)
+    'CAPE',         # Convective available potential energy (J/kg)
+    'PotEvap',      # Potential evaporation (kg/m2)
+    'CRainf_frac',  # Convective fraction (fraction)
 ]
 
 # NLDAS-2 grid parameters (0.125-degree CONUS grid)
