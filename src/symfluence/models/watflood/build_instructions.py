@@ -483,14 +483,25 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 # library compiles and the executable links. Without this the build dies at
 # "Cannot open module file netcdf.mod".
 find_program(NF_CONFIG NAMES nf-config)
+find_program(NC_CONFIG NAMES nc-config)
 if(NF_CONFIG)
     execute_process(COMMAND ${NF_CONFIG} --includedir
         OUTPUT_VARIABLE NF_INCDIR OUTPUT_STRIP_TRAILING_WHITESPACE)
     execute_process(COMMAND ${NF_CONFIG} --flibs
         OUTPUT_VARIABLE NF_FLIBS OUTPUT_STRIP_TRAILING_WHITESPACE)
     include_directories(${NF_INCDIR})
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NF_FLIBS}")
-    message(STATUS "NetCDF-Fortran: inc=${NF_INCDIR} flibs=${NF_FLIBS}")
+    set(NETCDF_LINK "${NF_FLIBS}")
+    if(NC_CONFIG)
+        # On Homebrew, netcdf-fortran and netcdf-c live in separate prefixes:
+        # nf-config --flibs names -lnetcdf but omits its -L, so the C library
+        # isn't found ("ld: library 'netcdf' not found"). nc-config --libs adds
+        # the C netcdf -L/-l. Harmless on Linux (already on the default path).
+        execute_process(COMMAND ${NC_CONFIG} --libs
+            OUTPUT_VARIABLE NC_LIBS OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(NETCDF_LINK "${NF_FLIBS} ${NC_LIBS}")
+    endif()
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NETCDF_LINK}")
+    message(STATUS "NetCDF link: ${NETCDF_LINK}")
 else()
     message(WARNING "nf-config not found — read_2D_swe_nc.f90 may fail to build")
 endif()

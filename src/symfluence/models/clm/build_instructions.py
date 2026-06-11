@@ -508,12 +508,14 @@ fi
 ./xmlchange STOP_N=1
 ./xmlchange RUN_STARTDATE=2000-01-01
 
-# ESMF is built in mpiuni (serial) mode, but the homebrew machine defaults the
-# case to MPILIB=mpich — case.build then tries to compile gptl/components against
-# MPICH headers that aren't installed and fails. Pin the serial MPI so the whole
-# case matches the mpiuni ESMF (single-process build, which is all we need to
-# produce cesm.exe).
-./xmlchange MPILIB=mpi-serial
+# On Linux the homebrew machine defaults the case to MPILIB=mpich, so case.build
+# tries to compile gptl/components against absent MPICH headers and fails; pin
+# the serial MPI to match the mpiuni ESMF. NB: Linux ONLY — on macOS the default
+# MPILIB already resolves to a working serial toolchain and builds cesm.exe, and
+# forcing mpi-serial there regresses it. Keep macOS on its working default.
+if [ "$(uname -s)" = "Linux" ]; then
+    ./xmlchange MPILIB=mpi-serial
+fi
 
 # Keep build/run directories inside the case to avoid stale scratch conflicts
 ./xmlchange CIME_OUTPUT_ROOT="${CASE_DIR}/output"
