@@ -344,7 +344,7 @@ jobs:
           echo "Default tools build completed"
 
           # Install experimental models for release
-          RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire"
+          RELEASE_EXTRAS="vic swat prms mhm crhm wrfhydro watflood modflow parflow clmparflow pihm gsflow clm rhessys wmfire noahmp"
           for tool in $RELEASE_EXTRAS; do
             # CLM/CTSM is explicitly unsupported on Windows: its build pulls
             # external components via git-fleximod (which loops to a MemoryError
@@ -729,7 +729,7 @@ jobs:
           # parflow-clm. `pitremove` stands in for TauDEM's 13 utilities (if the
           # TauDEM build fails, none exist). Keep this list in sync with what the
           # build actually stages, or a tool can silently stop shipping unnoticed.
-          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow parflow-clm pitremove pihm gsflow clm rhessys hype mesh"
+          OPTIONAL_BINS="fuse ngen vic swat prms mhm crhm wrfhydro watflood mf6 parflow parflow-clm pitremove pihm gsflow clm rhessys hype mesh noah_owp_modular"
 
           for binary in $REQUIRED_BINS; do
             if [ -f "$BIN_DIR/$binary" ] || [ -f "$BIN_DIR/$binary.exe" ]; then

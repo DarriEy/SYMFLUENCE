@@ -366,6 +366,23 @@ else
 fi
 
 # ============================================================================
+# Stage NoahMP (noah-owp-modular)
+# ============================================================================
+print_info "Staging NoahMP..."
+
+NOAHMP_DIR="$INSTALLS_DIR/noah-owp-modular"
+if [ -d "$NOAHMP_DIR" ]; then
+    if stage_binary "$NOAHMP_DIR/run/noah_owp_modular.exe" "noah_owp_modular" "NoahMP"; then
+        :
+    else
+        print_warning "NoahMP binary not found"
+    fi
+    stage_license "$NOAHMP_DIR" "NoahMP"
+else
+    print_warning "NoahMP not installed"
+fi
+
+# ============================================================================
 # Stage VIC
 # ============================================================================
 print_info "Staging VIC..."
