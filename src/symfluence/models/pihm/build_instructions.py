@@ -169,30 +169,65 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
 
     NCPU=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
+    # MM-PIHM aliases timegm/strcasecmp to their _-prefixed MSVCRT equivalents,
+    # but guards them with `#if defined(_MSC_VER)` — MSVC only. MinGW (GCC) has
+    # those same MSVCRT functions yet defines _WIN32, not _MSC_VER, so the
+    # aliases are skipped and time_func.c fails ("implicit declaration of
+    # timegm"). Widen the guard to _WIN32 so MinGW gets them too.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            perl -0777 -pi -e 's/#if defined\(_MSC_VER\)\s*\n(# define timegm)/#if defined(_WIN32)\n$1/' \
+                "${SRC_DIR}/src/include/pihm_func.h" 2>/dev/null || true
+            ;;
+    esac
+
     # Build CVODE first (bundled SUNDIALS solver), then PIHM
     # Must be sequential: PIHM needs CVODE headers installed before compiling
     cd "${SRC_DIR}"
     make clean 2>/dev/null || true
-    make cvode
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            # MM-PIHM's `cvode` target runs `cmake ../` then a bare `make`, but
+            # mingw cmake defaults to the Ninja generator (emits build.ninja, no
+            # Makefile) so the bare make dies ("No targets ... no makefile
+            # found", Error 2) — and CMAKE_GENERATOR alone didn't override it.
+            # Replicate the cvode configure (Makefile:352) and build with
+            # `cmake --build`, which works with whatever generator cmake picked.
+            echo "Windows: building CVODE via cmake --build (generator-agnostic)..."
+            mkdir -p cvode/instdir
+            ( cd cvode/instdir && cmake \
+                -DCMAKE_INSTALL_PREFIX=../instdir -DCMAKE_INSTALL_LIBDIR=lib \
+                -DBUILD_SHARED_LIBS=OFF -DEXAMPLES_ENABLE_C=OFF -DEXAMPLES_INSTALL=OFF ../ \
+              && cmake --build . \
+              && cmake --build . --target install )
+            ;;
+        *)
+            make cvode
+            ;;
+    esac
     make pihm -j "${NCPU}"
 
-    # The Makefile places the binary in the source root (gcc -o pihm ...)
+    # The Makefile places the binary in the source root (gcc -o pihm ...);
+    # on Windows it's pihm.exe.
     PIHM_BIN=""
-    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/bin/pihm"; do
+    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/pihm.exe" "${SRC_DIR}/bin/pihm" "${SRC_DIR}/bin/pihm.exe"; do
         if [ -f "$p" ]; then
             PIHM_BIN="$p"
             break
         fi
     done
     if [ -z "$PIHM_BIN" ]; then
-        # Fallback: search for any executable named pihm
-        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 -name "pihm" -type f 2>/dev/null | head -1)
+        # Fallback: search for any executable named pihm (or pihm.exe)
+        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 \( -name "pihm" -o -name "pihm.exe" \) -type f 2>/dev/null | head -1)
     fi
 
     if [ -n "$PIHM_BIN" ]; then
         mkdir -p "${INSTALL_DIR}/bin"
-        cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm"
-        chmod +x "${INSTALL_DIR}/bin/pihm"
+        case "$PIHM_BIN" in
+            *.exe) cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm.exe" ;;
+            *)     cp "$PIHM_BIN" "${INSTALL_DIR}/bin/pihm" ;;
+        esac
+        chmod +x "${INSTALL_DIR}/bin/pihm"* 2>/dev/null || true
     else
         echo "ERROR: Build succeeded but pihm binary not found"
         find "${SRC_DIR}" -maxdepth 2 -name "pihm*" -type f 2>/dev/null || echo "No pihm files found"
@@ -221,8 +256,8 @@ fi
         'dependencies': ['cmake', 'make'],
         'test_command': '--version',
         'verify_install': {
-            'file_paths': ['bin/pihm'],
-            'check_type': 'exists'
+            'file_paths': ['bin/pihm', 'bin/pihm.exe'],
+            'check_type': 'exists_any'
         },
         'order': 27,  # After ParFlow (26)
         'optional': True,

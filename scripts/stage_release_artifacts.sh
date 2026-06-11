@@ -468,13 +468,28 @@ print_info "Staging WATFLOOD..."
 
 WATFLOOD_DIR="$INSTALLS_DIR/watflood"
 if [ -d "$WATFLOOD_DIR" ]; then
-    if stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
+    # Try watflood.exe FIRST: under MSYS bash `[ -f bin/watflood ]` is true via
+    # the .exe stat-fallback, so checking it first would stage the Windows
+    # prebuilt as a bare `watflood` and skip the DLL copy below.
+    if stage_binary "$WATFLOOD_DIR/bin/watflood.exe" "watflood.exe" "WATFLOOD"; then
+        :
+    elif stage_binary "$WATFLOOD_DIR/bin/watflood" "watflood" "WATFLOOD"; then
         :
     elif stage_binary "$WATFLOOD_DIR/bin/charm" "watflood" "WATFLOOD"; then
         :
     else
         print_warning "WATFLOOD binary not found"
     fi
+    # Always bundle any DLLs shipped next to the binary (the official Waterloo
+    # CHARM prebuilt carries its own netCDF/HDF5/Intel runtime DLLs, which the
+    # ntldd mingw-tree bundler won't pick up). Windows resolves DLLs from the
+    # executable's own directory, so place them in bin/.
+    for _dll in "$WATFLOOD_DIR"/bin/*.dll; do
+        if [ -f "$_dll" ]; then
+            cp "$_dll" "bin/$(basename "$_dll")"
+            print_success "Staged WATFLOOD DLL → bin/$(basename "$_dll")"
+        fi
+    done
     stage_license "$WATFLOOD_DIR" "WATFLOOD"
 else
     print_warning "WATFLOOD not installed"
@@ -500,7 +515,9 @@ print_info "Staging ParFlow..."
 
 PARFLOW_DIR="$INSTALLS_DIR/parflow"
 if [ -d "$PARFLOW_DIR" ]; then
-    stage_binary "$PARFLOW_DIR/bin/parflow" "parflow" "ParFlow" || print_warning "ParFlow binary not found"
+    stage_binary "$PARFLOW_DIR/bin/parflow" "parflow" "ParFlow" \
+        || stage_binary "$PARFLOW_DIR/bin/parflow.exe" "parflow.exe" "ParFlow" \
+        || print_warning "ParFlow binary not found"
     stage_license "$PARFLOW_DIR" "ParFlow"
 else
     print_warning "ParFlow not installed"
@@ -513,7 +530,9 @@ print_info "Staging CLM-ParFlow..."
 
 CLMPARFLOW_DIR="$INSTALLS_DIR/clmparflow"
 if [ -d "$CLMPARFLOW_DIR" ]; then
-    stage_binary "$CLMPARFLOW_DIR/bin/parflow" "parflow-clm" "CLM-ParFlow" || print_warning "CLM-ParFlow binary not found"
+    stage_binary "$CLMPARFLOW_DIR/bin/parflow" "parflow-clm" "CLM-ParFlow" \
+        || stage_binary "$CLMPARFLOW_DIR/bin/parflow.exe" "parflow-clm.exe" "CLM-ParFlow" \
+        || print_warning "CLM-ParFlow binary not found"
     stage_license "$CLMPARFLOW_DIR" "CLM-ParFlow"
 else
     print_warning "CLM-ParFlow not installed"

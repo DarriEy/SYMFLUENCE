@@ -188,6 +188,30 @@ if [ -n "${VIC_WIN_COMPAT:-}" ]; then
     echo "Injecting Windows compat include path into Makefile..."
     # Prepend win_compat path before other includes so pwd.h polyfill is found
     sed -i "s|CFLAGS  =  -fcommon|CFLAGS  = -fcommon ${VIC_WIN_COMPAT}|" Makefile
+
+    # VIC's image-driver Makefile bakes a version banner into CFLAGS via
+    #   -DGIT_VERSION=\"$(GIT_VERSION)\"  (also -DUSERNAME, -DHOSTNAME)
+    # The \"...\" relies on the recipe shell stripping the backslashes, which
+    # /bin/sh does on Linux/macOS. MSYS2/MinGW make runs recipes through
+    # cmd.exe, where neither \" nor '"..."' survives, so gcc receives e.g.
+    # 8f6c-dirty unquoted and dies: "invalid suffix 'f6c' on integer constant".
+    # No quoting trick is reliable through cmd.exe, so just drop the three
+    # macros on Windows: vic_version.h already #defines GIT_VERSION/USERNAME/
+    # HOSTNAME to "unset" when undefined, and they only feed a cosmetic
+    # "VIC Git Tag" banner, so nothing functional is lost.
+    python3 - Makefile <<'PYEOF'
+import sys, re
+p = sys.argv[1]
+s = open(p).read()
+s = re.sub(
+    r'(-DLOG_LVL=\$\(LOG_LVL\))\s*\\\s*\n'
+    r'\s*-DGIT_VERSION=.*\\\s*\n'
+    r'\s*-DUSERNAME=.*\\\s*\n'
+    r'\s*-DHOSTNAME=[^\n]*\n',
+    r'\1\n', s)
+open(p, "w").write(s)
+print("  Dropped VIC version-banner -D macros (MSYS2/cmd.exe quoting is unsafe)")
+PYEOF
 fi
 
 # Platform-specific configuration
