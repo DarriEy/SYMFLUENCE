@@ -27,6 +27,28 @@ class GSFLOWPostProcessor(StandardModelPostProcessor):
     streamflow_variable = "seg_outflow"
     streamflow_unit = "cms"
 
+    def extract_streamflow(self) -> Optional[Path]:
+        """Extract streamflow from GSFLOW statvar/CSV output.
+
+        Returns:
+            Path to saved results CSV, or None if extraction fails.
+        """
+        try:
+            self.logger.info("Extracting GSFLOW streamflow results")
+            config = self.config if isinstance(self.config, dict) else {
+                'SETTINGS_GSFLOW_PATH': self._get_config_value(
+                    lambda: self.config.model.gsflow.settings_path,
+                    default='default', dict_key='SETTINGS_GSFLOW_PATH'
+                )
+            }
+            streamflow = self.extract_streamflow_from_dir(self.sim_dir, config)
+            if streamflow is None:
+                return None
+            return self.save_streamflow_to_results(streamflow)
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.error(f"Error extracting GSFLOW streamflow: {e}", exc_info=True)
+            return None
+
     def extract_streamflow_from_dir(
         self,
         output_dir: Path,

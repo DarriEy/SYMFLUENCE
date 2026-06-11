@@ -42,6 +42,7 @@ def register() -> None:
         "GSFLOW",
         preprocessor=GSFLOWPreProcessor,
         runner=GSFLOWRunner,
+        postprocessor=GSFLOWPostProcessor,
         result_extractor=GSFLOWResultExtractor,
         config_adapter=GSFLOWConfigAdapter,
         build_instructions_module="symfluence.models.gsflow.build_instructions",
