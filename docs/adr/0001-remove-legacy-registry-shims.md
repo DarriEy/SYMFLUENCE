@@ -41,10 +41,10 @@ For both categories the supported surface is split by direction: the
 **lookup/factory API** (`get_adapter`, `get_handler`, `get_strategy`,
 `get_all_instructions`, …) is first-class and stays; **registration** happens
 only through `R.*.add()` / `model_manifest()`. The residual `register*`
-methods on these classes therefore emit `DeprecationWarning` and exist solely
-so out-of-tree plugins written against the old spelling keep working — all
-in-tree registration was moved to the `R` facade (PR #211). They may be
-deleted in any pre-1.0 release.
+methods on these classes briefly survived as `DeprecationWarning` shims for
+out-of-tree plugins written against the old spelling — all in-tree
+registration was moved to the `R` facade (PR #211) — and were then removed
+entirely (commit `3aa52291`). No deprecated registration spelling remains.
 
 ## Consequences
 
