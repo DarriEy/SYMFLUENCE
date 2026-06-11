@@ -440,6 +440,29 @@ CMAKEEOF
     echo "  cmake macros set for $UNAME_S"
 fi
 
+# === STEP 4b: Make NetCDF discoverable under <prefix>/lib on Debian multiarch ===
+# ParallelIO's CMake requires the NetCDF-C library and searches NETCDF_C_PATH
+# (= nc-config --prefix = /usr) under /usr/lib. On Debian/Ubuntu multiarch the
+# libs actually live in /usr/lib/x86_64-linux-gnu, so PIO fails with "Must have
+# PnetCDF and/or NetCDF C libraries" even though NetCDF is installed. (macOS
+# Homebrew has no multiarch split, so it's fine.) Symlink the netcdf libraries
+# into <prefix>/lib so PIO's prefix-based search finds them.
+if [ "$(uname -s)" = "Linux" ] && command -v nc-config >/dev/null 2>&1; then
+    _NCPREFIX=$(nc-config --prefix 2>/dev/null || echo /usr)
+    if [ ! -e "${_NCPREFIX}/lib/libnetcdf.so" ]; then
+        for _ncdir in \
+            "$(nc-config --libs 2>/dev/null | grep -oE '\-L[^ ]+' | head -1 | sed 's/^-L//')" \
+            "$(nf-config --flibs 2>/dev/null | grep -oE '\-L[^ ]+' | head -1 | sed 's/^-L//')" \
+            "/usr/lib/$(uname -m)-linux-gnu"; do
+            [ -n "${_ncdir}" ] && [ -d "${_ncdir}" ] || continue
+            for _lib in "${_ncdir}"/libnetcdf.so* "${_ncdir}"/libnetcdff.so*; do
+                [ -e "${_lib}" ] && ln -sf "${_lib}" "${_NCPREFIX}/lib/" 2>/dev/null || true
+            done
+        done
+        echo "  Symlinked NetCDF libs into ${_NCPREFIX}/lib for PIO (Debian multiarch)"
+    fi
+fi
+
 # === STEP 5: Create single-point case ===
 CASE_DIR="${CTSM_ROOT}/cases/symfluence_build"
 COMPSET="I2000Clm50SpRs"
