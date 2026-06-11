@@ -114,7 +114,10 @@ class FUSEConfig(BaseModel):
     )
     run_mode: Optional[str] = Field(
         default=None, alias='FUSE_RUN_MODE',
-        description="FUSE execution mode (e.g. 'run_pre', 'run_def')"
+        description="Legacy run-mode override. Calibration always uses "
+                    "'run_pre'; 'run_def' only runs once as the runner's "
+                    "initial default run (a run_def request during "
+                    "calibration is ignored with a warning)."
     )
     template_path: Optional[str] = Field(
         default=None, alias='FUSE_TEMPLATE_PATH',
