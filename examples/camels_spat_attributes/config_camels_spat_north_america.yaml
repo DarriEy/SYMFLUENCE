@@ -75,7 +75,9 @@ MAX_ACQUISITION_WORKERS: 3
 # 'core'        = DEM + soil class + land cover only (default)
 # 'camels_spat' = core + WorldClim + SoilGrids properties + Pelletier +
 #                 GLHYMPS + HydroLAKES + MODIS LAI + forest height + GLCLU
-ATTRIBUTE_PROFILE: camels_spat
+# 'full'        = camels_spat + glaciers, GLWD, bedrock depth, aridity,
+#                 NDVI, root-zone storage, JRC water, WOKAM, MERIT Hydro
+ATTRIBUTE_PROFILE: full
 
 # --- Core datasets (always acquired) ---
 DOWNLOAD_DEM: true
@@ -141,6 +143,6 @@ DOWNLOAD_MODIS_SNOW: false
 DOWNLOAD_MODIS_ET: false
 DOWNLOAD_FLUXNET: false
 DOWNLOAD_SNOTEL: false
-DOWNLOAD_GLACIER_DATA: false
+DOWNLOAD_GLACIER_DATA: true
 DOWNLOAD_LAMAH_ICE_DATA: false
 DOWNLOAD_SMAP: false
