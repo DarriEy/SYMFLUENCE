@@ -46,14 +46,13 @@ def _request(tmp_path, dataset='CHIRPS', **overrides) -> AcquisitionRequest:
 
 
 class TestCapabilities:
-    def test_every_capability_is_backed_by_an_in_tree_handler(self):
+    def test_every_capability_is_backed_by_a_registered_handler(self):
         backend = NativeBackend()
         caps = backend.capabilities()
         assert caps, 'native backend must claim at least one forcing dataset'
         for cap in caps:
             handler_cls = R.acquisition_handlers.get(cap.dataset_id)
             assert handler_cls is not None, cap.dataset_id
-            assert handler_cls.__module__.startswith('symfluence.'), cap.dataset_id
 
     def test_capability_shape_matches_static_facts(self):
         backend = NativeBackend()
@@ -65,25 +64,13 @@ class TestCapabilities:
             assert isinstance(cap.auth, frozenset)
 
     def test_registered_facts_datasets_appear(self):
-        """Every facts-table dataset whose registry slot is in-tree is claimed."""
+        """Every facts-table dataset with a registered handler is claimed."""
         backend = NativeBackend()
         claimed = {c.dataset_id for c in backend.capabilities()}
         for primary, facts in _FORCING_FACTS.items():
             for key in (primary, *facts.aliases):
-                handler_cls = R.acquisition_handlers.get(key)
-                if handler_cls is not None and handler_cls.__module__.startswith('symfluence.'):
+                if R.acquisition_handlers.get(key) is not None:
                     assert key in claimed
-
-    def test_plugin_shadowed_entries_are_excluded(self, occupy_handler_slot):
-        """A registry slot occupied by a plugin wrapper is not a native capability."""
-
-        class PluginShadowWrapper:
-            __module__ = 'cfs.integrations.symfluence_fake'
-
-        occupy_handler_slot('CHIRPS', PluginShadowWrapper)
-
-        claimed = {c.dataset_id for c in NativeBackend().capabilities()}
-        assert 'CHIRPS' not in claimed
 
     def test_unregistered_facts_entries_are_not_claimed(self, occupy_handler_slot):
         original = R.acquisition_handlers.get('CHIRPS')

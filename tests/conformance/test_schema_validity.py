@@ -58,10 +58,57 @@ def _native_offline_fixture():
         yield 'CHIRPS'  # a dataset id the native backend claims
 
 
+@contextlib.contextmanager
+def _community_offline_fixture():
+    """Stub cfs.fetch_sync so the community backend's acquire() runs offline.
+
+    Present only when the cfs package is installed (otherwise the community
+    backend never registers and this fixture is never consulted).
+    """
+    from datetime import datetime
+    from unittest.mock import patch
+
+    cfs = pytest.importorskip('cfs', reason='community backend requires the cfs package')
+    np = pytest.importorskip('numpy')
+    xr = pytest.importorskip('xarray')
+
+    from cfs.core.models import BoundingBox, FetchResult, TimeRange
+
+    time = [datetime(2020, 1, 1, h) for h in range(4)]
+    lat = np.array([50.95, 51.15])
+    lon = np.array([-115.7, -115.4])
+    shape = (len(time), len(lat), len(lon))
+    ds = xr.Dataset(
+        {
+            'air_temperature': (
+                ('time', 'latitude', 'longitude'), np.full(shape, 275.0, dtype='float32'),
+                {'standard_name': 'air_temperature', 'units': 'K'},
+            ),
+            'precipitation_flux': (
+                ('time', 'latitude', 'longitude'), np.full(shape, 1e-5, dtype='float32'),
+                {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'},
+            ),
+        },
+        coords={'time': time, 'latitude': lat, 'longitude': lon},
+        attrs={'cfs_schema': 'canonical-v1'},
+    )
+    fetch_result = FetchResult(
+        product_id='era5_arco:single_levels',
+        provider='era5_arco',
+        variables=['air_temperature', 'precipitation_flux'],
+        bbox=BoundingBox(min_lon=-115.8, min_lat=50.9, max_lon=-115.2, max_lat=51.3),
+        time_range=TimeRange(start=datetime(2020, 1, 1), end=datetime(2020, 1, 2)),
+        n_times=4, n_lat=2, n_lon=2, resolution_deg=0.25,
+    )
+    with patch.object(cfs, 'fetch_sync', return_value=(ds, fetch_result)):
+        yield 'ERA5'  # a dataset id the community backend claims
+
+
 #: backend name -> context manager yielding a claimed dataset id, with the
 #: backend's upstream access stubbed for offline execution.
 _OFFLINE_FIXTURES = {
     'native': _native_offline_fixture,
+    'community': _community_offline_fixture,
 }
 
 

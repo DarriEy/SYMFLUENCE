@@ -209,12 +209,6 @@ def _facts_for(dataset_id: str) -> Optional[_DatasetFacts]:
     return None
 
 
-def _is_native_entry(handler_cls: Any) -> bool:
-    """True when the registered handler is in-tree (not a plugin shadow wrapper)."""
-    module = getattr(handler_cls, '__module__', '') or ''
-    return module.startswith('symfluence.')
-
-
 @dataclass
 class NativeBackend:
     """Adapter exposing the existing acquisition-handler registry via the protocol.
@@ -242,9 +236,10 @@ class NativeBackend:
         """Enumerate the natively-registered forcing datasets.
 
         One capability per registered registry key (aliases included, so a
-        request for ``NLDAS2`` matches directly). Entries whose registry slot
-        is currently occupied by a plugin shadow wrapper (module path not
-        under ``symfluence.``) are excluded — they are not *this* backend's.
+        request for ``NLDAS2`` matches directly). Under the protocol no
+        plugin overwrites these registry slots (registry-overwrite shadow
+        wrappers were deleted with Phase A step 5), so every registered key
+        is this backend's.
         """
         _ensure_handlers_registered()
         registry = R.acquisition_handlers
@@ -252,7 +247,7 @@ class NativeBackend:
         for primary, facts in _FORCING_FACTS.items():
             for key in (primary, *facts.aliases):
                 handler_cls = registry.get(key)
-                if handler_cls is None or not _is_native_entry(handler_cls):
+                if handler_cls is None:
                     continue
                 caps.append(DatasetCapability(
                     dataset_id=key,
