@@ -270,6 +270,10 @@ def verify_honesty(
             header = p.read_text(encoding='utf-8').splitlines()[:1]
             if not header or 'datetime' not in header[0]:
                 problems.append(f"CSV output {p.name} lacks a 'datetime' header column")
+                continue
+            frame = pd.read_csv(p)
+            if 'datetime' in frame.columns and not frame.empty:
+                times.extend(pd.to_datetime(frame['datetime']))
 
     if window is not None and times:
         problems.extend(check_no_truncation(times, window))
