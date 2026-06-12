@@ -53,6 +53,38 @@ from ..mixins import RetryMixin
 from ..utils import create_robust_session
 
 # =============================================================================
+# Grid alignment helper
+# =============================================================================
+
+def _snap_bounds_to_grid(
+    bounds: tuple[float, float, float, float],
+    transform: object,
+) -> tuple[float, float, float, float]:
+    """Expand bounds outward to the pixel edges of a reference grid.
+
+    ``rasterio.merge`` anchors the output grid at the requested west/north
+    bound. When that grid is offset from the source pixel grid (Copernicus
+    DEM tiles are half-pixel shifted: pixel *centers* sit on degree lines),
+    rounding can leave the easternmost/southernmost output column/row
+    uncovered by any source — silently 0-filled when nodata is None. Snapping
+    the request outward to the reference grid (≤1 native pixel per edge)
+    aligns the output with the sources so every pixel is covered.
+    """
+    t = transform  # affine.Affine
+    rx: float = t.a  # type: ignore[attr-defined]  # pixel width (> 0)
+    ry: float = -t.e  # type: ignore[attr-defined]  # pixel height (> 0)
+    x_off: float = t.c  # type: ignore[attr-defined]
+    y_off: float = t.f  # type: ignore[attr-defined]
+    west, south, east, north = bounds
+    eps_x, eps_y = rx * 1e-6, ry * 1e-6
+    west = x_off + math.floor((west - x_off) / rx + eps_x) * rx
+    east = x_off + math.ceil((east - x_off) / rx - eps_x) * rx
+    north = y_off - math.floor((y_off - north) / ry + eps_y) * ry
+    south = y_off - math.ceil((y_off - south) / ry - eps_y) * ry
+    return (west, south, east, north)
+
+
+# =============================================================================
 # Shared Tile Download Mixin
 # =============================================================================
 
@@ -156,6 +188,11 @@ class _TileDownloadMixin:
                 (~26M pixels). Passing the bbox here cuts the merged
                 raster to the requested area, typically making
                 downstream TauDEM delineation ~10–100× faster.
+                The rectangle is snapped outward (≤1 native pixel per
+                edge) to the first tile's pixel grid before merging, so
+                grids whose pixel centers sit on degree lines (Copernicus)
+                cannot leave an uncovered, silently zero-filled edge
+                column/row in the mosaic.
         """
         if len(tile_paths) == 1 and bounds is None:
             if out_path.exists():
@@ -177,7 +214,12 @@ class _TileDownloadMixin:
 
             merge_kwargs = {}
             if bounds is not None:
-                merge_kwargs['bounds'] = tuple(bounds)
+                # Align the requested bounds with the source pixel grid
+                # (≤1 px outward per edge) so merge rounding can't leave
+                # edge columns/rows uncovered and silently zero-filled.
+                merge_kwargs['bounds'] = _snap_bounds_to_grid(
+                    tuple(bounds), src_files[0].transform
+                )
             if explicit_nodata is not None:
                 merge_kwargs['nodata'] = explicit_nodata
             mosaic, out_trans = rio_merge(src_files, **merge_kwargs)
