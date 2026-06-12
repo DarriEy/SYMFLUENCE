@@ -56,8 +56,16 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 #: Semver of the protocol contract defined in this module. Backends declare
-#: the version they target via ``AcquisitionBackend.interface_version``.
-PROTOCOL_VERSION = "0.1.0"
+#: the version they target via ``AcquisitionBackend.interface_version`` /
+#: ``ObservationBackend.interface_version``.
+#:
+#: PRE-1.0 SEMANTICS: while the major version is 0, a MINOR bump is a
+#: BREAKING change (enforced by :func:`is_compatible`). 0.2.0 added the
+#: observation flavour (``ObservationCapability`` / ``ObservationRequest`` /
+#: ``ObservationBackend``); backends hardcoding an older target are
+#: *detected* as skew by the selection layer and declined — never silently
+#: claimed compatible.
+PROTOCOL_VERSION = "0.2.0"
 
 #: Name of the sidecar manifest written next to acquired raw files. The
 #: persisted, declared schema lets resumed runs dispatch preprocessing
@@ -169,6 +177,72 @@ class AcquisitionBackend(Protocol):
         ...
 
     def acquire(self, request: AcquisitionRequest) -> AcquisitionResult:
+        """Acquire *request* and return paths + declared schema + provenance."""
+        ...
+
+
+# ======================================================================
+# Observation flavour (contract 0.2.0)
+# ======================================================================
+
+@dataclass(frozen=True)
+class ObservationCapability:
+    """One observation provider a backend claims to be able to serve.
+
+    The observation-flavored sibling of :class:`DatasetCapability` (design
+    §3: "same protocol shape, obs-flavored request"). ``provider_id`` is the
+    framework provider name (the ``STREAMFLOW_DATA_PROVIDER`` value, e.g.
+    ``"USGS"``), matched case-insensitively.
+    """
+
+    provider_id: str                  # framework provider name, e.g. "USGS"
+    kinds: frozenset[str]             # observation kinds servable, e.g. {"streamflow"}
+    station_id_scheme: str            # human-readable id scheme, e.g. "8-digit USGS site number"
+    temporal: tuple[str, str] | None  # coverage [start, end); None = undeclared
+    auth: frozenset[str]              # auth-provider ids; empty = anonymous
+    parity_grade: str | None          # "bit-identical" | "value-identical:<tol>" | None = ungated
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class ObservationRequest:
+    """A single observation-acquisition request, fully framework-resolved.
+
+    ``window`` follows the same normative rule as forcing requests: half-open
+    UTC ``[start, end)`` (see WINDOW SEMANTICS above — the rule exists
+    because of the USGS NWIS inclusive-``endDT`` boundary-bin discrepancy).
+    """
+
+    provider_id: str
+    station_ids: tuple[str, ...]      # provider-scheme station ids; () = backend resolves from config
+    kind: str                         # e.g. "streamflow"
+    window: tuple[str, str] | None    # ISO UTC [start, end)
+    target_dir: Path
+    credentials: CredentialContext = field(default_factory=CredentialContext)
+    options: Mapping[str, Any] = field(default_factory=dict)  # provider-specific, declared in capability notes
+
+
+@runtime_checkable
+class ObservationBackend(Protocol):
+    """The provider protocol every observation backend implements.
+
+    Mirrors :class:`AcquisitionBackend` (same method names, observation
+    types); the two roles are distinguished by the registry a backend is
+    registered under (``R.observation_backends``), never structurally.
+    ``acquire()`` returns a reused :class:`AcquisitionResult` whose
+    ``dataset_id`` carries the provider id and whose ``schema`` is typically
+    :attr:`SchemaId.OBS_CSV_V1`; the sidecar manifest helpers below are
+    shared between both flavours.
+    """
+
+    name: str                         # "community" | future others
+    interface_version: str            # semver of THIS protocol the backend targets
+
+    def capabilities(self) -> Sequence[ObservationCapability]:
+        """Providers servable: id, kinds, station-id scheme, auth, coverage."""
+        ...
+
+    def acquire(self, request: ObservationRequest) -> AcquisitionResult:
         """Acquire *request* and return paths + declared schema + provenance."""
         ...
 
@@ -313,6 +387,9 @@ __all__ = [
     "AcquisitionRequest",
     "AcquisitionResult",
     "AcquisitionBackend",
+    "ObservationCapability",
+    "ObservationRequest",
+    "ObservationBackend",
     "parse_version",
     "is_compatible",
     "build_manifest",

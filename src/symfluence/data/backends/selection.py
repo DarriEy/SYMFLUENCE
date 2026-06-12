@@ -85,9 +85,11 @@ def _backend_override(config: Any, dataset_id: str) -> Optional[str]:
     return None
 
 
-def _resolve_backend(name: str, config: Any, logger: logging.Logger) -> Optional[AcquisitionBackend]:
+def _resolve_backend(
+    name: str, config: Any, logger: logging.Logger, registry: Any = None,
+) -> Optional[AcquisitionBackend]:
     """Materialize the registered backend (instantiating classes with (config, logger))."""
-    entry = R.acquisition_backends.get(name)
+    entry = (registry if registry is not None else R.acquisition_backends).get(name)
     if entry is None:
         return None
     if isinstance(entry, type):
@@ -219,4 +221,136 @@ def select_backend(
     )
 
 
-__all__ = ["select_backend"]
+def _observation_decline_reason(
+    cap: Optional[Any],
+    *,
+    kind: str,
+    window: Optional[tuple],
+    allow_ungated: bool,
+) -> Optional[str]:
+    """Return why an observation backend cannot serve, or None if it can."""
+    if cap is None:
+        return "does not claim the provider"
+    if kind not in cap.kinds:
+        return f"does not serve observation kind {kind!r} (kinds: {sorted(cap.kinds)})"
+    if window and cap.temporal:
+        start, end = cap.temporal
+        if window[0] < start or window[1] > end:
+            return f"window {window} outside declared coverage [{start}, {end})"
+    if cap.parity_grade is None and not allow_ungated:
+        return (
+            "provider is ungraded (parity_grade=None) on this backend; "
+            "set ALLOW_UNGATED_BACKENDS: true to permit"
+        )
+    return None
+
+
+def select_observation_backend(
+    provider_id: str,
+    config: Any,
+    *,
+    kind: str = 'streamflow',
+    window: Optional[tuple] = None,
+    logger: Optional[logging.Logger] = None,
+):
+    """Select the observation backend that will serve *provider_id* (contract 0.2.0).
+
+    The observation-flavored sibling of :func:`select_backend`, consulted by
+    the observed_processor's backend-first tier under ``DATA_ACCESS:
+    community``. There is **no native observation backend**: the legacy
+    registry-handler/provider-branch tiers are the fallthrough, so callers
+    treat :class:`DatasetUnsupported` as "use the existing dispatch" — the
+    same inert-seam discipline as forcing (no backend registered → exactly
+    today's behavior).
+
+    Per-provider pin ``<PROVIDER>_BACKEND: native`` forces the legacy tiers
+    (raises :class:`DatasetUnsupported` so the caller falls through);
+    pinning any other name requires that backend to serve, or it raises.
+    The parity gate applies to every observation backend (none is the
+    parity reference): an ungraded provider is refused unless
+    ``ALLOW_UNGATED_BACKENDS: true``.
+
+    Raises:
+        DatasetUnsupported: when no registered observation backend can serve
+            the request (the caller's signal to fall through to handlers).
+    """
+    log = logger or _logger
+    allow_ungated = _allow_ungated(config)
+
+    override = _backend_override(config, provider_id)
+    if override == 'native':
+        raise DatasetUnsupported(
+            f"Provider '{provider_id}' is pinned to the legacy tier via "
+            f"{provider_id.upper()}_BACKEND: native",
+            dataset_id=provider_id,
+            backend='native',
+        )
+    if override is not None:
+        priority = [override]
+        pinned = True
+    else:
+        names = R.observation_backends.keys()
+        # Deterministic order with 'community' first (mirrors the forcing
+        # priority list); other names follow alphabetically.
+        priority = sorted(names, key=lambda n: (n != 'community', n))
+        pinned = False
+
+    declined: List[str] = []
+    for name in priority:
+        backend = _resolve_backend(name, config, log, registry=R.observation_backends)
+        if backend is None:
+            declined.append(f"{name}: not registered")
+            if pinned:
+                raise DatasetUnsupported(
+                    f"Observation backend '{name}' pinned via "
+                    f"{provider_id.upper()}_BACKEND is not registered",
+                    dataset_id=provider_id,
+                    backend=name,
+                )
+            continue
+        if not is_compatible(getattr(backend, 'interface_version', '')):
+            declined.append(f"{name}: incompatible interface_version "
+                            f"{getattr(backend, 'interface_version', None)!r}")
+            log.info(
+                "Observation backend '%s' declined for %s: incompatible interface version",
+                name, provider_id,
+            )
+            continue
+
+        wanted = provider_id.lower()
+        cap = next(
+            (c for c in backend.capabilities() if c.provider_id.lower() == wanted),
+            None,
+        )
+        reason = _observation_decline_reason(
+            cap, kind=kind, window=window, allow_ungated=allow_ungated,
+        )
+        if reason is not None:
+            declined.append(f"{name}: {reason}")
+            if pinned:
+                raise DatasetUnsupported(
+                    f"Observation backend '{name}' pinned via "
+                    f"{provider_id.upper()}_BACKEND cannot serve '{provider_id}': {reason}",
+                    dataset_id=provider_id,
+                    backend=name,
+                )
+            log.info(
+                "Observation backend '%s' declined for %s (%s); falling through",
+                name, provider_id, reason,
+            )
+            continue
+
+        log.info(
+            "Observation backend '%s' serves provider '%s' (kind=%s%s)",
+            name, provider_id, kind, ", pinned" if pinned else "",
+        )
+        return backend
+
+    raise DatasetUnsupported(
+        f"No registered observation backend can serve '{provider_id}' "
+        f"(tried: {'; '.join(declined) or 'none'})",
+        dataset_id=provider_id,
+    )
+
+
+__all__ = ["select_backend", "select_observation_backend"]
