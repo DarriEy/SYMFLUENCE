@@ -18,6 +18,32 @@ design but not currently needed). No ``symfluence.*`` import may occur here,
 directly or transitively — enforced by
 ``tests/conformance/test_extraction_readiness.py``, which executes this file
 in an isolated subprocess with all ``symfluence`` imports blocked.
+
+WINDOW SEMANTICS (normative, conformance item 4)
+------------------------------------------------
+``AcquisitionRequest.window`` is a **half-open UTC interval** ``[start, end)``:
+every delivered timestep ``t`` must satisfy ``start <= t < end``, interpreted
+in UTC. Timezone-naive timestamps on a delivered time axis ARE UTC by
+definition of this contract; tz-aware timestamps must convert into the window.
+Rationale: USGS NWIS treats its ``endDT`` request parameter as *inclusive* of
+the end day, so native and community acquisitions of the same nominal window
+disagreed on whether the final boundary bin belonged to the delivery — the
+boundary-bin discrepancy surfaced by the USGS parity work. A single documented
+inclusivity rule turns that class of silent off-by-one into a conformance
+failure (``tests/conformance/test_window_bbox_semantics.py``).
+
+BBOX SEMANTICS (normative, conformance item 4)
+----------------------------------------------
+``AcquisitionRequest.bbox`` is ``(lat_min, lon_min, lat_max, lon_max)``. The
+delivered grid must cover the requested box up to a **one-native-pixel
+tolerance per edge**: each edge of the delivered extent (outermost cell
+centers ± half a native pixel) must lie within one native pixel of the
+requested edge. Outward snapping to the native pixel grid — e.g. the DEM
+tile-merge clip in ``data/acquisition/handlers/dem.py``, whose rasterio merge
+aligns the requested bounds outward to the source pixel grid — and
+cell-center subsetting (delivering only cells whose centers fall inside the
+box) are both within tolerance; a larger shortfall or overshoot is a
+conformance failure.
 """
 from __future__ import annotations
 
