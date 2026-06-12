@@ -727,6 +727,75 @@ class AcquisitionService(ConfigurableMixin):
 
         return actual_times[0] <= expected_times[0] and actual_times[-1] >= expected_times[-1]
 
+    def _maybe_select_protocol_backend(self, forcing_dataset: str):
+        """Consult the AcquisitionBackend selector — only once it can matter.
+
+        Phase A seam: returns ``None`` (meaning "use the existing dispatch
+        unchanged") unless BOTH hold: (a) at least one non-native backend is
+        registered under the protocol, and (b) the selector resolves the
+        request to that non-native backend. With no community backend ported
+        to the protocol yet, (a) is always false and this method is inert —
+        cloud/community/MAF behavior is bit-identical to today, and the
+        community shadow wrappers keep operating inside the registry path.
+        """
+        from symfluence.core.registries import R
+
+        non_native = [k for k in R.acquisition_backends.keys() if k != 'native']
+        if not non_native:
+            return None
+
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_backend
+
+        try:
+            backend = select_backend(forcing_dataset, self.config, logger=self.logger)
+        except AcquisitionError as exc:
+            self.logger.info(
+                f"Acquisition-backend selection declined for {forcing_dataset} ({exc}); "
+                f"using the existing dispatch."
+            )
+            return None
+        if getattr(backend, 'name', 'native') == 'native':
+            return None  # native == the existing dispatch below, untouched
+        return backend
+
+    def _acquire_forcing_via_protocol_backend(self, backend, forcing_dataset: str):
+        """Acquire forcing through a protocol backend (non-native; Phase A seam).
+
+        Builds the :class:`AcquisitionRequest` from config exactly as the
+        legacy path resolves bbox/window/variables and lets the backend
+        deliver into ``raw_data/``. The declared-schema result (and its
+        sidecar manifest, written by the backend) drives downstream dispatch.
+        """
+        from symfluence.data.backends.contract import AcquisitionRequest, CredentialContext
+
+        bbox_str = self._resolve_bounding_box("forcing")
+        north, west, south, east = (float(part) for part in bbox_str.split('/'))
+
+        raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
+        raw_data_dir.mkdir(parents=True, exist_ok=True)
+
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        variables = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
+
+        request = AcquisitionRequest(
+            dataset_id=forcing_dataset,
+            bbox=(south, west, north, east),
+            window=(str(time_start), str(time_end)) if time_start and time_end else None,
+            variables=frozenset(variables) if isinstance(variables, list) else None,
+            target_dir=raw_data_dir,
+            credentials=CredentialContext(),
+        )
+        result = backend.acquire(request)
+        self.logger.info(
+            f"✓ Forcing data acquired via '{backend.name}' backend "
+            f"(schema={result.schema}, {len(result.paths)} file(s))"
+        )
+        for warning in result.warnings:
+            self.logger.warning(f"Backend '{backend.name}' warning: {warning}")
+        return result
+
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
@@ -787,6 +856,20 @@ class AcquisitionService(ConfigurableMixin):
         # identical to CLOUD.
         if data_access in ('CLOUD', 'COMMUNITY'):
             self.logger.info(f"{data_access.capitalize()} data access enabled for {forcing_dataset}")
+
+            # ── AcquisitionBackend protocol seam (Phase A) ────────────────
+            # The selector is consulted only when a NON-native backend has
+            # registered under the protocol (R.acquisition_backends). Today
+            # none does, so this is inert and the dispatch below — including
+            # the community shadow-wrapper pathway through the handler
+            # registry — is byte-for-byte the existing behavior.
+            protocol_backend = self._maybe_select_protocol_backend(forcing_dataset)
+            if protocol_backend is not None:
+                self._acquire_forcing_via_protocol_backend(protocol_backend, forcing_dataset)
+                if self._get_config_value(lambda: self.config.forcing.supplement, default=False):
+                    self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
+                    self.acquire_em_earth_forcings()
+                return
 
             if not check_cloud_access_availability(forcing_dataset, self.logger):
                 raise ValueError(
