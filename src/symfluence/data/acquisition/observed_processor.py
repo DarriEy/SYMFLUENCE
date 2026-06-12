@@ -321,10 +321,27 @@ class ObservedDataProcessor(ConfigMixin):
         else:
             return f'{self.forcing_time_step_size}s'
 
+    #: Providers handled by the hardcoded legacy dispatch below. Anything else
+    #: (or any provider when ``DATA_ACCESS: community``) is looked up in
+    #: ``R.observation_handlers`` so plugin-supplied handlers can serve it.
+    LEGACY_STREAMFLOW_PROVIDERS = frozenset({'USGS', 'WSC', 'SMHI', 'LAMAH_ICE', 'VI'})
+
     def process_streamflow_data(self):
         try:
             if self._get_config_value(lambda: None, default=False, dict_key='PROCESS_CARAVANS'):
                 self._process_caravans_data()
+                return
+            from symfluence.core.registries import R
+            from symfluence.data.observation.registry import ObservationRegistry
+            backend = str(self._get_config_value(
+                lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+            key = self.data_provider.lower()
+            use_registry = backend == 'community' or self.data_provider not in self.LEGACY_STREAMFLOW_PROVIDERS
+            if use_registry and key in R.observation_handlers:
+                self.logger.info(f"Dispatching streamflow provider '{self.data_provider}' to registered handler")
+                handler = ObservationRegistry.get_handler(key, self.config, self.logger)
+                raw_data = handler.acquire()
+                handler.process(raw_data)
             elif self.data_provider == 'USGS':
                 self.logger.info("USGS streamflow data handled by formalized observation handler")
             elif self.data_provider == 'WSC':
@@ -336,8 +353,14 @@ class ObservedDataProcessor(ConfigMixin):
             elif self.data_provider == 'VI':
                 self._process_vi_data()
             else:
-                self.logger.error(f"Unsupported streamflow data provider: {self.data_provider}")
-                raise DataAcquisitionError(f"Unsupported streamflow data provider: {self.data_provider}")
+                msg = (
+                    f"Unsupported streamflow data provider: {self.data_provider}. "
+                    "Built-in providers: USGS, WSC, SMHI, LAMAH_ICE, VI. Additional providers can be "
+                    "supplied by plugins that register in R.observation_handlers "
+                    "(selected automatically, or force registry dispatch with DATA_ACCESS: community)."
+                )
+                self.logger.error(msg)
+                raise DataAcquisitionError(msg)
         except (
             DataAcquisitionError,
             OSError,
