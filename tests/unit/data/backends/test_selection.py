@@ -85,7 +85,7 @@ class TestPriority:
         assert selected is community
 
     def test_community_access_without_community_backend_falls_to_native(
-        self, native_claims_dataset
+        self, native_claims_dataset, only_native_backend
     ):
         selected = select_backend(DATASET, {'DATA_ACCESS': 'community'}, logger=logger)
         assert selected.name == 'native'
@@ -128,7 +128,7 @@ class TestOverride:
         with pytest.raises(DatasetUnsupported, match='pinned'):
             select_backend(DATASET, config, logger=logger)
 
-    def test_pinned_unregistered_backend_raises(self, native_claims_dataset):
+    def test_pinned_unregistered_backend_raises(self, native_claims_dataset, only_native_backend):
         config = {f'{DATASET}_BACKEND': 'community'}
         with pytest.raises(DatasetUnsupported, match='not registered'):
             select_backend(DATASET, config, logger=logger)
