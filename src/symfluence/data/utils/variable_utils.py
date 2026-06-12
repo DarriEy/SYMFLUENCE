@@ -233,12 +233,17 @@ class VariableStandardizer:
             'rsds': 'surface_downwelling_shortwave_flux',
             'sfcWind': 'wind_speed',
             'ps': 'surface_air_pressure',
+            # NEX-GDDP publishes no surface pressure; the acquisition handler
+            # synthesizes 'airpres' (elevation-adjusted via DOMAIN_MEAN_ELEV_M)
+            # and it must survive standardization rather than be re-derived.
+            'airpres': 'surface_air_pressure',
         },
         'NEX-GDDP-CMIP6': {
             'pr': 'precipitation_flux',
             'tas': 'air_temperature',
             'huss': 'specific_humidity',
             'ps': 'surface_air_pressure',
+            'airpres': 'surface_air_pressure',
             'rlds': 'surface_downwelling_longwave_flux',
             'rsds': 'surface_downwelling_shortwave_flux',
             'sfcWind': 'wind_speed',
@@ -669,7 +674,8 @@ class VariableHandler:
             'huss': {'standard_name': 'specific_humidity', 'units': '1'},
             'rlds': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
             'rsds': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'sfcWind': {'standard_name': 'wind_speed', 'units': 'm/s'}
+            'sfcWind': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'}
         },
         'GWF-I': {
             'PSFC': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},

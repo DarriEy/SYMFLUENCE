@@ -101,6 +101,30 @@ def test_synthesized_pressure_tracks_altitude(caplog):
         f"colder T should yield lower P (higher altitude); got warm={p_warm:.0f}, cold={p_cold:.0f}"
 
 
+def test_acquisition_synthetic_airpres_passes_through(caplog):
+    """The acquisition handler fabricates a constant 'airpres'
+    (elevation-adjusted via DOMAIN_MEAN_ELEV_M). It must survive
+    standardization as surface_air_pressure — not be dropped and
+    re-derived by the ISA fallback, which uses a different formula
+    and ignores the user-set elevation."""
+    h = _make_handler()
+    ds = _make_ds_without_pressure(t_mean_K=285.0)
+    p_acq = 84000.0  # ~1500 m via the acquisition handler's p0*exp(-z/H)
+    ds["airpres"] = xr.full_like(ds["tas"], p_acq).assign_attrs(
+        long_name="synthetic surface air pressure", units="Pa"
+    )
+    caplog.set_level(logging.WARNING)
+    ds_out = h.process_dataset(ds)
+
+    assert "surface_air_pressure" in ds_out.data_vars
+    p = ds_out["surface_air_pressure"].values
+    assert np.allclose(p[np.isfinite(p)], p_acq), \
+        "acquisition-stage airpres must pass through unchanged, not be re-synthesized"
+    warn = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+    assert "synthesizing from mean air temperature" not in warn, \
+        "ISA fallback must not fire when a pressure field is already present"
+
+
 def test_degenerate_temperature_falls_back_to_sea_level(caplog):
     """If mean T is unphysical (e.g. all-NaN input) we can't infer
     altitude — fall back to sea-level P0 with a clear warning so the
