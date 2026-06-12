@@ -15,9 +15,13 @@ from pydantic import BaseModel, Field, field_validator
 from .base import FROZEN_CONFIG
 
 # Supported forcing dataset types
+# 'CFS' is provided by the optional community-forcing-service plugin
+# (pip install "symfluence[cfs]"), discovered via the symfluence.plugins
+# entry point; selecting it without the plugin installed fails at handler
+# lookup with a clear registry error.
 ForcingDatasetType = Literal[
     'NLDAS', 'NLDAS2', 'NEX-GDDP', 'ERA5', 'EM-EARTH', 'RDRS', 'CASR', 'CARRA', 'CERRA',
-    'MSWEP', 'AORC', 'CONUS404', 'HRRR', 'DAYMET', 'NWM3_RETROSPECTIVE', 'local'
+    'MSWEP', 'AORC', 'CONUS404', 'HRRR', 'DAYMET', 'NWM3_RETROSPECTIVE', 'CFS', 'local'
 ]
 
 # Supported PET calculation methods
