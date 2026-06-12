@@ -12,13 +12,14 @@ untouched.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from symfluence.core.registries import R
 from symfluence.data.acquisition.observed_processor import ObservedDataProcessor
 from symfluence.data.observation.base import BaseObservationHandler
+from symfluence.data.observation.registry import ObservationRegistry
 
 
 def _base_config(tmp_path, provider: str, **extra) -> dict:
@@ -86,28 +87,46 @@ def register_handler(fake_handler):
         R.observation_handlers.remove(key)
 
 
-def test_default_path_takes_legacy_branch_even_when_handler_registered(tmp_path, register_handler, fake_handler):
-    """Provider USGS without DATA_ACCESS must use the legacy branch, not the registry."""
-    register_handler('usgs')
+def test_default_path_takes_legacy_branch_even_when_handler_registered(tmp_path):
+    """Provider USGS without DATA_ACCESS: community must use the legacy branch.
+
+    No registration needed: whether or not the real csfs plugin occupies
+    'usgs' (it does when community-streamflow-service is installed), the
+    registry must never be consulted on the default path.
+    """
     logger = MagicMock()
     processor = ObservedDataProcessor(_base_config(tmp_path, 'USGS'), logger)
 
-    processor.process_streamflow_data()
+    with patch.object(ObservationRegistry, 'get_handler') as get_handler:
+        processor.process_streamflow_data()
 
-    assert fake_handler.acquire_calls == []
-    assert fake_handler.process_calls == []
+    get_handler.assert_not_called()
     info_messages = [str(call.args[0]) for call in logger.info.call_args_list]
     assert any('USGS streamflow data handled by formalized observation handler' in m for m in info_messages)
     logger.error.assert_not_called()
 
 
 def test_community_backend_routes_legacy_provider_through_registry(tmp_path, register_handler, fake_handler):
-    """DATA_ACCESS: community sends a legacy provider to its registered handler."""
-    register_handler('usgs')
+    """DATA_ACCESS: community sends a legacy provider to its registered handler.
+
+    Adapts to the environment: when the real csfs plugin already occupies
+    'usgs' (community-streamflow-service installed), membership is satisfied
+    and resolution is intercepted; otherwise the fake is registered outright
+    (the CI case, no csfs installed).
+    """
     logger = MagicMock()
     processor = ObservedDataProcessor(_base_config(tmp_path, 'USGS', DATA_ACCESS='community'), logger)
 
-    processor.process_streamflow_data()
+    if 'usgs' in R.observation_handlers:
+        with patch.object(
+            ObservationRegistry, 'get_handler',
+            side_effect=lambda key, config, log: fake_handler(config, log),
+        ) as get_handler:
+            processor.process_streamflow_data()
+        assert get_handler.call_args.args[0] == 'usgs'
+    else:
+        register_handler('usgs')
+        processor.process_streamflow_data()
 
     assert len(fake_handler.acquire_calls) == 1
     assert fake_handler.process_calls == [Path('/tmp/fake_raw.csv')]
