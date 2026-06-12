@@ -11,6 +11,8 @@ Layout:
   (subclasses ``DataAcquisitionError`` in-tree).
 * :mod:`~symfluence.data.backends.native` — the existing handler registry
   exposed as the ``native`` backend (registers on import).
+* :mod:`~symfluence.data.backends.selection` — framework-side backend
+  selection per ``DATA_ACCESS`` / ``<DATASET>_BACKEND``.
 
 Importing this package registers the native backend; heavy handler imports
 stay lazy until ``capabilities()``/``acquire()`` are called.
@@ -37,6 +39,7 @@ from symfluence.data.backends.errors import (
     WindowOutOfRange,
 )
 from symfluence.data.backends.native import NativeBackend
+from symfluence.data.backends.selection import select_backend
 
 __all__ = [
     "PROTOCOL_VERSION",
@@ -55,4 +58,5 @@ __all__ = [
     "UpstreamOutage",
     "IntegrityError",
     "NativeBackend",
+    "select_backend",
 ]
