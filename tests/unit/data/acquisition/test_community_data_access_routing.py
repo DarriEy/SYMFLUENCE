@@ -3,10 +3,10 @@
 
 """DATA_ACCESS routing for the community backend.
 
-``DATA_ACCESS: community`` must route forcing acquisition down the same
-registry-handler pathway as ``cloud`` (where community plugin packages
-shadow registry entries), never the datatool/MAF runner; the default
-(MAF) path must be untouched.
+``DATA_ACCESS: community`` consults the AcquisitionBackend selector first;
+datasets no registered non-native protocol backend serves fall through to the
+same registry-handler pathway as ``cloud``, never the datatool/MAF runner;
+the default (MAF) path must be untouched.
 """
 from __future__ import annotations
 
@@ -16,9 +16,29 @@ from unittest.mock import patch
 import pytest
 
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.registries import R
 from symfluence.data.acquisition.acquisition_service import AcquisitionService
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
+
+
+@pytest.fixture
+def only_native_backend():
+    """Strip non-native protocol backends so the legacy fallthrough is testable
+    regardless of which community plugins are installed in the environment."""
+    import symfluence.data.backends  # noqa: F401 — ensure 'native' is registered
+
+    removed = []
+    for name in list(R.acquisition_backends.keys()):
+        if name != 'native':
+            removed.append((name, R.acquisition_backends.get(name)))
+            R.acquisition_backends.remove(name)
+
+    yield
+
+    for name, entry in removed:
+        if R.acquisition_backends.get(name) is None:
+            R.acquisition_backends.add(name, entry)
 
 
 class _BranchTaken(Exception):
@@ -49,8 +69,9 @@ def _availability_spy(*_args, **_kwargs):
 
 
 @pytest.mark.parametrize("access", ["cloud", "community", "CLOUD", "COMMUNITY"])
-def test_cloud_and_community_route_to_registry_branch(tmp_path, access):
-    """Both values must enter the registry branch (availability check called)."""
+def test_cloud_and_community_route_to_registry_branch(tmp_path, access, only_native_backend):
+    """Both values must enter the registry branch (availability check called)
+    when no non-native protocol backend serves the dataset."""
     svc = _service(tmp_path, DATA_ACCESS=access)
     with patch(
         "symfluence.data.acquisition.acquisition_service.check_cloud_access_availability",

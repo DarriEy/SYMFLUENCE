@@ -11,6 +11,7 @@ non-native backend registers AND the selector resolves to it.
 """
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from unittest.mock import patch
@@ -86,8 +87,8 @@ class FakeProtocolBackend:
 
 
 @pytest.mark.parametrize('access', ['cloud', 'community'])
-def test_seam_is_inert_when_only_native_is_registered(tmp_path, access):
-    """No non-native protocol backend (today, always) => selector never consulted,
+def test_seam_is_inert_when_only_native_is_registered(tmp_path, access, only_native_backend):
+    """No non-native protocol backend registered => selector never consulted,
     legacy dispatch reached exactly as before."""
     svc = _service(tmp_path, DATA_ACCESS=access)
     with patch(
@@ -160,6 +161,52 @@ def test_seam_stays_legacy_under_cloud_access_even_with_backend_registered(
 
     assert availability.called
     assert backend.requests == []
+
+
+def test_protocol_path_caches_result_and_restores_manifest(tmp_path, register_backend):
+    """Cache key is (dataset,bbox,window,variables,schema,backend)-structural;
+    a hit restores BOTH the raw file and the sidecar manifest (schema dispatch
+    must survive resumed runs)."""
+    from symfluence.data.backends.contract import MANIFEST_FILENAME
+
+    backend = FakeProtocolBackend()
+    register_backend('community', backend)
+
+    svc = _service(tmp_path, DATA_ACCESS='community')
+    svc.acquire_forcings()
+    assert len(backend.requests) == 1
+
+    raw_dir = backend.requests[0].target_dir
+    cache_files = list((tmp_path / 'cache' / 'raw_forcing').glob('ERA5_*.nc'))
+    assert len(cache_files) == 1, 'single-file protocol result must be cached'
+
+    # Wipe the raw dir; a second acquisition must be served from cache.
+    for f in raw_dir.iterdir():
+        f.unlink()
+    svc2 = _service(tmp_path, DATA_ACCESS='community')
+    svc2.acquire_forcings()
+    assert len(backend.requests) == 1, 'cache hit must not re-acquire'
+    assert (raw_dir / 'community_era5.nc').exists()
+
+    manifest = json.loads((raw_dir / MANIFEST_FILENAME).read_text())
+    assert manifest['schema'] == 'canonical-v1'
+    assert manifest['backend'] == 'community'
+    assert manifest['paths'] == [str(raw_dir / 'community_era5.nc')]
+
+
+def test_protocol_cache_key_differs_from_legacy_data_access_salt(tmp_path, register_backend):
+    """The protocol path salts with backend:schema; the legacy path keeps the
+    DATA_ACCESS salt — entries must never collide."""
+    from symfluence.data.cache.forcing_cache import RawForcingCache
+
+    cache = RawForcingCache(cache_root=tmp_path / 'c')
+    args = dict(
+        dataset='ERA5', bbox='51.3/-115.8/50.9/-115.2',
+        time_start='2020-01-01 00:00', time_end='2020-01-02 00:00', variables=None,
+    )
+    legacy_key = cache.generate_cache_key(**args, backend='COMMUNITY')
+    protocol_key = cache.generate_cache_key(**args, backend='community:canonical-v1')
+    assert legacy_key != protocol_key
 
 
 def test_maf_path_untouched_by_seam(tmp_path, register_backend):
