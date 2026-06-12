@@ -88,6 +88,7 @@ class RawForcingCache:
         time_start: str,
         time_end: str,
         variables: Optional[List[str]] = None,
+        backend: Optional[str] = None,
     ) -> str:
         """
         Generate stable, version-aware cache key.
@@ -104,6 +105,12 @@ class RawForcingCache:
             End time in ISO format
         variables : list of str, optional
             List of variables to download
+        backend : str, optional
+            Acquisition backend (the DATA_ACCESS value). Backends can write
+            different file formats for the same dataset (native schema vs the
+            community canonical-v1 schema), so they must not share cache
+            entries. None/'cloud' hash identically so existing cloud cache
+            entries stay valid.
 
         Returns
         -------
@@ -125,6 +132,11 @@ class RawForcingCache:
             "variables": sorted(variables) if variables else [],
             "version": SYMFLUENCE_VERSION,  # Invalidate on version change
         }
+        # Only salt the key for non-default backends: existing cloud cache
+        # entries (hashed without this field) remain addressable.
+        backend_norm = (backend or 'cloud').lower()
+        if backend_norm != 'cloud':
+            key_data["backend"] = backend_norm
 
         # Generate hash
         key_json = json.dumps(key_data, sort_keys=True)
