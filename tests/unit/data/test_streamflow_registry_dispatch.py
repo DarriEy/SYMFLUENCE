@@ -71,6 +71,27 @@ def fake_handler():
 
 
 @pytest.fixture
+def no_observation_backends():
+    """Strip the ObservationBackend tier so the handler tier is reachable.
+
+    With the csfs plugin installed, ``R.observation_backends`` holds the
+    CommunityObservationBackend, which serves community-mode primary
+    streamflow BEFORE the registry-handler tier. Tests targeting the handler
+    tier (the fallthrough) must run without it — and must hold either way.
+    """
+    removed: list[tuple[str, object]] = []
+    for key in list(R.observation_backends.keys()):
+        removed.append((key, R.observation_backends.get(key)))
+        R.observation_backends.remove(key)
+
+    yield
+
+    for key, entry in removed:
+        if R.observation_backends.get(key) is None:
+            R.observation_backends.add(key, entry)
+
+
+@pytest.fixture
 def register_handler(fake_handler):
     """Register the fake handler under a key and restore registry state after."""
     injected: list[str] = []
@@ -106,12 +127,17 @@ def test_default_path_takes_legacy_branch_even_when_handler_registered(tmp_path)
     logger.error.assert_not_called()
 
 
-def test_community_backend_routes_legacy_provider_through_registry(tmp_path, register_handler, fake_handler):
+def test_community_backend_routes_legacy_provider_through_registry(
+    tmp_path, register_handler, fake_handler, no_observation_backends
+):
     """DATA_ACCESS: community sends a legacy provider to its registered handler.
 
-    Adapts to the environment: when the real csfs plugin already occupies
-    'usgs' (community-streamflow-service installed), membership is satisfied
-    and resolution is intercepted; otherwise the fake is registered outright
+    This exercises the registry-handler tier — the fallthrough below the
+    ObservationBackend tier (stripped here; its routing is covered in
+    tests/unit/data/backends/test_observation_seam.py). Adapts to the
+    environment: when the real csfs plugin already occupies 'usgs'
+    (community-streamflow-service installed), membership is satisfied and
+    resolution is intercepted; otherwise the fake is registered outright
     (the CI case, no csfs installed).
     """
     logger = MagicMock()

@@ -77,6 +77,11 @@ class Registries:
     observation_handlers: Registry = Registry(
         "observation_handlers", normalize=str.lower, doc="Observation data handler classes"
     )
+    observation_backends: Registry = Registry(
+        "observation_backends",
+        normalize=str.lower,
+        doc="ObservationBackend protocol implementations (community, ...)",
+    )
 
     # ==================================================================
     # Evaluation & Analysis
