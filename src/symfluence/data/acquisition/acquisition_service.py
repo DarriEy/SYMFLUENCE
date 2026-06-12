@@ -825,7 +825,8 @@ class AcquisitionService(ConfigurableMixin):
                 bbox=bbox,
                 time_start=time_start,
                 time_end=time_end,
-                variables=variables if isinstance(variables, list) else None
+                variables=variables if isinstance(variables, list) else None,
+                backend=data_access,
             )
 
             # Check cache first

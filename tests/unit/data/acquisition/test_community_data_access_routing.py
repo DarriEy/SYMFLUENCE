@@ -78,3 +78,24 @@ def test_maf_does_not_touch_registry_branch(tmp_path):
         with pytest.raises(ValueError, match="DATA_ACCESS: MAF"):
             svc.acquire_forcings()
     assert not spy.called
+
+
+def test_cache_key_distinguishes_community_backend(tmp_path):
+    """Same request must not share a cache entry across backends (different
+    file formats), while None/'cloud' stay backward-compatible."""
+    from symfluence.data.cache.forcing_cache import RawForcingCache
+
+    cache = RawForcingCache(cache_root=tmp_path)
+    args = dict(
+        dataset="AORC",
+        bbox=(39.5, -105.5, 40.0, -105.0),
+        time_start="2023-06-01",
+        time_end="2023-06-03",
+        variables=None,
+    )
+    legacy = cache.generate_cache_key(**args)
+    assert cache.generate_cache_key(**args, backend=None) == legacy
+    assert cache.generate_cache_key(**args, backend="cloud") == legacy
+    assert cache.generate_cache_key(**args, backend="CLOUD") == legacy
+    community = cache.generate_cache_key(**args, backend="COMMUNITY")
+    assert community != legacy
