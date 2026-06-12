@@ -385,8 +385,12 @@ class AcquisitionService(ConfigurableMixin):
         for dir_path in [dem_dir, soilclass_dir, landclass_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for attributes (DEM_SOURCE: {dem_source})")
+        # COMMUNITY follows the CLOUD pathway for attribute acquisition (see
+        # acquire_forcings): rasters still come from the registry handlers;
+        # the community attribute layer (CAS) plugs in downstream as an
+        # attribute processor, not here.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for attributes (DEM_SOURCE: {dem_source})")
 
             bbox_str = self._resolve_bounding_box("attributes")
 
@@ -776,11 +780,19 @@ class AcquisitionService(ConfigurableMixin):
         else:
             self._effective_forcing_time_step = configured_ts or _GENERIC_DEFAULT
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for {forcing_dataset}")
+        # COMMUNITY routes the same registry-handler pathway as CLOUD: community
+        # plugin packages (e.g. community-forcing-service) shadow registry
+        # entries and route per-dataset, delegating to the native handler for
+        # anything they don't cover — so behavior without plugins installed is
+        # identical to CLOUD.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for {forcing_dataset}")
 
             if not check_cloud_access_availability(forcing_dataset, self.logger):
-                raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
+                raise ValueError(
+                    f"Dataset '{forcing_dataset}' has no registered acquisition handler "
+                    f"(DATA_ACCESS: {data_access.lower()})."
+                )
 
             bbox = self._resolve_bounding_box("forcing")
 
