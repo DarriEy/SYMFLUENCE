@@ -9,6 +9,11 @@ Layout:
   (stdlib-only; extraction-isolated, see the module docstring).
 * :mod:`~symfluence.data.backends.errors` — the protocol error taxonomy
   (subclasses ``DataAcquisitionError`` in-tree).
+* :mod:`~symfluence.data.backends.native` — the existing handler registry
+  exposed as the ``native`` backend (registers on import).
+
+Importing this package registers the native backend; heavy handler imports
+stay lazy until ``capabilities()``/``acquire()`` are called.
 """
 from __future__ import annotations
 
@@ -31,6 +36,7 @@ from symfluence.data.backends.errors import (
     UpstreamOutage,
     WindowOutOfRange,
 )
+from symfluence.data.backends.native import NativeBackend
 
 __all__ = [
     "PROTOCOL_VERSION",
@@ -48,4 +54,5 @@ __all__ = [
     "WindowOutOfRange",
     "UpstreamOutage",
     "IntegrityError",
+    "NativeBackend",
 ]

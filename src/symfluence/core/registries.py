@@ -66,6 +66,11 @@ class Registries:
     acquisition_handlers: Registry = Registry(
         "acquisition_handlers", normalize=str.lower, doc="Data acquisition handler classes"
     )
+    acquisition_backends: Registry = Registry(
+        "acquisition_backends",
+        normalize=str.lower,
+        doc="AcquisitionBackend protocol implementations (native, community, ...)",
+    )
     dataset_handlers: Registry = Registry(
         "dataset_handlers", normalize=str.lower, doc="Dataset preprocessing handler classes"
     )
