@@ -68,15 +68,46 @@ def occupy_handler_slot():
 
 @pytest.fixture
 def register_backend():
-    """Temporarily register a protocol backend, removing it after the test."""
-    injected: list[str] = []
+    """Temporarily register a protocol backend, restoring the slot afterwards.
+
+    With community plugins installed in the environment (e.g. the cfs
+    package's CommunityForcingBackend), the slot may legitimately be occupied
+    — the original entry is displaced for the test and restored after.
+    """
+    displaced: list[tuple[str, object]] = []
 
     def _register(name: str, backend) -> None:
-        assert name not in R.acquisition_backends, f'refusing to clobber backend {name!r}'
+        original = R.acquisition_backends.get(name)
+        displaced.append((name, original))
+        if original is not None:
+            R.acquisition_backends.remove(name)
         R.acquisition_backends.add(name, backend)
-        injected.append(name)
 
     yield _register
 
-    for name in injected:
+    for name, original in reversed(displaced):
         R.acquisition_backends.remove(name)
+        if original is not None:
+            R.acquisition_backends.add(name, original)
+
+
+@pytest.fixture
+def only_native_backend():
+    """Temporarily strip every non-native protocol backend (env-independent).
+
+    Tests asserting "no non-native backend registered" behavior must hold
+    even when community plugins are installed in the environment.
+    """
+    import symfluence.data.backends  # noqa: F401 — ensure 'native' is registered
+
+    removed: list[tuple[str, object]] = []
+    for name in list(R.acquisition_backends.keys()):
+        if name != 'native':
+            removed.append((name, R.acquisition_backends.get(name)))
+            R.acquisition_backends.remove(name)
+
+    yield
+
+    for name, entry in removed:
+        if R.acquisition_backends.get(name) is None:
+            R.acquisition_backends.add(name, entry)
