@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -26,7 +27,7 @@ from symfluence.data.backends.errors import (
 )
 from symfluence.data.backends.native import _FORCING_FACTS, NativeBackend
 
-from .conftest import FakeNativeHandler
+from .conftest import FakeNativeHandler, write_minimal_netcdf
 
 pytestmark = [pytest.mark.unit]
 
@@ -125,7 +126,7 @@ class TestAcquire:
         class DirHandler(FakeNativeHandler):
             def download(self, output_dir):
                 for name in ('b.nc', 'a.nc'):
-                    (output_dir / name).write_bytes(b'x')
+                    write_minimal_netcdf(output_dir / name)
                 return output_dir
 
         occupy_handler_slot('CHIRPS', DirHandler)
@@ -196,6 +197,49 @@ class TestAcquire:
         with pytest.raises(AcquisitionError):
             NativeBackend(minimal_config, logger).acquire(_request(tmp_path))
         assert not (tmp_path / 'raw_data' / MANIFEST_FILENAME).exists()
+
+    def test_honesty_verification_recorded_in_provenance(
+        self, minimal_config, occupy_handler_slot, tmp_path
+    ):
+        """Item 3: what was cheaply verified is recorded, auditable, in the manifest."""
+        occupy_handler_slot('CHIRPS', FakeNativeHandler)
+        result = NativeBackend(minimal_config, logger).acquire(_request(tmp_path))
+
+        assert 'netcdf-readable' in result.provenance['honesty_checks']
+        assert result.provenance['netcdf_variables'] == 'precip'
+        manifest = read_manifest(tmp_path / 'raw_data')
+        assert manifest['provenance']['netcdf_variables'] == 'precip'
+
+    @pytest.mark.parametrize(
+        'corruption, match',
+        [
+            ('empty', 'empty'),
+            ('garbage', 'unreadable NetCDF'),
+            ('missing', 'does not exist'),
+        ],
+    )
+    def test_dishonest_delivery_raises_integrity_error(
+        self, minimal_config, occupy_handler_slot, tmp_path, corruption, match
+    ):
+        """The WSC-pagination bug class: partial/garbage delivery must not look like success."""
+        from symfluence.data.backends.errors import IntegrityError
+
+        class DishonestHandler(FakeNativeHandler):
+            def download(self, output_dir):
+                out = Path(output_dir) / 'fake_raw.nc'
+                if corruption == 'empty':
+                    out.write_bytes(b'')
+                elif corruption == 'garbage':
+                    out.write_bytes(b'not-a-netcdf')
+                # 'missing': report a path that was never written
+                return out
+
+        occupy_handler_slot('CHIRPS', DishonestHandler)
+        with pytest.raises(IntegrityError, match=match):
+            NativeBackend(minimal_config, logger).acquire(_request(tmp_path))
+        assert not (tmp_path / 'raw_data' / MANIFEST_FILENAME).exists(), (
+            'no manifest may be written for a delivery that failed verification'
+        )
 
     def test_handler_instantiated_exactly_as_the_service_does(
         self, minimal_config, tmp_path

@@ -39,6 +39,7 @@ from symfluence.data.backends.errors import (
     AcquisitionError,
     AuthRequired,
     DatasetUnsupported,
+    IntegrityError,
     UpstreamOutage,
 )
 
@@ -315,22 +316,35 @@ class NativeBackend:
             raise AcquisitionError(f"Native handler for '{dataset}' failed: {exc}") from exc
 
         # Declared (not file-sniffed) variable set: the request's explicit
-        # asks win; otherwise the static capability declaration. Honesty
-        # checking (manifest vs files) is conformance item 3, later phase.
+        # asks win; otherwise the static capability declaration. NATIVE_RAW
+        # files keep native upstream variable names (the rename map lives in
+        # preprocessing), so the CFIF names declared here cannot be checked
+        # against file contents — what CAN be cheaply verified is done in
+        # _verify_delivery() and recorded in provenance.
         variables = request.variables if request.variables else (
             facts.variables if facts else frozenset()
         )
 
+        paths = self._collect_paths(output)
+        verified, netcdf_variables = self._verify_delivery(paths, dataset)
+
+        provenance = {
+            'handler': f"{type(handler).__module__}.{type(handler).__qualname__}",
+            'acquired_at': datetime.now(timezone.utc).isoformat(),
+            'dataset_id': dataset,
+            'honesty_checks': verified,
+        }
+        if netcdf_variables:
+            # Native (upstream) names actually present in NetCDF outputs —
+            # the auditable ground truth behind the declared CFIF set above.
+            provenance['netcdf_variables'] = ','.join(sorted(netcdf_variables))
+
         result = AcquisitionResult(
-            paths=self._collect_paths(output),
+            paths=paths,
             schema=SchemaId.NATIVE_RAW,
             dataset_id=dataset,
             backend=self.name,
-            provenance={
-                'handler': f"{type(handler).__module__}.{type(handler).__qualname__}",
-                'acquired_at': datetime.now(timezone.utc).isoformat(),
-                'dataset_id': dataset,
-            },
+            provenance=provenance,
             variables_delivered=frozenset(variables),
         )
         write_manifest(result, target_dir)
@@ -339,6 +353,68 @@ class NativeBackend:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _verify_delivery(paths: Tuple[Path, ...], dataset: str) -> Tuple[str, frozenset]:
+        """Cheap honesty checks on what the handler actually delivered (item 3).
+
+        CHECKED (failures raise :class:`IntegrityError`, the WSC-pagination
+        class — silent partial delivery must never look like success):
+
+        * every reported path exists and is non-empty;
+        * every NetCDF output (``.nc``/``.nc4``) opens and contains at least
+          one data variable (native upstream names are collected so the
+          manifest provenance records the auditable file contents).
+
+        NOT checked (documented limits, deliberately cheap):
+
+        * presence of the declared CFIF names — NATIVE_RAW files keep native
+          upstream variable names and the rename map is owned by the
+          preprocessing layer;
+        * timestep completeness against the request window (native handlers
+          read their window from config; window conformance is item 4);
+        * contents of non-NetCDF outputs (CSV/GRIB/zarr) beyond existence.
+
+        Returns:
+            ``(honesty_checks, netcdf_variables)`` — a short provenance tag of
+            what was verified, and the union of native variable names found in
+            NetCDF outputs (empty when no NetCDF was delivered).
+        """
+        problems: list[str] = []
+        netcdf_names: set[str] = set()
+        checked_netcdf = False
+        for path in paths:
+            p = Path(path)
+            if not p.exists():
+                problems.append(f"reported path does not exist: {p}")
+                continue
+            if p.is_file() and p.stat().st_size == 0:
+                problems.append(f"reported output is empty: {p}")
+                continue
+            if p.suffix.lower() not in ('.nc', '.nc4'):
+                continue
+            checked_netcdf = True
+            try:
+                import xarray as xr  # lazy: heavy dependency
+                with xr.open_dataset(p, decode_times=False) as ds:
+                    names = {str(name) for name in ds.data_vars}
+            except (OSError, ValueError, KeyError, ImportError) as exc:
+                problems.append(f"unreadable NetCDF output {p.name}: {exc}")
+                continue
+            if not names:
+                problems.append(f"NetCDF output {p.name} contains no data variables")
+            netcdf_names |= names
+
+        if problems:
+            raise IntegrityError(
+                f"Native handler for '{dataset}' reported outputs that do not "
+                f"match what it delivered: " + "; ".join(problems)
+            )
+
+        verified = 'paths-exist,files-non-empty' + (
+            ',netcdf-readable,netcdf-has-variables' if checked_netcdf else ''
+        )
+        return verified, frozenset(netcdf_names)
 
     @staticmethod
     def _collect_paths(output: Path) -> Tuple[Path, ...]:
