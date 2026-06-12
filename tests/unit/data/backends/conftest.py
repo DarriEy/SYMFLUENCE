@@ -31,6 +31,19 @@ def minimal_config(tmp_path):
     })
 
 
+def write_minimal_netcdf(path: Path, variables: tuple[str, ...] = ('precip',)) -> Path:
+    """Write a tiny but *real* NetCDF file (NativeBackend now verifies readability)."""
+    import numpy as np
+    import xarray as xr
+
+    ds = xr.Dataset(
+        {name: (('time',), np.array([1.0, 2.0], dtype='float32')) for name in variables},
+        coords={'time': np.array([0, 1], dtype='int64')},
+    )
+    ds.to_netcdf(path)
+    return path
+
+
 class FakeNativeHandler:
     """Stub handler that mimics BaseAcquisitionHandler.download()."""
 
@@ -42,9 +55,7 @@ class FakeNativeHandler:
         self.logger = logger
 
     def download(self, output_dir: Path) -> Path:
-        out = Path(output_dir) / 'fake_raw.nc'
-        out.write_bytes(b'fake-netcdf')
-        return out
+        return write_minimal_netcdf(Path(output_dir) / 'fake_raw.nc')
 
 
 @pytest.fixture
