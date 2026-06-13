@@ -62,10 +62,12 @@ from typing import Any, Protocol, runtime_checkable
 #: PRE-1.0 SEMANTICS: while the major version is 0, a MINOR bump is a
 #: BREAKING change (enforced by :func:`is_compatible`). 0.2.0 added the
 #: observation flavour (``ObservationCapability`` / ``ObservationRequest`` /
-#: ``ObservationBackend``); backends hardcoding an older target are
-#: *detected* as skew by the selection layer and declined — never silently
+#: ``ObservationBackend``); 0.3.0 added the attribute flavour
+#: (``AttributeCapability`` / ``AttributeRequest`` / ``AttributeBackend``,
+#: schema :attr:`SchemaId.HRU_STATS_V1`). Backends hardcoding an older target
+#: are *detected* as skew by the selection layer and declined — never silently
 #: claimed compatible.
-PROTOCOL_VERSION = "0.2.0"
+PROTOCOL_VERSION = "0.3.0"
 
 #: Name of the sidecar manifest written next to acquired raw files. The
 #: persisted, declared schema lets resumed runs dispatch preprocessing
@@ -248,6 +250,87 @@ class ObservationBackend(Protocol):
 
 
 # ======================================================================
+# Attribute flavour (contract 0.3.0)
+# ======================================================================
+
+@dataclass(frozen=True)
+class AttributeCapability:
+    """One attribute provider a backend claims to be able to serve.
+
+    The attribute-flavored sibling of :class:`DatasetCapability` /
+    :class:`ObservationCapability`. ``provider_id`` is the framework provider
+    name (e.g. ``"CAS"``), matched case-insensitively. ``attribute_ids`` are
+    the backend's own product ids (e.g. ``"isric_soilgrids:clay_0-5cm"``); the
+    framework does not interpret them, it only asks the backend to deliver them
+    per-HRU.
+
+    ``output_kind`` is fixed to ``"per_hru_stats"``: the backend delivers one
+    zonal statistic per HRU geometry (the :attr:`SchemaId.HRU_STATS_V1` table).
+
+    PARITY SEMANTICS (normative): unlike forcing/observations, attribute zonal
+    statistics are NOT bitwise-reproducible against a native reference — they
+    depend on resampling, masking, and source-grid alignment. ``parity_grade``
+    therefore carries a TOLERANCE semantics (e.g. ``"value-within:1%"``) rather
+    than ``"bit-identical"``; ``None`` is ungated and refused by the selection
+    parity gate unless ``ALLOW_UNGATED_BACKENDS: true``.
+    """
+
+    provider_id: str                  # framework provider name, e.g. "CAS"
+    attribute_ids: frozenset[str]     # backend product ids servable per-HRU
+    output_kind: str                  # fixed "per_hru_stats"
+    schema: SchemaId                  # what acquire() produces (HRU_STATS_V1)
+    auth: frozenset[str]              # auth-provider ids; empty = anonymous
+    parity_grade: str | None          # tolerance grade "value-within:<tol>" | None = ungated
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class AttributeRequest:
+    """A single attribute-acquisition request, fully framework-resolved.
+
+    The backend reduces every HRU geometry to one per-HRU statistic per
+    requested attribute id. Geometries are supplied either inline (``geometries``
+    — GeoJSON-like mappings in EPSG:4326, aligned 1:1 with ``hru_ids``) or via
+    the catchment shapefile path (``catchment_path``) the backend reads itself;
+    a backend should prefer ``geometries`` when present.
+    """
+
+    provider_id: str
+    attribute_ids: tuple[str, ...]    # backend product ids to extract
+    hru_ids: tuple[Any, ...]          # HRU ids aligned 1:1 with geometries
+    geometries: tuple[Mapping[str, Any], ...]  # GeoJSON-like, EPSG:4326; () = use catchment_path
+    catchment_path: Path | None       # HRU/catchment shapefile (fallback geometry source)
+    target_dir: Path
+    lumped: bool = False              # DOMAIN_DEFINITION_METHOD == 'lumped'
+    credentials: CredentialContext = field(default_factory=CredentialContext)
+    options: Mapping[str, Any] = field(default_factory=dict)  # provider-specific, declared in capability notes
+
+
+@runtime_checkable
+class AttributeBackend(Protocol):
+    """The provider protocol every attribute backend implements.
+
+    Mirrors :class:`AcquisitionBackend` / :class:`ObservationBackend` (same
+    method names); distinguished by the registry it is registered under
+    (``R.attribute_backends``). ``acquire()`` returns a reused
+    :class:`AcquisitionResult` whose ``dataset_id`` carries the provider id and
+    whose ``schema`` is :attr:`SchemaId.HRU_STATS_V1` (a per-HRU attribute
+    table written as one or more CSV files plus the shared sidecar manifest).
+    """
+
+    name: str                         # "community" | future others
+    interface_version: str            # semver of THIS protocol the backend targets
+
+    def capabilities(self) -> Sequence[AttributeCapability]:
+        """Providers servable: id, attribute ids, output kind, auth, coverage."""
+        ...
+
+    def acquire(self, request: AttributeRequest) -> AcquisitionResult:
+        """Acquire *request* and return paths + declared schema + provenance."""
+        ...
+
+
+# ======================================================================
 # Protocol version compatibility
 # ======================================================================
 
@@ -269,8 +352,17 @@ def parse_version(version: str) -> tuple[int, int, int]:
 def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION) -> bool:
     """Return True if a backend targeting *backend_version* may register.
 
-    Standard semver compatibility: same major version; while the contract is
-    pre-1.0 (major == 0), minor versions are treated as breaking too.
+    Same major version always required. While the contract is pre-1.0
+    (major == 0), each MINOR bump is *additive-only* and never removes or
+    changes an existing flavour's types — 0.2.0 added observations on top of
+    0.1.0's forcing surface, 0.3.0 added attributes on top of 0.2.0. So a
+    backend targeting an OLDER-or-equal minor than the running protocol is
+    compatible (it uses only types the protocol still ships); FORWARD skew —
+    a backend targeting a NEWER minor than the framework's protocol — is the
+    breaking case and is declined (the framework lacks the newer flavour's
+    types). This is what lets a contract-0.2.0 forcing/observation backend
+    keep working unchanged when the in-tree protocol advances to 0.3.0, while
+    a 0.3.0 backend is still detected as skew on a 0.2.0 framework.
     """
     try:
         backend = parse_version(backend_version)
@@ -279,7 +371,7 @@ def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION
         return False
     if backend[0] != protocol[0]:
         return False
-    if protocol[0] == 0 and backend[1] != protocol[1]:
+    if protocol[0] == 0 and backend[1] > protocol[1]:
         return False
     return True
 
@@ -390,6 +482,9 @@ __all__ = [
     "ObservationCapability",
     "ObservationRequest",
     "ObservationBackend",
+    "AttributeCapability",
+    "AttributeRequest",
+    "AttributeBackend",
     "parse_version",
     "is_compatible",
     "build_manifest",

@@ -95,11 +95,17 @@ class TestSemver:
         with pytest.raises(ValueError):
             parse_version('not-a-version')
 
-    def test_pre_1_0_minor_is_breaking(self):
+    def test_pre_1_0_forward_minor_skew_is_breaking(self):
+        # Same/older minor is compatible (each pre-1.0 minor is additive-only:
+        # 0.3.0 only ADDED the attribute flavour over 0.2.0's surface, so a
+        # 0.2.0 backend uses only types the protocol still ships). FORWARD skew
+        # — a NEWER minor than the framework's protocol — is the breaking case.
         assert is_compatible(PROTOCOL_VERSION)
         major, minor, patch = parse_version(PROTOCOL_VERSION)
         assert is_compatible(f'{major}.{minor}.{patch + 1}')
-        assert not is_compatible(f'{major}.{minor + 1}.0')
+        if minor > 0:
+            assert is_compatible(f'{major}.{minor - 1}.0')  # older minor: additive-compatible
+        assert not is_compatible(f'{major}.{minor + 1}.0')  # newer minor: forward skew
         assert not is_compatible(f'{major + 1}.0.0')
         assert not is_compatible('garbage')
 
