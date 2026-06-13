@@ -25,6 +25,9 @@ from symfluence.data.backends.contract import (
     AcquisitionBackend,
     AcquisitionRequest,
     AcquisitionResult,
+    AttributeBackend,
+    AttributeCapability,
+    AttributeRequest,
     CredentialContext,
     DatasetCapability,
     GridClass,
@@ -39,7 +42,10 @@ from symfluence.data.backends.errors import (
     WindowOutOfRange,
 )
 from symfluence.data.backends.native import NativeBackend
-from symfluence.data.backends.selection import select_backend
+from symfluence.data.backends.selection import (
+    select_attribute_backend,
+    select_backend,
+)
 
 __all__ = [
     "PROTOCOL_VERSION",
@@ -57,6 +63,10 @@ __all__ = [
     "WindowOutOfRange",
     "UpstreamOutage",
     "IntegrityError",
+    "AttributeCapability",
+    "AttributeRequest",
+    "AttributeBackend",
     "NativeBackend",
     "select_backend",
+    "select_attribute_backend",
 ]

@@ -22,7 +22,7 @@ from symfluence.data.backends.contract import (
 
 pytestmark = [pytest.mark.unit]
 
-_PARITY_GRADE_RE = re.compile(r'^(bit-identical|value-identical:.+)$')
+_PARITY_GRADE_RE = re.compile(r'^(bit-identical(:.+)?|value-identical:.+)$')
 
 #: Schemas whose variable vocabulary is the CFIF forcing vocabulary.
 _CFIF_SCHEMAS = {SchemaId.NATIVE_RAW, SchemaId.CANONICAL_V1}

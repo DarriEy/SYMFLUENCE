@@ -353,4 +353,128 @@ def select_observation_backend(
     )
 
 
-__all__ = ["select_backend", "select_observation_backend"]
+def _attribute_decline_reason(
+    cap: Optional[Any],
+    *,
+    attribute_ids: Optional[frozenset],
+    allow_ungated: bool,
+) -> Optional[str]:
+    """Return why an attribute backend cannot serve, or None if it can."""
+    if cap is None:
+        return "does not claim the provider"
+    if attribute_ids:
+        missing = set(attribute_ids) - set(cap.attribute_ids)
+        if missing:
+            return f"cannot serve requested attribute ids {sorted(missing)}"
+    if cap.parity_grade is None and not allow_ungated:
+        return (
+            "provider is ungraded (parity_grade=None) on this backend; "
+            "set ALLOW_UNGATED_BACKENDS: true to permit"
+        )
+    return None
+
+
+def select_attribute_backend(
+    provider_id: str,
+    config: Any,
+    *,
+    attribute_ids: Optional[frozenset] = None,
+    logger: Optional[logging.Logger] = None,
+):
+    """Select the attribute backend that will serve *provider_id* (contract 0.3.0).
+
+    The attribute-flavored sibling of :func:`select_observation_backend`,
+    consulted by the attribute pipeline under ``DATA_ACCESS: community``. As
+    with observations there is **no native attribute backend**: the in-tree
+    geospatial/profile processors are the default path, so callers treat
+    :class:`DatasetUnsupported` as "no community attribute backend serves this"
+    — the same inert-seam discipline (no backend registered → exactly today's
+    behavior).
+
+    Per-provider pin ``<PROVIDER>_BACKEND: native`` forces the default path
+    (raises :class:`DatasetUnsupported`). The parity gate applies to every
+    attribute backend; an ungraded provider is refused unless
+    ``ALLOW_UNGATED_BACKENDS: true``.
+
+    Raises:
+        DatasetUnsupported: when no registered attribute backend can serve the
+            request (the caller's signal to use only the in-tree processors).
+    """
+    log = logger or _logger
+    allow_ungated = _allow_ungated(config)
+
+    override = _backend_override(config, provider_id)
+    if override == 'native':
+        raise DatasetUnsupported(
+            f"Provider '{provider_id}' is pinned to the in-tree path via "
+            f"{provider_id.upper()}_BACKEND: native",
+            dataset_id=provider_id,
+            backend='native',
+        )
+    if override is not None:
+        priority = [override]
+        pinned = True
+    else:
+        names = R.attribute_backends.keys()
+        priority = sorted(names, key=lambda n: (n != 'community', n))
+        pinned = False
+
+    declined: List[str] = []
+    for name in priority:
+        backend = _resolve_backend(name, config, log, registry=R.attribute_backends)
+        if backend is None:
+            declined.append(f"{name}: not registered")
+            if pinned:
+                raise DatasetUnsupported(
+                    f"Attribute backend '{name}' pinned via "
+                    f"{provider_id.upper()}_BACKEND is not registered",
+                    dataset_id=provider_id,
+                    backend=name,
+                )
+            continue
+        if not is_compatible(getattr(backend, 'interface_version', '')):
+            declined.append(f"{name}: incompatible interface_version "
+                            f"{getattr(backend, 'interface_version', None)!r}")
+            log.info(
+                "Attribute backend '%s' declined for %s: incompatible interface version",
+                name, provider_id,
+            )
+            continue
+
+        wanted = provider_id.lower()
+        cap = next(
+            (c for c in backend.capabilities() if c.provider_id.lower() == wanted),
+            None,
+        )
+        reason = _attribute_decline_reason(
+            cap, attribute_ids=attribute_ids, allow_ungated=allow_ungated,
+        )
+        if reason is not None:
+            declined.append(f"{name}: {reason}")
+            if pinned:
+                raise DatasetUnsupported(
+                    f"Attribute backend '{name}' pinned via "
+                    f"{provider_id.upper()}_BACKEND cannot serve '{provider_id}': {reason}",
+                    dataset_id=provider_id,
+                    backend=name,
+                )
+            log.info(
+                "Attribute backend '%s' declined for %s (%s); falling through",
+                name, provider_id, reason,
+            )
+            continue
+
+        log.info(
+            "Attribute backend '%s' serves provider '%s'%s",
+            name, provider_id, ", pinned" if pinned else "",
+        )
+        return backend
+
+    raise DatasetUnsupported(
+        f"No registered attribute backend can serve '{provider_id}' "
+        f"(tried: {'; '.join(declined) or 'none'})",
+        dataset_id=provider_id,
+    )
+
+
+__all__ = ["select_backend", "select_observation_backend", "select_attribute_backend"]

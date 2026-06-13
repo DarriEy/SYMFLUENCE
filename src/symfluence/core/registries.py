@@ -82,6 +82,11 @@ class Registries:
         normalize=str.lower,
         doc="ObservationBackend protocol implementations (community, ...)",
     )
+    attribute_backends: Registry = Registry(
+        "attribute_backends",
+        normalize=str.lower,
+        doc="AttributeBackend protocol implementations (community/CAS, ...)",
+    )
 
     # ==================================================================
     # Evaluation & Analysis

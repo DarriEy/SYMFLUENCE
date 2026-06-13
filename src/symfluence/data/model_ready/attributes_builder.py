@@ -52,6 +52,8 @@ class AttributesNetCDFBuilder:
         'landcover',
         'climate',
         'hydrogeology',
+        'cas',
+        'community',
     ]
 
     def __init__(
@@ -141,6 +143,13 @@ class AttributesNetCDFBuilder:
             if self._build_csv_group(root, 'vegetation', 'vegetation'):
                 groups_written += 1
             if self._build_csv_group(root, 'landcover_extended', 'landclass'):
+                groups_written += 1
+            # Community attribute layer (DATA_ACCESS: community): the CAS
+            # AttributeBackend writes per-HRU stats to attributes/cas/, and the
+            # entry-point plugin loop (climaclass, ...) to attributes/community/.
+            if self._build_csv_group(root, 'cas', 'cas'):
+                groups_written += 1
+            if self._build_csv_group(root, 'community', 'community'):
                 groups_written += 1
 
         if groups_written == 0:
