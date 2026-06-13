@@ -177,8 +177,8 @@ class TestMultivariateLogLikelihood:
 
         assert np.isclose(joint_ll, ll1 + ll2)
 
-    def test_three_variables_calmip(self):
-        """Simulate CalLMIP-like setup with NEE, Qle, Qh."""
+    def test_three_variables_flux(self):
+        """Joint likelihood across three flux-tower variables (NEE, Qle, Qh)."""
         np.random.seed(42)
         n = 365
 
