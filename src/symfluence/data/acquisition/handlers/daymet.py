@@ -90,9 +90,12 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
     # ORNL DAAC Daymet endpoints
     SINGLE_PIXEL_URL = "https://daymet.ornl.gov/single-pixel/api/data"
-    GRIDDED_URL = "https://data.ornldaac.earthdata.nasa.gov/protected/daymet/Daymet_Daily_V4R1/data"
 
-    # Cloud OPeNDAP endpoint (NASA Hyrax) — supports server-side subsetting
+    # Cloud OPeNDAP endpoint (NASA Hyrax) — server-side subsetting via DAP2
+    # hyperslabs. This is the only working gridded route: ORNL's legacy
+    # THREDDS endpoint is retired (404s into the same DMR++ backend), and
+    # this Hyrax deployment rejects plain DAP4 constraint expressions, so
+    # requests must use DAP2 (pydap with an Earthdata-authenticated session).
     OPENDAP_URL = (
         "https://opendap.earthdata.nasa.gov/collections/"
         "C2532426483-ORNL_CLOUD/granules/"
@@ -360,6 +363,37 @@ class DaymetAcquirer(BaseAcquisitionHandler):
             'y_max': max(y_coords) + buffer,
         }
 
+    def _opendap_dap2_url(self, var: str, year: int) -> str:
+        """Build the DAP2 request URL for one Daymet variable granule.
+
+        Appends a DAP constraint requesting only the needed fields. This
+        crucially skips Daymet's ``time_bnds``, whose (time, 2) shape the
+        pydap backend mis-parses, and keeps the request DAP2-shaped (this
+        Hyrax deployment rejects plain constraints under DAP4).
+        """
+        return (
+            self.OPENDAP_URL.format(var=var, year=year)
+            + f"?{var},time,x,y,lat,lon"
+        )
+
+    @staticmethod
+    def _lcc_subset(ds, lcc_bbox: Dict[str, float]):
+        """Subset a Daymet granule to an LCC bounding box.
+
+        Daymet's ``y`` coordinate DESCENDS (north -> south), so the y slice
+        must be ordered (y_max, y_min) — an ascending ``slice(y_min, y_max)``
+        silently returns an empty window. The x axis ascends normally.
+        """
+        y_vals = ds['y'].values
+        if y_vals.size > 1 and y_vals[0] > y_vals[-1]:
+            y_slice = slice(lcc_bbox['y_max'], lcc_bbox['y_min'])
+        else:
+            y_slice = slice(lcc_bbox['y_min'], lcc_bbox['y_max'])
+        return ds.sel(
+            x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
+            y=y_slice,
+        )
+
     def _download_opendap_subset(
         self, var: str, year: int, var_file: Path, lcc_bbox: Dict[str, float],
         max_retries: int = 3,
@@ -367,12 +401,11 @@ class DaymetAcquirer(BaseAcquisitionHandler):
         """Download a Daymet variable via OPeNDAP server-side subsetting.
 
         Opens the Daymet granule lazily through the NASA Hyrax OPeNDAP
-        endpoint, subsets to the LCC bounding box, and writes the result.
-        Retries up to *max_retries* times with exponential backoff to handle
-        intermittent server errors.
-
-        Requires Earthdata credentials in ~/.netrc (or a configured
-        .dodsrc) so the netCDF4 C library can authenticate.
+        endpoint using the pydap engine over DAP2 with an Earthdata-
+        authenticated session (Bearer token, ~/.netrc, or env credentials),
+        subsets to the LCC bounding box, and writes the result. Retries up
+        to *max_retries* times with backoff to handle intermittent server
+        errors.
 
         Returns True on success, False on failure.
         """
@@ -380,7 +413,17 @@ class DaymetAcquirer(BaseAcquisitionHandler):
 
         import xarray as xr
 
-        url = self.OPENDAP_URL.format(var=var, year=year)
+        try:
+            import pydap  # noqa: F401
+        except ImportError:
+            self.logger.error(
+                "pydap is required for gridded Daymet downloads (DAP2 "
+                "hyperslab subsetting against NASA Hyrax). Install it with: "
+                "pip install pydap"
+            )
+            return False
+
+        url = self._opendap_dap2_url(var, year)
         last_err: Optional[Exception] = None
 
         for attempt in range(1, max_retries + 1):
@@ -390,22 +433,11 @@ class DaymetAcquirer(BaseAcquisitionHandler):
                     var, year, attempt, max_retries,
                 )
 
-                # Suppress C-library stderr noise from netCDF4 when it
-                # receives an HTML auth-denied page instead of DAP data.
-                _stderr_fd = os.dup(2)
-                _devnull = os.open(os.devnull, os.O_WRONLY)
-                os.dup2(_devnull, 2)
-                try:
-                    ds = xr.open_dataset(url, engine='netcdf4')
-                finally:
-                    os.dup2(_stderr_fd, 2)
-                    os.close(_stderr_fd)
-                    os.close(_devnull)
-
-                ds_sub = ds.sel(
-                    x=slice(lcc_bbox['x_min'], lcc_bbox['x_max']),
-                    y=slice(lcc_bbox['y_min'], lcc_bbox['y_max']),
+                ds = xr.open_dataset(
+                    url, engine='pydap', session=self._get_earthdata_session()
                 )
+
+                ds_sub = self._lcc_subset(ds, lcc_bbox)
 
                 if any(s == 0 for s in ds_sub.sizes.values()):
                     self.logger.warning(
