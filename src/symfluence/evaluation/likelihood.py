@@ -12,10 +12,9 @@ uncertainty (e.g., FLUXNET _uc measurement errors) and model structural error.
 Designed for use with MCMC algorithms (DREAM) and other Bayesian methods
 (ABC, GLUE) where a proper likelihood function is needed.
 
-Motivated by CalLMIP Phase 1 protocol requirements (MacBean & Deepak, 2025):
-    "Daily measurement errors are also provided [...] based on FLUXNET processing
-    (Pastorello et al., 2020). These measurement errors need to be combined with
-    modelling errors for the observation error covariance matrix."
+Per-timestep observation uncertainties (such as the daily measurement errors
+provided by FLUXNET processing) are combined with model structural error to
+form the total error variance used in the likelihood.
 
 References:
     Pastorello, G., et al. (2020). The FLUXNET2015 dataset and the ONEFlux
@@ -177,7 +176,8 @@ def multivariate_log_likelihood(
     """
     Compute joint log-likelihood across multiple observed variables.
 
-    For CalLMIP, this combines likelihoods for NEE, Qle, and Qh:
+    For example, with flux-tower energy/carbon fluxes this combines the
+    likelihoods for NEE, Qle, and Qh:
         log L_total = log L_NEE + log L_Qle + log L_Qh
 
     This assumes independence between variables (diagonal observation error
@@ -235,7 +235,7 @@ def load_fluxnet_uncertainties(
     """
     Load measurement uncertainty from a FLUXNET-format NetCDF file.
 
-    CalLMIP/FLUXNET convention: uncertainty for variable X is stored as X_uc
+    FLUXNET convention: uncertainty for variable X is stored as X_uc
     (e.g., NEE_uc, Qle_uc, Qh_uc). Values represent standard deviations of
     daily measurement errors from FLUXNET processing (Pastorello et al., 2020).
 
