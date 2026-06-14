@@ -23,7 +23,7 @@ physical models to data-driven machine learning approaches.
 
       Bucket and storage-based hydrological models.
 
-      **FUSE** · **cFUSE** · **jFUSE** · **GR** · **HBV**
+      **FUSE** · **GR** · **HBV**
 
    .. grid-item-card:: Machine Learning
       :link: ml-models
@@ -39,7 +39,7 @@ physical models to data-driven machine learning approaches.
 
       Modular frameworks and domain-specific models.
 
-      **NextGen** · **WMFire**
+      **NextGen**
 
 ----
 
@@ -71,8 +71,6 @@ Simplified representations using storage-based approaches.
    :maxdepth: 1
 
    model_fuse
-   model_cfuse
-   model_jfuse
    model_gr
    model_hbv
 
@@ -104,4 +102,3 @@ Modular frameworks and specialized applications.
    :maxdepth: 1
 
    model_ngen
-   model_wmfire

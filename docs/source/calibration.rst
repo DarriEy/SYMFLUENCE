@@ -44,7 +44,7 @@ Common parameters for calibration:
 
 .. code-block:: yaml
 
-   SETTINGS_SUMMA_PARAMS_TO_CALIBRATE:
+   PARAMS_TO_CALIBRATE:
      - k_snow          # snow thermal conductivity
      - fcapil          # capillary fringe thickness
      - newSnowDenMin   # minimum new snow density
@@ -90,9 +90,8 @@ Robust global optimizer. Recommended for most applications.
    OPTIMIZATION_ALGORITHM: DE
    POPULATION_SIZE: 48
    NUMBER_OF_ITERATIONS: 30
-   DE_STRATEGY: best1bin
-   DE_MUTATION_FACTOR: 0.5
-   DE_CROSSOVER_PROB: 0.7
+   DE_SCALING_FACTOR: 0.5
+   DE_CROSSOVER_RATE: 0.9
 
 **Dynamically Dimensioned Search (DDS)**
 
@@ -113,9 +112,9 @@ Good for continuous optimization problems.
    OPTIMIZATION_ALGORITHM: PSO
    POPULATION_SIZE: 30
    NUMBER_OF_ITERATIONS: 50
-   PSO_INERTIA: 0.9
-   PSO_COGNITIVE: 2.0
-   PSO_SOCIAL: 2.0
+   PSO_INERTIA_WEIGHT: 0.7
+   PSO_COGNITIVE_PARAM: 1.5
+   PSO_SOCIAL_PARAM: 1.5
 
 **Multi-Objective (NSGA-II)**
 
@@ -124,7 +123,8 @@ For multiple competing objectives.
 .. code-block:: yaml
 
    OPTIMIZATION_ALGORITHM: NSGA-II
-   OPTIMIZATION_METRICS: [KGE, NSE, PBIAS]
+   NSGA2_PRIMARY_METRIC: KGE
+   NSGA2_SECONDARY_METRIC: NSE
    POPULATION_SIZE: 100
    NUMBER_OF_ITERATIONS: 50
 
@@ -144,60 +144,29 @@ Available metrics:
 - **PBIAS** — Percent Bias
 - **R2** — Coefficient of Determination
 
-**Multi-Objective**
+**Multi-Objective (NSGA-II / MOEA/D)**
+
+Multi-objective algorithms optimize two metrics simultaneously:
 
 .. code-block:: yaml
 
-   OPTIMIZATION_METRICS: [KGE, NSE, PBIAS]
-   MULTI_OBJECTIVE_WEIGHTS: [0.5, 0.3, 0.2]
+   OPTIMIZATION_ALGORITHM: NSGA-II
+   NSGA2_PRIMARY_METRIC: KGE
+   NSGA2_SECONDARY_METRIC: NSE
 
-**Custom Objectives**
+**Multivariate Objective**
 
-Define custom objective functions:
-
-.. code-block:: yaml
-
-   CUSTOM_OBJECTIVE: peak_weighted_kge
-   PEAK_WEIGHT_THRESHOLD: 0.9  # 90th percentile
-   PEAK_WEIGHT_FACTOR: 2.0
-
-Advanced Calibration
---------------------
-
-**Distributed Calibration**
-
-Calibrate spatially distributed parameters:
+Combine multiple target variables with per-variable weights and metrics:
 
 .. code-block:: yaml
 
-   DISTRIBUTED_CALIBRATION: true
-   SPATIAL_AGGREGATION: hru  # or 'basin', 'elevation_bands'
-   PARAMETER_REGIONALIZATION:
-     - elevation
-     - slope
-     - land_cover
-
-**Multi-Model Calibration**
-
-Calibrate multiple models simultaneously:
-
-.. code-block:: yaml
-
-   MODELS_TO_CALIBRATE: [SUMMA, FUSE]
-   ENSEMBLE_WEIGHTING: performance  # or 'equal', 'bayesian'
-
-**Temporal Calibration**
-
-Different parameters for different seasons:
-
-.. code-block:: yaml
-
-   TEMPORAL_CALIBRATION:
-     winter: [k_snow, newSnowDenMin]
-     summer: [theta_sat, vGn_alpha]
-   SEASON_DEFINITIONS:
-     winter: "12-01,03-31"
-     summer: "06-01,09-30"
+   OBJECTIVE_FUNCTION: MULTIVARIATE
+   OBJECTIVE_METRICS:
+     streamflow: KGE
+     swe: NSE
+   OBJECTIVE_WEIGHTS:
+     streamflow: 0.7
+     swe: 0.3
 
 Calibration Execution
 ---------------------
@@ -225,13 +194,13 @@ Calibration Execution
    sf = SYMFLUENCE('my_project.yaml')
 
    # Run calibration step
-   sf.run_calibration()
+   sf.run_individual_steps(['calibrate_model'])
 
    # Or run the optimization manager directly
-   from symfluence.optimization import OptimizationManager
+   from symfluence.optimization.optimization_manager import OptimizationManager
 
    opt_manager = OptimizationManager(config, logger)
-   results = opt_manager.run_optimization()
+   results = opt_manager.run_optimization_workflow()
 
    # Get best parameters from results
    best_params = results.get('best_parameters', {})
@@ -249,34 +218,17 @@ Calibration produces:
 - ``objective_history.png`` — Convergence plot
 - ``parameter_sensitivity.csv`` — Sensitivity analysis
 
-**Performance Metrics**
-
-.. code-block:: yaml
-
-   EVALUATION_METRICS:
-     - KGE
-     - NSE
-     - RMSE
-     - PBIAS
-     - R2
-     - peak_timing_error
-     - volume_error
-
 **Validation**
 
-Always validate on independent period:
-
-.. code-block:: yaml
-
-   VALIDATION_PERIOD: "2019-01-01,2019-12-31"
-   SPLIT_SAMPLE_TEST: true
+Performance on the independent ``EVALUATION_PERIOD`` is reported automatically
+alongside the calibration-period score using ``OPTIMIZATION_METRIC``.
 
 Best Practices
 --------------
 
 1. **Parameter Bounds**
 
-   Set realistic parameter ranges:
+   Override default parameter ranges where needed:
 
    .. code-block:: yaml
 
@@ -284,27 +236,13 @@ Best Practices
         k_snow: [0.01, 1.0]
         theta_sat: [0.3, 0.6]
 
-2. **Convergence Criteria**
+2. **Computational Efficiency**
+
+   Run trials in parallel across worker processes:
 
    .. code-block:: yaml
 
-      CONVERGENCE_TOLERANCE: 1e-6
-      STAGNATION_GENERATIONS: 10
-
-3. **Computational Efficiency**
-
-   .. code-block:: yaml
-
-      PARALLEL_CALIBRATION: true
-      N_CORES: 16
-      BATCH_SIZE: 8
-
-4. **Robustness Testing**
-
-   .. code-block:: yaml
-
-      MONTE_CARLO_RUNS: 100
-      BOOTSTRAP_VALIDATION: true
+      NUM_PROCESSES: 16
 
 Troubleshooting
 ---------------
@@ -313,16 +251,8 @@ Troubleshooting
 
 - **Slow convergence**: Increase population size or iterations
 - **Parameter bounds**: Check realistic ranges for your domain
-- **Memory issues**: Reduce batch size or use distributed computing
+- **Memory issues**: Reduce the number of parallel processes
 - **Poor performance**: Verify observation data quality
-
-**Debugging**
-
-.. code-block:: yaml
-
-   DEBUG_CALIBRATION: true
-   SAVE_INTERMEDIATE_RESULTS: true
-   PLOT_PARAMETER_EVOLUTION: true
 
 Example Workflows
 -----------------
@@ -345,13 +275,12 @@ Example Workflows
 
    CALIBRATION_PERIOD: "2010-01-01,2015-12-31"
    EVALUATION_PERIOD: "2016-01-01,2018-12-31"
-   VALIDATION_PERIOD: "2019-01-01,2021-12-31"
    PARAMS_TO_CALIBRATE: [alpha, beta, k_storage, qbrate_2c]
    OPTIMIZATION_ALGORITHM: NSGA-II
-   OPTIMIZATION_METRICS: [KGE, NSE, PBIAS]
+   NSGA2_PRIMARY_METRIC: KGE
+   NSGA2_SECONDARY_METRIC: NSE
    POPULATION_SIZE: 100
    NUMBER_OF_ITERATIONS: 100
-   SPLIT_SAMPLE_TEST: true
 
 ---
 

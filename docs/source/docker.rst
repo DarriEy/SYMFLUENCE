@@ -15,9 +15,9 @@ Method Matrix
 -------------
 
 All install paths build successfully on both ``linux/amd64`` and
-``linux/arm64``. Numbers count model binaries produced by
-``symfluence binary install`` (out of 12, except npm which bundles a different
-prebuilt set).
+``linux/arm64``. Build status reflects the model binaries produced by
+``symfluence binary install`` (npm bundles a different prebuilt set). Run
+``symfluence binary validate`` inside a built image for the exact set available.
 
 .. list-table::
    :header-rows: 1
@@ -29,37 +29,37 @@ prebuilt set).
      - Dockerfile.fixed
    * - pip
      - ``python:3.11-slim-bookworm``
-     - builds; 11/12 :sup:`1`
-     - builds; 11/12 :sup:`1`
+     - builds :sup:`1`
+     - builds :sup:`1`
    * - uv
      - ``python:3.11-slim-bookworm``
-     - builds; 11/12 :sup:`1`
-     - builds; 11/12 :sup:`1`
+     - builds :sup:`1`
+     - builds :sup:`1`
    * - uv-tool
      - ``python:3.11-slim-bookworm``
-     - builds; 11/12 :sup:`1`
-     - builds; 11/12 :sup:`1`
+     - builds :sup:`1`
+     - builds :sup:`1`
    * - pipx
      - ``python:3.11-slim-bookworm``
-     - builds; 11/12 :sup:`1`
-     - builds; 11/12 :sup:`1`
+     - builds :sup:`1`
+     - builds :sup:`1`
    * - npm
      - ``node:20-bookworm-slim``
      - builds; runtime-only (prebuilt binaries)
-     - 21/23 binaries (ngiab + troute not bundled)
+     - builds (ngiab + troute not bundled)
    * - conda
      - ``condaforge/miniforge3:24.11.3-2``
-     - builds; 11/12 :sup:`1`
-     - builds; 11/12 :sup:`1` (single-source conda toolchain)
+     - builds :sup:`1`
+     - builds :sup:`1` (single-source conda toolchain)
    * - source
      - ``python:3.11-slim-bookworm``
-     - builds; 11/12 :sup:`1` (bootstrap stage)
-     - builds; 12/12 (manual stage)
+     - builds :sup:`1` (bootstrap stage)
+     - builds (manual stage)
 
-:sup:`1` The 1-of-12 gap is ``ngen``, which the wrapper marks as failed despite
-the binary being built. This is a known false-negative in published
-symfluence's ``_build.sh`` — fixed on a development branch and landing in the
-next release.
+:sup:`1` ``ngen`` is the one binary the wrapper marks as failed despite the
+binary being built — a known false-negative in published symfluence's
+``_build.sh``, fixed on a development branch and landing in the next release.
+The manual ``source`` stage builds it cleanly.
 
 Build & Run
 -----------
@@ -143,8 +143,8 @@ and considerably longer under QEMU.
 Which One Should I Use?
 -----------------------
 
-- **Most users**: ``pip`` or ``uv``. Both produce 12/12 working binaries on
-  Linux. uv is faster to install.
+- **Most users**: ``pip`` or ``uv``. Both produce the full set of working
+  binaries on Linux. uv is faster to install.
 - **Need pre-compiled binaries** (no host build toolchain): ``npm``. Linux
   x86_64 and macOS ARM64 only.
 - **Developing on the project**: ``source --target manual`` so the venv contains

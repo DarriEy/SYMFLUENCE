@@ -178,7 +178,8 @@ Standard Workflow
 
 .. code-block:: python
 
-    from symfluence.models.droute import DRoutePreProcessor, DRouteRunner
+    from droute.preprocessor import DRoutePreProcessor
+    from droute.runner import DRouteRunner
 
     # Preprocessing (reuses mizuRoute topology if available)
     preprocessor = DRoutePreProcessor(config, logger)
@@ -193,7 +194,7 @@ Calibration with Gradients
 
 .. code-block:: python
 
-    from symfluence.models.droute.calibration import DRouteWorker
+    from droute.calibration.worker import DRouteWorker
 
     worker = DRouteWorker(config, logger)
 
