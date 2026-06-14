@@ -751,4 +751,3 @@ See Also
 - :doc:`architecture` - System architecture
 - :doc:`cli_reference` - CLI reference for running tests
 - :doc:`agent_guide` - Full agent guide
-- :doc:`agent_tools` - Complete agent tools reference
