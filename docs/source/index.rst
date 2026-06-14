@@ -105,3 +105,10 @@
    developer_guide
    testing
    changelog
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Project
+   :hidden:
+
+   licensing
