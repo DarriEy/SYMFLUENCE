@@ -1,16 +1,15 @@
 ---
 name: add-model-handler
 description: >-
-  Add or modify a SYMFLUENCE hydrological model — its runner, preprocessor,
-  postprocessor, config manager, and calibration integration. Covers the whole
-  models/ subsystem: the model_manifest() registration (and the DEPRECATED
-  decorator API it replaces), the unified R.* registries, BaseModelRunner /
-  BaseModelPreProcessor / BaseModelPostProcessor contracts, the model taxonomy
-  (process-based executables, conceptual, ML, LSM, framework, routing), settings
-  / forcing / simulations path conventions, and how the workflow orchestrator
-  invokes each piece. Invoke when adding a new model (SUMMA/HYPE/FUSE/GR/NGEN
-  style), wiring a model into calibration, or understanding how a model executes
-  end to end.
+  Add or modify a SYMFLUENCE hydrological model — runner, preprocessor,
+  postprocessor, config manager, and calibration wiring — via model_manifest()
+  and the unified R.* registries. Covers the models/ taxonomy (process-based,
+  conceptual, ML, LSM, framework, routing) and the settings/forcing/simulations
+  path conventions.
+when_to_use:
+  - Adding a new model (SUMMA/HYPE/FUSE/GR/NGEN style) or wiring one into calibration
+  - Modifying a model's runner / preprocessor / postprocessor / config manager
+  - Understanding how a model executes end to end in the pipeline
 ---
 
 # Adding & Understanding SYMFLUENCE Models
@@ -21,9 +20,9 @@ recipe for adding one. Paths are relative to `src/symfluence/` unless noted.
 
 ## 1. The registration mechanism (read this first)
 
-**Canonical pattern: `model_manifest()`** — declared in the model package's
-`__init__.py`. Defined in `core/registry.py:397-485`. One call wires every
-component into the unified `R.*` registries:
+**Canonical pattern: `model_manifest()`** — called from the package's `register()`
+function (see §2). Defined in `core/registry.py` (`model_manifest`). One call
+wires every component into the unified `R.*` registries:
 
 ```python
 # models/<name>/__init__.py
@@ -33,7 +32,7 @@ from .extractor import MyModelResultExtractor
 
 model_manifest(
     "MYMODEL",                       # normalized to UPPERCASE key
-    runner=MyModelRunner,            # optional if runner uses the decorator (see below)
+    runner=MyModelRunner,            # the runner class (or pass a dotted path)
     runner_method="run",             # method on runner to call; default "run"
     preprocessor=MyModelPreProcessor,
     postprocessor=MyModelPostprocessor,
@@ -71,20 +70,23 @@ only. If you see the decorators in old branches or examples, translate to
 `R.runners.alias("ALT_NAME", "MYMODEL")`. Same `.add/.add_lazy/.alias` on every
 `R.*` registry (`registries.py`).
 
-## 2. How model modules get imported (so registration runs)
+## 2. How models get loaded (so registration runs)
 
-Built-in models use an **explicit import list**, not auto-scan:
-`models/__init__.py` defines `_model_names = [...]` (~lines 48-60) and imports
-each in a try/except loop (import failures logged at debug — an optional missing
-dep silently skips that model). **To add a built-in model you must add its
-package name to `_model_names`.**
+Both in-tree and external models register through the **`symfluence.plugins`
+entry-point group** — there is no hard-coded model list. Each model package
+exposes a top-level `register()` that calls `model_manifest(...)` / `R.*.add(...)`,
+and an entry point points at it:
 
-External / third-party models register via **entry points** instead: the
-`symfluence.plugins` group (`core/_bootstrap.py:_discover_plugins`). The plugin's
-`pyproject.toml` declares `[project.entry-points."symfluence.plugins"]
-mymodel = "mypkg:register"`, and `register()` calls `model_manifest(...)` /
-`R.*.add(...)`. (jFUSE, cFUSE register this way.) Bootstrap runs once from
-`symfluence/__init__.py` before built-in models import.
+- **In-tree:** `pyproject.toml` declares, under
+  `[project.entry-points."symfluence.plugins"]`,
+  `symfluence_<name> = "symfluence.models.<name>:register"`.
+- **External plugin:** the plugin's own `pyproject.toml` declares the same group,
+  e.g. `mymodel = "mypkg:register"`. (jFUSE, cFUSE register this way.)
+
+`core/_bootstrap.py` (`_discover_plugins`) loads every entry point and calls its
+`register()` once, from `symfluence/__init__.py`. **To add a built-in model you
+must both expose `register()` in the package and add its `symfluence_<name>`
+entry point to `pyproject.toml`** — otherwise registration silently never runs.
 
 ## 3. Model taxonomy — pick the closest exemplar
 
@@ -217,9 +219,9 @@ carries `params` (normalized [0,1]), `settings_dir`, `output_dir`, `sim_dir`,
 **Calibration target** — subclass the relevant evaluator
 (`StreamflowEvaluator`, `ETEvaluator`, `SnowEvaluator`, …) in
 `models/<model>/calibration/targets.py`; implement `get_simulation_files` and
-`extract_simulated_data`. Register via
-`@OptimizerRegistry.register_calibration_target('MYMODEL', 'streamflow')`
-(composite key `MYMODEL_STREAMFLOW`).
+`extract_simulated_data`. Register with the composite-key decorator on the target
+class: `@R.calibration_targets.add('MYMODEL_STREAMFLOW')` (e.g. `GR_STREAMFLOW`,
+`SUMMA_SNOW`).
 
 **Optimizer loop:** algorithms in `optimization/optimizers/algorithms/`
 (`dds.py`, `pso.py`, `sce_ua.py`, `de.py`, …) call back into the worker each
@@ -263,8 +265,9 @@ xarray) inside methods. Line length 120, Python 3.11+.
    `run_preprocessing_template` + hooks), postprocessor (subclass
    `StandardModelPostprocessor`).
 4. Add base-settings templates under `resources/base_settings/<MODEL>/`.
-5. **Add the package name to `_model_names` in `models/__init__.py`** (built-in)
-   — or expose a `register()` entry point (plugin). Without this, nothing loads.
+5. **Expose `register()` in the package and add a `symfluence_<name>` entry point
+   to `pyproject.toml`** (§2) — for an external plugin, declare it in the plugin's
+   own `pyproject.toml`. Without both, nothing loads.
 6. For calibration: add worker + parameter_manager (via `model_manifest`) and a
    calibration target.
 7. Verify registration:
@@ -277,11 +280,10 @@ xarray) inside methods. Line length 120, Python 3.11+.
 
 | Concern | File |
 |---------|------|
-| `model_manifest()` (canonical registration) | `core/registry.py:397` |
-| Unified registries (`R.runners` etc.) | `core/registries.py` |
-| Built-in import list (MUST edit) | `models/__init__.py` (`_model_names`) |
+| `model_manifest()` (canonical registration) | `core/registry.py` (`model_manifest`) |
+| Unified registries (`R.runners` etc.) | `core/registries.py` (`R`), `core/registry.py` (`Registry`) |
+| Model entry points (MUST add) | `pyproject.toml` `[project.entry-points."symfluence.plugins"]` |
 | Plugin entry-point discovery | `core/_bootstrap.py` (`_discover_plugins`) |
-| Unified registry facade | `core/registries.py` (`R`), `core/registry.py` (`Registry`) |
 | Runner base | `models/base/base_runner.py` |
 | Runner template (combined) | `models/templates/model_template.py` (`UnifiedModelRunner`) |
 | Preprocessor base | `models/base/base_preprocessor.py` |

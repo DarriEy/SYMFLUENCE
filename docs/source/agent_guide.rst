@@ -67,6 +67,7 @@ Skill                       Use it for
 ==========================  =================================================
 ``add-data-handler``        Adding a forcing / attribute / observation dataset
 ``add-model-handler``       Adding or wiring a hydrological model
+``add-optimizer``           Adding a calibration/search algorithm
 ``debug-calibration``       Diagnosing calibration / optimizer problems
 ``run-workflow-locally``    Running the workflow end to end (or a single step)
 ==========================  =================================================

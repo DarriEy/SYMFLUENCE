@@ -1,14 +1,15 @@
 ---
 name: add-data-handler
 description: >-
-  Add or modify a SYMFLUENCE data handler — meteorological forcing, geospatial
-  attributes, remote-sensing products, or streamflow/observation datasets.
-  Covers the whole data subsystem: the acquisition → preprocessing → model-ready
-  pipeline, the auto-discovery + registry mechanism, base-class contracts,
-  mixins, config-key dispatch, and output-path conventions. Invoke when adding a
-  new dataset (e.g. NLDAS, MSWEP, a new soil/snow product, a new gauge network),
-  debugging why a handler isn't being picked up, or understanding how data flows
-  from a remote source into a model-ready store.
+  Add or modify a SYMFLUENCE data handler — forcing, geospatial attributes,
+  remote-sensing products, or streamflow/observation datasets — across the
+  acquisition → preprocessing → model-ready pipeline. Covers the registry +
+  import-list mechanism, base-class contracts, mixins, config-key dispatch, and
+  output-path conventions.
+when_to_use:
+  - Adding a new dataset (e.g. NLDAS, MSWEP, a soil/snow product, a gauge network)
+  - Debugging why a handler "isn't found" / isn't being picked up
+  - Understanding how data flows from a remote source into the model-ready store
 ---
 
 # Adding & Understanding SYMFLUENCE Data Handlers
@@ -312,17 +313,13 @@ entry in `attribute_profiles.py`. If it's a forcing dataset selected by
 5. Confirm directly:
    `python -c "import symfluence.data.acquisition; from symfluence.data.acquisition.registry import AcquisitionRegistry as R; print(sorted(R.list_datasets()))"`
 
-## 10. Conventions checklist (match the codebase)
+## 10. Conventions
 
-- SPDX + copyright header on every file (see template).
-- File name: `{product}.py` or `{product}_{variant}.py` (lowercase).
-- Class name: `{Product}Acquirer` / `{Product}Handler`.
-- Lazy-import heavy deps (xarray, rasterio, earthaccess, gcsfs) inside methods.
-- `except Exception as e:  # noqa: BLE001` is the intentional house style for
-  resilient I/O — but never let it silently hide a registration-blocking import.
-- Config access via `self._get_config_value(...)`; never read env/dict directly
-  when a config path exists.
-- Line length 120; target Python 3.11+.
+Follow the repo conventions in `CLAUDE.md` (SPDX header, 120-col lines, Python
+3.11+, lazy heavy imports, `# noqa: BLE001` for resilient I/O). Handler-specific:
+file `{product}.py` (lowercase), class `{Product}Acquirer` / `{Product}Handler`,
+config access via `self._get_config_value(...)`, and never let a `BLE001` catch
+hide a registration-blocking import.
 
 ## 11. Step-by-step: add an acquisition handler
 
