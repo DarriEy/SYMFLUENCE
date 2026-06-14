@@ -6,7 +6,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-brightgreen)](https://symfluence.readthedocs.io)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/symfluence-org/SYMFLUENCE/ci.yml?branch=main)](https://github.com/symfluence-org/SYMFLUENCE/actions)
-[![Tests](https://img.shields.io/badge/tests-8000%2B-green)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing-green)](https://github.com/symfluence-org/SYMFLUENCE/actions)
 
 ---
 
@@ -54,7 +54,7 @@ symfluence workflow run --config my_config.yaml
 symfluence workflow steps setup_project calibrate_model
 
 # Define domain from pour point
-symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition semidistributed
+symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition delineate
 
 # Check workflow status
 symfluence workflow status
@@ -111,12 +111,17 @@ SYMFLUENCE/
 ├── src/symfluence/           # Main Python package
 │   ├── core/                 # Core system, configuration, mixins
 │   ├── cli/                  # Command-line interface
+│   ├── tui/                  # Terminal user interface
+│   ├── gui/                  # Graphical user interface
+│   ├── agent/                # Agentic / assistant integration
 │   ├── project/              # Project and workflow management
 │   ├── data/                 # Data acquisition and preprocessing
 │   ├── geospatial/           # Domain discretization and geofabric
-│   ├── models/               # Model integrations (SUMMA, FUSE, GR4J, etc.)
+│   ├── models/               # Model integrations (SUMMA, FUSE, GR, etc.)
+│   ├── coupling/             # Model coupling
 │   ├── optimization/         # Calibration algorithms (DDS, DE, PSO, NSGA-II)
 │   ├── evaluation/           # Performance metrics and evaluation
+│   ├── fews/                 # Delft-FEWS integration
 │   ├── reporting/            # Visualization and plotting
 │   └── resources/            # Configuration templates and base settings
 ├── examples/                 # Progressive tutorial examples

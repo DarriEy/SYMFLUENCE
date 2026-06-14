@@ -567,7 +567,7 @@ For comprehensive performance:
 
    OPTIMIZATION_ALGORITHM: NSGA2  # Multi-objective algorithm
 
-   OPTIMIZATION_METRICS:
+   OBJECTIVE_METRICS:
      - KGE
      - NSE_log
      - RMSE

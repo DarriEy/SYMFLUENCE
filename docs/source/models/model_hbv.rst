@@ -799,7 +799,7 @@ Use ``simulate_ensemble`` for efficient parallel runs:
 
 .. code-block:: python
 
-   from symfluence.models.hbv.model import simulate_ensemble
+   from jhbv.model import simulate_ensemble
 
    # Run 100 parameter sets in parallel
    results = simulate_ensemble(

@@ -436,10 +436,6 @@ Full ecohydrological simulation:
    # config.yaml
    HYDROLOGICAL_MODEL: RHESSys
 
-   # Enable carbon and nitrogen cycles
-   RHESSYS_SIMULATE_CARBON: true
-   RHESSYS_SIMULATE_NITROGEN: true
-
    # Detailed vegetation representation
    DISCRETIZATION:
      landclass:
@@ -489,8 +485,7 @@ Multi-decade projections:
    FORCING_DATASET: CMIP6_SSP585
    FORCING_PERIOD: [2040, 2070]
 
-   # RHESSys will simulate vegetation response to changing climate
-   RHESSYS_SIMULATE_CARBON: true  # Dynamic vegetation
+   # RHESSys simulates dynamic vegetation response to changing climate
 
 Calibration Strategies
 ======================
@@ -561,7 +556,7 @@ Calibration Approach
 
    OPTIMIZATION_ALGORITHM: NSGA2
 
-   OPTIMIZATION_METRICS:
+   OBJECTIVE_METRICS:
      - KGE              # Streamflow
      - RMSE_snow        # Snow (if data available)
      - MAE_NPP          # Net Primary Productivity (if data available)
