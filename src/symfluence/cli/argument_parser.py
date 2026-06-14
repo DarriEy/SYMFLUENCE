@@ -632,8 +632,14 @@ For more help on a specific command:
 
         agent_parser = subparsers.add_parser(
             'agent',
-            help='AI agent interface',
-            description='Interactive AI agent for SYMFLUENCE'
+            help='Launch an installed coding-agent CLI, primed with SYMFLUENCE skills',
+            description=(
+                'Hand off to an installed coding-agent CLI (Claude Code, Codex, '
+                'Gemini, ...) primed with the SYMFLUENCE skills. Set the matching '
+                'API key (e.g. ANTHROPIC_API_KEY) and run `symfluence agent launch`. '
+                'Override CLI detection with SYMFLUENCE_AGENT_CLI; skip skill '
+                'materialization with SYMFLUENCE_NO_SKILLS.'
+            )
         )
         agent_subparsers = agent_parser.add_subparsers(
             dest='action',
@@ -642,24 +648,37 @@ For more help on a specific command:
             metavar='<action>'
         )
 
-        # agent start
+        # agent launch
+        launch_parser = agent_subparsers.add_parser(
+            'launch',
+            help='Launch the agent (interactive, or one-shot with a PROMPT)'
+        )
+        launch_parser.add_argument('prompt', type=str, nargs='?', default=None,
+                                   help='Optional one-shot prompt; omit for interactive mode')
+        launch_parser.add_argument('extra', nargs=argparse.REMAINDER,
+                                   help='Extra args forwarded to the agent CLI (after --)')
+        launch_parser.set_defaults(func=AgentCommands.launch)
+
+        # agent start (deprecated alias -> launch, interactive)
         start_parser = agent_subparsers.add_parser(
             'start',
-            help='Start interactive agent mode'
+            help='[deprecated] alias for `agent launch`'
         )
         start_parser.add_argument('--verbose', action='store_true',
-                                help='Show verbose agent output')
+                                  help='(deprecated, ignored)')
+        start_parser.add_argument('extra', nargs=argparse.REMAINDER,
+                                  help='Extra args forwarded to the agent CLI (after --)')
         start_parser.set_defaults(func=AgentCommands.start)
 
-        # agent run
+        # agent run (deprecated alias -> launch PROMPT)
         run_parser = agent_subparsers.add_parser(
             'run',
-            help='Execute a single agent prompt'
+            help='[deprecated] alias for `agent launch PROMPT`'
         )
         run_parser.add_argument('prompt', type=str,
-                              help='Prompt to execute')
+                                help='Prompt to execute')
         run_parser.add_argument('--verbose', action='store_true',
-                              help='Show verbose agent output')
+                                help='(deprecated, ignored)')
         run_parser.set_defaults(func=AgentCommands.run)
 
     def _register_gui_commands(self, subparsers):

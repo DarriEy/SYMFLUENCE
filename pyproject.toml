@@ -104,11 +104,6 @@ jax = [
 droute = [
   "droute>=0.6.1",
 ]
-# LLM agent integration. Optional: only needed for `symfluence agent` features.
-#   pip install "symfluence[llm]"
-llm = [
-  "openai>=1.0.0,<2.0.0",
-]
 # GDAL Python bindings - optional, system GDAL installs are auto-detected.
 # Only needed for DEM slope/aspect generation and GeoTIFF metadata reading.
 # Install via: uv pip install "symfluence[gdal]", or rely on system install
@@ -151,9 +146,9 @@ test = [
   "pytest-cov>=4.0.0",
   "pytest-timeout>=2.0.0",
   "hypothesis>=6.0.0,<7.0.0",
-  # The test suite imports the JAX plugins and the LLM agent, so the full
-  # test extra pulls in those optional groups (the baseline install does not).
-  "symfluence[jax,llm]",
+  # The test suite imports the JAX plugins, so the full test extra pulls in that
+  # optional group (the baseline install does not).
+  "symfluence[jax]",
 ]
 # Documentation tools
 docs = [
@@ -188,7 +183,7 @@ hpc = [
 ]
 # All development dependencies
 all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax,llm]",
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax]",
 ]
 
 [project.scripts]
