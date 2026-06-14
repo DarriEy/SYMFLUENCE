@@ -4,9 +4,9 @@
 [![PyPI version](https://badge.fury.io/py/symfluence.svg)](https://badge.fury.io/py/symfluence)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Documentation](https://img.shields.io/badge/docs-symfluence.org-brightgreen)](https://symfluence.org)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-brightgreen)](https://symfluence.readthedocs.io)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/symfluence-org/SYMFLUENCE/ci.yml?branch=main)](https://github.com/symfluence-org/SYMFLUENCE/actions)
-[![Tests](https://img.shields.io/badge/tests-99%20files-green)](tests/)
+[![Tests](https://img.shields.io/badge/tests-8000%2B-green)](tests/)
 
 ---
 
@@ -131,7 +131,7 @@ SYMFLUENCE/
 ## Branching Strategy
 - **main**: Stable releases only — every commit is a published version.
 - **develop**: Ongoing integration — merges from feature branches and then tested before release.
-- Feature branches: `feature/<description>`, PR to `develop`.
+- Feature branches: `feat/<description>`, PR to `develop`.
 
 ---
 
@@ -144,19 +144,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ---
 
 ## License
-Licensed under the GPL-3.0 License.
-See [LICENSE](LICENSE) for details.
+SYMFLUENCE is free and open-source software under **GPL-3.0-or-later**.
+See [LICENSE](LICENSE) for the full text.
 
-## Commercial Licensing
-SYMFLUENCE is free and open-source software under GPL-3.0-or-later.
-For organizations that require alternative licensing terms — including
-proprietary integration, redistribution without copyleft obligations,
-or operational deployment support — commercial licenses are available.
-
-For commercial licensing, derivative-platform inquiries, and the
-Foundation's dual-licensing policy, see [LICENSING.md](LICENSING.md).
-
-Contact: licensing@symfluence.org (licensing) · dev@symfluence.org (general)
+Commercial and dual-licensing options are available for organizations that
+need alternative terms (proprietary integration, redistribution without
+copyleft obligations, or operational deployment support). See the
+[licensing guide](https://symfluence.readthedocs.io/en/latest/licensing.html)
+for details, or the full [Licensing Policy](LICENSING.md). Inquiries:
+licensing@symfluence.org.
 
 ---
 
