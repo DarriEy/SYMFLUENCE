@@ -41,11 +41,12 @@ from typing import List, Set
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('MSWEP')
+@R.acquisition_handlers.add('MSWEP')
 class MSWEPAcquirer(BaseAcquisitionHandler):
     """
     Handles MSWEP precipitation data acquisition via Rclone + Google Drive.
@@ -62,15 +63,27 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
 
     Configuration:
         MSWEP_RCLONE_REMOTE: Rclone remote name (default: GoogleDrive)
-        MSWEP_VERSION: 'V280' or 'V300' (default: V280)
+        MSWEP_VERSION: e.g. 'V280', 'V315', 'V316' (default: V316).
+            Note: GloH2O flags a low-precipitation artifact over
+            2000-2015 in V3.15/V3.16.
         MSWEP_RESOLUTION: 'daily', '3hourly', 'monthly' (default: daily)
         MSWEP_PRODUCT: 'Past', 'Past_nogauge', 'NRT' (default: Past)
         MSWEP_DATA_DIR: Path to pre-downloaded MSWEP data (skips Rclone)
+
+    Remote layout (GloH2O V3.16 docs): ``{VERSION}/{Past|Past_nogauge|NRT}/
+    {Hourly|3hourly|Daily|Monthly}/`` with filenames ``YYYYDOY.HH.nc``
+    (3-hourly) / ``YYYYDOY.nc`` (daily) / ``YYYYMM.nc`` (monthly); there
+    are NO per-year subfolders. Worked example from the docs:
+    ``MSWEP_V315/Past/Hourly/2020116.18.nc``.
     """
+
+    DEFAULT_VERSION = 'V316'
 
     GDRIVE_FOLDERS = {
         'V280': 'MSWEP_V280',
         'V300': 'MSWEP_V300',
+        'V315': 'MSWEP_V315',
+        'V316': 'MSWEP_V316',
     }
 
     def download(self, output_dir: Path) -> Path:
@@ -127,6 +140,9 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
 
     def _generate_file_list(self, resolution: str, product: str) -> List[dict]:
         files = []
+        # NOTE: remote filenames are YYYYDOY-prefixed and live directly under
+        # the resolution folder — there are NO per-year subfolders (GloH2O
+        # V3.16 docs, worked example: MSWEP_V315/Past/Hourly/2020116.18.nc).
         if resolution == '3hourly':
             current = self.start_date
             while current <= self.end_date:
@@ -134,7 +150,7 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
                 doy = current.timetuple().tm_yday
                 for hour in range(0, 24, 3):
                     files.append({
-                        'relative_path': f"{product}/3hourly/{year}/{doy:03d}{hour:02d}.nc",
+                        'relative_path': f"{product}/3hourly/{year}{doy:03d}.{hour:02d}.nc",
                         'local_name': f"mswep_{year}{doy:03d}{hour:02d}.nc",
                     })
                 current += pd.Timedelta(days=1)
@@ -145,7 +161,7 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
                 year = current.year
                 doy = current.timetuple().tm_yday
                 files.append({
-                    'relative_path': f"{product}/Daily/{year}/{doy:03d}.nc",
+                    'relative_path': f"{product}/Daily/{year}{doy:03d}.nc",
                     'local_name': f"mswep_{year}{doy:03d}.nc",
                 })
                 current += pd.Timedelta(days=1)
@@ -206,7 +222,7 @@ class MSWEPAcquirer(BaseAcquisitionHandler):
 
     def _get_gdrive_folder(self) -> str:
         version = self._get_config_value(
-            lambda: None, default='V280', dict_key='MSWEP_VERSION')
+            lambda: None, default=self.DEFAULT_VERSION, dict_key='MSWEP_VERSION')
         return self.GDRIVE_FOLDERS.get(version, f'MSWEP_{version}')
 
     def _download_rclone(

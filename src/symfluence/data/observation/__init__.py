@@ -7,7 +7,8 @@ This module provides handlers for acquiring observational data from various sour
 (GRACE, MODIS, USGS, etc.) and processing them into SYMFLUENCE-standard formats.
 
 The module uses a plugin-style registry pattern: observation handlers are defined
-in separate modules and self-register using the @ObservationRegistry.register() decorator.
+in separate modules and self-register via the unified registry
+(``@R.observation_handlers.add()``).
 Importing the handlers package triggers their registration, making them available
 for dynamic instantiation by type string.
 

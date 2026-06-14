@@ -255,6 +255,7 @@ class AttributesNetCDFBuilder:
         grp = root.createGroup('terrain')
         n = len(gdf)
         grp.createDimension('hru', n)
+        self._write_hru_id(grp, gdf)
 
         if 'elev_mean' in gdf.columns:
             v = grp.createVariable('elev_mean', 'f8', ('hru',))
@@ -277,6 +278,7 @@ class AttributesNetCDFBuilder:
         grp = root.createGroup('soil')
         n = len(gdf)
         grp.createDimension('hru', n)
+        self._write_hru_id(grp, gdf)
 
         # Look for USGS soil fraction columns
         soil_cols = [c for c in gdf.columns if c.startswith('USGS_')]
@@ -310,6 +312,7 @@ class AttributesNetCDFBuilder:
         grp = root.createGroup('landcover')
         n = len(gdf)
         grp.createDimension('hru', n)
+        self._write_hru_id(grp, gdf)
 
         land_cols = [c for c in gdf.columns if c.startswith('IGBP_')]
         n_class = len(land_cols)
@@ -477,3 +480,19 @@ class AttributesNetCDFBuilder:
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.debug("Could not read %s: %s", path, e, exc_info=True)
             return None
+
+    def _write_hru_id(self, grp, gdf) -> None:
+        """Write an ``hru_id`` coordinate to a per-HRU group when available.
+
+        Per-HRU groups (terrain, soil, landcover) are built from independent
+        intersection shapefiles, so consumers must join on an explicit id
+        rather than row position.  This stamps the catchment HRU id (when the
+        column is present) so :class:`AttributesReader.per_hru_values` can
+        return an order-independent ``{hru_id: value}`` mapping.
+        """
+        id_col = self._cfg('CATCHMENT_SHP_HRUID', 'HRU_ID')
+        if id_col not in getattr(gdf, 'columns', []):
+            return
+        id_v = grp.createVariable('hru_id', str, ('hru',))
+        for i, sid in enumerate(gdf[id_col].astype(str).tolist()):
+            id_v[i] = sid

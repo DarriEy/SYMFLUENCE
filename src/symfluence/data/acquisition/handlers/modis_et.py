@@ -40,13 +40,14 @@ import pandas as pd
 import requests
 import xarray as xr
 
-from ..registry import AcquisitionRegistry
+from symfluence.core.registries import R
+
 from .earthaccess_base import BaseEarthaccessAcquirer
 
 
-@AcquisitionRegistry.register('MOD16')
-@AcquisitionRegistry.register('MODIS_ET')
-@AcquisitionRegistry.register('MOD16A2')
+@R.acquisition_handlers.add('MOD16')
+@R.acquisition_handlers.add('MODIS_ET')
+@R.acquisition_handlers.add('MOD16A2')
 class MOD16ETAcquirer(BaseEarthaccessAcquirer):
     """
     Acquires MODIS MOD16A2/MYD16A2 Evapotranspiration data.

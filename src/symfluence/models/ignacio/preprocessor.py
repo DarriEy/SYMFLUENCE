@@ -20,6 +20,10 @@ from typing import Any, Dict, Optional
 import yaml
 
 from symfluence.core.registries import R
+from symfluence.data.model_ready.forcing_reader import (
+    forcing_timestep_seconds,
+    open_canonical_forcing,
+)
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
@@ -254,14 +258,14 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
         try:
             import numpy as np
             import pandas as pd
-            import xarray as xr
 
             # Find forcing files matching the configured dataset.
             # Search all forcing directories, filtering by dataset name
             # (e.g. CARRA, ERA5) when multiple datasets coexist.
             forcing_dataset = self.config_dict.get('FORCING_DATASET', 'ERA5')
+            # Store-first basin-averaged forcing, then legacy merged/raw dirs.
             forcing_dirs = [
-                self.project_forcing_dir / 'basin_averaged_data',
+                self.forcing_basin_path,
                 self.project_forcing_dir / 'merged_path',
                 self.project_forcing_dir / 'raw_data',
             ]
@@ -295,13 +299,14 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
             chunks = []
             for nc_file in sorted(nc_files):
                 try:
-                    ds = xr.open_dataset(nc_file)
+                    ds = open_canonical_forcing([nc_file])
 
                     if 'hru' in ds.dims:
                         ds = ds.mean(dim='hru')
 
                     times = pd.to_datetime(ds.time.values)
                     n = len(times)
+                    dt_seconds = forcing_timestep_seconds(ds)
 
                     temp_c = (ds['air_temperature'].values - 273.15
                               if 'air_temperature' in ds
@@ -322,7 +327,7 @@ class IGNACIOPreProcessor(BaseModelPreProcessor):
 
                     wd = np.random.uniform(0, 360, n)
 
-                    precip_mm = (ds['precipitation_flux'].values * 3600
+                    precip_mm = (ds['precipitation_flux'].values * dt_seconds
                                  if 'precipitation_flux' in ds
                                  else np.zeros(n))
 

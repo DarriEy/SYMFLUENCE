@@ -9,7 +9,6 @@ Provides a central registry for performance evaluation handlers.
 from __future__ import annotations
 
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -17,20 +16,10 @@ from symfluence.core.registries import R
 
 
 class EvaluationRegistry:
+    """Lookup facade over ``R.evaluators``.
 
-    @classmethod
-    def register(cls, variable_type: str):
-        """Decorator to register an evaluation handler."""
-        def decorator(handler_class):
-            warnings.warn(
-                "EvaluationRegistry.register() is deprecated; "
-                "use R.evaluators.add() or model_manifest() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.evaluators.add(variable_type, handler_class)
-            return handler_class
-        return decorator
+    Registration goes through ``R.evaluators.add()`` or ``model_manifest()``.
+    """
 
     @classmethod
     def get_evaluator(

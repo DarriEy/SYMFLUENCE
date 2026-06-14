@@ -45,7 +45,7 @@ SYMFLUENCE follows a modular, manager-based architecture with clear separation o
 **Design Patterns**
 
 1. **Manager Pattern**: Each major subsystem has a manager class that coordinates operations
-2. **Registry Pattern**: Models self-register using decorators (see :doc:`api`)
+2. **Registry Pattern**: Models self-register via ``model_manifest()`` and the unified ``R`` facade (see :doc:`api`)
 3. **Mixin Pattern**: Common functionality shared through mixins
 4. **Typed Configuration**: Pydantic models for configuration validation
 
@@ -495,7 +495,8 @@ Use Google-style docstrings:
 
    # Local imports
    from symfluence.core.base_manager import BaseManager
-   from symfluence.models.registry import ModelRegistry
+   from symfluence.core.registries import R
+   from symfluence.core.registry import model_manifest
 
 ---
 
@@ -508,7 +509,7 @@ Key points:
 
 - Uses Pydantic for type validation
 - Immutable configuration objects
-- Typed configuration models in ``src/symfluence/core/config/models.py``
+- Typed configuration models in the ``src/symfluence/core/config/models/`` package
 - Legacy dict support for backward compatibility
 
 ---

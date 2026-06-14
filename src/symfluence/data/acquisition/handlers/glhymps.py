@@ -32,8 +32,9 @@ from typing import Optional
 import geopandas as gpd
 from shapely.geometry import box
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # GLHYMPS download sources — tried in order until one succeeds
@@ -63,8 +64,8 @@ _KEEP_COLUMNS = [
 ]
 
 
-@AcquisitionRegistry.register('GLHYMPS')
-@AcquisitionRegistry.register('GLHYMPS_V2')
+@R.acquisition_handlers.add('GLHYMPS')
+@R.acquisition_handlers.add('GLHYMPS_V2')
 class GLHYMPSAcquirer(BaseAcquisitionHandler):
     """
     GLHYMPS v2.0 global hydrogeology acquisition.

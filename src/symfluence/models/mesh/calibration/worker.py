@@ -18,6 +18,7 @@ import pandas as pd
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
+from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.mesh.runner import MESHRunner
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
@@ -183,7 +184,7 @@ class MESHWorker(BaseWorker):
         Returns:
             Dictionary of metric names to values
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         from symfluence.models.mesh.extractor import MESHResultExtractor
 
@@ -271,12 +272,13 @@ class MESHWorker(BaseWorker):
                 # Check for QOSIM columns (routed streamflow)
                 qosim_cols = [c for c in sim_df.columns if c.startswith('QOSIM')]
                 if qosim_cols:
-                    # Convert YEAR and JDAY/DAY to datetime
+                    # Convert YEAR and JDAY/DAY to datetime (vectorized: year
+                    # start + day-of-year offset, with out-of-range days rolling
+                    # over like the previous per-row implementation).
                     day_col = 'JDAY' if 'JDAY' in sim_df.columns else 'DAY'
-                    sim_df['time'] = sim_df.apply(
-                        lambda row: datetime(int(row['YEAR']), 1, 1) +
-                                   timedelta(days=int(row[day_col]) - 1),
-                        axis=1
+                    sim_df['time'] = (
+                        pd.to_datetime(sim_df['YEAR'].astype(int).astype(str), format='%Y')
+                        + pd.to_timedelta(sim_df[day_col].astype(int) - 1, unit='D')
                     )
                     sim_df = sim_df.set_index('time')
                     sim_df = sim_df.rename(columns={qosim_cols[0]: 'runoff'})
@@ -307,15 +309,14 @@ class MESHWorker(BaseWorker):
 
             data_dir = Path(data_dir)
             project_dir = data_dir / f'domain_{domain_name}'
-            obs_dir = resolve_data_subdir(project_dir, 'observations')
-            obs_file = (obs_dir / 'streamflow' / 'preprocessed' /
-                       f'{domain_name}_streamflow_processed.csv')
-
-            if not obs_file.exists():
-                self.logger.error(f"Observations not found: {obs_file}")
+            obs_values, obs_index = StreamflowMetrics().load_observations(
+                config, project_dir, domain_name, resample_freq=None,
+            )
+            if obs_values is None or obs_index is None:
+                self.logger.error("Observations not found (store or preprocessed CSV)")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+            obs_df = pd.DataFrame({'discharge_cms': obs_values}, index=obs_index)
 
             # Get observation column (usually 'discharge_cms' or 'discharge')
             obs_col = None

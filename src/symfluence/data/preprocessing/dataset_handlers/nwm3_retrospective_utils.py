@@ -29,13 +29,13 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.registries import R
 
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register('nwm3_retrospective')
+@R.dataset_handlers.add('nwm3_retrospective')
 class NWM3RetrospectiveHandler(BaseDatasetHandler):
     """
     Handler for NWM v3.0 Retrospective forcing dataset.

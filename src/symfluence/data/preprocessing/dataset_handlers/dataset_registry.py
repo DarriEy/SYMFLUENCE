@@ -9,7 +9,7 @@ Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Type
+from typing import List
 
 from symfluence.data.base_registry import BaseRegistry
 
@@ -18,11 +18,11 @@ class DatasetRegistry(BaseRegistry):
     """
     Registry for dataset preprocessing handlers.
 
-    Handlers are registered using the @register decorator and retrieved
-    using get_handler(). All keys are normalized to lowercase.
+    Handlers register via the unified registry (``@R.dataset_handlers.add('x')``)
+    and are retrieved using get_handler(). All keys are normalized to lowercase.
     """
 
-    _handlers: Dict[str, Type] = {}
+    _r_registry_name = "dataset_handlers"
 
     @classmethod
     def get_handler(

@@ -94,6 +94,24 @@ if command -v nc-config >/dev/null 2>&1; then
     fi
 fi
 
+# Windows (Git Bash): nf-config, if present, resolves to the Git-for-Windows
+# mingw (C:/Program Files/Git/mingw64), whose include dir has no netcdf.mod
+# ("Cannot open module file 'netcdf.mod'"). The real NetCDF-Fortran is in MSYS2's
+# mingw64. Point at it by absolute path — Git Bash's /mingw64 is Git's, not
+# MSYS2's — overriding whatever the detection above picked.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        for _m in "C:/msys64/mingw64" "/mingw64"; do
+            if [ -f "$_m/include/netcdf.mod" ] || [ -f "$_m/include/NETCDF.mod" ]; then
+                NF_INC="$_m/include"
+                NF_FLIBS="-L$_m/lib -lnetcdff -lnetcdf"
+                echo "Windows: using NetCDF-Fortran from $_m"
+                break
+            fi
+        done
+        ;;
+esac
+
 # PRMS repo clones directly into install dir; top-level has Makefile, mmf/, prms/
 echo "Building PRMS with make..."
 
@@ -131,8 +149,23 @@ import os
 p = 'makelist'
 with open(p) as f: txt = f.read()
 
+import re
 nf_inc = os.environ.get('NF_INC_EXPORT', '')
 nf_flibs = os.environ.get('NF_FLIBS_EXPORT', '')
+
+# On Windows the NetCDF prefix can contain a space (e.g. the Git-for-Windows
+# 'C:/Program Files/Git/mingw64' that gets picked up ahead of MSYS2's clean
+# 'C:/msys64/mingw64'). An unquoted -I/-L carrying that space makes gfortran
+# split the flag and treat the tail ('Files/Git/...') as a stray linker input
+# ('linker input file not found'). Quote any path containing a space; space-free
+# paths (Linux/macOS, MSYS2) are left untouched.
+def _q(path):
+    return chr(34) + path + chr(34) if ' ' in path else path
+nf_inc = _q(nf_inc)
+if nf_flibs:
+    _tmp = nf_flibs + ' -ZZZEND'
+    _tmp = re.sub(r'-L(.+?)(?= -)', lambda m: '-L' + _q(m.group(1)), _tmp)
+    nf_flibs = _tmp.replace(' -ZZZEND', '')
 
 # Add -fallow-argument-mismatch to FFLAGS (if not already present)
 if '-fallow-argument-mismatch' not in txt:
@@ -156,6 +189,17 @@ if nf_flibs:
 else:
     replacement = 'GCLIB\t\t= -lgfortran'
 txt = re.sub(gclib_pattern, replacement, txt, flags=re.MULTILINE)
+
+# Pin the C standard to gnu17. PRMS's read_params.c declares
+# 'static char *open_parameter_file();' (empty parens) and calls it with an
+# argument. In C17 () is an unprototyped declaration (arg ignored), so it
+# builds on Linux/macOS, whose gcc defaults to gnu17. GCC 14+ — as shipped by
+# MSYS2/MinGW on the Windows runner — defaults toward the C23 rule where ()
+# means (void), turning that call into a hard error ('too many arguments to
+# function open_parameter_file; expected 0, have 1'). Forcing gnu17 makes the
+# C sources compile identically everywhere (verified locally on gcc 15.2).
+if '-std=' not in txt:
+    txt = re.sub(r'^(CFLAGS\s*=.*)$', r'\1 -std=gnu17', txt, flags=re.MULTILINE)
 
 with open(p, 'w') as f: f.write(txt)
 print('makelist patched successfully')

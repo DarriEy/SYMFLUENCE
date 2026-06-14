@@ -42,7 +42,10 @@ def get_hype_build_instructions():
         'config_exe_key': 'HYPE_EXE',
         'default_path_suffix': 'installs/hype/bin',
         'default_exe': 'hype',
-        'repository': 'git://git.code.sf.net/p/hype/code',
+        # https:// rather than the deprecated, unauthenticated git:// transport:
+        # SourceForge throttles/drops git:// connections, which flaked the nightly
+        # source builds with "access denied or repository not exported".
+        'repository': 'https://git.code.sf.net/p/hype/code',
         'branch': None,
         'install_dir': 'hype',
         'build_commands': [

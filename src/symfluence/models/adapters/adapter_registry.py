@@ -10,8 +10,7 @@ enabling dynamic discovery and instantiation without hardcoded model names.
 from __future__ import annotations
 
 import logging
-import warnings
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 from symfluence.core.registries import R
 
@@ -24,44 +23,17 @@ class ForcingAdapterRegistry:
     """
     Registry for model forcing adapters.
 
-    Adapters register themselves using the @register_adapter decorator,
-    enabling dynamic discovery without hardcoded model names.
+    Lookup facade: adapters register via the unified registry
+    (``@R.forcing_adapters.add('SUMMA')``) or ``model_manifest()``;
+    lookups here read from ``R.forcing_adapters``.
 
     Example:
-        >>> @ForcingAdapterRegistry.register_adapter('SUMMA')
+        >>> @R.forcing_adapters.add('SUMMA')
         >>> class SUMMAForcingAdapter(ForcingAdapter):
         ...     pass
         ...
         >>> adapter = ForcingAdapterRegistry.get_adapter('SUMMA', config)
     """
-
-    @classmethod
-    def register_adapter(cls, model_name: str) -> Callable[[Type[ForcingAdapter]], Type[ForcingAdapter]]:
-        """
-        Decorator to register a forcing adapter.
-
-        Args:
-            model_name: Model name (e.g., 'SUMMA', 'HYPE')
-
-        Returns:
-            Decorator function
-
-        Example:
-            >>> @ForcingAdapterRegistry.register_adapter('SUMMA')
-            >>> class SUMMAForcingAdapter(ForcingAdapter):
-            ...     pass
-        """
-        def decorator(adapter_cls: Type[ForcingAdapter]) -> Type[ForcingAdapter]:
-            warnings.warn(
-                "ForcingAdapterRegistry.register_adapter() is deprecated; "
-                "use R.forcing_adapters.add() or model_manifest() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.forcing_adapters.add(model_name, adapter_cls)
-            logger.debug(f"Registered forcing adapter for model: {model_name}")
-            return adapter_cls
-        return decorator
 
     @classmethod
     def get_adapter(

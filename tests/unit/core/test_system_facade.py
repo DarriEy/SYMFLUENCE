@@ -15,9 +15,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from symfluence.core import system
+from symfluence import SYMFLUENCE
 from symfluence.core.config.models import SymfluenceConfig
-from symfluence.core.system import SYMFLUENCE
+from symfluence.project import system
 
 
 @pytest.fixture

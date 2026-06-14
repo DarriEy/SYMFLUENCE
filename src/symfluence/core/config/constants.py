@@ -36,3 +36,11 @@ VALID_DOMAIN_METHODS_WITH_LEGACY = frozenset({
     # Spelling variants — several paper configs write these
     'semi_distributed', 'semi-distributed',
 })
+
+# Canonical attribute-acquisition profile names. The data layer
+# (data/acquisition/attribute_profiles.py) defines the name -> dataset mapping
+# and asserts its keys match this set; the config validator reads this constant
+# so it need not import the data layer (preserves core -> data layering).
+VALID_ATTRIBUTE_PROFILES = frozenset({
+    'core', 'camels_spat', 'full',
+})

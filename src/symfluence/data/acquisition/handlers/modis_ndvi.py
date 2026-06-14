@@ -35,12 +35,13 @@ import pandas as pd
 import requests
 import xarray as xr
 
-from ..registry import AcquisitionRegistry
+from symfluence.core.registries import R
+
 from .earthaccess_base import BaseEarthaccessAcquirer
 
 
-@AcquisitionRegistry.register('MODIS_NDVI')
-@AcquisitionRegistry.register('MOD13')
+@R.acquisition_handlers.add('MODIS_NDVI')
+@R.acquisition_handlers.add('MOD13')
 class MODISNDVIAcquirer(BaseEarthaccessAcquirer):
     """
     Acquires MODIS NDVI/EVI vegetation index data (MOD13A2/MYD13A2).

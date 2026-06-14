@@ -29,8 +29,9 @@ import pandas as pd
 import s3fs
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # NWM Lambert Conformal Conic projection string (from Zarr metadata)
 _NWM_PROJ4 = (
@@ -62,7 +63,7 @@ _NWM_ZARR_VARNAMES = {
 _NWM_MAX_YEAR = 2023
 
 
-@AcquisitionRegistry.register('AORC')
+@R.acquisition_handlers.add('AORC')
 class AORCAcquirer(BaseAcquisitionHandler):
     """
     Download and process NOAA AORC forcing data from cloud storage.

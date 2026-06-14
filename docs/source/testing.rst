@@ -255,7 +255,7 @@ Integration Test Example
 .. code-block:: python
 
    import pytest
-   from symfluence.models.summa import SUMMAPreProcessor
+   from symfluence.models.summa import SummaPreProcessor
 
    pytestmark = [
        pytest.mark.integration,
@@ -271,7 +271,7 @@ Integration Test Example
        config = bow_test_data['config']
        config['EXPERIMENT_OUTPUT_SUMMA'] = str(tmp_path)
 
-       preprocessor = SUMMAPreProcessor(config, logger=None)
+       preprocessor = SummaPreProcessor(config, logger=None)
        preprocessor.run_preprocessing()
 
        assert (tmp_path / 'forcing').exists()
@@ -641,108 +641,45 @@ Quick Reference
 Contributing via the Agent
 ==========================
 
-SYMFLUENCE includes an AI-powered agent that can assist with code contributions.
-The agent can analyze code, propose modifications, run tests, and create PR proposals.
+SYMFLUENCE does not ship its own AI agent. Instead, ``symfluence agent launch``
+hands off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...),
+primed with the packaged SYMFLUENCE *skills*. That agent brings its own editing,
+search, test-running, and git tooling — SYMFLUENCE just makes sure it knows how to
+work with this codebase. See :doc:`agent_guide` for the full walkthrough.
 
-Starting the Agent
-------------------
+Launching the Agent
+-------------------
 
 .. code-block:: bash
 
-   # Interactive mode
-   symfluence agent start
+   # Interactive session (run from your project / repo directory)
+   symfluence agent launch
 
-   # Single prompt mode
-   symfluence agent run "Help me fix the bug in the config loader"
+   # One-shot prompt
+   symfluence agent launch "Help me fix the bug in the config loader"
 
-Agent-Assisted Workflow
+Install one supported CLI and set the matching API key (e.g. ``ANTHROPIC_API_KEY``
+for Claude Code); SYMFLUENCE detects the CLI on your ``PATH`` and exposes the skills
+to it. Override detection with ``SYMFLUENCE_AGENT_CLI`` and skip skill
+materialization with ``SYMFLUENCE_NO_SKILLS``.
+
+Skills for Contributors
 -----------------------
 
-The agent provides tools for a complete contribution workflow:
+The packaged skills cover both running and extending SYMFLUENCE — for example,
+``add-data-handler``, ``add-model-handler``, ``add-optimizer``, and
+``debug-calibration``. The agent consults the relevant skill when you ask it to
+work on a task, so it follows the framework's conventions (registration via
+``model_manifest()``, license headers, test layout, etc.).
 
-1. **Analyze Codebase**
-
-   .. code-block:: text
-
-      You: Analyze the codebase structure and find where config validation happens
-
-      Assistant: [Uses analyze_codebase tool]
-      The configuration validation is in src/symfluence/core/config/...
-
-2. **Read and Understand Code**
-
-   .. code-block:: text
-
-      You: Read the config loader implementation
-
-      Assistant: [Uses read_file tool]
-      Here's the config loader...
-
-3. **Propose Code Changes**
-
-   .. code-block:: text
-
-      You: Fix the validation bug by adding a null check
-
-      Assistant: [Uses propose_code_change tool]
-      I'll propose the following change:
-      - File: src/symfluence/core/config/loader.py
-      - Change: Add null check before processing
-      [Shows diff preview]
-
-4. **Run Tests**
-
-   .. code-block:: text
-
-      You: Run tests for the config module
-
-      Assistant: [Uses run_tests tool]
-      Running pytest -v -m "config"...
-      All tests passed!
-
-5. **Create PR Proposal**
-
-   .. code-block:: text
-
-      You: Create a PR for these changes
-
-      Assistant: [Uses create_pr_proposal tool]
-      Created PR proposal:
-      - Title: Fix null check in config loader
-      - Description: Adds validation...
-
-Agent Code Contribution Tools
+Best Practices with the Agent
 -----------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Tool
-     - Purpose
-   * - ``read_file``
-     - Read source code with line numbers
-   * - ``list_directory``
-     - Browse repository structure
-   * - ``analyze_codebase``
-     - Analyze codebase structure
-   * - ``propose_code_change``
-     - Propose modifications (validates syntax, shows diff)
-   * - ``show_staged_changes``
-     - Display all staged changes
-   * - ``run_tests``
-     - Run pytest tests
-   * - ``create_pr_proposal``
-     - Create a PR proposal from staged changes
-
-Best Practices with Agent
--------------------------
-
 1. **Be Specific** - Describe the exact change you want
-2. **Review Diffs** - Always review proposed changes before accepting
-3. **Run Tests** - Ask the agent to run tests after changes
+2. **Review Diffs** - Always review the agent's changes before committing
+3. **Run Tests** - Ask the agent to run the relevant test markers after changes
 4. **Iterate** - Refine changes through conversation
-5. **Human Review** - All changes require human approval before committing
+5. **Human Review** - All changes require human review before merging
 
 See Also
 ========
@@ -751,4 +688,3 @@ See Also
 - :doc:`architecture` - System architecture
 - :doc:`cli_reference` - CLI reference for running tests
 - :doc:`agent_guide` - Full agent guide
-- :doc:`agent_tools` - Complete agent tools reference

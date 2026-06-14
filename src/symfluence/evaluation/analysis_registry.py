@@ -16,12 +16,12 @@ Architecture:
        - Decision Analyzers: Model structure/decision comparison analysis
 
     2. Registration Mechanism (Decorator Pattern):
-       Each model registers its analyzers using class decorators:
+       Each model registers its analyzers via the unified registry:
 
-       @AnalysisRegistry.register_sensitivity_analyzer('SUMMA')
+       @R.sensitivity_analyzers.add('SUMMA')
        class SummaSensitivityAnalyzer: ...
 
-       @AnalysisRegistry.register_decision_analyzer('SUMMA')
+       @R.decision_analyzers.add('SUMMA')
        class SummaStructureAnalyzer: ...
 
     3. Discovery and Instantiation (Factory Pattern):
@@ -37,9 +37,9 @@ Benefits:
 
 Example Registration:
     # In models/summa/__init__.py
-    from symfluence.evaluation.analysis_registry import AnalysisRegistry
+    from symfluence.core.registries import R
 
-    @AnalysisRegistry.register_decision_analyzer('SUMMA')
+    @R.decision_analyzers.add('SUMMA')
     class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         def run_full_analysis(self):
             ...
@@ -57,7 +57,6 @@ See Also:
 """
 from __future__ import annotations
 
-import warnings
 from typing import Dict, List, Optional, Type
 
 from symfluence.core.registries import R
@@ -68,8 +67,9 @@ class AnalysisRegistry:
 
     Implements the Registry Pattern to enable dynamic analysis component discovery
     and extensibility without tight coupling. Model-specific analyzers self-register
-    via decorators, allowing the framework to instantiate appropriate components
-    based on model configuration.
+    via ``R.sensitivity_analyzers.add()`` / ``R.decision_analyzers.add()`` /
+    ``R.koopman_analyzers.add()``, allowing the framework to instantiate
+    appropriate components based on model configuration.
 
     The registry stores two types of analysis components:
     1. Sensitivity Analyzers: Parameter importance/uncertainty analysis
@@ -80,13 +80,9 @@ class AnalysisRegistry:
         references for instantiation. Returns None for unregistered models
         (graceful fallback vs hard error).
 
-    Attributes:
-        _sensitivity_analyzers: Dict[model_name] -> sensitivity_analyzer_class
-        _decision_analyzers: Dict[model_name] -> decision_analyzer_class
-
     Example:
         >>> # Register a decision analyzer
-        >>> @AnalysisRegistry.register_decision_analyzer('SUMMA')
+        >>> @R.decision_analyzers.add('SUMMA')
         ... class SummaStructureAnalyzer:
         ...     def run_full_analysis(self): ...
 
@@ -96,69 +92,6 @@ class AnalysisRegistry:
         ...     analyzer = analyzer_cls(config, logger)
         ...     results = analyzer.run_full_analysis()
     """
-
-    @classmethod
-    def register_sensitivity_analyzer(cls, model_name: str):
-        """Decorator to register a sensitivity analyzer for a model.
-
-        The analyzer should implement a `run_sensitivity_analysis(results_file)` method
-        that returns sensitivity analysis results (typically a Dict).
-
-        Args:
-            model_name: Model identifier (e.g., 'SUMMA', 'FUSE', 'GR')
-
-        Returns:
-            Decorator function that registers the class
-
-        Example:
-            @AnalysisRegistry.register_sensitivity_analyzer('SUMMA')
-            class SummaSensitivityAnalyzer:
-                def __init__(self, config, logger, reporting_manager=None):
-                    ...
-                def run_sensitivity_analysis(self, results_file):
-                    ...
-        """
-        def decorator(analyzer_cls: Type) -> Type:
-            warnings.warn(
-                "AnalysisRegistry.register_sensitivity_analyzer() is deprecated; "
-                "use R.sensitivity_analyzers.add() or model_manifest() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.sensitivity_analyzers.add(model_name, analyzer_cls)
-            return analyzer_cls
-        return decorator
-
-    @classmethod
-    def register_decision_analyzer(cls, model_name: str):
-        """Decorator to register a decision/structure analyzer for a model.
-
-        The analyzer should extend BaseStructureEnsembleAnalyzer or implement
-        a compatible interface with `run_full_analysis()` method that returns
-        a tuple of (results_file_path, best_combinations_dict).
-
-        Args:
-            model_name: Model identifier (e.g., 'SUMMA', 'FUSE', 'GR')
-
-        Returns:
-            Decorator function that registers the class
-
-        Example:
-            @AnalysisRegistry.register_decision_analyzer('SUMMA')
-            class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
-                def run_full_analysis(self):
-                    return results_file, best_combinations
-        """
-        def decorator(analyzer_cls: Type) -> Type:
-            warnings.warn(
-                "AnalysisRegistry.register_decision_analyzer() is deprecated; "
-                "use R.decision_analyzers.add() or model_manifest() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.decision_analyzers.add(model_name, analyzer_cls)
-            return analyzer_cls
-        return decorator
 
     @classmethod
     def get_sensitivity_analyzer(cls, model_name: str) -> Optional[Type]:
@@ -243,39 +176,6 @@ class AnalysisRegistry:
     # ------------------------------------------------------------------
     # Koopman analyzers
     # ------------------------------------------------------------------
-
-    @classmethod
-    def register_koopman_analyzer(cls, name: str = "DEFAULT"):
-        """Decorator to register a Koopman operator analyzer.
-
-        Koopman analyzers use EDMD with multi-model ensemble outputs as
-        lifting functions to approximate the Koopman operator of the
-        watershed system.
-
-        Args:
-            name: Analyzer identifier (default "DEFAULT")
-
-        Returns:
-            Decorator function that registers the class
-
-        Example:
-            @AnalysisRegistry.register_koopman_analyzer()
-            class KoopmanAnalyzer:
-                def __init__(self, config, logger, reporting_manager=None):
-                    ...
-                def run_koopman_analysis(self, ensemble_df, obs_streamflow):
-                    ...
-        """
-        def decorator(analyzer_cls: Type) -> Type:
-            warnings.warn(
-                "AnalysisRegistry.register_koopman_analyzer() is deprecated; "
-                "use R.koopman_analyzers.add() or model_manifest() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.koopman_analyzers.add(name, analyzer_cls)
-            return analyzer_cls
-        return decorator
 
     @classmethod
     def get_koopman_analyzer(cls, name: str = "DEFAULT") -> Optional[Type]:

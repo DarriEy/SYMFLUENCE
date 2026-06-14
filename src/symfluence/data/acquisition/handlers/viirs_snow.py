@@ -34,14 +34,15 @@ import numpy as np
 import requests
 import xarray as xr
 
-from ..registry import AcquisitionRegistry
+from symfluence.core.registries import R
+
 from .earthaccess_base import BaseEarthaccessAcquirer
 
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 
 
-@AcquisitionRegistry.register('VIIRS_SNOW')
-@AcquisitionRegistry.register('VNP10')
+@R.acquisition_handlers.add('VIIRS_SNOW')
+@R.acquisition_handlers.add('VNP10')
 class VIIRSSnowAcquirer(BaseEarthaccessAcquirer):
     """
     Handles VIIRS snow cover data acquisition.

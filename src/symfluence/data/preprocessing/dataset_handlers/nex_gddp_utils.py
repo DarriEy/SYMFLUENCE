@@ -17,13 +17,14 @@ import numpy as np
 import xarray as xr
 from shapely.geometry import Polygon
 
+from symfluence.core.registries import R
+
 from ...utils import VariableStandardizer
 from .base_dataset import BaseDatasetHandler
-from .dataset_registry import DatasetRegistry
 
 
-@DatasetRegistry.register("nex-gddp-cmip6")
-@DatasetRegistry.register("nex-gddp")
+@R.dataset_handlers.add("nex-gddp-cmip6")
+@R.dataset_handlers.add("nex-gddp")
 class NEXGDDPCMIP6Handler(BaseDatasetHandler):
     """
     Handler for NEX-GDDP-CMIP6 downscaled climate data.
@@ -158,15 +159,19 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         # ---- Air pressure ----
         # NEX-GDDP-CMIP6 publishes {pr, tas, tasmax, tasmin, huss, hurs,
         # rlds, rsds, sfcWind} — notably NOT surface pressure. SUMMA
-        # requires airpres, so when ps is absent we synthesize a
-        # physically-grounded estimate from the International Standard
-        # Atmosphere (ISA): first back-compute an equivalent altitude
-        # from mean 2m air temperature via the 6.5 K/km tropospheric
-        # lapse rate, then apply the ISA pressure-altitude relation.
-        # This is climatological and does NOT capture synoptic pressure
-        # variability, but it is physically consistent and avoids the
-        # older "fill with 101325 Pa everywhere" default that was
-        # physically unrealistic for high-elevation basins.
+        # requires a pressure field, so precedence is:
+        #   1. a real 'ps' or the acquisition-stage synthetic 'airpres'
+        #      (elevation-adjusted via DOMAIN_MEAN_ELEV_M) — both arrive
+        #      here renamed to 'surface_air_pressure' and pass through;
+        #   2. otherwise synthesize a physically-grounded estimate from
+        #      the International Standard Atmosphere (ISA): back-compute
+        #      an equivalent altitude from mean 2m air temperature via
+        #      the 6.5 K/km tropospheric lapse rate, then apply the ISA
+        #      pressure-altitude relation.
+        # Both synthetic routes are climatological and do NOT capture
+        # synoptic pressure variability, but they are physically
+        # consistent and avoid the older "fill with 101325 Pa
+        # everywhere" default that was unrealistic for elevated basins.
         if "surface_air_pressure" in ds.data_vars:
             ap = ds["surface_air_pressure"].astype("float32")
             ap = xr.where(np.isfinite(ap), ap, np.nan)

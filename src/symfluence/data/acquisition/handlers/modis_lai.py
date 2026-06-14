@@ -39,12 +39,13 @@ import pandas as pd
 import requests
 import xarray as xr
 
-from ..registry import AcquisitionRegistry
+from symfluence.core.registries import R
+
 from .earthaccess_base import BaseEarthaccessAcquirer
 
 
-@AcquisitionRegistry.register('MODIS_LAI')
-@AcquisitionRegistry.register('MCD15')
+@R.acquisition_handlers.add('MODIS_LAI')
+@R.acquisition_handlers.add('MCD15')
 class MODISLAIAcquirer(BaseEarthaccessAcquirer):
     """
     Acquires MODIS LAI/FPAR data (MCD15A2H / MOD15A2H / MYD15A2H).

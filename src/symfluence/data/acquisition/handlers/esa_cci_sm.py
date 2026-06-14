@@ -25,6 +25,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -33,10 +35,9 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('ESA_CCI_SM')
+@R.acquisition_handlers.add('ESA_CCI_SM')
 class ESACCISMAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin):
     """
     Acquires ESA CCI Soil Moisture data via Copernicus CDS.

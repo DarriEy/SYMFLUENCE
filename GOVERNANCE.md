@@ -13,8 +13,9 @@ and [CLA.md](CLA.md), which covers intellectual property.
 SYMFLUENCE's architecture is designed around typed registry contracts that
 enable decentralized contribution without central gatekeeping. The value of the
 framework lies not in any single model or data handler but in the coherence of
-these contracts — the fact that 27 models, 68 data handlers, and 17
-optimization algorithms interoperate through shared interface definitions.
+these contracts — the fact that a broad and growing set of hydrological
+models, data handlers, and optimization algorithms interoperate through shared
+interface definitions.
 
 This governance document exists to protect that coherence as the contributor
 base grows. Architecture can enable coordination. It cannot sustain it. The
@@ -78,8 +79,11 @@ package that registers with SYMFLUENCE at install time. This includes:
 
 - **New model integrations.** Implement the four component interfaces
   (preprocessor, runner, postprocessor, extractor) and register via
-  `model_manifest()`. See the six JAX-native packages (jHBV, jSACSMA, etc.)
-  as reference implementations.
+  `model_manifest()`. A plugin may also ship its own **typed Pydantic
+  configuration schema** (`model_manifest(config_schema=...)`), which the core
+  validation pipeline consumes on equal footing with in-tree models — see
+  [ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md). See the
+  JAX-native packages (jHBV, jSACSMA, etc.) as reference implementations.
 - **New data handlers.** Implement the acquisition handler interface and
   register via decorator.
 - **New optimization algorithms.** Implement the optimizer interface and
@@ -218,6 +222,19 @@ The CI suite includes interface compliance tests that verify:
 Plugin authors are encouraged to run these tests against their packages.
 Instructions are provided in the plugin development guide.
 
+### 4.5 Architecture Decision Records
+
+Decisions that affect a stable interface or set a project-wide policy are
+recorded as **Architecture Decision Records** under [`docs/adr/`](docs/adr/).
+An ADR captures the context, the decision, and its consequences, and is
+immutable once accepted — a decision is changed by adding a superseding ADR,
+not by editing the old one. This keeps the record of *why* a contract was set
+the way it is legible as the contributor base grows. Several of the decisions
+behind the contracts in this document are recorded there, including the removal
+of legacy registry shims ([ADR-0001](docs/adr/0001-remove-legacy-registry-shims.md))
+and the opening of typed plugin configuration
+([ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md)).
+
 ---
 
 ## 5. Decision-Making
@@ -338,3 +355,4 @@ series:
 |---------|------------|------------------|-------------------------------------------------------------------------|
 | 1.0     | 2026-03-13 | Darri Eythorsson | Initial governance document                                             |
 | 1.1     | 2026-04-20 | Darri Eythorsson | Cross-reference [LICENSING.md](LICENSING.md) (initial licensing policy) |
+| 1.2     | 2026-06-10 | Darri Eythorsson | Add §4.5 (Architecture Decision Records); link ADR-0001/0002 from §3.1 and §4.5 |

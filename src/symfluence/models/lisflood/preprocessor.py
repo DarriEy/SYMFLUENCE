@@ -15,6 +15,10 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.registries import R
+from symfluence.data.model_ready.forcing_reader import (
+    forcing_timestep_seconds,
+    open_canonical_forcing,
+)
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 
@@ -381,32 +385,24 @@ class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not forcing_files:
             raise FileNotFoundError(f"No forcing files found in {forcing_path}")
 
-        ds_forcing = xr.open_mfdataset(forcing_files, combine="by_coords")
+        # Canonical reader: variables under SYMFLUENCE names with a declared
+        # timestep, so we no longer guess source names, units, or the timestep.
+        ds_forcing = open_canonical_forcing(forcing_files)
         ds_forcing = ds_forcing.sel(time=slice(str(start_date), str(end_date)))
 
         dx = 0.01
         lat = np.array([props["lat"] - dx, props["lat"], props["lat"] + dx])
         lon = np.array([props["lon"] - dx, props["lon"], props["lon"] + dx])
 
-        # Precipitation (kg/m²/s → mm/timestep at source resolution)
-        precip = self._extract_forcing_var(
-            ds_forcing,
-            ["precipitation_flux", "pptrate", "mtpr", "tp", "precipitation", "PREC", "precip"],
-            props["lat"],
-            props["lon"],
-        )
+        # Precipitation: canonical precipitation_flux is a rate (kg m-2 s-1 = mm
+        # s-1); scale by the declared timestep to mm per source step.
+        precip = self._extract_forcing_var(ds_forcing, ["precipitation_flux"], props["lat"], props["lon"])
         raw_times = pd.DatetimeIndex(ds_forcing.time.values)
-        source_dt = raw_times.to_series().diff().median().total_seconds()
-        if precip.max() < 0.1:
-            precip = precip * source_dt
-        precip = np.maximum(precip, 0.0)
+        source_dt = forcing_timestep_seconds(ds_forcing)
+        precip = np.maximum(precip * source_dt, 0.0)
 
-        # Temperature (K → degC)
-        temp = self._extract_forcing_var(
-            ds_forcing, ["airtemp", "t2m", "temperature", "TEMP", "air_temperature", "tas"], props["lat"], props["lon"]
-        )
-        if temp.mean() > 100:
-            temp = temp - 273.15
+        # Temperature: canonical air_temperature is in kelvin.
+        temp = self._extract_forcing_var(ds_forcing, ["air_temperature"], props["lat"], props["lon"]) - 273.15
 
         ds_forcing.close()
 
@@ -489,13 +485,9 @@ class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         )
         if forcing_path and forcing_path != "default":
             return Path(forcing_path)
-        domain_name = self._get_config_value(
-            lambda: self.config.domain.name, default="Bow_at_Banff", dict_key="DOMAIN_NAME"
-        )
-        data_dir = self._get_config_value(
-            lambda: self.config.system.data_dir, default=".", dict_key="SYMFLUENCE_DATA_DIR"
-        )
-        return Path(data_dir) / f"domain_{domain_name}" / "forcing" / "basin_averaged_data"
+        # Store-first basin-averaged forcing (model_ready/forcings when present,
+        # else legacy forcing/basin_averaged_data) — resolved by the base class.
+        return self.forcing_basin_path
 
     def _generate_settings_xml(self) -> None:
         """Generate a complete LISFLOOD settings XML.

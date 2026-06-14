@@ -33,6 +33,7 @@ dependencies = [
   # Geospatial - GDAL is optional; system installs (brew, apt, conda) are auto-detected
   "geopandas>=0.13.0,<2.0.0",
   "rasterio>=1.3.0,<2.0.0",
+  "pyflwdir>=0.5.0,<1.0.0",
   "pyproj>=3.5.0,<4.0.0",
   "shapely>=2.0.0,<3.0.0",
   "fiona>=1.9.0,<2.0.0",
@@ -51,6 +52,10 @@ dependencies = [
   "intake-xarray",
   "netCDF4>=1.6.0,<2.0.0",
   "h5netcdf>=1.1.0,<2.0.0",
+  # DAP2 client for NASA Hyrax OPeNDAP endpoints (gridded Daymet). The
+  # libnetcdf DAP route cannot authenticate via Earthdata sessions and the
+  # Hyrax deployment rejects plain DAP4 constraints, so pydap is required.
+  "pydap>=3.4.0,<4.0.0",
   # cdsapi 0.7.0 is the first release that speaks the post-September-2024
   # CDS endpoint (https://cds.climate.copernicus.eu/api, no /v2). Pinning
   # below 0.7.0 lets pip resolve an older package that silently 404s on
@@ -83,24 +88,21 @@ dependencies = [
 # JAX-based model plugins (Snow-17, SAC-SMA, Xinanjiang, HBV, HEC-HMS, TOPMODEL).
 # Optional: only needed to run those models, discovered via entry points at runtime.
 #   pip install "symfluence[jax]"
+# Floors require the *PostProcessor-spelling plugin releases (the old
+# *Postprocessor base-class aliases were removed pre-1.0, RTI item 23).
 jax = [
   "jsnow17>=0.1.0",
-  "jsacsma>=0.1.0",
-  "jxaj>=0.1.0",
-  "jhbv>=0.1.0",
-  "jhechms>=0.1.0",
-  "jtopmodel>=0.1.0",
+  "jsacsma>=0.2.3",
+  "jxaj>=0.2.3",
+  "jhbv>=0.2.4",
+  "jhechms>=0.2.3",
+  "jtopmodel>=0.2.3",
 ]
 # dRoute differentiable river routing plugin (C++ engine + SYMFLUENCE integration).
 # Optional: only needed to run dRoute routing/calibration, discovered via entry points at runtime.
 #   pip install "symfluence[droute]"
 droute = [
-  "droute>=0.6.0",
-]
-# LLM agent integration. Optional: only needed for `symfluence agent` features.
-#   pip install "symfluence[llm]"
-llm = [
-  "openai>=1.0.0,<2.0.0",
+  "droute>=0.6.1",
 ]
 # GDAL Python bindings - optional, system GDAL installs are auto-detected.
 # Only needed for DEM slope/aspect generation and GeoTIFF metadata reading.
@@ -144,9 +146,9 @@ test = [
   "pytest-cov>=4.0.0",
   "pytest-timeout>=2.0.0",
   "hypothesis>=6.0.0,<7.0.0",
-  # The test suite imports the JAX plugins and the LLM agent, so the full
-  # test extra pulls in those optional groups (the baseline install does not).
-  "symfluence[jax,llm]",
+  # The test suite imports the JAX plugins, so the full test extra pulls in that
+  # optional group (the baseline install does not).
+  "symfluence[jax]",
 ]
 # Documentation tools
 docs = [
@@ -181,7 +183,7 @@ hpc = [
 ]
 # All development dependencies
 all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax,llm]",
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax]",
 ]
 
 [project.scripts]
@@ -248,7 +250,7 @@ symfluence_noahmp = "symfluence.models.noahmp:register"
 Homepage = "https://symfluence.org"
 Source = "https://github.com/symfluence-org/SYMFLUENCE"
 Issues = "https://github.com/symfluence-org/SYMFLUENCE/issues"
-Documentation = "https://symfluence.org/"
+Documentation = "https://symfluence.readthedocs.io"
 
 [tool.hatch.build.targets.sdist]
 include = [

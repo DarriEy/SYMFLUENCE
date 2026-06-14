@@ -14,11 +14,12 @@ from typing import Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('grdc')
+@R.observation_handlers.add('grdc')
 class GRDCHandler(BaseObservationHandler):
     """
     Handles GRDC streamflow data processing.

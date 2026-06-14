@@ -16,12 +16,13 @@ import pandas as pd
 import s3fs
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins.retry import RetryMixin
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('HRRR')
+@R.acquisition_handlers.add('HRRR')
 class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Download and process High Resolution Rapid Refresh (HRRR) atmospheric forcing data.
@@ -86,11 +87,15 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
             hrrrzarr/sfc/20220101/20220101_00z_anl.zarr/2m_above_ground/TMP/2m_above_ground
 
     Spatial Subsetting Strategy:
-        - Compute bbox mask using geographic coordinates
-        - Extract minimal bounding box containing masked cells
+        - The hrrrzarr variable groups carry NO latitude/longitude coordinates,
+          only 1-D projection_x/y_coordinate arrays on the fixed HRRR Lambert
+          Conformal Conic grid. The bbox is therefore projected to LCC x/y with
+          pyproj and converted to an index window BEFORE any chunk is fetched.
         - Store x/y slice indices for reuse across hours
-        - Lazy loading: Only download masked region
+        - Lazy loading: Only download windowed region
         - Typical reduction: 99%+ for small basins
+        - HARD RULE: if no spatial window can be determined, acquisition RAISES
+          instead of silently downloading the full CONUS domain (~1.3 GB/day)
 
     Error Handling:
         - Hourly failures silently skipped (operational gaps)
@@ -161,6 +166,156 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
         - data.acquisition.base.BaseAcquisitionHandler: Base acquisition interface
         - data.acquisition.registry.AcquisitionRegistry: Handler registration
     """
+
+    #: HRRR native Lambert Conformal Conic projection (fixed, published grid).
+    HRRR_LCC_PROJ = (
+        "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 "
+        "+x_0=0 +y_0=0 +R=6371229 +units=m +no_defs"
+    )
+
+    @staticmethod
+    def _spatial_dims(ds: xr.Dataset) -> tuple:
+        """Return the (y_dim, x_dim) names of the spatial dimensions.
+
+        hrrrzarr groups use ``projection_y/x_coordinate``; ``y``/``x`` is
+        accepted for grids that have already been renamed.
+
+        Raises:
+            ValueError: If no recognized spatial dimensions are present.
+        """
+        for y_dim, x_dim in (
+            ("projection_y_coordinate", "projection_x_coordinate"),
+            ("y", "x"),
+        ):
+            if y_dim in ds.dims and x_dim in ds.dims:
+                return y_dim, x_dim
+        raise ValueError(
+            f"Cannot identify HRRR spatial dimensions in {list(ds.dims)}; "
+            "expected projection_y/x_coordinate (or y/x)."
+        )
+
+    def _lcc_index_window(self, proj_y: np.ndarray, proj_x: np.ndarray, bbox: dict) -> tuple:
+        """Compute the (y_slice, x_slice) index window of *bbox* on the LCC grid.
+
+        Projects a densified bbox boundary to HRRR Lambert Conformal Conic
+        x/y with pyproj (densified because lines of constant lat/lon curve in
+        LCC space), buffers by two grid cells, and converts the LCC extent to
+        index slices on the 1-D projection coordinate arrays. This happens
+        BEFORE any data chunk is fetched, so only the windowed chunks are
+        ever downloaded.
+
+        Args:
+            proj_y: 1-D projection_y_coordinate values (meters)
+            proj_x: 1-D projection_x_coordinate values (meters)
+            bbox: dict with lat_min/lat_max/lon_min/lon_max
+
+        Returns:
+            (y_slice, x_slice) index slices
+
+        Raises:
+            ValueError: If the bbox does not intersect the HRRR grid.
+        """
+        from pyproj import Transformer
+
+        tr = Transformer.from_crs("EPSG:4326", self.HRRR_LCC_PROJ, always_xy=True)
+
+        # Densify the bbox boundary: in LCC space the x/y extremes of a
+        # geographic rectangle can fall on edge midpoints, not corners.
+        n = 25
+        lons_edge = np.linspace(bbox["lon_min"], bbox["lon_max"], n)
+        lats_edge = np.linspace(bbox["lat_min"], bbox["lat_max"], n)
+        boundary_lon = np.concatenate([
+            lons_edge, lons_edge,
+            np.full(n, bbox["lon_min"]), np.full(n, bbox["lon_max"]),
+        ])
+        boundary_lat = np.concatenate([
+            np.full(n, bbox["lat_min"]), np.full(n, bbox["lat_max"]),
+            lats_edge, lats_edge,
+        ])
+        bx, by = tr.transform(boundary_lon, boundary_lat)
+
+        # Two-cell buffer, like the grid spacing itself derived from the coords
+        dx = float(np.median(np.abs(np.diff(proj_x)))) or 3000.0
+        dy = float(np.median(np.abs(np.diff(proj_y)))) or 3000.0
+        x_min, x_max = np.min(bx) - 2 * dx, np.max(bx) + 2 * dx
+        y_min, y_max = np.min(by) - 2 * dy, np.max(by) + 2 * dy
+
+        in_x = np.where((proj_x >= x_min) & (proj_x <= x_max))[0]
+        in_y = np.where((proj_y >= y_min) & (proj_y <= y_max))[0]
+        if in_x.size > 0 and in_y.size > 0:
+            return (slice(in_y.min(), in_y.max() + 1), slice(in_x.min(), in_x.max() + 1))
+
+        # Bbox smaller than one grid cell: take the nearest cell to its
+        # center — but only if the center actually lies on the grid.
+        cx, cy = tr.transform(
+            (bbox["lon_min"] + bbox["lon_max"]) / 2,
+            (bbox["lat_min"] + bbox["lat_max"]) / 2,
+        )
+        on_grid = (
+            proj_x.min() - dx <= cx <= proj_x.max() + dx
+            and proj_y.min() - dy <= cy <= proj_y.max() + dy
+        )
+        if not on_grid:
+            raise ValueError(
+                f"Bounding box {bbox} does not intersect the HRRR CONUS grid "
+                "(HRRR covers the continental United States only)."
+            )
+        ix = int(np.abs(proj_x - cx).argmin())
+        iy = int(np.abs(proj_y - cy).argmin())
+        self.logger.info(
+            "Bbox smaller than HRRR grid cell; using nearest grid point at "
+            f"x={proj_x[ix]:.0f} m, y={proj_y[iy]:.0f} m"
+        )
+        return (slice(iy, iy + 1), slice(ix, ix + 1))
+
+    def _determine_xy_window(self, ds: xr.Dataset, bbox: dict) -> tuple:
+        """Determine the spatial index window of *bbox* for a HRRR dataset.
+
+        Preferred route: project the bbox to the fixed HRRR LCC grid using
+        the 1-D projection coordinates the hrrrzarr groups carry (the groups
+        have NO latitude/longitude, so a geographic mask is impossible
+        there). Falls back to a 2-D latitude/longitude mask when present.
+
+        Raises:
+            ValueError: If no spatial window can be determined. Acquisition
+                must NEVER silently fall back to the full CONUS domain.
+        """
+        y_dim, x_dim = self._spatial_dims(ds)
+
+        if (
+            y_dim in ds.coords and x_dim in ds.coords
+            and ds[y_dim].ndim == 1 and ds[x_dim].ndim == 1
+        ):
+            return self._lcc_index_window(ds[y_dim].values, ds[x_dim].values, bbox)
+
+        if "latitude" in ds.coords and "longitude" in ds.coords:
+            mask = (
+                (ds.latitude >= bbox["lat_min"])
+                & (ds.latitude <= bbox["lat_max"])
+                & (ds.longitude >= bbox["lon_min"])
+                & (ds.longitude <= bbox["lon_max"])
+            )
+            iy, ix = np.where(mask)
+            if len(iy) > 0:
+                return (slice(iy.min(), iy.max() + 1), slice(ix.min(), ix.max() + 1))
+            # Bbox smaller than grid resolution; find nearest grid point
+            center_lat = (bbox["lat_min"] + bbox["lat_max"]) / 2
+            center_lon = (bbox["lon_min"] + bbox["lon_max"]) / 2
+            dist = (ds.latitude - center_lat) ** 2 + (ds.longitude - center_lon) ** 2
+            min_idx = np.unravel_index(dist.values.argmin(), dist.shape)
+            self.logger.info(
+                "Bbox smaller than HRRR grid cell; using nearest grid point at "
+                f"lat={float(ds.latitude.values[min_idx]):.4f}, "
+                f"lon={float(ds.longitude.values[min_idx]):.4f}"
+            )
+            return (slice(min_idx[0], min_idx[0] + 1), slice(min_idx[1], min_idx[1] + 1))
+
+        raise ValueError(
+            "Cannot determine a spatial window for the HRRR request: the "
+            "dataset has neither 1-D projection_y/x coordinates nor "
+            "latitude/longitude coordinates. Refusing to download the full "
+            "CONUS domain (~1.3 GB/day)."
+        )
 
     def download(self, output_dir: Path) -> Path:
         """
@@ -272,6 +427,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
             for h in range(24):
                 cdt = pd.Timestamp(f"{dstr} {h:02d}:00:00")
                 if cdt < self.start_date or cdt > self.end_date: continue
+                ds_h = None
                 try:
                     v_ds = []
                     for v, level in vars_map.items():
@@ -291,30 +447,22 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
                             continue
                     if v_ds:
                         ds_h = xr.merge(v_ds, compat="override")
-                        if xy_slice is None and "latitude" in ds_h.coords:
-                            mask = (
-                                (ds_h.latitude >= bbox["lat_min"])
-                                & (ds_h.latitude <= bbox["lat_max"])
-                                & (ds_h.longitude >= bbox["lon_min"])
-                                & (ds_h.longitude <= bbox["lon_max"])
-                            )
-                            iy, ix = np.where(mask)
-                            if len(iy) > 0:
-                                xy_slice = (slice(iy.min(), iy.max()+1), slice(ix.min(), ix.max()+1))
-                            else:
-                                # Bbox smaller than grid resolution; find nearest grid point
-                                center_lat = (bbox["lat_min"] + bbox["lat_max"]) / 2
-                                center_lon = (bbox["lon_min"] + bbox["lon_max"]) / 2
-                                dist = (ds_h.latitude - center_lat)**2 + (ds_h.longitude - center_lon)**2
-                                min_idx = np.unravel_index(dist.values.argmin(), dist.shape)
-                                xy_slice = (slice(min_idx[0], min_idx[0]+1), slice(min_idx[1], min_idx[1]+1))
-                                self.logger.info(f"Bbox smaller than HRRR grid cell; using nearest grid point at "
-                                                 f"lat={float(ds_h.latitude.values[min_idx]):.4f}, "
-                                                 f"lon={float(ds_h.longitude.values[min_idx]):.4f}")
-                        all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)
                 except Exception as e:  # noqa: BLE001 — preprocessing resilience
                     self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}", exc_info=True)
                     continue
+                if ds_h is None:
+                    continue
+                # Window determination is OUTSIDE the per-hour resilience
+                # try/except: failing to find a window must abort the
+                # acquisition, never silently fetch the full CONUS domain.
+                if xy_slice is None:
+                    xy_slice = self._determine_xy_window(ds_h, bbox)
+                    self.logger.info(
+                        f"HRRR spatial window: y={xy_slice[0].start}:{xy_slice[0].stop}, "
+                        f"x={xy_slice[1].start}:{xy_slice[1].stop} (windowed before download)"
+                    )
+                y_dim, x_dim = self._spatial_dims(ds_h)
+                all_datasets.append(ds_h.isel({y_dim: xy_slice[0], x_dim: xy_slice[1]}))
             curr += pd.Timedelta(days=1)
         if not all_datasets: raise ValueError("No HRRR data downloaded")
         self.logger.info(f"HRRR download complete: {len(all_datasets)} hours acquired")
@@ -323,11 +471,7 @@ class HRRRAcquirer(BaseAcquisitionHandler, RetryMixin):
         if step > 1: ds_final = ds_final.isel(time=slice(0, None, step))
         if "latitude" not in ds_final.coords and "projection_x_coordinate" in ds_final.coords:
             from pyproj import Transformer
-            tr = Transformer.from_crs(
-                "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +x_0=0 +y_0=0 +R=6371229 +units=m +no_defs",
-                "EPSG:4326",
-                always_xy=True,
-            )
+            tr = Transformer.from_crs(self.HRRR_LCC_PROJ, "EPSG:4326", always_xy=True)
             proj_x = ds_final.coords["projection_x_coordinate"].values
             proj_y = ds_final.coords["projection_y_coordinate"].values
             x_mesh, y_mesh = np.meshgrid(proj_x, proj_y)

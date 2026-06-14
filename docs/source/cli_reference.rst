@@ -16,7 +16,8 @@ Overview
 
 The CLI follows a two-level hierarchical structure:
 
-- **Level 1**: Command categories (workflow, project, binary, config, job, example, agent, gui, data)
+- **Level 1**: Command categories (workflow, project, binary, config, job, example, agent,
+  gui, tui, data, fews, list) plus the top-level ``doctor`` command
 - **Level 2**: Specific actions within each category
 
 Basic usage:
@@ -89,22 +90,27 @@ Execute a single workflow step.
 
 **Available Steps:**
 
-1. ``setup_project`` - Initialize project structure
-2. ``create_pour_point`` - Create pour point shapefile
-3. ``acquire_attributes`` - Download geospatial attributes
-4. ``define_domain`` - Define hydrological domain
-5. ``discretize_domain`` - Discretize into HRUs
-6. ``process_observed_data`` - Process observations
-7. ``acquire_forcings`` - Acquire meteorological forcing
-8. ``model_agnostic_preprocessing`` - Model-agnostic preprocessing
-9. ``model_specific_preprocessing`` - Model-specific setup
-10. ``run_model`` - Execute hydrological model
-11. ``calibrate_model`` - Run parameter calibration
-12. ``run_emulation`` - Run emulation optimization
-13. ``run_benchmarking`` - Run benchmarking analysis
-14. ``run_decision_analysis`` - Run decision analysis
-15. ``run_sensitivity_analysis`` - Run sensitivity analysis
-16. ``postprocess_results`` - Postprocess results
+The canonical step names, in execution order, are:
+
+- ``setup_project`` - Initialize project structure and shapefiles
+- ``create_pour_point`` - Create pour point shapefile from coordinates
+- ``acquire_attributes`` - Download and process geospatial attributes
+- ``define_domain`` - Define hydrological domain boundaries
+- ``discretize_domain`` - Discretize domain into HRUs or other units
+- ``process_observed_data`` - Process observational data (streamflow, etc.)
+- ``acquire_forcings`` - Acquire meteorological forcing data
+- ``model_agnostic_preprocessing`` - Model-agnostic preprocessing
+- ``build_model_ready_store`` - Build model-ready forcing/attributes/observations store
+- ``model_specific_preprocessing`` - Model-specific input setup
+- ``run_model`` - Execute the hydrological model
+- ``postprocess_results`` - Postprocess and finalize results
+- ``calibrate_model`` - Run calibration / parameter optimization
+- ``run_benchmarking`` - Run benchmarking analysis
+- ``run_decision_analysis`` - Run decision analysis for model comparison
+- ``run_sensitivity_analysis`` - Run sensitivity analysis
+
+This list (and the supported short aliases) can drift as the framework evolves;
+run ``symfluence workflow list-steps`` for the authoritative, up-to-date set.
 
 **Example:**
 
@@ -373,6 +379,32 @@ Validate system environment.
 
    symfluence config validate-env
 
+config update
+-------------
+
+Update / migrate a configuration file to the current schema.
+
+.. code-block:: bash
+
+   symfluence config update CONFIG_FILE [--interactive]
+
+config resolve
+--------------
+
+Resolve a configuration through the full 5-layer hierarchy and print the
+effective values (useful for debugging defaults, env overrides, and aliases).
+
+.. code-block:: bash
+
+   symfluence config resolve [--config CONFIG] [--flat] [--json] [--diff] [--section SECTION]
+
+**Options:**
+
+- ``--flat``: Print the flat (legacy) key form instead of nested
+- ``--json``: Emit JSON
+- ``--diff``: Show only values that differ from the defaults
+- ``--section SECTION``: Restrict output to a single config section
+
 Job Commands
 ============
 
@@ -446,31 +478,37 @@ List available example notebooks.
 Agent Commands
 ==============
 
-Interactive AI agent interface.
+Hand off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed
+with the SYMFLUENCE skills. SYMFLUENCE does not ship its own language model — it
+detects an installed agent CLI, exposes the SYMFLUENCE skills to it, and replaces
+itself with that agent. See :doc:`agent_guide` for the full walkthrough.
 
-agent start
------------
+agent launch
+------------
 
-Start interactive AI agent mode.
-
-.. code-block:: bash
-
-   symfluence agent start [--config CONFIG] [--verbose]
-
-agent run
----------
-
-Execute a single agent prompt.
+Launch the agent. With no prompt it starts an interactive session; with a prompt
+it runs once and exits (handy in scripts).
 
 .. code-block:: bash
 
-   symfluence agent run PROMPT [--config CONFIG] [--verbose]
+   # Interactive session (run from your project directory)
+   symfluence agent launch
 
-**Example:**
+   # One-shot prompt
+   symfluence agent launch "add an MSWEP forcing data handler"
 
-.. code-block:: bash
+   # Forward extra flags to the underlying CLI after --
+   symfluence agent launch -- --model claude-sonnet-4-6
 
-   symfluence agent run "What is the current SUMMA configuration?" --config config.yaml
+CLI selection and skill exposure are controlled by environment variables
+(``SYMFLUENCE_AGENT_CLI``, ``SYMFLUENCE_NO_SKILLS``); see :doc:`agent_guide`.
+
+Deprecated aliases
+~~~~~~~~~~~~~~~~~~~
+
+``symfluence agent start`` and ``symfluence agent run PROMPT`` are deprecated aliases
+for ``agent launch`` (interactive and one-shot respectively) and will be removed in a
+future release. Their ``--config`` / ``--verbose`` flags are deprecated and ignored.
 
 GUI Commands
 ============
@@ -504,6 +542,24 @@ Start the SYMFLUENCE web interface.
 
    # Launch with a demo configuration
    symfluence gui launch --demo bow
+
+TUI Commands
+============
+
+Launch the interactive terminal user interface.
+
+tui launch
+----------
+
+Start the SYMFLUENCE interactive terminal UI.
+
+.. code-block:: bash
+
+   symfluence tui launch [--demo NAME] [--config CONFIG]
+
+**Options:**
+
+- ``--demo NAME``: Load a built-in demo (e.g., "bow" for Bow at Banff)
 
 Data Commands
 =============
@@ -570,6 +626,94 @@ Show details about a specific dataset.
 .. code-block:: bash
 
    symfluence data info era5
+
+List Commands
+=============
+
+Introspect the live registry and config schema to discover what is available
+right now (models, datasets, optimizers, config keys, etc.). Because the catalog
+is read from the registry, it never goes stale.
+
+list
+----
+
+.. code-block:: bash
+
+   # Show every catalog and its count
+   symfluence list
+
+   # List the entries for one kind
+   symfluence list KIND
+
+**Kinds:** ``models``, ``forcings``, ``observations``, ``optimizers``,
+``targets``, ``metrics``, ``presets``, ``templates``, ``steps``, ``config-keys``.
+
+**Examples:**
+
+.. code-block:: bash
+
+   symfluence list models
+   symfluence list forcings
+   symfluence list config-keys
+
+Doctor Command
+==============
+
+Run comprehensive system diagnostics (environment, path resolution, and binary
+checks). This is a top-level command (distinct from ``binary doctor``, which is
+scoped to installed binaries).
+
+.. code-block:: bash
+
+   symfluence doctor
+
+FEWS Commands
+=============
+
+Delft-FEWS General Adapter operations — run pre/post processing and launch
+openFEWS with SYMFLUENCE adapter support.
+
+fews pre
+--------
+
+Run the FEWS pre-adapter (import forcing, generate config).
+
+.. code-block:: bash
+
+   symfluence fews pre --run-info run_info.xml [--format {pi-xml,netcdf-cf}] [--id-map PATH] [--config CONFIG]
+
+fews post
+---------
+
+Run the FEWS post-adapter (export results, write diagnostics).
+
+.. code-block:: bash
+
+   symfluence fews post --run-info run_info.xml [--format {pi-xml,netcdf-cf}] [--id-map PATH] [--config CONFIG]
+
+fews run
+--------
+
+Run the full FEWS adapter cycle (pre -> model -> post).
+
+.. code-block:: bash
+
+   symfluence fews run --run-info run_info.xml [--format {pi-xml,netcdf-cf}] [--id-map PATH] [--config CONFIG]
+
+fews launch
+-----------
+
+Launch openFEWS with SYMFLUENCE adapter support.
+
+.. code-block:: bash
+
+   symfluence fews launch [--port PORT] [--no-browser] [--config CONFIG]
+
+**Options (pre/post/run):**
+
+- ``--run-info PATH``: Path to ``run_info.xml`` (required)
+- ``--format {pi-xml,netcdf-cf}``: Data exchange format (default: netcdf-cf)
+- ``--id-map PATH``: Variable ID mapping YAML file
 
 Exit Codes
 ==========

@@ -21,19 +21,26 @@ from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
 
+# Run modes already warned about — the rejection fires on every calibration
+# trial, so without dedupe a 1000-iteration run logs it 1000 times.
+_REJECTED_MODES_WARNED: set = set()
+
 
 def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
                          log: Optional[logging.Logger] = None) -> str:
     """
-    Determine FUSE run mode based on config and kwargs.
+    Determine the FUSE run mode for a calibration trial.
 
-    Defaults to 'run_pre' for all regionalization methods. The run_def mode
-    is broken in many FUSE builds because it tries to create two files with
-    UNLIMITED dimensions in NETCDF3_CLASSIC format (para_def.nc and
-    runs_def.nc), which triggers "NC_UNLIMITED size already in use".
+    Calibration always runs FUSE in ``run_pre`` mode: trial parameters are
+    written into para_def.nc and read directly by run_pre. ``run_def`` has
+    exactly one role in the workflow — the runner's *initial default run*,
+    which generates para_def.nc (and the default-parameter baseline) before
+    any calibration starts. It is never a valid calibration mode: it ignores
+    the trial parameters and re-derives para_def.nc from the constraints
+    file, so every trial would score the default parameter set.
 
-    run_pre reads parameters from an existing para_def.nc and avoids
-    creating the conflicting output structure.
+    An explicit ``FUSE_RUN_MODE: run_def`` (or a run_def kwarg) is therefore
+    rejected with a warning rather than honored.
 
     Args:
         config: Configuration dictionary
@@ -41,29 +48,21 @@ def detect_fuse_run_mode(config: Dict[str, Any], kwargs: Dict[str, Any],
         log: Logger instance
 
     Returns:
-        Run mode string ('run_def' or 'run_pre')
+        The calibration run mode (always 'run_pre').
     """
     log = log or logger
 
-    explicit_mode = config.get('FUSE_RUN_MODE')
-    if explicit_mode:
-        log.debug(f"FUSE using explicit run mode from config: {explicit_mode}")
-        return explicit_mode
+    requested = config.get('FUSE_RUN_MODE') or kwargs.get('mode')
+    if requested and requested != 'run_pre' and requested not in _REJECTED_MODES_WARNED:
+        _REJECTED_MODES_WARNED.add(requested)
+        log.warning(
+            f"FUSE run mode '{requested}' requested for calibration — ignored "
+            "(warning shown once per run). Calibration always uses run_pre "
+            "(trial parameters are read from para_def.nc); run_def is only "
+            "used by the runner's initial default run to generate para_def.nc."
+        )
 
-    regionalization_method = config.get('PARAMETER_REGIONALIZATION', 'lumped')
-    if config.get('USE_TRANSFER_FUNCTIONS', False):
-        regionalization_method = 'transfer_function'
-
-    # Default to run_pre for all modes. run_def is broken in many FUSE
-    # builds due to NC_UNLIMITED conflicts in NETCDF3_CLASSIC format.
-    mode = kwargs.get('mode', 'run_pre')
-
-    if regionalization_method != 'lumped':
-        log.info(f"FUSE using run_pre mode (regionalization={regionalization_method})")
-    else:
-        log.debug(f"FUSE using {mode} mode (lumped regionalization)")
-
-    return mode
+    return 'run_pre'
 
 
 def resolve_fuse_paths(

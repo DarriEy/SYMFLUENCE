@@ -137,23 +137,25 @@ class CLMSurfaceGenerator:
         if pct_sand is not None and pct_clay is not None:
             return float(pct_sand), float(pct_clay)
 
-        # Try model-ready attributes NetCDF
+        # Try the model-ready attributes store. SoilGrids sand/clay percentages
+        # live in the `soil_extended` group (column names vary by source, e.g.
+        # `sand_0-5cm_mean`); the core `soil` group only carries class fractions.
+        # Search both groups; keep the defaults if neither yields a value.
         try:
-            import xarray as xr
-            attrs_dir = self.pp.project_dir / 'data' / 'model_ready' / 'attributes'
-            attrs_files = list(attrs_dir.glob('*_attributes.nc')) if attrs_dir.exists() else []
-            if attrs_files:
-                ds = xr.open_dataset(attrs_files[0])
-                for sand_key in ['sand_frac', 'PCT_SAND', 'sand_0-5cm_mean']:
-                    if sand_key in ds:
-                        default_sand = float(ds[sand_key].values.mean())
+            from symfluence.data.model_ready import open_canonical_attributes
+
+            reader = open_canonical_attributes(self.pp.project_dir, self.pp.domain_name)
+            if reader is not None:
+                for group in ('soil_extended', 'soil'):
+                    sand = reader.find_variable(group, ['sand'], reduce='mean')
+                    clay = reader.find_variable(group, ['clay'], reduce='mean')
+                    if sand is not None and clay is not None:
+                        default_sand, default_clay = float(sand), float(clay)
+                        logger.info(
+                            "Loaded soil fractions from attributes store "
+                            f"(/{group}/): sand={default_sand:.1f}%, clay={default_clay:.1f}%"
+                        )
                         break
-                for clay_key in ['clay_frac', 'PCT_CLAY', 'clay_0-5cm_mean']:
-                    if clay_key in ds:
-                        default_clay = float(ds[clay_key].values.mean())
-                        break
-                ds.close()
-                logger.info(f"Loaded soil fractions from attributes: sand={default_sand:.1f}%, clay={default_clay:.1f}%")
         except Exception as e:  # noqa: BLE001 — model execution resilience
             logger.debug(f"Could not load soil attributes: {e}", exc_info=True)
 

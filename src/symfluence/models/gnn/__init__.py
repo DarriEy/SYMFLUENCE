@@ -15,8 +15,6 @@ _LAZY_IMPORTS = {
     'GNNRunner': ('.runner', 'GNNRunner'),
     'GNNPreProcessor': ('.preprocessor', 'GNNPreProcessor'),
     'GNNPostProcessor': ('.postprocessor', 'GNNPostProcessor'),
-    # Deprecated pre-1.0 spelling (RTI item 23) — use GNNPostProcessor.
-    'GNNPostprocessor': ('.postprocessor', 'GNNPostProcessor'),
 }
 
 

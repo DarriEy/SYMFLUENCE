@@ -466,7 +466,7 @@ class TestSUMMAWorkerContract:
 
     def test_summa_worker_registered(self):
         """Test that SUMMAWorker is registered with registry."""
-        from symfluence.models.summa.calibration.worker import SUMMAWorker  # noqa: F401 — triggers @register_worker
+        from symfluence.models.summa.calibration.worker import SUMMAWorker  # noqa: F401 — triggers worker registration
         worker_cls = R.workers.get('SUMMA')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'SUMMAWorker'
@@ -495,7 +495,7 @@ class TestFUSEWorkerContract:
 
     def test_fuse_worker_registered(self):
         """Test that FUSEWorker is registered with registry."""
-        from symfluence.models.fuse.calibration.worker import FUSEWorker  # noqa: F401 — triggers @register_worker
+        from symfluence.models.fuse.calibration.worker import FUSEWorker  # noqa: F401 — triggers worker registration
         worker_cls = R.workers.get('FUSE')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'FUSEWorker'
@@ -519,7 +519,7 @@ class TestNgenWorkerContract:
 
     def test_ngen_worker_registered(self):
         """Test that NgenWorker is registered with registry."""
-        from symfluence.models.ngen.calibration.worker import NgenWorker  # noqa: F401 — triggers @register_worker
+        from symfluence.models.ngen.calibration.worker import NgenWorker  # noqa: F401 — triggers worker registration
         worker_cls = R.workers.get('NGEN')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'NgenWorker'

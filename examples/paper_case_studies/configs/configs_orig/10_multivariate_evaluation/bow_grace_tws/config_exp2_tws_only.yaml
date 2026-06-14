@@ -241,9 +241,6 @@ HYDAT_PATH: /work/comphyd_lab/data/geospatial-data/hydat/Hydat.sqlite3
 
 ### ============================================= 6. Multivariate evaluation settings: ====================================================
 
-# Enable multivariate evaluation
-MULTIVAR_EVALUATION: True
-
 # CALIBRATION TARGET: TWS only (weight = 1.0)
 CALIBRATION_TARGETS:
   - variable: TWS

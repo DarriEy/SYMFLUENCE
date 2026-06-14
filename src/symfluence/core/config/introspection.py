@@ -63,6 +63,8 @@ def generate_flat_to_nested_map(
             'evaluation': 'evaluation',
             'paths': 'paths',
             'fews': 'fews',
+            'state': 'state',
+            'data_assimilation': 'data_assimilation',
         }
 
     def get_base_type(field_type: Any) -> Optional[Type]:
@@ -84,7 +86,7 @@ def generate_flat_to_nested_map(
     # 'data', not 'evaluation', even though both Pydantic models define it.
     section_priority = {'system': 9, 'domain': 8, 'data': 7, 'forcing': 6,
                        'model': 5, 'optimization': 4, 'evaluation': 3, 'paths': 2,
-                       'fews': 1}
+                       'fews': 1, 'state': 0, 'data_assimilation': 0}
 
     def walk_model(
         model_class: Type[BaseModel],
@@ -186,8 +188,8 @@ def generate_flat_to_nested_map(
     # Add model-specific transformer overrides if requested
     if include_model_overrides:
         try:
+            from symfluence.core.config.config_resolution import get_config_transformers
             from symfluence.core.registries import R
-            from symfluence.models.config_resolution import get_config_transformers
 
             # Get all registered model names from config adapters
             model_names = list(R.config_adapters.keys())

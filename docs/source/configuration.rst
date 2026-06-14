@@ -85,17 +85,10 @@ Forcing data and meteorological drivers are defined here.
 .. code-block:: yaml
 
    FORCING_DATASET: ERA5
-   FORCING_VARIABLES:
-     - airtemp
-     - windspd
-     - pptrate
-     - spechum
-     - SWRadAtm
-     - LWRadAtm
+   FORCING_VARIABLES: default            # comma-separated names, or "default"
    FORCING_TIME_STEP_SIZE: 3600
    APPLY_LAPSE_RATE: True
    LAPSE_RATE: -6.5
-   DATA_ACQUIRE: HPC                     # HPC | supplied | local
 
 Optional extensions:
 - **EM-Earth** integration for high-resolution precipitation/temperature downscaling
@@ -131,7 +124,7 @@ Select hydrologic and routing models, and configure per-model parameters.
 ### NextGen
 .. code-block:: yaml
 
-   NGEN_BMI_MODULES: [cfe, noah, pet]
+   NGEN_MODULES_SELECTED: "SLOTH,PET,CFE"
    NGEN_NOAH_PARAMS_TO_CALIBRATE: [bexp, dksat, psisat, refkdt]
    NGEN_ACTIVE_CATCHMENT_ID: 1002
 
@@ -373,9 +366,9 @@ Forcing Data Parameters
      - required
      - Forcing dataset source (ERA5, RDRS, CARRA, CERRA, CONUS404, etc.)
    * - FORCING_VARIABLES
-     - list
-     - dataset-specific
-     - List of meteorological variables to acquire
+     - string
+     - "default"
+     - Comma-separated meteorological variables to acquire, or "default"
    * - FORCING_TIME_STEP_SIZE
      - integer
      - 3600
@@ -392,14 +385,6 @@ Forcing Data Parameters
      - float
      - -6.5
      - Temperature lapse rate (°C/km)
-   * - DATA_ACQUIRE
-     - string
-     - "HPC"
-     - Data acquisition method (HPC, supplied, local)
-   * - FORCING_SHAPE_ID_NAME
-     - string
-     - "ID"
-     - Shapefile attribute for forcing station IDs
 
 Model Selection Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -500,7 +485,7 @@ GR Model Parameters
      - string
      - "auto"
      - Spatial configuration (lumped, distributed, auto)
-   * - GR_MODEL_VARIANT
+   * - GR_MODEL_TYPE
      - string
      - "GR4J"
      - GR model variant (GR4J, GR5J, GR6J)
@@ -520,18 +505,10 @@ HYPE Model Parameters
      - Type
      - Default
      - Description
-   * - HYPE_TIMESHIFT
-     - integer
-     - 0
-     - Time zone adjustment in hours
    * - HYPE_SPINUP_DAYS
      - integer
      - 365
      - Number of spinup days
-   * - HYPE_FRAC_THRESHOLD
-     - float
-     - 0.1
-     - Minimum class fraction to include
 
 mizuRoute Parameters
 ~~~~~~~~~~~~~~~~~~~~
@@ -608,25 +585,13 @@ Calibration Parameters
      - integer
      - 100
      - Maximum optimization iterations
-   * - PERTURBATION_FACTOR
-     - float
-     - 0.2
-     - DDS perturbation factor (0-1)
-   * - MUTATION_RATE
-     - float
-     - 0.5
-     - DE mutation rate
-   * - CROSSOVER_RATE
-     - float
-     - 0.7
-     - DE crossover rate
    * - CALIBRATION_TIMESTEP
      - string
      - "daily"
      - Timestep for calibration evaluation (daily, hourly)
 
-Output and Visualization Parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Output Parameters
+~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -640,22 +605,6 @@ Output and Visualization Parameters
      - string
      - auto
      - Custom output directory (default: project_dir)
-   * - SAVE_INTERMEDIATE_RESULTS
-     - boolean
-     - True
-     - Save intermediate workflow outputs
-   * - GENERATE_PLOTS
-     - boolean
-     - True
-     - Generate visualization plots
-   * - PLOT_FORMAT
-     - string
-     - "png"
-     - Plot file format (png, pdf, svg)
-   * - PLOT_DPI
-     - integer
-     - 300
-     - Plot resolution in DPI
 
 Path Parameters
 ~~~~~~~~~~~~~~~
@@ -672,10 +621,6 @@ Path Parameters
      - string
      - auto
      - Path to catchment shapefile
-   * - CATCHMENT_NAME
-     - string
-     - auto
-     - Catchment shapefile name
    * - RIVER_NETWORK_SHP_PATH
      - string
      - auto
@@ -712,14 +657,6 @@ HPC Parameters
      - string
      - "8G"
      - Memory allocation per job
-   * - SETTINGS_SUMMA_PARTITION
-     - string
-     - "compute"
-     - SLURM partition name
-   * - USE_SLURM
-     - boolean
-     - False
-     - Enable SLURM job submission
 
 ---
 
@@ -753,98 +690,6 @@ Validation and Best Practices
 
 Experimental Model Parameters
 -----------------------------
-
-CFuse Parameters (Experimental)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. warning::
-
-   CFuse is experimental. API may change without notice.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 15 40
-
-   * - Parameter
-     - Type
-     - Default
-     - Description
-   * - CFUSE_MODEL_STRUCTURE
-     - string
-     - "prms"
-     - Model structure (prms, sacramento, topmodel, vic, arno)
-   * - CFUSE_SPATIAL_MODE
-     - string
-     - "auto"
-     - Spatial mode (lumped, distributed, auto)
-   * - CFUSE_ENABLE_SNOW
-     - boolean
-     - true
-     - Enable snow processes
-   * - CFUSE_WARMUP_DAYS
-     - integer
-     - 365
-     - Spinup period in days
-   * - CFUSE_USE_NATIVE_GRADIENTS
-     - boolean
-     - true
-     - Use Enzyme AD for gradients
-   * - CFUSE_USE_GRADIENT_CALIBRATION
-     - boolean
-     - true
-     - Use gradient-based optimization
-   * - CFUSE_CALIBRATION_METRIC
-     - string
-     - "KGE"
-     - Objective function (KGE, NSE)
-   * - CFUSE_DEVICE
-     - string
-     - "cpu"
-     - PyTorch device (cpu, cuda)
-
-JFuse Parameters (Experimental)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. warning::
-
-   JFuse is experimental. API may change without notice.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 15 40
-
-   * - Parameter
-     - Type
-     - Default
-     - Description
-   * - JFUSE_MODEL_CONFIG_NAME
-     - string
-     - "prms_gradient"
-     - Model configuration (prms_gradient, max_gradient, etc.)
-   * - JFUSE_SPATIAL_MODE
-     - string
-     - "auto"
-     - Spatial mode (lumped, distributed, auto)
-   * - JFUSE_JIT_COMPILE
-     - boolean
-     - true
-     - Enable JAX JIT compilation
-   * - JFUSE_USE_GPU
-     - boolean
-     - false
-     - Use GPU acceleration
-   * - JFUSE_WARMUP_DAYS
-     - integer
-     - 365
-     - Spinup period in days
-   * - JFUSE_USE_GRADIENT_CALIBRATION
-     - boolean
-     - true
-     - Use gradient-based optimization
-   * - JFUSE_CALIBRATION_METRIC
-     - string
-     - "KGE"
-     - Objective function (KGE, NSE)
 
 WM-Fire Parameters (RHESSys Fire Module)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

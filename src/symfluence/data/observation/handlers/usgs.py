@@ -16,15 +16,19 @@ import requests
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('usgs_streamflow')
+@R.observation_handlers.add('usgs_streamflow')
 class USGSStreamflowHandler(BaseObservationHandler):
     """
     Handles USGS streamflow (discharge) data acquisition and processing.
+
+    Processed timestamps are UTC (tz-naive). NWIS RDB carries gauge-local
+    clock time plus a per-row ``tz_cd`` code; ``process()`` uses that code to
+    shift each row to UTC so observations align with (UTC) forcing data.
     """
 
     obs_type = "streamflow"
@@ -33,6 +37,22 @@ class USGSStreamflowHandler(BaseObservationHandler):
         'source': 'USGS NWIS',
         'source_doi': '10.5066/F7P55KJN',
         'url': 'https://waterservices.usgs.gov/nwis/',
+    }
+
+    # NWIS ``tz_cd`` codes → UTC offset in hours. Each row carries the code
+    # in effect at that timestamp, so a fixed per-code offset handles DST
+    # transitions exactly (MDT rows are -6, MST rows are -7).
+    NWIS_TZ_UTC_OFFSET_HOURS = {
+        'UTC': 0.0, 'GMT': 0.0,
+        'AST': -4.0, 'ADT': -3.0,    # Atlantic (Puerto Rico, USVI)
+        'EST': -5.0, 'EDT': -4.0,
+        'CST': -6.0, 'CDT': -5.0,
+        'MST': -7.0, 'MDT': -6.0,
+        'PST': -8.0, 'PDT': -7.0,
+        'AKST': -9.0, 'AKDT': -8.0,
+        'HST': -10.0, 'HAST': -10.0, 'HADT': -9.0,
+        'SST': -11.0,                # American Samoa
+        'GST': 10.0, 'CHST': 10.0,   # Guam / Chamorro
     }
 
     def acquire(self) -> Path:
@@ -110,9 +130,14 @@ class USGSStreamflowHandler(BaseObservationHandler):
         """Fetch discharge data from USGS API."""
         self.logger.info(f"Downloading USGS streamflow data for station {station_id}")
 
-        # Use experiment time range or defaults
+        # Use the experiment time range; only fall back to "now" when no
+        # experiment end is configured (a fixed end keeps downloads bounded
+        # and reproducible — previously this always used datetime.now()).
         start_date = self.start_date.strftime("%Y-%m-%d")
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        if self.end_date is not None and not pd.isna(self.end_date):
+            end_date = pd.Timestamp(self.end_date).strftime("%Y-%m-%d")
+        else:
+            end_date = datetime.now().strftime("%Y-%m-%d")
         parameter_cd = "00060"  # Discharge in cfs
 
         base_url = "https://nwis.waterservices.usgs.gov/nwis/iv/"
@@ -207,6 +232,25 @@ class USGSStreamflowHandler(BaseObservationHandler):
         df[discharge_col] = pd.to_numeric(df[discharge_col], errors='coerce')
         df = df.dropna(subset=[datetime_col, discharge_col])
 
+        # Shift gauge-local clock time to UTC using the per-row NWIS tz code.
+        # Without this, timestamps stay in local time (with DST jumps) and are
+        # misaligned with UTC forcing by up to several hours.
+        tz_col = self._find_col(df.columns, ['tz_cd'])
+        if tz_col:
+            codes = df[tz_col].astype(str).str.strip().str.upper()
+            offsets = codes.map(self.NWIS_TZ_UTC_OFFSET_HOURS)
+            unknown = sorted(codes[offsets.isna()].unique())
+            if unknown:
+                self.logger.warning(
+                    f"Unknown NWIS tz_cd codes {unknown}; treating those rows as UTC"
+                )
+            df[datetime_col] = df[datetime_col] - pd.to_timedelta(
+                offsets.fillna(0.0), unit='h'
+            ).to_numpy()
+        elif isinstance(df[datetime_col].dtype, pd.DatetimeTZDtype):
+            # ISO timestamps with offsets (e.g. manual CSV exports)
+            df[datetime_col] = df[datetime_col].dt.tz_convert('UTC').dt.tz_localize(None)
+
         df.set_index(datetime_col, inplace=True)
         df.sort_index(inplace=True)
 
@@ -231,7 +275,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('usgs_gw')
+@R.observation_handlers.add('usgs_gw')
 class USGSGroundwaterHandler(BaseObservationHandler):
     """
     Handles USGS groundwater level data.

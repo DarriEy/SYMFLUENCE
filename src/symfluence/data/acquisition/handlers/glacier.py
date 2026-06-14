@@ -24,8 +24,9 @@ from requests.adapters import HTTPAdapter
 from shapely.geometry import box
 from urllib3.util.retry import Retry
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
 def create_robust_session(max_retries: int = 5, backoff_factor: float = 1.0):
@@ -78,8 +79,8 @@ GLIMS_WFS_URL = "https://www.glims.org/geoserver/GLIMS/wfs"
 GLIMS_WFS_TIMEOUT = 300  # Increased timeout for slow server
 
 
-@AcquisitionRegistry.register('GLACIER')
-@AcquisitionRegistry.register('RGI')
+@R.acquisition_handlers.add('GLACIER')
+@R.acquisition_handlers.add('RGI')
 class GlacierAcquirer(BaseAcquisitionHandler):
     """
     Glacier data acquisition handler.
@@ -106,7 +107,20 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Any = None):
         super().__init__(config, logger, reporting_manager)
-        self.session = create_robust_session()
+        self.session = self._create_nsidc_session()
+
+    def _create_nsidc_session(self):
+        """Create an authenticated session for NSIDC (NASA Earthdata)."""
+        try:
+            import earthaccess
+            auth = earthaccess.login()
+            if auth:
+                return earthaccess.get_requests_https_session()
+        except ImportError:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
+        return create_robust_session()
 
     def download(self, output_dir: Path) -> Path:
         """
@@ -215,12 +229,8 @@ class GlacierAcquirer(BaseAcquisitionHandler):
     def _download_single_region(self, region_id: int, cache_dir: Path) -> Optional[gpd.GeoDataFrame]:
         """Download RGI data for a single region."""
 
-        # RGI 7.0 file naming: RGI2000-v7.0-G-01_alaska.zip (shapefile format)
-        region_name = RGI_REGIONS[region_id]['name'].lower().replace(' ', '_').replace(' and ', '_')
-        # Clean up region names to match actual file names
-        region_name = region_name.replace('western_canada_usa', 'western_canada_and_usa')
-        region_name = region_name.replace('arctic_canada_north', 'arctic_canada_north')
-        region_name = region_name.replace('arctic_canada_south', 'arctic_canada_south')
+        # RGI 7.0 file naming: RGI2000-v7.0-G-02_western_canada_usa.zip
+        region_name = RGI_REGIONS[region_id]['name'].lower().replace(' and ', '_').replace(' ', '_')
 
         filename = f"RGI2000-v7.0-G-{region_id:02d}_{region_name}.zip"
 

@@ -19,11 +19,11 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.registries import R
 from symfluence.core.validation import validate_bounding_box, validate_numeric_range
 from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
 
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
 
@@ -265,7 +265,7 @@ def diagnose_cds_credentials() -> Optional[str]:
     return None
 
 
-@AcquisitionRegistry.register('ERA5')
+@R.acquisition_handlers.add('ERA5')
 class ERA5Acquirer(BaseAcquisitionHandler):
     """
     Dispatcher for ERA5 reanalysis data acquisition.

@@ -35,8 +35,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # Planetary Computer STAC API endpoint
 PC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
@@ -48,9 +49,9 @@ SCL_CLOUD_HIGH = 9
 SCL_THIN_CIRRUS = 10
 
 
-@AcquisitionRegistry.register('SENTINEL2_SNOW')
-@AcquisitionRegistry.register('S2_SNOW')
-@AcquisitionRegistry.register('SENTINEL2_SCF')
+@R.acquisition_handlers.add('SENTINEL2_SNOW')
+@R.acquisition_handlers.add('S2_SNOW')
+@R.acquisition_handlers.add('SENTINEL2_SCF')
 class Sentinel2SnowAcquirer(BaseAcquisitionHandler):
     """
     Acquires Sentinel-2 L2A snow cover fraction via Planetary Computer.

@@ -16,6 +16,7 @@ import pandas as pd
 
 from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
+from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
@@ -428,26 +429,16 @@ class HYPEWorker(BaseWorker):
                     if dd and dd != 'default':
                         data_dir = Path(dd)
 
-            # Use resolve_data_subdir for backward-compatible path resolution
-            # (prefers data/observations/ over legacy observations/)
-            from symfluence.core.mixins.project import resolve_data_subdir
+            # Model-ready store first, legacy preprocessed CSV fallback.
             project_dir = data_dir / f'domain_{domain_name}'
-            obs_root = resolve_data_subdir(project_dir, 'observations') / 'streamflow'
-            obs_file = obs_root / 'preprocessed' / f'{domain_name}_streamflow_processed.csv'
-
-            if not obs_file.exists():
-                # Try processed/ fallback
-                obs_file = obs_root / 'processed' / f'{domain_name}_streamflow_processed.csv'
-
-            if not obs_file.exists():
-                self.logger.error(f"Observations file not found at {obs_root} (domain_name={domain_name})")
+            obs_values, obs_index = StreamflowMetrics().load_observations(
+                config, project_dir, domain_name, resample_freq=None,
+            )
+            if obs_values is None or obs_index is None:
+                self.logger.error(f"Observations not found for domain_name={domain_name}")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=['datetime'])
-
-            # Ensure the index is a proper DatetimeIndex (parse_dates may fail silently)
-            if not isinstance(obs_df.index, pd.DatetimeIndex):
-                obs_df.index = pd.to_datetime(obs_df.index)
+            obs_df = pd.DataFrame({'discharge_cms': obs_values}, index=obs_index)
 
             # HYPE outputs daily data, observations may be hourly
             # Resample observations to daily mean if they are sub-daily

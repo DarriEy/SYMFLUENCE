@@ -27,14 +27,21 @@ Basic Usage
    # Run complete workflow
    conf.run_workflow()
 
-   # Or run individual steps
-   conf.setup_project()
-   conf.define_domain()
-   conf.acquire_forcings()
-   conf.run_models()
+   # Or run a selected subset of steps (by canonical step name)
+   conf.run_individual_steps([
+       "setup_project",
+       "define_domain",
+       "acquire_forcings",
+       "run_model",
+   ])
 
 Step-by-Step Execution
 ----------------------
+
+The ``SYMFLUENCE`` facade does not expose one method per step. Drive the workflow
+through ``run_workflow()`` (everything) or ``run_individual_steps([...])`` (a
+selected, ordered subset). Pass canonical step names — run
+``symfluence workflow list-steps`` to see the authoritative list.
 
 .. code-block:: python
 
@@ -43,31 +50,33 @@ Step-by-Step Execution
    # Initialize
    conf = SYMFLUENCE("config.yaml")
 
-   # 1. Project Setup
-   conf.setup_project()
-   conf.create_pour_point()
+   # Run a curated subset, in order
+   conf.run_individual_steps([
+       # Project setup
+       "setup_project",
+       "create_pour_point",
+       # Domain definition
+       "acquire_attributes",
+       "define_domain",
+       "discretize_domain",
+       # Data acquisition + preprocessing
+       "process_observed_data",
+       "acquire_forcings",
+       "model_agnostic_preprocessing",
+       "build_model_ready_store",
+       # Model execution
+       "model_specific_preprocessing",
+       "run_model",
+       "postprocess_results",
+       # Calibration + analysis
+       "calibrate_model",
+       "run_benchmarking",
+       "run_sensitivity_analysis",
+   ])
 
-   # 2. Domain Definition
-   conf.acquire_attributes()
-   conf.define_domain()
-   conf.discretize_domain()
-
-   # 3. Data Acquisition
-   conf.process_observed_data()
-   conf.acquire_forcings()
-   conf.run_model_agnostic_preprocessing()
-
-   # 4. Model Execution
-   conf.preprocess_models()
-   conf.run_models()
-   conf.postprocess_results()
-
-   # 5. Calibration (optional)
-   conf.calibrate_model()
-
-   # 6. Analysis
-   conf.run_benchmarking()
-   conf.run_sensitivity_analysis()
+   # Inspect status / diagnostics
+   status = conf.get_workflow_status()
+   issues = conf.run_diagnostics_for_step("calibrate_model")
 
 Configuration Access
 --------------------
@@ -96,12 +105,16 @@ SYMFLUENCE (Main Class)
 
 The primary interface for all SYMFLUENCE operations.
 
-.. autoclass:: symfluence.core.system.SYMFLUENCE
+.. autoclass:: symfluence.project.system.SYMFLUENCE
    :members:
    :undoc-members:
    :show-inheritance:
 
 **Initialization:**
+
+The constructor accepts a config file path (``str``/``Path``) or a
+``SymfluenceConfig`` instance. To start from a dictionary, build a
+``SymfluenceConfig`` first.
 
 .. code-block:: python
 
@@ -115,9 +128,9 @@ The primary interface for all SYMFLUENCE operations.
    config = SymfluenceConfig.from_file("config.yaml")
    conf = SYMFLUENCE(config)
 
-   # From dictionary
+   # From dictionary (wrap it in SymfluenceConfig first)
    config_dict = {"DOMAIN_NAME": "test", ...}
-   conf = SYMFLUENCE(config_dict)
+   conf = SYMFLUENCE(SymfluenceConfig(**config_dict))
 
 **Core Methods:**
 
@@ -126,14 +139,14 @@ The primary interface for all SYMFLUENCE operations.
    # Full workflow execution
    conf.run_workflow(force_run=False)
 
+   # Run a selected, ordered subset of steps
+   conf.run_individual_steps(["setup_project", "define_domain"])
+
    # Workflow status
    status = conf.get_workflow_status()
-   # Returns: {
-   #   "total_steps": 15,
-   #   "completed_steps": 8,
-   #   "pending_steps": 7,
-   #   "step_details": [...]
-   # }
+
+   # Diagnostics for a single step (returns a list of issue strings)
+   issues = conf.run_diagnostics_for_step("calibrate_model")
 
 Manager Classes
 ===============
@@ -341,74 +354,97 @@ Manages workflow step execution and dependencies.
    # Get workflow status
    status = orchestrator.get_workflow_status()
 
-Model Registry
-==============
+Registry
+========
 
-The Model Registry enables plugin-style model integration.
+SYMFLUENCE uses a registry-based plugin system. Each kind of component
+(runners, preprocessors, postprocessors, optimizers, acquisition handlers, ...)
+has its own registry, exposed through the unified facade ``R``
+(``from symfluence.core.registries import R``). Models register all of their
+components in one place via ``model_manifest()``; one-off components use
+``R.<registry>.add()`` / ``add_lazy()``.
 
-.. automodule:: symfluence.models.registry
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. note::
 
-Registering Models
-------------------
+   The old ``ModelRegistry`` / ``OptimizerRegistry`` decorator API and the
+   ``symfluence.models.registry`` module were removed before 1.0. Use
+   ``model_manifest()`` and the ``R`` facade instead.
+
+Registering a Model
+-------------------
+
+Declare all components for a model in a single ``model_manifest()`` call (this is
+what each model's ``__init__.py`` does at import time):
 
 .. code-block:: python
 
-   from symfluence.models.registry import ModelRegistry
+   from symfluence.core.registry import model_manifest
 
-   # Register preprocessor
-   @ModelRegistry.register_preprocessor('MY_MODEL')
    class MyPreProcessor:
        def __init__(self, config, logger):
            self.config = config
            self.logger = logger
 
        def run_preprocessing(self):
-           # Preprocessing logic
-           pass
+           ...
 
-   # Register runner
-   @ModelRegistry.register_runner('MY_MODEL', method_name='run_my_model')
    class MyRunner:
        def __init__(self, config, logger, reporting_manager=None):
            self.config = config
            self.logger = logger
 
        def run_my_model(self):
-           # Model execution logic
-           pass
+           ...
 
-   # Register postprocessor
-   @ModelRegistry.register_postprocessor('MY_MODEL')
    class MyPostProcessor:
        def __init__(self, config, logger, reporting_manager=None):
            self.config = config
            self.logger = logger
 
        def extract_streamflow(self):
-           # Result extraction logic
-           pass
+           ...
 
-Querying Registry
------------------
+   model_manifest(
+       "MY_MODEL",
+       preprocessor=MyPreProcessor,
+       runner=MyRunner,
+       runner_method="run_my_model",
+       postprocessor=MyPostProcessor,
+   )
+
+For a one-off component (without a full manifest), add it to the relevant
+registry directly:
 
 .. code-block:: python
 
-   from symfluence.models.registry import ModelRegistry
+   from symfluence.core.registries import R
 
-   # List registered models
-   models = ModelRegistry.list_models()
-   # ['SUMMA', 'FUSE', 'GR', 'HYPE', 'NGEN', ...]
+   R.runners.add("MY_MODEL", MyRunner, runner_method="run_my_model")
+   # or register lazily by import path
+   R.preprocessors.add_lazy("MY_MODEL", "my_package.preprocessor:MyPreProcessor")
+
+Querying the Registry
+---------------------
+
+.. code-block:: python
+
+   from symfluence.core.registries import R
+
+   # List registered model runners
+   models = R.runners.keys()        # ['SUMMA', 'FUSE', 'GR', 'HYPE', 'NGEN', ...]
 
    # Get specific components
-   preprocessor_cls = ModelRegistry.get_preprocessor('SUMMA')
-   runner_cls = ModelRegistry.get_runner('SUMMA')
-   postprocessor_cls = ModelRegistry.get_postprocessor('SUMMA')
+   runner_cls = R.runners["SUMMA"]
+   preprocessor_cls = R.preprocessors.get("SUMMA")    # None if absent
+   postprocessor_cls = R.postprocessors.get("SUMMA")
 
-   # Check if model is registered
-   is_registered = ModelRegistry.is_registered('MY_MODEL')
+   # Check if a model runner is registered
+   is_registered = "MY_MODEL" in R.runners
+
+The same pattern applies to every component kind: ``R.optimizers``,
+``R.acquisition_handlers``, ``R.observation_handlers``, ``R.metrics``,
+``R.calibration_targets``, and so on. The live catalog is also available from
+the CLI via ``symfluence list``.
 
 Optimization API
 ================
@@ -433,7 +469,7 @@ via the ``run_dds()`` method.
 .. code-block:: python
 
    # DDS is invoked through model-specific optimizers
-   from symfluence.optimization import OptimizationManager
+   from symfluence.optimization.optimization_manager import OptimizationManager
 
    opt_manager = OptimizationManager(config, logger)
    results = opt_manager.calibrate_model()  # Uses algorithm from config
@@ -597,17 +633,17 @@ Reporting Manager
 
    rm = ReportingManager(config, logger)
 
-   # Generate domain map
-   rm.plot_domain_map()
+   # Visualize the domain
+   rm.visualize_domain()
 
-   # Generate hydrograph
-   rm.plot_hydrograph(observed, simulated)
+   # Visualize the discretized domain
+   rm.visualize_discretized_domain(discretization_method="elevation")
 
-   # Generate calibration convergence plot
-   rm.plot_calibration_convergence(results)
+   # Visualize optimization progress / convergence
+   rm.visualize_optimization_progress(history, output_dir, calibration_variable, metric)
 
-   # Generate sensitivity analysis plot
-   rm.visualize_sensitivity_analysis(sensitivity_results)
+   # Visualize sensitivity analysis results
+   rm.visualize_sensitivity_analysis(sensitivity_data, output_file)
 
 Configuration
 =============
@@ -682,7 +718,7 @@ Error Handling
 .. code-block:: python
 
    from symfluence.core.exceptions import (
-       SymfluenceError,           # Base exception
+       SYMFLUENCEError,           # Base exception
        ConfigurationError,        # Config issues
        DataAcquisitionError,      # Data download failures
        ModelExecutionError,       # Model run failures
@@ -695,7 +731,7 @@ Error Handling
        print(f"Configuration problem: {e}")
    except ModelExecutionError as e:
        print(f"Model failed: {e}")
-   except SymfluenceError as e:
+   except SYMFLUENCEError as e:
        print(f"General error: {e}")
 
 Advanced Usage
@@ -710,18 +746,18 @@ Custom Workflow
 
    conf = SYMFLUENCE("config.yaml")
 
-   # Run subset of steps
-   conf.setup_project()
-   conf.define_domain()
+   # Run a subset of steps in order
+   conf.run_individual_steps(["setup_project", "define_domain"])
 
-   # Skip to model execution (assumes data exists)
-   conf.preprocess_models()
-   conf.run_models()
+   # Skip to model execution (assumes data already exists)
+   conf.run_individual_steps([
+       "model_specific_preprocessing",
+       "run_model",
+       "postprocess_results",
+   ])
 
-   # Custom post-processing
-   results = conf.postprocess_results()
-
-   # Access internal managers
+   # Access internal managers (LazyManagerDict)
+   # keys: 'project', 'domain', 'data', 'model', 'analysis', 'optimization', 'reporting'
    model_mgr = conf.managers['model']
    data_mgr = conf.managers['data']
 
@@ -735,11 +771,13 @@ Parallel Execution
    # PARALLEL_CALIBRATION: true
 
    # Or programmatically
+   from symfluence.core.config import SymfluenceConfig
+
    config_dict['NUM_PROCESSES'] = 8
    config_dict['PARALLEL_CALIBRATION'] = True
 
-   conf = SYMFLUENCE(config_dict)
-   conf.calibrate_model()  # Uses parallel execution
+   conf = SYMFLUENCE(SymfluenceConfig(**config_dict))
+   conf.run_individual_steps(["calibrate_model"])  # Uses parallel execution
 
 Batch Processing
 ----------------

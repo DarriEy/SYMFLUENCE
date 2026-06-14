@@ -81,9 +81,9 @@ class BaseObjective(ConfigMixin, ABC):
             objective = (1 - KGE) + 0.1*|PBIAS|/100 + 0.01*RMSE/sigma
 
     Registry Pattern:
-        Objective classes are registered using the ObjectiveRegistry decorator::
+        Objective classes are registered via the unified registry::
 
-            @ObjectiveRegistry.register('MULTIVARIATE')
+            @R.objectives.add('MULTIVARIATE')
             class MultivariateObjective(BaseObjective):
                 def calculate(self, evaluation_results):
                     # Implementation here
@@ -119,10 +119,10 @@ class BaseObjective(ConfigMixin, ABC):
         - Be stateless with respect to evaluation results
 
     Example Implementation:
+        >>> from symfluence.core.registries import R
         >>> from symfluence.optimization.objectives.base import BaseObjective
-        >>> from symfluence.optimization.objectives.registry import ObjectiveRegistry
         >>>
-        >>> @ObjectiveRegistry.register('SIMPLE_KGE')
+        >>> @R.objectives.add('SIMPLE_KGE')
         >>> class SimpleKGEObjective(BaseObjective):
         ...     '''Minimize 1 - KGE for streamflow only'''
         ...

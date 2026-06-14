@@ -18,7 +18,11 @@ from typing import Optional
 
 from symfluence.core.mixins.project import resolve_data_subdir
 
-from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
+from .cf_conventions import (
+    CANONICAL_FORCING_ALIASES,
+    CF_STANDARD_NAMES,
+    build_global_attrs,
+)
 from .source_metadata import SourceMetadata
 
 logger = logging.getLogger(__name__)
@@ -114,6 +118,20 @@ class ForcingsStoreBuilder:
                 os.symlink(src_file.resolve(), dst)
                 logger.debug("Symlinked %s -> %s", src_file.name, dst)
 
+    def _forcing_timestep_seconds(self, nc_files: list) -> Optional[float]:
+        """Determine the forcing timestep (seconds) from a file's time axis."""
+        try:
+            import numpy as np
+            import xarray as xr
+            for f in nc_files:
+                with xr.open_dataset(f) as ds:
+                    if 'time' in ds and ds['time'].size > 1:
+                        dt = np.diff(ds['time'].values[:2])[0]
+                        return float(dt / np.timedelta64(1, 's'))
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
+            logger.warning("Could not determine forcing timestep: %s", e, exc_info=True)
+        return None
+
     def _enrich_metadata(self, nc_files: list) -> None:
         """Add CF-1.8 global attrs and per-variable source attrs.
 
@@ -131,6 +149,13 @@ class ForcingsStoreBuilder:
             title=f'{self.domain_name} forcing data',
             history=f'Enriched by ForcingsStoreBuilder from {self.forcing_dataset}',
         )
+        # Declare the canonical forcing timestep on the store so downstream
+        # model adapters never have to guess it (the recurring "rate x 3600 over
+        # a 3-hourly step" bug). Computed from the time axis of the file.
+        global_attrs['forcing_vocabulary'] = 'SYMFLUENCE-canonical'
+        dt_seconds = self._forcing_timestep_seconds(nc_files)
+        if dt_seconds is not None:
+            global_attrs['timestep_seconds'] = float(dt_seconds)
 
         source_meta = SourceMetadata(
             source=self.forcing_dataset,
@@ -141,17 +166,22 @@ class ForcingsStoreBuilder:
         for src_file in nc_files:
             try:
                 with netCDF4.Dataset(str(src_file), 'a') as ds:
-                    # Global attributes — only set if not already present
+                    # Global attributes — refresh canonical contract markers.
                     if 'Conventions' not in ds.ncattrs():
-                        ds.setncatts(global_attrs)
+                        ds.setncatts({k: v for k, v in global_attrs.items()
+                                      if k not in ('timestep_seconds', 'forcing_vocabulary')})
+                    ds.setncattr('forcing_vocabulary', 'SYMFLUENCE-canonical')
+                    if dt_seconds is not None and 'timestep_seconds' not in ds.ncattrs():
+                        ds.setncattr('timestep_seconds', float(dt_seconds))
 
-                    # Per-variable CF + source attributes
+                    # Per-variable CF attributes, resolving canonical aliases so
+                    # CARRA/SUMMA-vocabulary names (pptrate/airtemp/...) carry
+                    # declared standard_name + units, not just the CF keys.
                     for var_name in ds.variables:
                         var = ds.variables[var_name]
-
-                        # CF standard attributes
-                        if var_name in CF_STANDARD_NAMES:
-                            cf = CF_STANDARD_NAMES[var_name]
+                        cf = CF_STANDARD_NAMES.get(var_name) or CF_STANDARD_NAMES.get(
+                            CANONICAL_FORCING_ALIASES.get(var_name, ''))
+                        if cf:
                             for attr_key, attr_val in cf.items():
                                 if attr_key not in var.ncattrs():
                                     var.setncattr(attr_key, attr_val)

@@ -38,9 +38,10 @@ import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 _MIRRORS = [
@@ -61,8 +62,8 @@ _VARIABLES = {
 _DEFAULT_VARIABLES = list(_VARIABLES.keys())
 
 
-@AcquisitionRegistry.register('WORLDCLIM')
-@AcquisitionRegistry.register('WORLDCLIM_V21')
+@R.acquisition_handlers.add('WORLDCLIM')
+@R.acquisition_handlers.add('WORLDCLIM_V21')
 class WorldClimAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     WorldClim v2.1 monthly climate normals acquisition.

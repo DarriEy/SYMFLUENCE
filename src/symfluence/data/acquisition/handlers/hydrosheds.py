@@ -41,9 +41,10 @@ from typing import List
 
 import requests
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # HydroBASINS download URL template (standard version, excludes endorheic)
@@ -66,8 +67,8 @@ _HYDROSHEDS_REGION_BBOXES = {
 }
 
 
-@AcquisitionRegistry.register('HYDROSHEDS')
-@AcquisitionRegistry.register('HYDROBASINS')
+@R.acquisition_handlers.add('HYDROSHEDS')
+@R.acquisition_handlers.add('HYDROBASINS')
 class HydroSHEDSAcquirer(BaseAcquisitionHandler, RetryMixin):
     """HydroSHEDS / HydroBASINS acquisition from hydrosheds.org.
 

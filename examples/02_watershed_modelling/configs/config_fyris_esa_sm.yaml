@@ -13,7 +13,6 @@
 EXPERIMENT_ID: fyris_full_example
 DOMAIN_NAME: fyris_uppsala
 
-
 # Domain definition - Lumped basin
 DOMAIN_DEFINITION_METHOD: lumped
 ROUTING_DELINEATION: lumped
@@ -53,7 +52,6 @@ STREAMFLOW_DATA_PROVIDER: SMHI
 DOWNLOAD_SMHI_DATA: true
 ADDITIONAL_OBSERVATIONS: ESA_CCI_SM
 DOWNLOAD_SMAP: false
-DOWNLOAD_ESA_CCI_SM: true
 ESA_CCI_SM_PATH: default
 ESA_CCI_SM_VARIABLE: surface_soil_moisture_volumetric
 ESA_CCI_SM_SENSOR: combined

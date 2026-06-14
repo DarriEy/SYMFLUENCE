@@ -113,6 +113,3 @@ def register() -> None:
         plotter=SUMMAPlotter,
         build_instructions_module="symfluence.models.summa.build_instructions",
     )
-
-# Deprecated pre-1.0 spelling (RTI item 23) — use SUMMAPostProcessor.
-SUMMAPostprocessor = SUMMAPostProcessor

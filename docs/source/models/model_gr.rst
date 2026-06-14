@@ -406,7 +406,7 @@ Calibrate GR on multiple basins simultaneously:
 
    # Calibrate using multi-site objective
    OPTIMIZATION_ALGORITHM: DDS
-   OPTIMIZATION_METRICS: [KGE, NSE, RMSE]
+   OBJECTIVE_METRICS: [KGE, NSE, RMSE]
 
 Regional GR Application
 -----------------------
@@ -542,7 +542,7 @@ Calibration Tips
    .. code-block:: yaml
 
       OPTIMIZATION_ALGORITHM: NSGA2
-      OPTIMIZATION_METRICS:
+      OBJECTIVE_METRICS:
         - KGE         # Streamflow fit
         - RMSE_snow   # Snow cover fit (if data available)
 

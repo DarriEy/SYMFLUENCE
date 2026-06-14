@@ -49,7 +49,7 @@ class SWATForcingGenerator:
         """Write SWAT precipitation file (.pcp)."""
         precip_data, src_var = self.pp._extract_variable(
             forcing_ds,
-            ['precipitation_flux', 'precipitation', 'pr', 'precip', 'tp', 'PREC']
+            ['precipitation_flux', 'pptrate', 'precipitation', 'pr', 'precip', 'tp', 'PREC']
         )
 
         if precip_data is None:
@@ -69,8 +69,9 @@ class SWATForcingGenerator:
             else:
                 dt_seconds = 3600  # Default to hourly
 
-            if 'mm/s' in src_units or src_var == 'precipitation_flux':
-                precip_data = precip_data * dt_seconds  # mm/s -> mm per timestep
+            if ('mm/s' in src_units or 'kg' in src_units
+                    or src_var in ('precipitation_flux', 'pptrate')):
+                precip_data = precip_data * dt_seconds  # mm/s (==kg/m2/s) -> mm/timestep
                 logger.info(f"Converted {src_var} from mm/s to mm/timestep (dt={dt_seconds}s)")
             elif src_units == 'm' or src_var == 'tp':
                 precip_data = precip_data * 1000.0  # m -> mm
@@ -112,7 +113,7 @@ class SWATForcingGenerator:
         # Try to find temperature variable
         temp_data, src_var = self.pp._extract_variable(
             forcing_ds,
-            ['air_temperature', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP']
+            ['air_temperature', 'airtemp', 'temperature', 'tas', 'temp', 't2m', 'AIR_TEMP']
         )
 
         if temp_data is None:

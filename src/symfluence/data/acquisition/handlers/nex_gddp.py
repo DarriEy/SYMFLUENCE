@@ -19,12 +19,13 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('NEX-GDDP-CMIP6')
-@AcquisitionRegistry.register('NEX-GDDP')
+@R.acquisition_handlers.add('NEX-GDDP-CMIP6')
+@R.acquisition_handlers.add('NEX-GDDP')
 class NEXGDDPCHandler(BaseAcquisitionHandler):
     """
     Acquires NEX-GDDP-CMIP6 downscaled climate projection data via THREDDS.
@@ -34,12 +35,12 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
     (historical, SSP1-2.6, SSP2-4.5, SSP3-7.0, SSP5-8.5), and ensemble members.
     """
 
+    # Filename suffixes published on the THREDDS server, newest first. Most
+    # files carry _v2.0, some only _v1.1, and a few are unsuffixed.
+    FILENAME_SUFFIXES = ("_v2.0", "_v1.1", "")
+
     def download(self, output_dir: Path) -> Path:
-        exp_start = self.start_date
-        exp_end = self.end_date
-        exp_start.strftime("%Y-%m-%d")
-        exp_end.strftime("%Y-%m-%d")
-        start_dt, end_dt = exp_start.date(), exp_end.date()
+        start_dt, end_dt = self.start_date.date(), self.end_date.date()
         bbox = self.bbox
         lat_min, lat_max = sorted([bbox["lat_min"], bbox["lat_max"]])
         lon_min, lon_max = sorted([bbox["lon_min"], bbox["lon_max"]])
@@ -71,6 +72,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
         cache_root = output_dir / "_nex_ncss_cache"
         cache_root.mkdir(parents=True, exist_ok=True)
         ensemble_datasets: list[Any] = []
+        missing_variables: list[str] = []
         for model_name in cfg_models:
             # Get the grid label for this model, default to 'gn' (native grid)
             grid_label = grid_labels.get(model_name, "gn")
@@ -85,31 +87,44 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
                     for var in variables:
                         var_cache_dir = cache_root / model_name / scenario_name / member / var
                         var_cache_dir.mkdir(parents=True, exist_ok=True)
+                        var_files_found = 0
+                        attempted_chunks = 0
                         for year in range(start_dt.year, scenario_end_dt.year + 1):
                             chunk_start = max(start_dt, dt.date(year, 1, 1))
                             chunk_end = min(scenario_end_dt, dt.date(year, 12, year_end_day))
                             if chunk_start > chunk_end: continue
-                            fname = f"{var}_day_{model_name}_{scenario_name}_{member}_{grid_label}_{year}_v2.0.nc"
-                            dataset_path = f"AMES/NEX/GDDP-CMIP6/{model_name}/{scenario_name}/{member}/{var}/{fname}"
-                            out_nc = var_cache_dir / f"{fname.replace('.nc', '')}_{chunk_start:%Y%m%d}-{chunk_end:%Y%m%d}.nc"
-                            if out_nc.exists():
-                                all_nc_files_for_ens.append(str(out_nc))
-                                continue
-                            params = {"var": var, "north": lat_max, "south": lat_min, "west": lon_min, "east": lon_max, "horizStride": 1, "time_start": f"{chunk_start.isoformat()}T12:00:00Z", "time_end": f"{chunk_end.isoformat()}T12:00:00Z", "accept": "netcdf4-classic"}
-                            try:
-                                resp = requests.get(f"{ncss_base}/{dataset_path}", params=params, stream=True, timeout=600)
-                                if resp.status_code == 200:
-                                    with open(out_nc, "wb") as f:
-                                        for chunk in resp.iter_content(chunk_size=1024*1024): f.write(chunk)
-                                    all_nc_files_for_ens.append(str(out_nc))
-                                else:
-                                    self.logger.warning(f"NCSS request failed with status {resp.status_code} for {var} {year}: {resp.text[:500]}")
-                            except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                                self.logger.warning(f"NCSS failed for {var} {year}: {e}", exc_info=True)
+                            attempted_chunks += 1
+                            # Filenames on the server carry _v2.0, _v1.1, or no
+                            # suffix depending on model/variable; try each in turn
+                            # instead of hardcoding _v2.0 and silently dropping
+                            # the variable on 404.
+                            year_nc = self._fetch_year_chunk(
+                                ncss_base, var_cache_dir, var, model_name, scenario_name,
+                                member, grid_label, year, chunk_start, chunk_end,
+                                lat_min, lat_max, lon_min, lon_max)
+                            if year_nc is not None:
+                                all_nc_files_for_ens.append(str(year_nc))
+                                var_files_found += 1
+                            else:
+                                self.logger.warning(
+                                    f"NEX-GDDP-CMIP6: no file found for {var} "
+                                    f"{model_name}/{scenario_name}/{member} {year} "
+                                    f"(tried suffixes {', '.join(repr(s) for s in self.FILENAME_SUFFIXES)})")
+                        if attempted_chunks > 0 and var_files_found == 0:
+                            missing_variables.append(f"{model_name}/{scenario_name}/{member}/{var}")
                     if all_nc_files_for_ens:
                         ds_ens = xr.open_mfdataset(all_nc_files_for_ens, engine="netcdf4", combine="by_coords", parallel=False, data_vars='minimal', coords='minimal', compat='override').chunk({"time": -1})
                         ds_ens = ds_ens.expand_dims(ensemble=[len(ensemble_datasets)]).assign_coords(model=("ensemble", [model_name]), scenario=("ensemble", [scenario_name]), member=("ensemble", [member]))
                         ensemble_datasets.append(ds_ens)
+        if missing_variables:
+            # Silent partial forcing is worse than failure: a model fed a
+            # subset of its forcing variables produces garbage downstream.
+            raise RuntimeError(
+                "NEX-GDDP-CMIP6: no files could be downloaded for requested "
+                f"variable(s): {', '.join(missing_variables)}. "
+                "Cached files for the other variables were kept under "
+                f"{cache_root} for reuse on retry."
+            )
         if not ensemble_datasets:
             if cache_root.exists(): shutil.rmtree(cache_root)
             raise RuntimeError("NEX-GDDP-CMIP6: no data written.")
@@ -158,6 +173,18 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
             ds_all.encoding.pop("time", None)
         for var in ds_all.data_vars:
             ds_all[var].encoding.pop("calendar", None)
+        # NEX-GDDP-CMIP6 does not publish surface pressure; fabricate a constant
+        # airpres = p0 * exp(-z/H) because downstream models require the variable.
+        elev_cfg = self._get_config_value(lambda: None, default=None, dict_key='DOMAIN_MEAN_ELEV_M')
+        if elev_cfg is None:
+            self.logger.warning(
+                "DOMAIN_MEAN_ELEV_M is not set: the synthetic 'airpres' variable will be a "
+                "CONSTANT SEA-LEVEL pressure (101325 Pa) across the whole domain. For an "
+                "elevation-adjusted estimate, set DOMAIN_MEAN_ELEV_M (domain mean elevation "
+                "in metres) in your configuration."
+            )
+        p0, z_mean, scale_height = 101325.0, float(elev_cfg or 0.0), 8400.0
+        p_surf = p0 * np.exp(-z_mean / scale_height)
         month_starts = pd.date_range(time_vals[0].replace(day=1), time_vals[-1], freq="MS")
         for ms in month_starts:
             me = (ms + pd.offsets.MonthEnd(0))
@@ -165,8 +192,6 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
             if "time" not in ds_m.dims or ds_m.sizes["time"] == 0: continue
             if "ensemble" in ds_m.dims: ds_m = ds_m.isel(ensemble=0, drop=True)
             if "airpres" not in ds_m:
-                p0, z_mean, H = 101325.0, float(self._get_config_value(lambda: None, default=0.0, dict_key='DOMAIN_MEAN_ELEV_M')), 8400.0
-                p_surf = p0 * np.exp(-z_mean / H)
                 ds_m["airpres"] = xr.full_like(ds_m["tas"], p_surf, dtype="float32").assign_attrs(long_name="synthetic surface air pressure", units="Pa")
             month_path = output_dir / f"NEXGDDP_all_{ms.year:04d}{ms.month:02d}.nc"
             # Ensure time is written with standard calendar encoding
@@ -175,3 +200,40 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
         ds_all.close()
         if cache_root.exists(): shutil.rmtree(cache_root)
         return output_dir
+
+    def _fetch_year_chunk(
+        self, ncss_base: str, var_cache_dir: Path, var: str, model_name: str,
+        scenario_name: str, member: str, grid_label: str, year: int,
+        chunk_start: dt.date, chunk_end: dt.date,
+        lat_min: float, lat_max: float, lon_min: float, lon_max: float,
+    ) -> Path | None:
+        """Download one variable-year via NCSS, trying each filename suffix.
+
+        Returns the cached/downloaded NetCDF path, or None when every suffix
+        variant failed (404 or transport error).
+        """
+        params = {
+            "var": var, "north": lat_max, "south": lat_min,
+            "west": lon_min, "east": lon_max, "horizStride": 1,
+            "time_start": f"{chunk_start.isoformat()}T12:00:00Z",
+            "time_end": f"{chunk_end.isoformat()}T12:00:00Z",
+            "accept": "netcdf4-classic",
+        }
+        for suffix in self.FILENAME_SUFFIXES:
+            fname = f"{var}_day_{model_name}_{scenario_name}_{member}_{grid_label}_{year}{suffix}.nc"
+            dataset_path = f"AMES/NEX/GDDP-CMIP6/{model_name}/{scenario_name}/{member}/{var}/{fname}"
+            out_nc = var_cache_dir / f"{fname.replace('.nc', '')}_{chunk_start:%Y%m%d}-{chunk_end:%Y%m%d}.nc"
+            if out_nc.exists():
+                return out_nc
+            try:
+                resp = requests.get(f"{ncss_base}/{dataset_path}", params=params, stream=True, timeout=600)
+                if resp.status_code == 200:
+                    with open(out_nc, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                            f.write(chunk)
+                    return out_nc
+                self.logger.debug(
+                    f"NCSS request failed with status {resp.status_code} for {fname}: {resp.text[:500]}")
+            except Exception as e:  # noqa: BLE001 — try the next suffix variant
+                self.logger.warning(f"NCSS failed for {fname}: {e}", exc_info=True)
+        return None
