@@ -8,8 +8,10 @@ in both development (editable install) and production (site-packages) modes.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 # Python 3.9+ importlib.resources
@@ -240,6 +242,113 @@ def get_system_deps_registry_path() -> Path:
         raise FileNotFoundError(
             "System dependency registry (system_deps.yml) not found in package resources."
         ) from e
+
+
+def get_skills_dir() -> Path:
+    """
+    Get path to the packaged agent-skills directory.
+
+    The skills are domain guides (one ``SKILL.md`` per skill) that the
+    ``symfluence agent`` launcher exposes to an external coding-agent CLI.
+
+    Returns:
+        Path to the ``symfluence.resources.skills`` directory.
+
+    Raises:
+        FileNotFoundError: If the packaged skills directory is missing.
+    """
+    try:
+        skills_root = files('symfluence.resources') / 'skills'
+
+        if hasattr(skills_root, '__fspath__'):
+            path = Path(skills_root)
+        else:
+            path = Path(str(skills_root))
+
+        if not path.is_dir():
+            raise FileNotFoundError(f"Packaged skills directory not found at: {path}")
+
+        return path
+
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
+        raise FileNotFoundError(
+            "Packaged agent skills (symfluence.resources.skills) not found."
+        ) from e
+
+
+def _render_agents_md(skills_dir: Path) -> str:
+    """Render the packaged skills into a single neutral ``AGENTS.md`` document."""
+    lines = [
+        "# SYMFLUENCE agent skills",
+        "",
+        "These are SYMFLUENCE domain guides. Read the relevant skill before acting "
+        "on a SYMFLUENCE task (adding a data handler or model, debugging calibration, "
+        "running the workflow).",
+        "",
+    ]
+    for skill in sorted(skills_dir.iterdir()):
+        skill_md = skill / 'SKILL.md'
+        if not skill_md.is_file():
+            continue
+        lines.append(f"## {skill.name}")
+        lines.append("")
+        lines.append(skill_md.read_text(encoding='utf-8').strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def prepare_agent_context(skills_mode: str, workdir: Path) -> tuple[list[str], list[str]]:
+    """
+    Materialize the packaged skills for an external coding-agent CLI.
+
+    Args:
+        skills_mode: How the target CLI consumes skills.
+            ``"claude_native"`` — lay the skills out as ``.claude/skills/`` in a
+            cache directory and return ``--add-dir`` so Claude Code discovers them
+            without touching the user's project.
+            ``"agents_md"`` — write a neutral ``AGENTS.md`` into ``workdir`` (the
+            convention honoured by Codex/Gemini and other tools), but only if one
+            is not already present.
+        workdir: The directory the agent CLI is launched from.
+
+    Returns:
+        ``(extra_argv, messages)`` — extra arguments to pass to the CLI, and
+        human-readable info lines for the caller to log. Skill materialization is
+        skipped entirely when ``SYMFLUENCE_NO_SKILLS`` is set.
+    """
+    if os.environ.get('SYMFLUENCE_NO_SKILLS'):
+        return [], ["Skill materialization disabled via SYMFLUENCE_NO_SKILLS."]
+
+    skills_dir = get_skills_dir()
+
+    if skills_mode == 'claude_native':
+        cache_root = Path(tempfile.gettempdir()) / 'symfluence-agent-skills'
+        target = cache_root / '.claude' / 'skills'
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True, exist_ok=True)
+        count = 0
+        for skill in sorted(skills_dir.iterdir()):
+            skill_md = skill / 'SKILL.md'
+            if not skill_md.is_file():
+                continue
+            dest = target / skill.name
+            dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(skill_md, dest / 'SKILL.md')
+            count += 1
+        return (
+            ['--add-dir', str(cache_root)],
+            [f"Exposed {count} SYMFLUENCE skill(s) to the agent via {cache_root}."],
+        )
+
+    if skills_mode == 'agents_md':
+        agents_md = workdir / 'AGENTS.md'
+        if agents_md.exists():
+            return [], [f"AGENTS.md already present in {workdir}; left unchanged."]
+        agents_md.write_text(_render_agents_md(skills_dir), encoding='utf-8')
+        return [], [f"Wrote SYMFLUENCE skills to {agents_md}."]
+
+    return [], []
 
 
 def copy_config_template_to_project(destination: Path,
