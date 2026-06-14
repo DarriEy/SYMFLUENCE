@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
 from symfluence.data.utils.variable_utils import VariableHandler
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class RHESSysClimateGenerator:
 
         # Setup paths — climate files are forcing data
         self.climate_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'RHESSys_input' / 'clim'
-        self.forcing_basin_path = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        self.forcing_basin_path = resolve_forcing_basin_path(self.project_dir)
         self.forcing_raw_path = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
 
         # Get forcing dataset info
@@ -217,19 +217,27 @@ class RHESSysClimateGenerator:
 
         self.logger.info(f"Loading forcing from {len(forcing_files)} files")
 
+        from symfluence.data.model_ready.forcing_reader import (
+            open_canonical_forcing,
+            resample_canonical_forcing,
+        )
         try:
-            ds = xr.open_mfdataset(forcing_files, combine='by_coords', data_vars='minimal', coords='minimal', compat='override')
-        except ValueError as e:
-            self.logger.warning(f"Failed with combine='by_coords': {e}. Retrying...")
-            try:
-                ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override')
-            except (FileNotFoundError, OSError, ValueError, KeyError):
-                self.logger.warning("Failed to concat. Attempting merge...")
-                datasets = [xr.open_dataset(f) for f in forcing_files]
-                ds = xr.merge(datasets)
+            ds = open_canonical_forcing(forcing_files)
+        except (FileNotFoundError, OSError, ValueError, KeyError) as e:
+            self.logger.warning(f"Canonical reader failed ({e}); falling back to open_mfdataset")
+            ds = xr.open_mfdataset(
+                forcing_files, combine='nested', concat_dim='time',
+                data_vars='minimal', coords='minimal', compat='override',
+            )
 
         # Subset to simulation period
         ds = ds.sel(time=slice(start_date, end_date))
+
+        # RHESSys converts precip to mm/hour and sums to daily totals, and counts
+        # rain-duration hours, treating one forcing step as one hour. Resample any
+        # non-hourly source (CARRA 3-hourly, daily) to hourly so those totals and
+        # counts are correct; hourly source (ERA5) passes through unchanged.
+        ds = resample_canonical_forcing(ds, 3600.0)
 
         return ds
 

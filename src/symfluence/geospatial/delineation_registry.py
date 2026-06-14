@@ -15,7 +15,7 @@ Pattern:
 
 Usage:
     # In delineator module:
-    @DelineationRegistry.register('lumped')
+    @R.delineation_strategies.add('lumped')
     class LumpedWatershedDelineator(BaseGeofabricDelineator):
         ...
 
@@ -32,8 +32,7 @@ Usage:
 
 from __future__ import annotations
 
-import warnings
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
 from symfluence.core.registries import R
 
@@ -52,7 +51,7 @@ class DelineationRegistry:
         _aliases: Dictionary mapping alternate names to canonical names.
 
     Example:
-        >>> @DelineationRegistry.register('lumped')
+        >>> @R.delineation_strategies.add('lumped')
         ... class LumpedDelineator:
         ...     pass
         >>> DelineationRegistry.get_strategy('lumped')
@@ -70,38 +69,6 @@ class DelineationRegistry:
         'subset': 'semidistributed',  # subset is semidistributed with flag
         'discretized': 'semidistributed',  # deprecated
     }
-
-    @classmethod
-    def register(cls, method_name: str) -> Callable[[Type], Type]:
-        """
-        Decorator to register a delineation strategy class.
-
-        Args:
-            method_name: Canonical name for the delineation method
-                (e.g., 'point', 'lumped', 'semidistributed', 'distributed')
-
-        Returns:
-            Decorator function that registers the class and returns it unchanged.
-
-        Example:
-            >>> @DelineationRegistry.register('point')
-            ... class PointDelineator:
-            ...     def delineate(self):
-            ...         pass
-
-        .. deprecated::
-            Use ``R.delineation_strategies.add()`` or ``model_manifest()`` instead.
-        """
-        def decorator(strategy_cls: Type) -> Type:
-            warnings.warn(
-                "DelineationRegistry.register() is deprecated; "
-                "use R.delineation_strategies.add() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            R.delineation_strategies.add(method_name, strategy_cls)
-            return strategy_cls
-        return decorator
 
     @classmethod
     def get_strategy(cls, method_name: str) -> Optional[Type]:

@@ -880,21 +880,16 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 )
                 self._create_para_def_nc(param_file)
 
-                # Warn: run_pre (the default) needs a complete template with
-                # all ~89 FUSE variables. A minimal file may not work.
-                fuse_mode = self._get_config_value(
-                    lambda: self.config.model.fuse.run_mode,
-                    default='run_pre',
-                    dict_key='FUSE_RUN_MODE'
+                # run_pre (the calibration mode) needs a complete template
+                # with all ~89 FUSE variables. A minimal file may not work.
+                self.logger.error(
+                    "FUSE calibration (run_pre) requires a complete para_def.nc "
+                    "template with all ~89 variables, but none was found. "
+                    "Calibration may fail. To fix:\n"
+                    "  1. Run the FUSE model step once — its initial default run "
+                    "(run_def) generates a complete para_def.nc\n"
+                    "  2. Or set FUSE_TEMPLATE_PATH to an existing complete para_def.nc"
                 )
-                if fuse_mode == 'run_pre':
-                    self.logger.error(
-                        "FUSE run_pre mode (default) requires a complete para_def.nc template "
-                        "with all ~89 variables, but none was found. "
-                        "Calibration may fail. To fix:\n"
-                        "  1. Run FUSE once in run_def mode to generate a complete para_def.nc\n"
-                        "  2. Set FUSE_TEMPLATE_PATH to an existing complete para_def.nc"
-                    )
 
         if param_file.exists():
             for proc_id, dirs in self.parallel_dirs.items():

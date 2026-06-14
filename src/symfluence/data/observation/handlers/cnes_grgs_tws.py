@@ -14,12 +14,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('cnes_grgs')
-@ObservationRegistry.register('cnes_grgs_tws')
+@R.observation_handlers.add('cnes_grgs')
+@R.observation_handlers.add('cnes_grgs_tws')
 class CNESGRGSHandler(BaseObservationHandler):
     """
     Handles CNES/GRGS RL05 GRACE Total Water Storage data.

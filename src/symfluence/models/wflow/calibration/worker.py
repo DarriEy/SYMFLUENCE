@@ -279,13 +279,12 @@ class WflowWorker(BaseWorker):
         try:
             domain_name = config.get('DOMAIN_NAME', '')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            obs_dir = data_dir / f'domain_{domain_name}' / 'observations' / 'streamflow' / 'preprocessed'
-            if not obs_dir.exists():
+            project_dir = data_dir / f'domain_{domain_name}'
+            values, index = self._streamflow_metrics.load_observations(
+                config, project_dir, domain_name, resample_freq=None,
+            )
+            if values is None or index is None:
                 return None
-            obs_files = list(obs_dir.glob('*.csv'))
-            if not obs_files:
-                return None
-            df = pd.read_csv(obs_files[0], parse_dates=True, index_col=0)
-            return df['discharge_cms'] if 'discharge_cms' in df.columns else df.iloc[:, 0]
+            return pd.Series(values, index=index, name='discharge_cms')
         except Exception:  # noqa: BLE001
             return None

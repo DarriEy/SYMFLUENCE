@@ -133,7 +133,8 @@ class CLMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         from .forcing_processor import CLMForcingProcessor
 
         lat, lon, _ = self.domain_generator.get_catchment_centroid()
-        forcing_data_dir = self.project_forcing_dir / 'basin_averaged_data'
+        # Store-first (model_ready/forcings), else legacy basin_averaged_data.
+        forcing_data_dir = self.forcing_basin_path
         if not forcing_data_dir.exists():
             forcing_data_dir = self.project_forcing_dir
 

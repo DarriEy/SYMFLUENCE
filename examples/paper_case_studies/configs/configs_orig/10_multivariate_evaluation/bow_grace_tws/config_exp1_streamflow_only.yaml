@@ -241,9 +241,6 @@ HYDAT_PATH: /work/comphyd_lab/data/geospatial-data/hydat/Hydat.sqlite3
 
 ### ============================================= 6. Multivariate evaluation settings: ====================================================
 
-# Enable multivariate evaluation for post-hoc comparison (but calibrate only to streamflow)
-MULTIVAR_EVALUATION: True
-
 # CALIBRATION TARGET: Streamflow only (weight = 1.0)
 CALIBRATION_TARGETS:
   - variable: streamflow
@@ -296,7 +293,6 @@ SKIP_WARM_START: true
 # Single objective: streamflow KGE
 OPTIMIZATION_METRIC: KGE
 TARGET_METRIC: KGE
-MULTI_OBJECTIVE: False
 
 # Parameter bounds - constrain soil parameters to prevent SUMMA crashes
 # (crit* must be < theta_sat_min=0.35 to avoid physically impossible states)

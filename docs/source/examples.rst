@@ -38,7 +38,7 @@ Running the Examples
    .. code-block:: bash
 
       cd examples/02_watershed_modelling/
-      jupyter notebook 02b_basin_semidistributed.ipynb
+      jupyter notebook 02b_basin_semi_distributed.ipynb
 
 3. Run the notebook or script as described inside.
 

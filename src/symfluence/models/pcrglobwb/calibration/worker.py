@@ -219,22 +219,17 @@ class PCRGLOBWBWorker(BaseWorker):
         return None
 
     def _load_observations(self, config: Dict) -> Optional[pd.Series]:
-        """Load observed streamflow."""
+        """Load observed streamflow (model-ready store first, CSV fallback)."""
         data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
         domain = config.get('DOMAIN_NAME', '')
-        obs_dir = Path(data_dir) / f'domain_{domain}' / 'observations' / 'streamflow' / 'preprocessed'
-        if not obs_dir.exists():
-            self.logger.error(f"Observations not found: {obs_dir}")
+        project_dir = Path(data_dir) / f'domain_{domain}'
+        values, index = self._streamflow_metrics.load_observations(
+            config, project_dir, domain, resample_freq=None,
+        )
+        if values is None or index is None:
+            self.logger.error("Observations not found (store or preprocessed CSV)")
             return None
-
-        csv_files = sorted(obs_dir.glob('*.csv'))
-        if not csv_files:
-            self.logger.error(f"No observation CSV files in {obs_dir}")
-            return None
-
-        df = pd.read_csv(csv_files[0], parse_dates=[0], index_col=0)
-        col = 'discharge_cms' if 'discharge_cms' in df.columns else df.columns[0]
-        return df[col].dropna()
+        return pd.Series(values, index=index, name='discharge_cms').dropna()
 
     @staticmethod
     def _apply_routing(q: pd.Series, params: Dict[str, float]) -> pd.Series:

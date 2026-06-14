@@ -32,9 +32,10 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # Zenodo download URLs
@@ -58,9 +59,9 @@ _ZENODO_FILES = {
 _DEFAULT_VARIABLES = ['cwdx80', 'zroot_cwd80']
 
 
-@AcquisitionRegistry.register('ROOT_ZONE_STORAGE')
-@AcquisitionRegistry.register('RZSC')
-@AcquisitionRegistry.register('ROOTING_DEPTH')
+@R.acquisition_handlers.add('ROOT_ZONE_STORAGE')
+@R.acquisition_handlers.add('RZSC')
+@R.acquisition_handlers.add('ROOTING_DEPTH')
 class RootZoneStorageAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     Stocker et al. (2023) root zone storage capacity acquisition.

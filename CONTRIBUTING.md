@@ -22,7 +22,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
    ```bash
    python -m venv venv
    source venv/bin/activate
-   pip install -r requirements.txt
+   pip install -e ".[dev]"
    ```
 
 3. **Verify installation**
@@ -45,7 +45,7 @@ When creating new source files, include the standard SPDX header:
 
 ```python
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright 2024-2026 SYMFLUENCE Foundation <dev@symfluence.org>
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 ```
 
 ### Contributor License Agreement (CLA)
@@ -91,6 +91,11 @@ Pull requests that add new models or algorithms directly to the core will be
 redirected to the plugin path unless there is a compelling reason for core
 inclusion.
 
+A plugin can supply its own **typed configuration schema** via
+`model_manifest(config_schema=...)`; it participates in the validated config
+tree just like an in-tree model. See
+[ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md).
+
 ---
 
 ## 4. Branching Strategy
@@ -102,7 +107,7 @@ main          ← Protected, releases only (v0.6.0, v0.7.0, v1.0.0)
   ↓
 develop       ← Active development, merge here first
   ↓
-feature/*     ← Individual features
+feat/*        ← Individual features
 hotfix/*      ← Emergency fixes
 ```
 
@@ -114,12 +119,12 @@ git checkout develop
 git pull origin develop
 
 # Create your feature branch
-git checkout -b feature/my-feature
+git checkout -b feat/my-feature
 
 # Work, commit, push
 git add .
 git commit -m "Add feature description"
-git push -u origin feature/my-feature
+git push -u origin feat/my-feature
 
 # Open PR to merge into develop
 ```
@@ -160,6 +165,13 @@ git push origin develop
 - Include **type hints** and informative **docstrings**.
 - Keep functions focused and testable.
 - Prefer explicit over implicit; avoid magic numbers.
+
+### Logging Levels
+A failed operation that the framework recovers from (a model run crashes, a data
+step fails) is logged at `ERROR`, not `CRITICAL`. `CRITICAL` is reserved for the
+single orchestrator-boundary case where the *whole run* is aborting. See
+[ADR-0005](docs/adr/0005-logging-level-policy.md) for the full level policy. Use
+`--debug` to surface `DEBUG`-level detail when diagnosing a run.
 
 ### Type Checking Notes
 
@@ -222,6 +234,12 @@ pytest tests/integration/   # Integration tests
 pytest tests/e2e/ --run-full-examples  # End-to-end tests (slow)
 ```
 
+CI enforces a coverage floor that only ratchets upward — a change may not lower
+total coverage. See [ADR-0008](docs/adr/0008-coverage-gate-raise-and-ratchet.md)
+for the policy. When testing config handling, set `SYMFLUENCE_STRICT_CONFIG=1`
+(or `STRICT_CONFIG: true` in the config) to turn unrecognized-key warnings into
+hard errors — see [ADR-0006](docs/adr/0006-config-unknown-keys-warn-by-default.md).
+
 See `tests/TESTING.md` for detailed testing documentation.
 
 ### Commit Messages
@@ -236,13 +254,13 @@ Use concise, descriptive messages:
 
 1. **Create a feature branch**
    ```bash
-   git checkout -b feature/my-update
+   git checkout -b feat/my-update
    ```
 
 2. **Commit and push**
    ```bash
    git commit -m "Describe your change"
-   git push origin feature/my-update
+   git push origin feat/my-update
    ```
 
 3. **Open a Pull Request (PR)**
@@ -363,6 +381,12 @@ While SYMFLUENCE is pre-1.0 (currently 0.x.x):
 - MINOR versions may include breaking changes (documented in CHANGELOG)
 - PATCH versions are always backward compatible
 - Deprecation warnings will be issued at least one MINOR version before removal
+- The legacy `*Registry.register` decorator shims are removed before 1.0;
+  register through `model_manifest()` and the unified `R.*` facade. See
+  [ADR-0001](docs/adr/0001-remove-legacy-registry-shims.md).
+
+Significant interface and policy decisions are recorded as Architecture
+Decision Records under [`docs/adr/`](docs/adr/).
 
 ### Deprecation Policy
 

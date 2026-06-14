@@ -12,7 +12,7 @@ Phase 4 delegation shim: all state lives in ``R.acquisition_handlers``.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Union
 
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.data.base_registry import BaseRegistry
@@ -40,7 +40,7 @@ class AcquisitionRegistry(BaseRegistry):
 
     Usage:
         # Handler registration (in handler module):
-        @AcquisitionRegistry.register('ERA5')
+        @R.acquisition_handlers.add('ERA5')
         class ERA5Acquirer(BaseAcquisitionHandler):
             ...
 
@@ -52,7 +52,6 @@ class AcquisitionRegistry(BaseRegistry):
     """
 
     _r_registry_name = "acquisition_handlers"
-    _handlers: Dict[str, Type] = {}
 
     @classmethod
     def get_handler(  # type: ignore[override]

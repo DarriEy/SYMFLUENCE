@@ -36,9 +36,10 @@ from pathlib import Path
 import rasterio
 from rasterio.merge import merge as rio_merge
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # Base URL for POLARIS v1.0
@@ -61,7 +62,7 @@ _DEFAULT_DEPTHS = ['0_5', '5_15', '15_30', '30_60', '60_100']
 _ALL_STATISTICS = ['mean', 'mode', 'p5', 'p50', 'p95']
 
 
-@AcquisitionRegistry.register('POLARIS')
+@R.acquisition_handlers.add('POLARIS')
 class POLARISAcquirer(BaseAcquisitionHandler, RetryMixin):
     """POLARIS 30m soil property acquisition via HTTP tile download.
 

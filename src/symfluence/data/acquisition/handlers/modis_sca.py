@@ -27,12 +27,13 @@ import pandas as pd
 import requests
 import xarray as xr
 
-from ..registry import AcquisitionRegistry
+from symfluence.core.registries import R
+
 from .earthaccess_base import BaseEarthaccessAcquirer
 
 
-@AcquisitionRegistry.register('MODIS_SCA')
-@AcquisitionRegistry.register('MODIS_SNOW_MERGED')
+@R.acquisition_handlers.add('MODIS_SCA')
+@R.acquisition_handlers.add('MODIS_SNOW_MERGED')
 class MODISSCAAcquirer(BaseEarthaccessAcquirer):
     """
     Acquires MODIS Snow Cover Area data from both Terra (MOD10A1) and Aqua (MYD10A1)

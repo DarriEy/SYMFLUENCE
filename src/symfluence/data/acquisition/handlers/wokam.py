@@ -34,18 +34,19 @@ from typing import Optional
 import geopandas as gpd
 from shapely.geometry import box
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # WOKAM download URL
 _WOKAM_URL = "https://download.bgr.de/bgr/grundwasser/whymap/shp/WHYMAP_WOKAM_v1.zip"
 
 
-@AcquisitionRegistry.register('WOKAM')
-@AcquisitionRegistry.register('KARST')
-@AcquisitionRegistry.register('KARST_AQUIFER')
+@R.acquisition_handlers.add('WOKAM')
+@R.acquisition_handlers.add('KARST')
+@R.acquisition_handlers.add('KARST_AQUIFER')
 class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     WOKAM (World Karst Aquifer Map) global karst acquisition.

@@ -53,17 +53,20 @@ def _make_acquirer(bbox=None, tmp_path=None):
     return acq
 
 
-def _make_daymet_dataset(lcc_bbox, n_time=10):
+def _make_daymet_dataset(lcc_bbox, n_time=10, descending_y=False):
     """Create a synthetic Daymet-like dataset in LCC coordinates.
 
     Builds a small grid that covers the LCC bounding box with 1 km spacing,
-    including 2D lat/lon auxiliary coordinates.
+    including 2D lat/lon auxiliary coordinates. ``descending_y=True``
+    mimics the real Daymet granules, whose y axis runs north -> south.
     """
     from pyproj import Transformer
 
     # Build x/y grid that covers the LCC bbox
     x = np.arange(lcc_bbox['x_min'] - 2000, lcc_bbox['x_max'] + 2000, 1000.0)
     y = np.arange(lcc_bbox['y_min'] - 2000, lcc_bbox['y_max'] + 2000, 1000.0)
+    if descending_y:
+        y = y[::-1]
     time = np.arange(n_time)
 
     rng = np.random.default_rng(42)
@@ -139,6 +142,116 @@ class TestBboxToLcc:
         lcc1 = acq1._bbox_to_lcc()
         lcc2 = acq2._bbox_to_lcc()
         assert lcc1['x_min'] != lcc2['x_min']
+
+
+# ---------------------------------------------------------------------------
+# Tests: descending-y window math (the exp16 slice bug)
+# ---------------------------------------------------------------------------
+
+class TestDescendingYSubset:
+    """Daymet's y axis DESCENDS (north -> south); the window math must
+    order the slice accordingly. An ascending slice(y_min, y_max) on a
+    descending axis silently returns an EMPTY window — that bug killed the
+    whole native gridded route (parity campaign exp16, 2026-06)."""
+
+    def test_descending_y_returns_nonempty_window(self):
+        acq = _make_acquirer()
+        lcc_bbox = acq._bbox_to_lcc()
+        ds = _make_daymet_dataset(lcc_bbox, n_time=3, descending_y=True)
+
+        sub = acq._lcc_subset(ds, lcc_bbox)
+        assert sub.sizes['x'] > 0
+        assert sub.sizes['y'] > 0
+
+    def test_descending_y_window_covers_bbox(self):
+        acq = _make_acquirer()
+        lcc_bbox = acq._bbox_to_lcc()
+        ds = _make_daymet_dataset(lcc_bbox, n_time=3, descending_y=True)
+
+        sub = acq._lcc_subset(ds, lcc_bbox)
+        y_vals = sub['y'].values
+        x_vals = sub['x'].values
+        # y stays descending after subsetting
+        assert y_vals[0] > y_vals[-1]
+        # the window spans the requested LCC extent (within one cell)
+        assert y_vals.min() <= lcc_bbox['y_min'] + 1000
+        assert y_vals.max() >= lcc_bbox['y_max'] - 1000
+        assert x_vals.min() <= lcc_bbox['x_min'] + 1000
+        assert x_vals.max() >= lcc_bbox['x_max'] - 1000
+
+    def test_ascending_y_still_works(self):
+        acq = _make_acquirer()
+        lcc_bbox = acq._bbox_to_lcc()
+        ds = _make_daymet_dataset(lcc_bbox, n_time=3, descending_y=False)
+
+        sub = acq._lcc_subset(ds, lcc_bbox)
+        assert sub.sizes['x'] > 0
+        assert sub.sizes['y'] > 0
+
+    def test_descending_and_ascending_select_same_cells(self):
+        acq = _make_acquirer()
+        lcc_bbox = acq._bbox_to_lcc()
+        ds_asc = _make_daymet_dataset(lcc_bbox, n_time=3, descending_y=False)
+        ds_desc = ds_asc.isel(y=slice(None, None, -1))
+
+        sub_asc = acq._lcc_subset(ds_asc, lcc_bbox)
+        sub_desc = acq._lcc_subset(ds_desc, lcc_bbox)
+        assert set(sub_asc['y'].values) == set(sub_desc['y'].values)
+        np.testing.assert_array_equal(
+            sub_asc['tmax'].values,
+            sub_desc['tmax'].isel(y=slice(None, None, -1)).values,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Tests: DAP2 URL construction
+# ---------------------------------------------------------------------------
+
+class TestOpendapUrl:
+    """The gridded route must target the NASA Hyrax cloud OPeNDAP endpoint
+    with a DAP2 constraint (legacy ORNL THREDDS is retired and 404s; this
+    Hyrax deployment rejects plain DAP4 constraints)."""
+
+    def test_url_targets_earthdata_hyrax(self):
+        acq = _make_acquirer()
+        url = acq._opendap_dap2_url('tmax', 2018)
+        assert url.startswith(
+            "https://opendap.earthdata.nasa.gov/collections/"
+            "C2532426483-ORNL_CLOUD/granules/"
+            "Daymet_Daily_V4R1.daymet_v4_daily_na_tmax_2018.nc"
+        )
+
+    def test_url_carries_dap2_constraint(self):
+        acq = _make_acquirer()
+        url = acq._opendap_dap2_url('prcp', 2020)
+        # Constraint requests only the needed fields — crucially skipping
+        # time_bnds, which the pydap backend mis-parses.
+        assert url.endswith("?prcp,time,x,y,lat,lon")
+
+    def test_no_legacy_thredds_endpoint(self):
+        """The retired ORNL THREDDS host must not appear anywhere."""
+        import inspect
+
+        import symfluence.data.acquisition.handlers.daymet as daymet_mod
+        src = inspect.getsource(daymet_mod)
+        assert 'thredds.daac.ornl.gov' not in src
+        assert 'data.ornldaac.earthdata.nasa.gov/protected' not in src
+
+    def test_opendap_open_uses_pydap_engine(self, tmp_path):
+        """The granule must be opened DAP2-style via pydap with an
+        authenticated session, not via the libnetcdf DAP client."""
+        acq = _make_acquirer(tmp_path=tmp_path)
+        lcc_bbox = acq._bbox_to_lcc()
+        ds_full = _make_daymet_dataset(lcc_bbox, n_time=5, descending_y=True)
+        var_file = tmp_path / 'daymet_tmax_2020.nc'
+
+        with patch('xarray.open_dataset', return_value=ds_full) as mock_open:
+            result = acq._download_opendap_subset('tmax', 2020, var_file, lcc_bbox)
+
+        assert result is True
+        _args, kwargs = mock_open.call_args
+        assert kwargs.get('engine') == 'pydap'
+        assert 'session' in kwargs
 
 
 # ---------------------------------------------------------------------------

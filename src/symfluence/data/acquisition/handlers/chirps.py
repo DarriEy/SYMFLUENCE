@@ -30,11 +30,12 @@ from typing import List
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('CHIRPS')
+@R.acquisition_handlers.add('CHIRPS')
 class CHIRPSAcquirer(BaseAcquisitionHandler):
     """
     Acquires CHIRPS precipitation data from UCSB CHG data server.

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 # Third-party imports
 import geopandas as gpd
@@ -642,36 +642,53 @@ class SummaAttributesManager(ConfigurableMixin):
         intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
 
         try:
-            shp = gpd.read_file(intersect_path / intersect_name)
-
-            # Check and create missing USGS_X columns
-            for i in range(13):
-                col_name = f'USGS_{i}'
-                if col_name not in shp.columns:
-                    shp[col_name] = 0  # Add the missing column and initialize with 0
+            # Prefer the model-ready attributes store (/soil/ fractions keyed by
+            # hru_id); fall back to the SoilGrids intersection shapefile.
+            store_frac = self._load_store_class_fractions(
+                'soil', 'soil_fraction', 'soil_class_name')
+            shp = None
+            if store_frac is None:
+                shp = gpd.read_file(intersect_path / intersect_name)
+                # Check and create missing USGS_X columns
+                for i in range(13):
+                    col_name = f'USGS_{i}'
+                    if col_name not in shp.columns:
+                        shp[col_name] = 0  # Add the missing column and initialize with 0
 
             with nc4.Dataset(attribute_file, "r+") as att:
                 for idx in range(len(att['hruId'])):
                     attribute_hru = att['hruId'][idx]
-                    shp_mask = (shp[intersect_hruId_var].astype(int) == attribute_hru)
 
-                    # Check if there are any matching rows for this HRU
-                    if not any(shp_mask):
-                        self.logger.warning(f"No soil class data found for HRU {attribute_hru}, using default class")
-                        att['soilTypeIndex'][idx] = 6  # Use a default value (6 = loam)
-                        continue
+                    if store_frac is not None:
+                        hist = store_frac.get(int(attribute_hru))
+                        if hist is None:
+                            self.logger.warning(f"No soil class data found for HRU {attribute_hru}, using default class")
+                            att['soilTypeIndex'][idx] = 6  # Use a default value (6 = loam)
+                            continue
+                        tmp_hist = [hist.get(j, 0.0) for j in range(13)]
+                        tmp_hist[0] = -1  # Set USGS_0 to -1 to avoid selecting it
+                        tmp_sc = int(np.argmax(np.asarray(tmp_hist)))
+                    else:
+                        assert shp is not None  # read above when the store is unused
+                        shp_mask = (shp[intersect_hruId_var].astype(int) == attribute_hru)
 
-                    tmp_hist = []
-                    for j in range(13):
-                        col_name = f'USGS_{j}'
-                        tmp_hist.append(shp[col_name][shp_mask].values[0])
+                        # Check if there are any matching rows for this HRU
+                        if not any(shp_mask):
+                            self.logger.warning(f"No soil class data found for HRU {attribute_hru}, using default class")
+                            att['soilTypeIndex'][idx] = 6  # Use a default value (6 = loam)
+                            continue
 
-                    tmp_hist[0] = -1  # Set USGS_0 to -1 to avoid selecting it
-                    tmp_sc = np.argmax(np.asarray(tmp_hist))
+                        tmp_hist = []
+                        for j in range(13):
+                            col_name = f'USGS_{j}'
+                            tmp_hist.append(shp[col_name][shp_mask].values[0])
 
-                    if shp[f'USGS_{tmp_sc}'][shp_mask].values[0] != tmp_hist[tmp_sc]:
-                        self.logger.warning(f'Index and mode soil class do not match at hru_id {attribute_hru}')
-                        tmp_sc = 6  # Use a default value (6 = loam) instead of -999
+                        tmp_hist[0] = -1  # Set USGS_0 to -1 to avoid selecting it
+                        tmp_sc = np.argmax(np.asarray(tmp_hist))
+
+                        if shp[f'USGS_{tmp_sc}'][shp_mask].values[0] != tmp_hist[tmp_sc]:
+                            self.logger.warning(f'Index and mode soil class do not match at hru_id {attribute_hru}')
+                            tmp_sc = 6  # Use a default value (6 = loam) instead of -999
 
                     # Ensure soil type index is positive (SUMMA requires this)
                     if tmp_sc <= 0:
@@ -700,37 +717,53 @@ class SummaAttributesManager(ConfigurableMixin):
         intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
 
         try:
-            shp = gpd.read_file(intersect_path / intersect_name)
-
-            # Check and create missing IGBP_X columns
-            for i in range(1, 18):
-                col_name = f'IGBP_{i}'
-                if col_name not in shp.columns:
-                    shp[col_name] = 0  # Add the missing column and initialize with 0
+            # Prefer the model-ready attributes store (/landcover/ fractions
+            # keyed by hru_id); fall back to the land-class intersection shapefile.
+            store_frac = self._load_store_class_fractions(
+                'landcover', 'land_fraction', 'land_class_name')
+            shp = None
+            if store_frac is None:
+                shp = gpd.read_file(intersect_path / intersect_name)
+                # Check and create missing IGBP_X columns
+                for i in range(1, 18):
+                    col_name = f'IGBP_{i}'
+                    if col_name not in shp.columns:
+                        shp[col_name] = 0  # Add the missing column and initialize with 0
 
             is_water = 0
 
             with nc4.Dataset(attribute_file, "r+") as att:
                 for idx in range(len(att['hruId'])):
                     attribute_hru = att['hruId'][idx]
-                    shp_mask = (shp[intersect_hruId_var].astype(int) == attribute_hru)
 
-                    # Check if there are any matching rows for this HRU
-                    if not any(shp_mask):
-                        self.logger.warning(f"No land class data found for HRU {attribute_hru}, using default class")
-                        att['vegTypeIndex'][idx] = 1  # Use a default value (1 = Evergreen Needleleaf)
-                        continue
+                    if store_frac is not None:
+                        hist = store_frac.get(int(attribute_hru))
+                        if hist is None:
+                            self.logger.warning(f"No land class data found for HRU {attribute_hru}, using default class")
+                            att['vegTypeIndex'][idx] = 1  # Use a default value (1 = Evergreen Needleleaf)
+                            continue
+                        tmp_hist = [hist.get(j, 0.0) for j in range(1, 18)]
+                        tmp_lc = int(np.argmax(np.asarray(tmp_hist))) + 1
+                    else:
+                        assert shp is not None  # read above when the store is unused
+                        shp_mask = (shp[intersect_hruId_var].astype(int) == attribute_hru)
 
-                    tmp_hist = []
-                    for j in range(1, 18):
-                        col_name = f'IGBP_{j}'
-                        tmp_hist.append(shp[col_name][shp_mask].values[0])
+                        # Check if there are any matching rows for this HRU
+                        if not any(shp_mask):
+                            self.logger.warning(f"No land class data found for HRU {attribute_hru}, using default class")
+                            att['vegTypeIndex'][idx] = 1  # Use a default value (1 = Evergreen Needleleaf)
+                            continue
 
-                    tmp_lc = np.argmax(np.asarray(tmp_hist)) + 1
+                        tmp_hist = []
+                        for j in range(1, 18):
+                            col_name = f'IGBP_{j}'
+                            tmp_hist.append(shp[col_name][shp_mask].values[0])
 
-                    if shp[f'IGBP_{tmp_lc}'][shp_mask].values[0] != tmp_hist[tmp_lc - 1]:
-                        self.logger.warning(f'Index and mode land class do not match at hru_id {attribute_hru}')
-                        tmp_lc = 1  # Use a default value (1 = Evergreen Needleleaf) instead of -999
+                        tmp_lc = np.argmax(np.asarray(tmp_hist)) + 1
+
+                        if shp[f'IGBP_{tmp_lc}'][shp_mask].values[0] != tmp_hist[tmp_lc - 1]:
+                            self.logger.warning(f'Index and mode land class do not match at hru_id {attribute_hru}')
+                            tmp_lc = 1  # Use a default value (1 = Evergreen Needleleaf) instead of -999
 
                     if tmp_lc == 17:
                         if any(val > 0 for val in tmp_hist[0:-1]):  # HRU is mostly water but other land classes are present
@@ -768,33 +801,136 @@ class SummaAttributesManager(ConfigurableMixin):
         intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
         elev_column = 'elev_mean'
 
-        shp = gpd.read_file(intersect_path / intersect_name)
-
         connect_hrus = self._get_config_value(
             lambda: self.config.model.summa.connect_hrus, default='no'
         )
         do_downHRUindex = connect_hrus == 'yes'
+
+        # Prefer the model-ready attributes store (terrain/elev_mean keyed by
+        # hru_id); fall back to the DEM intersection shapefile when the store is
+        # absent or a given HRU is missing. The store's elev_mean is copied from
+        # the same shapefile, so per-HRU values are identical — no objective drift.
+        store_elev = self._load_store_elevation()
+        shp = None if store_elev else gpd.read_file(intersect_path / intersect_name)
 
         with nc4.Dataset(attribute_file, "r+") as att:
             gru_data: Dict[int, List[Tuple[Any, float]]] = {}
             for idx in range(len(att['hruId'])):
                 hru_id = att['hruId'][idx]
                 gru_id = att['hru2gruId'][idx]
-                shp_mask = (shp[intersect_hruId_var].astype(int) == hru_id)
 
-                if any(shp_mask):
-                    elevation = shp[elev_column][shp_mask].values[0]
+                elevation = store_elev.get(int(hru_id)) if store_elev else None
+                if elevation is None:
+                    if shp is None:
+                        shp = gpd.read_file(intersect_path / intersect_name)
+                    shp_mask = (shp[intersect_hruId_var].astype(int) == hru_id)
+                    if any(shp_mask):
+                        elevation = float(shp[elev_column][shp_mask].values[0])
+
+                if elevation is not None:
                     att['elevation'][idx] = elevation
-
                     if do_downHRUindex:
-                        if gru_id not in gru_data:
-                            gru_data[gru_id] = []
-                        gru_data[gru_id].append((hru_id, elevation))
+                        gru_data.setdefault(gru_id, []).append((hru_id, elevation))
                 else:
                     self.logger.warning(f"No elevation data found for HRU {hru_id}")
 
             if do_downHRUindex:
                 self._set_downHRUindex(att, gru_data)
+
+    def _load_store_elevation(self) -> Optional[Dict[int, float]]:
+        """Load per-HRU mean elevation from the model-ready attributes store.
+
+        Returns an ``{hru_id: elevation}`` mapping keyed by integer HRU id, or
+        ``None`` when the store/terrain group is unavailable so the caller falls
+        back to the DEM intersection shapefile.
+        """
+        try:
+            from symfluence.data.model_ready import open_canonical_attributes
+
+            domain_name = self.project_dir.name.replace('domain_', '', 1)
+            reader = open_canonical_attributes(self.project_dir, domain_name)
+            if reader is None:
+                return None
+            raw = reader.per_hru_values('terrain', 'elev_mean')
+            if not raw:
+                return None
+            mapping: Dict[int, float] = {}
+            for key, value in raw.items():
+                try:
+                    mapping[int(float(key))] = float(value)
+                except (ValueError, TypeError):
+                    continue
+            if mapping:
+                self.logger.info(
+                    f"Using elevation from model-ready attributes store ({len(mapping)} HRUs)"
+                )
+                return mapping
+            return None
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.debug(
+                f"Could not read elevation from attributes store: {e}", exc_info=True
+            )
+            return None
+
+    def _load_store_class_fractions(
+        self, group: str, frac_var: str, name_var: str
+    ) -> Optional[Dict[int, Dict[int, float]]]:
+        """Load per-HRU class fractions from a model-ready attributes group.
+
+        Returns ``{hru_id: {class_index: fraction}}`` for a soil/landcover group
+        (e.g. ``group='soil'``, ``frac_var='soil_fraction'``,
+        ``name_var='soil_class_name'`` whose names are ``USGS_0``/``USGS_1``/…),
+        keyed by integer HRU id. Returns ``None`` when the store/group is
+        unavailable so the caller falls back to the intersection shapefile.
+
+        No drift: the store fractions originate from the same intersection
+        shapefile, so the dominant-class selection is identical.
+        """
+        try:
+            from symfluence.data.model_ready import open_canonical_attributes
+
+            domain_name = self.project_dir.name.replace('domain_', '', 1)
+            reader = open_canonical_attributes(self.project_dir, domain_name)
+            if reader is None or not reader.has_group(group):
+                return None
+            ids = reader.hru_ids(group)
+            if not ids:
+                return None
+            with reader.group(group) as ds:
+                if frac_var not in ds.variables or name_var not in ds.variables:
+                    return None
+                frac = np.asarray(ds[frac_var].values)
+                names = [str(x) for x in np.atleast_1d(ds[name_var].values)]
+            if frac.ndim != 2 or frac.shape[0] != len(ids):
+                return None
+            class_idx: List[Optional[int]] = []
+            for nm in names:
+                try:
+                    class_idx.append(int(nm.split('_')[-1]))
+                except ValueError:
+                    class_idx.append(None)
+            mapping: Dict[int, Dict[int, float]] = {}
+            for h, hid in enumerate(ids):
+                try:
+                    key = int(float(hid))
+                except (ValueError, TypeError):
+                    continue
+                mapping[key] = {
+                    ci: float(frac[h, c])
+                    for c, ci in enumerate(class_idx) if ci is not None
+                }
+            if mapping:
+                self.logger.info(
+                    f"Using {group} class fractions from model-ready attributes "
+                    f"store ({len(mapping)} HRUs)"
+                )
+                return mapping
+            return None
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.debug(
+                f"Could not read {group} fractions from store: {e}", exc_info=True
+            )
+            return None
 
     def _set_downHRUindex(self, att, gru_data):
         """Set the downHRUindex based on elevation data or D8 flow direction."""

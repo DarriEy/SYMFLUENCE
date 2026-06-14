@@ -11,6 +11,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.1] - 2026-06-14
+
+> **Note**: Versions 0.8.0–0.9.0 were tagged and published without CHANGELOG
+> entries. This section documents the changes since the v0.9.0 release; the
+> 0.8.x/0.9.0 history is not reconstructed here.
+
+### Added
+- **Canonical forcing contract (CFIF)**: a single canonical forcing reader keyed
+  to CF standard names (CFIF) that model preprocessors consume through one path,
+  with automatic resampling of the source to each model's cadence. Adopted by
+  SWAT, Wflow, IGNACIO, LISFLOOD, CWatM, PCR-GLOBWB, RHESSys, CLM-ParFlow, and mHM.
+- **Model-ready data store for attributes and observations**: new attributes
+  reader plus observation/streamflow loaders that source from the model-ready
+  store. SUMMA soil/land class and HYPE GeoData (soil/land/elevation) now read
+  from the store; `StreamflowMetrics` and the remaining calibration loaders are
+  routed through it.
+- **Windows binary builds** for many models — WATFLOOD (bundled Waterloo CHARM
+  prebuilt), ParFlow, CLM-ParFlow, PRMS, VIC, PIHM, mHM, WRF-Hydro, and glacier —
+  via MinGW/MSYS2 POSIX shims and CMake/NetCDF wiring.
+- **WATFLOOD**: full Unix and Windows source builds; CHARM runs on the datastore;
+  parallel-calibration plumbing.
+- **GSFLOW**: datastore-driven inputs and a distributed-groundwater option.
+- **mHM**: CARRA forcing support and distributed-morphology (MPR) mode.
+- WATFLOOD and GSFLOW standalone postprocessors registered.
+
+### Changed
+- **Agent interface simplified to a launcher.** `symfluence agent launch` now hands
+  off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...), primed with
+  the SYMFLUENCE skills, instead of running a bespoke in-house LLM agent. It detects
+  the CLI on `PATH` and uses whichever API key is set (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY` / `GEMINI_API_KEY`); override with `SYMFLUENCE_AGENT_CLI`, skip
+  skill materialization with `SYMFLUENCE_NO_SKILLS`. The skills now ship inside the
+  package. *(net ~ −7,000 LOC)*
+- **Config schema canonicalization (toward 1.0)**: promoted data-handler,
+  HYPE/NGEN/FUSE/GR/mizuRoute/path, multi-gauge, optimizer/evaluator, and
+  parameter-bounds flat keys to typed Pydantic fields; `RECOGNIZED_FLAT_KEYS` is
+  now closed; the `state` and `data_assimilation` sections are wired into the
+  flat-key transform; IGNACIO/GNN/LSTM schemas reconciled with the registered
+  ones. Strict config-key validation is enforced and dogfooded on shipped configs.
+- Documentation: root `ARCHITECTURE.md` at-a-glance, an ADR practice with the
+  initial ADR set, and a threat model (`docs/security.md`).
+- Evaluation: unified catchment-area resolution between trial and final-eval
+  metrics (resolves the FUSE final-eval KGE divergence).
+- Performance: RTI review item 20 hot-spots — rasterio hoist, Julian-date
+  vectorization, coastal-partition rewrite — plus a CLI performance gate.
+- Core layering restored: no `core` → upper-layer imports (RTI item 19).
+
+### Fixed
+- **Data acquisition**: MERIT-Basins region table and dead-host download; Daymet
+  gridded OPeNDAP route (descending y, DAP2); HRRR LCC-grid windowing; CERRA
+  longwave variable name; NEX-GDDP-CMIP6 synthetic-airpres survival and hardening;
+  DEM merge pixel-grid snap; MSWEP remote path and default version; SMHI
+  skip-if-raw-exists guard; EM-Earth S3 handler (403 visibility, credentials,
+  month window); WSC GeoMet paging corruption and NLDAS-2 v2.0 variable names;
+  USGS NWIS gauge-local → UTC timestamps; GRACE atomic `.part` downloads.
+- **HYPE**: clone over `https://` with retry, replacing the deprecated
+  `git://` SourceForge transport that intermittently broke nightly and release
+  builds.
+- **CLM** build: NetCDF library symlinks for PIO (Debian multiarch), git
+  `safe.directory` re-assert after HOME change, `mpi-serial` pin, and Perl
+  `XML::LibXML` install.
+- Hardcoded `*3600` hourly-conversion bugs in the Wflow and IGNACIO forcing paths.
+- **Windows builds**: WATFLOOD DLL staging, PIHM `timegm` guard, ParFlow
+  `mkdir`/path compatibility, PRMS NetCDF path quoting and `gnu17`, VIC version
+  macros, mHM NetCDF detection, and WRF-Hydro checkout.
+- **Glacier**: earthaccess auth for NSIDC, RGI region-name transform, and
+  coldstart fixes.
+- **PRMS**: resilience-handler tracebacks (`exc_info=True`) and HRU parameters
+  driven from the datastore.
+- SWAT preprocessor registered via `core.registries.R` to avoid a circular import.
+
+### Removed
+- **Deprecated `register*` decorator registry API** — registration is now
+  R-facade only. *(breaking)*
+- **Deprecated `*Postprocessor` spelling aliases** — use `*PostProcessor`.
+  *(breaking; external plugins must update)*
+- **HYDROGEOSPHERE** model stub. *(breaking)*
+- The **CalMIP** example stub.
+- **DPE** (differentiable PE) and other dead/external config keys; shipped
+  configs curated accordingly.
+- **The bespoke in-house LLM agent** (`symfluence.agent` internals) and the
+  optional `[llm]`/`openai` dependency — replaced by the launcher above.
+  `symfluence agent start`/`run` are deprecated aliases for `launch`. *(breaking:
+  the agent now requires an external coding-agent CLI)*
+
+### CI / Release
+- `release-binaries`: build MODFLOW 6 from source on Linux, build ngen on
+  Linux/macOS, skip CLM on Windows (ESMF/CIME on MinGW unsupported), close
+  presence-check holes and surface failed optional builds, and don't clobber the
+  latest release on a tagless `workflow_dispatch`.
+- Strict config-key validation dogfooded on shipped configs (kept out of the
+  lint job, which has no `symfluence` install).
+- Require the `PostProcessor`-spelling plugin releases.
+
+---
+
 ## [0.7.1] - 2026-03-01
 
 ### Fixed

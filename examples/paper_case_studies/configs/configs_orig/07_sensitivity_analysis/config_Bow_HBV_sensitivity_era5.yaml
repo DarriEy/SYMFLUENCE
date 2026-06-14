@@ -251,20 +251,6 @@ FUSE_EXE: fuse.exe                                             # Name of FUSE ex
 # GR settings
 GR_EXE: GR.r                                                   # Name of GR executable script
 
-#FLASH settings
-FLASH_LOAD: False                                               # Load existing flash model from storage. If false creates and trains new model.
-FLASH_HIDDEN_SIZE: 128                                         # Number of hidden layer
-FLASH_NUM_LAYERS: 3                                            # Number of active layers
-FLASH_EPOCHS: 300                                              # Number of training epochs
-FLASH_BATCH_SIZE: 64                                           # Training batch size
-FLASH_LEARNING_RATE: 0.001                                     # LSTM learning rate
-FLASH_LEARNING_PATIENCE: 30                                    # LSTM learning patience
-FLASH_LOOKBACK: 700                                            # Lookback timesteps
-FLASH_DROPOUT: 0.2                                             # LSTM Dropout ratio
-FLASH_L2_REGULARIZATION: 1e-6                                  # L2 regularization
-FLASH_USE_ATTENTION: True                                      # Use attention
-FLASH_USE_SNOW: False                                          # Use snow data
-
 # LSTM settings
 LSTM_LOAD: False                                               # Load existing LSTM model from storage. If false creates and trains new model.
 LSTM_HIDDEN_SIZE: 128                                          # Number of hidden layer units
@@ -324,7 +310,6 @@ STREAMFLOW_RAW_NAME: default                                   # Name of streamf
 STREAMFLOW_PROCESSED_PATH: default                             # Path to streamflow processed dataset. If default, uses self.data_dir / observations / streamflow / preprocessed / config['DOMAIN_NAME']_streamflow_processed.csv
 HYDAT_PATH: /work/comphyd_lab/data/geospatial-data/hydat/Hydat.sqlite3 #Path to HYDAT database
 
-
 ### ============================================= 6. Optimization settings: ===============================================================
 
 OPTIMIZATION_METHODS: [iteration]                   # Methods to optimize the model performance, options: 'emulation', 'iteration'
@@ -351,33 +336,11 @@ TARGET_METRIC: KGE                                             # Target metric f
 GLUE_THRESHOLD: -3.0                                           # Behavioral threshold - samples with KGE >= threshold are considered behavioral
 GLUE_SHAPING_FACTOR: 1.0                                       # Likelihood shaping factor (higher = sharper posterior)
 
-  # -- jFUSE parameter bounds (constrained to reasonable ranges for this catchment)
-JFUSE_PARAM_BOUNDS:
-  # Storage parameters
-  S1_max: [10, 500]                                            # Upper zone storage capacity [mm]
-  S2_max: [50, 2000]                                           # Lower zone storage capacity [mm]
-  # Drainage parameters
-  ku: [0.01, 1.0]                                              # Upper zone drainage rate [1/day]
-  ki: [0.001, 0.5]                                             # Interflow drainage rate [1/day]
-  ks: [0.0001, 0.1]                                            # Baseflow drainage rate [1/day]
-  # Shape parameters
-  n: [1.0, 5.0]                                                # Brooks-Corey exponent [-]
-  b: [0.5, 3.0]                                                # Tension storage shape parameter [-]
-  Ac_max: [0.1, 1.0]                                           # Maximum saturated area fraction [-]
-  f_rchr: [0.0, 1.0]                                           # Recharge fraction [-]
-  # Snow parameters
-  T_rain: [-2.0, 4.0]                                          # Rain temperature threshold [°C]
-  T_melt: [-2.0, 4.0]                                          # Melt temperature threshold [°C]
-  MFMAX: [1.0, 8.0]                                            # Maximum melt factor [mm/°C/day]
-  MFMIN: [0.5, 4.0]                                            # Minimum melt factor [mm/°C/day]
-  smooth_frac: [0.0, 1.0]                                      # Smoothing fraction [-]
-
   # -- DDS specific settings
 DDS_R:  0.2                                                    # DDS perturbation parameter
 ASYNC_DDS_POOL_SIZE: 10                                        # Size of shared solution pool
 ASYNC_DDS_BATCH_SIZE: 10                                       # Evaluations per batch
 MAX_STAGNATION_BATCHES: 5                                     # Stop after N batches without improvement
-
 
   # -- SCE-UA specific settings
 NUMBER_OF_COMPLEXES: 2                                         # Number of complexes in SCE-UA

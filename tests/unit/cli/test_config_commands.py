@@ -106,7 +106,7 @@ class TestConfigUpdate:
 class TestConfigValidate:
     """Test config validate command."""
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
     def test_validate_success(self, mock_load_config, mock_symfluence_class, tmp_path):
         """Test successful config validation."""
@@ -139,7 +139,7 @@ class TestConfigValidate:
 
         assert result == ExitCode.CONFIG_ERROR
 
-    @patch('symfluence.core.SYMFLUENCE')
+    @patch('symfluence.SYMFLUENCE')
     @patch('symfluence.cli.commands.base.BaseCommand.load_typed_config')
     def test_validate_structure_error(self, mock_load_config, mock_symfluence_class, tmp_path):
         """Test validation with structure error."""

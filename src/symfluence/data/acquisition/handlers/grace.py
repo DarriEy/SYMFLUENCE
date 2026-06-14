@@ -17,8 +17,9 @@ from typing import Any, Optional, Tuple
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from ..utils import resolve_earthdata_token
 from .merra2 import _EarthdataSession
 
@@ -56,7 +57,7 @@ def _ca_bundle() -> str:
         return certifi.where()
 
 
-@AcquisitionRegistry.register('GRACE')
+@R.acquisition_handlers.add('GRACE')
 class GRACEAcquirer(BaseAcquisitionHandler):
     """
     Handles GRACE/GRACE-FO data acquisition.
@@ -135,11 +136,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Downloading {center.upper()} from {url}")
                 session = requests.Session()
                 session.verify = _ca_bundle()
-                with session.get(url, stream=True, timeout=120) as r:
-                    r.raise_for_status()
-                    with open(target_file, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
+                self._stream_to_file(session, url, target_file, timeout=120)
                 self.logger.info(f"Successfully downloaded GRACE {center.upper()} data to {target_file}")
                 success_count += 1
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -150,6 +147,30 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             raise RuntimeError("Failed to acquire any GRACE data.")
 
         return output_dir
+
+    def _stream_to_file(self, session: requests.Session, url: str, target_file: Path, timeout: int) -> None:
+        """Stream a download to a temp file, then atomically rename into place.
+
+        Writing directly to the target leaves a truncated NetCDF behind if the
+        transfer is interrupted, which later "file exists" checks would treat as
+        a valid cached download. Staging to a .part file and renaming on success
+        makes the on-disk artifact all-or-nothing.
+        """
+        tmp = target_file.with_name(target_file.name + ".part")
+        try:
+            with session.get(url, stream=True, timeout=timeout) as r:
+                r.raise_for_status()
+                with open(tmp, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+            tmp.replace(target_file)
+        finally:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass  # best-effort cleanup of the partial download
 
     def _parse_bool(self, value: Any) -> bool:
         if isinstance(value, str):
@@ -288,12 +309,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             return target_file
 
         try:
-            with session.get(download_url, stream=True, timeout=600) as r:
-                r.raise_for_status()
-                with open(target_file, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
+            self._stream_to_file(session, download_url, target_file, timeout=600)
             return target_file
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"CMR download failed: {exc}", exc_info=True)

@@ -17,8 +17,9 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # Variable name mapping (CDS names to standard names)
 VARIABLE_MAPPING = {
@@ -59,8 +60,8 @@ UNIT_CONVERSIONS = {
 }
 
 
-@ObservationRegistry.register('era5_land')
-@ObservationRegistry.register('era5land')
+@R.observation_handlers.add('era5_land')
+@R.observation_handlers.add('era5land')
 class ERA5LandHandler(BaseObservationHandler):
     """
     Handles ERA5-Land reanalysis data processing for hydrological applications.

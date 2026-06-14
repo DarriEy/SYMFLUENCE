@@ -52,7 +52,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
         experiment_id: Current experiment identifier
 
     Example:
-        >>> @ModelRegistry.register_postprocessor('MYMODEL')
+        >>> @R.postprocessors.add('MYMODEL')
         >>> class MyModelPostProcessor(BaseModelPostProcessor):
         ...     def _get_model_name(self) -> str:
         ...         return "MYMODEL"

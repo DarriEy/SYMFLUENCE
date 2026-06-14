@@ -25,7 +25,7 @@ from typing import Optional
 
 import numpy as np
 
-from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.mixins.project import resolve_forcing_basin_path
 from symfluence.core.registries import R
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
@@ -80,7 +80,7 @@ class ParFlowPreProcessor(BaseModelPreProcessor):
         return default
 
     def _get_forcing_dir(self) -> Optional[Path]:
-        basin_avg = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        basin_avg = resolve_forcing_basin_path(self.project_dir)
         if basin_avg.exists():
             nc_files = list(basin_avg.glob('*_remapped*.nc'))
             if nc_files:
@@ -277,37 +277,39 @@ class ParFlowPreProcessor(BaseModelPreProcessor):
             return None
 
         try:
-            import xarray as xr
-            nc_files = sorted(forcing_dir.glob('*.nc'))
-            nc_files = [f for f in nc_files
-                        if 'ERA5' in f.name or 'remapped' in f.name]
-            if not nc_files:
-                nc_files = sorted(forcing_dir.glob('*.nc'))
+            import pandas as pd
 
-            self.logger.info(
-                f"Reading ERA5 forcing from {len(nc_files)} files"
+            from symfluence.data.model_ready.forcing_reader import (
+                open_canonical_forcing,
+                resample_canonical_forcing,
             )
-
-            all_ppt, all_temp, all_times = [], [], []
-            for nc_file in nc_files:
-                ds = xr.open_dataset(nc_file)
-                if 'precipitation_flux' not in ds:
-                    ds.close()
-                    continue
-                all_ppt.append(ds['precipitation_flux'].values[:, 0])
-                all_temp.append(ds['air_temperature'].values[:, 0])
-                all_times.append(ds['time'].values)
-                ds.close()
-
-            if not all_ppt:
-                self.logger.warning("No ERA5 files with pptrate found")
+            nc_files = sorted(forcing_dir.glob('*.nc'))
+            era5 = [f for f in nc_files if 'ERA5' in f.name or 'remapped' in f.name]
+            if era5:
+                nc_files = era5
+            if not nc_files:
+                self.logger.warning("No forcing files found")
                 return None
 
-            pptrate = np.concatenate(all_ppt)
-            airtemp = np.concatenate(all_temp)
-            times = np.concatenate(all_times)
-            sort_idx = np.argsort(times)
-            pptrate, airtemp, times = pptrate[sort_idx], airtemp[sort_idx], times[sort_idx]
+            self.logger.info(f"Reading ERA5 forcing from {len(nc_files)} files")
+
+            ds = open_canonical_forcing(nc_files)
+            if 'precipitation_flux' not in ds:
+                self.logger.warning("No precipitation_flux in forcing")
+                return None
+
+            # ParFlow's pipeline treats one forcing step as one hour; resample any
+            # non-hourly source (e.g. CARRA 3-hourly) to hourly so the cadence
+            # assumption holds. Hourly source (ERA5) passes through unchanged.
+            ds = resample_canonical_forcing(ds, 3600.0).sortby('time')
+
+            def _series(name):
+                arr = ds[name].values
+                return arr[:, 0] if arr.ndim > 1 else np.asarray(arr)
+
+            pptrate = _series('precipitation_flux')
+            airtemp = _series('air_temperature')
+            times = pd.DatetimeIndex(ds['time'].values).values
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Could not read ERA5 forcing: {e}", exc_info=True)

@@ -70,8 +70,6 @@ class SUMMAConfig(BaseModel):
     monitor_slurm_job: bool = Field(default=True, alias='MONITOR_SLURM_JOB')
     soilprofile: str = Field(default='FA', alias='SETTINGS_SUMMA_SOILPROFILE')
     init_matric_head: float = Field(default=-1.0, alias='SUMMA_INIT_MATRIC_HEAD')
-    init_grid_file: str = Field(default='coldState_glacSurfTopo.nc', alias='SETTINGS_SUMMA_INIT_GRID_FILE')
-    attrib_grid_file: str = Field(default='attributes_glacBedTopo.nc', alias='SETTINGS_SUMMA_ATTRIB_GRID_FILE')
     # Regionalization settings
     parameter_regionalization: str = Field(default='lumped', alias='PARAMETER_REGIONALIZATION')
     transfer_function_attributes_path: Optional[str] = Field(default=None, alias='TRANSFER_FUNCTION_ATTRIBUTES')
@@ -114,6 +112,17 @@ class FUSEConfig(BaseModel):
         default=None, alias='FUSE_TIMESTEP_TYPE',
         description='Timestep control: 0=fixed, 1=adaptive. Default: 0'
     )
+    run_mode: Optional[str] = Field(
+        default=None, alias='FUSE_RUN_MODE',
+        description="Legacy run-mode override. Calibration always uses "
+                    "'run_pre'; 'run_def' only runs once as the runner's "
+                    "initial default run (a run_def request during "
+                    "calibration is ignored with a warning)."
+    )
+    template_path: Optional[str] = Field(
+        default=None, alias='FUSE_TEMPLATE_PATH',
+        description='Path to FUSE settings template directory'
+    )
 
 
 class GRConfig(BaseModel):
@@ -145,6 +154,10 @@ class GRConfig(BaseModel):
     gr4j_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='GR4J_PARAM_BOUNDS')
     initial_params: str = Field(default='default', alias='GR_INITIAL_PARAMS')
     default_params: Optional[List[float]] = Field(default=None, alias='GR_DEFAULT_PARAMS')
+    model_type: Optional[str] = Field(
+        default=None, alias='GR_MODEL_TYPE',
+        description="GR model variant (e.g. 'GR4J', 'GR5J'); default GR4J"
+    )
 
 
 class HYPEConfig(BaseModel):
@@ -160,6 +173,40 @@ class HYPEConfig(BaseModel):
         alias='HYPE_PARAMS_TO_CALIBRATE'
     )
     spinup_days: int = Field(default=365, alias='HYPE_SPINUP_DAYS')
+    # Process options written to info.txt (None = config_manager defaults apply)
+    infiltration_model: Optional[int] = Field(
+        default=None, alias='HYPE_INFILTRATION_MODEL',
+        description='HYPE infiltration model option (info.txt modeloption)'
+    )
+    pet_model: Optional[int] = Field(
+        default=None, alias='HYPE_PET_MODEL',
+        description='HYPE potential evapotranspiration model option'
+    )
+    frozen_soil_model: Optional[int] = Field(
+        default=None, alias='HYPE_FROZEN_SOIL_MODEL',
+        description='HYPE frozen soil model option'
+    )
+    snow_evaporation: Optional[int] = Field(
+        default=None, alias='HYPE_SNOW_EVAPORATION',
+        description='HYPE snow evaporation option'
+    )
+    deep_ground: Optional[int] = Field(
+        default=None, alias='HYPE_DEEP_GROUND',
+        description='HYPE deep groundwater option'
+    )
+    surface_runoff: Optional[int] = Field(
+        default=None, alias='HYPE_SURFACE_RUNOFF',
+        description='HYPE surface runoff option'
+    )
+    soil_init_wet: Optional[bool] = Field(
+        default=None, alias='HYPE_SOIL_INIT_WET',
+        description='Initialize soil moisture at field capacity'
+    )
+    soil_layer_depths: Optional[List[float]] = Field(
+        default=None, alias='HYPE_SOIL_LAYER_DEPTHS',
+        description='Soil layer depths (m) for GeoData generation'
+    )
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='HYPE_PARAM_BOUNDS')
 
 
 class NGENConfig(BaseModel):
@@ -197,6 +244,23 @@ class NGENConfig(BaseModel):
         ),
     )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
+    realization: Optional[str] = Field(
+        default=None, alias='SETTINGS_NGEN_REALIZATION',
+        description='Realization config filename (default realization_config.json)'
+    )
+    calibration_nexus_id: Optional[str] = Field(
+        default=None, alias='CALIBRATION_NEXUS_ID',
+        description='Nexus ID whose output is used for calibration'
+    )
+    calibration_warmup_days: Optional[int] = Field(
+        default=None, alias='CALIBRATION_WARMUP_DAYS',
+        description='Warmup days excluded from calibration metrics'
+    )
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_NGEN')
+    hydrofabric_version: Optional[str] = Field(
+        default=None, alias='NWS_HYDROFABRIC_VERSION',
+        description='NWS hydrofabric version to acquire'
+    )
     # Parameter bounds overrides (per-module)
     cfe_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_CFE_PARAM_BOUNDS')
     noah_param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='NGEN_NOAH_PARAM_BOUNDS')
@@ -322,6 +386,7 @@ class MESHConfig(BaseModel):
     use_landcover_multipliers: bool = Field(default=True, alias='MESH_USE_LANDCOVER_MULTIPLIERS')
     enable_frozen_soil: bool = Field(default=True, alias='MESH_ENABLE_FROZEN_SOIL')
     daily_tolerance_days: int = Field(default=1, alias='MESH_DAILY_TOLERANCE_DAYS')
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='MESH_PARAM_BOUNDS')
 
 
 
@@ -360,6 +425,7 @@ class RHESSysConfig(BaseModel):
     timeout: int = Field(default=7200, alias='RHESSYS_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
     # Grow mode for Farquhar photosynthesis and transpiration (default True)
     use_grow_mode: bool = Field(default=True, alias='RHESSYS_USE_GROW_MODE')
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='RHESSYS_PARAM_BOUNDS')
 
 
 class VICConfig(BaseModel):
@@ -412,6 +478,7 @@ class VICConfig(BaseModel):
 
     # Execution
     timeout: int = Field(default=7200, alias='VIC_TIMEOUT', ge=60, le=86400)
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='VIC_PARAM_BOUNDS')
 
 
 class CLMConfig(BaseModel):
@@ -459,6 +526,7 @@ class CLMConfig(BaseModel):
     # Execution
     timeout: int = Field(default=3600, alias='CLM_TIMEOUT', ge=60, le=86400)
     warmup_days: int = Field(default=365, alias='CLM_WARMUP_DAYS', ge=0, le=3650)
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='CLM_PARAM_BOUNDS')
 
 
 
@@ -517,6 +585,8 @@ class MHMConfig(BaseModel):
         alias='MHM_PARAMS_TO_CALIBRATE'
     )
     timeout: int = Field(default=3600, alias='MHM_TIMEOUT', ge=60, le=86400)
+    distributed_morph: bool = Field(default=False, alias='MHM_DISTRIBUTED')
+    grid_res: float = Field(default=0.02, alias='MHM_GRID_RES', gt=0.0)
 
 
 class CRHMConfig(BaseModel):
@@ -609,6 +679,7 @@ class PRMSConfig(BaseModel):
     )
     model_mode: str = Field(default='DAILY', alias='PRMS_MODEL_MODE')
     timeout: int = Field(default=3600, alias='PRMS_TIMEOUT', ge=60, le=86400)
+    use_obs_solar: bool = Field(default=False, alias='PRMS_USE_OBS_SOLAR')
 
 
 class GSFLOWConfig(BaseModel):
@@ -640,6 +711,8 @@ class GSFLOWConfig(BaseModel):
         alias='GSFLOW_PARAMS_TO_CALIBRATE'
     )
     gsflow_mode: str = Field(default='COUPLED', alias='GSFLOW_MODE')
+    distributed_gw: bool = Field(default=False, alias='GSFLOW_DISTRIBUTED_GW')
+    gw_grid_n: int = Field(default=10, alias='GSFLOW_GW_GRID_N', ge=2, le=50)
     timeout: int = Field(default=7200, alias='GSFLOW_TIMEOUT', ge=60, le=86400)
 
 

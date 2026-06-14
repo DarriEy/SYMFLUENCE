@@ -18,6 +18,7 @@ from .example_commands import ExampleCommands
 from .fews_commands import FEWSCommands
 from .gui_commands import GUICommands
 from .job_commands import JobCommands
+from .list_commands import ListCommands
 from .project_commands import ProjectCommands
 from .tui_commands import TUICommands
 from .workflow_commands import WorkflowCommands
@@ -35,4 +36,5 @@ __all__ = [
     'DataCommands',
     'DoctorCommands',
     'FEWSCommands',
+    'ListCommands',
 ]

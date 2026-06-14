@@ -20,7 +20,6 @@ Usage:
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -390,10 +389,14 @@ class StandardModelPostProcessor(BaseModelPostProcessor):
             )
             return df
 
-        def julian_to_datetime(row):
-            return datetime(int(row['YEAR']), 1, 1) + timedelta(days=int(row['DAY']) - 1)
-
-        df['datetime'] = df.apply(julian_to_datetime, axis=1)
+        # Vectorized datetime(YEAR, 1, 1) + (DAY - 1) days. Built from the year
+        # start rather than '%Y%j' parsing so an out-of-range day-of-year rolls
+        # into the next year instead of raising, matching the previous per-row
+        # implementation.
+        df['datetime'] = (
+            pd.to_datetime(df['YEAR'].astype(int).astype(str), format='%Y')
+            + pd.to_timedelta(df['DAY'].astype(int) - 1, unit='D')
+        )
         df.set_index('datetime', inplace=True)
 
         # Drop the original DAY/YEAR columns to clean up
@@ -574,13 +577,3 @@ class RoutedModelPostProcessor(StandardModelPostProcessor):
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error reading routing output: {e}", exc_info=True)
             return None
-
-
-# ---------------------------------------------------------------------------
-# Deprecated pre-1.0 spellings. The canonical class name is *PostProcessor
-# (matching BaseModelPostProcessor). These aliases keep existing
-# imports/subclasses working through the 1.0 transition and should be removed
-# at v1.0 (see RTI review item 23 / open question 1).
-# ---------------------------------------------------------------------------
-StandardModelPostprocessor = StandardModelPostProcessor
-RoutedModelPostprocessor = RoutedModelPostProcessor

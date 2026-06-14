@@ -101,6 +101,3 @@ def register() -> None:
         plotter=FUSEPlotter,
         build_instructions_module="symfluence.models.fuse.build_instructions",
     )
-
-# Deprecated pre-1.0 spelling (RTI item 23) — use FUSEPostProcessor.
-FUSEPostprocessor = FUSEPostProcessor

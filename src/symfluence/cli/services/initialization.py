@@ -220,7 +220,7 @@ class InitializationService(BaseService):
             if "fuse_decisions" in preset:
                 config["FUSE_DECISION_OPTIONS"] = preset["fuse_decisions"]
             if "summa_decisions" in preset:
-                config["DECISION_OPTIONS"] = preset["summa_decisions"]
+                config["SUMMA_DECISION_OPTIONS"] = preset["summa_decisions"]
 
         # Step 3: Apply CLI overrides
         cli_config = self._parse_cli_overrides(cli_overrides)

@@ -4,7 +4,7 @@
 """Groundwater and integrated surface-subsurface model configuration classes."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -146,6 +146,7 @@ class ParFlowConfig(BaseModel):
 
     # Execution
     timeout: int = Field(default=3600, alias='PARFLOW_TIMEOUT', ge=60, le=86400)
+    param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='PARFLOW_PARAM_BOUNDS')
 
 
 class CLMParFlowConfig(BaseModel):
@@ -292,64 +293,6 @@ class PIHMConfig(BaseModel):
     timeout: int = Field(default=3600, alias='PIHM_TIMEOUT', ge=60, le=86400)
 
 
-class HydroGeoSphereConfig(BaseModel):
-    """HydroGeoSphere (HGS) fully-coupled 3D subsurface + surface model configuration.
-
-    HGS is a control-volume finite-element, fully-coupled 3D variably-saturated
-    subsurface + 2D overland flow + 1D channel flow model. Commercial code from
-    Aquanty with university/research licenses available.
-
-    Reference:
-        Therrien, R., et al. (2010): HydroGeoSphere — A Three-dimensional
-        Numerical Model Describing Fully-integrated Subsurface and Surface
-        Flow and Solute Transport. Groundwater Simulations Group.
-    """
-    model_config = FROZEN_CONFIG
-
-    # Installation
-    install_path: str = Field(default='default', alias='HGS_INSTALL_PATH')
-    exe: str = Field(default='hgs', alias='HGS_EXE')
-    grok_exe: str = Field(default='grok', alias='HGS_GROK_EXE')
-
-    # Settings
-    settings_path: str = Field(default='default', alias='SETTINGS_HGS_PATH')
-    spatial_mode: SpatialModeType = Field(default='lumped', alias='HGS_SPATIAL_MODE')
-
-    # Subsurface properties
-    k_sat: float = Field(default=1e-5, alias='HGS_K_SAT', gt=0)
-    porosity: float = Field(default=0.4, alias='HGS_POROSITY', gt=0, le=1.0)
-    vg_alpha: float = Field(default=1.0, alias='HGS_VG_ALPHA', gt=0)
-    vg_n: float = Field(default=2.0, alias='HGS_VG_N', gt=1.0)
-    vg_sres: float = Field(default=0.05, alias='HGS_VG_SRES', ge=0, lt=1.0)
-    ss: float = Field(default=1e-4, alias='HGS_SS', gt=0)
-
-    # Overland flow
-    mannings_n: float = Field(default=0.03, alias='HGS_MANNINGS_N', gt=0)
-
-    # Domain geometry
-    soil_depth: float = Field(default=10.0, alias='HGS_SOIL_DEPTH', gt=0)
-    domain_width: float = Field(default=1000.0, alias='HGS_DOMAIN_WIDTH', gt=0)
-
-    # Coupling
-    coupling_source: str = Field(default='SUMMA', alias='HGS_COUPLING_SOURCE')
-    recharge_variable: str = Field(default='scalarSoilDrainage', alias='HGS_RECHARGE_VARIABLE')
-
-    # Solver
-    solver_max_iterations: int = Field(default=25, alias='HGS_SOLVER_MAX_ITERATIONS', ge=1, le=1000)
-    timestep_seconds: int = Field(default=3600, alias='HGS_TIMESTEP_SECONDS', ge=1, le=86400)
-
-    # Output
-    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_HGS')
-
-    # Calibration
-    params_to_calibrate: str = Field(
-        default='K_SAT,POROSITY,VG_ALPHA,VG_N,VG_SRES,SS,MANNINGS_N',
-        alias='HGS_PARAMS_TO_CALIBRATE'
-    )
-
-    # Execution
-    timeout: int = Field(default=7200, alias='HGS_TIMEOUT', ge=60, le=86400)
-
 
 
 __all__ = [
@@ -357,5 +300,4 @@ __all__ = [
     'ParFlowConfig',
     'CLMParFlowConfig',
     'PIHMConfig',
-    'HydroGeoSphereConfig',
 ]

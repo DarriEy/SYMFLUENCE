@@ -101,7 +101,8 @@ class WorkerTask:
             config_keys = [
                 'EXPERIMENT_ID', 'DOMAIN_NAME', 'ROOT_PATH', 'HYDROLOGICAL_MODEL',
                 'ROUTING_MODEL', 'CALIBRATION_METRIC', 'CALIBRATION_PERIOD',
-                'EVALUATION_PERIOD', 'NUM_PROCESSES', 'DOMAIN_DEFINITION_METHOD'
+                'EVALUATION_PERIOD', 'NUM_PROCESSES', 'DOMAIN_DEFINITION_METHOD',
+                'SYMFLUENCE_DATA_DIR',
             ]
             config = {k: task_data[k] for k in config_keys if k in task_data}
 

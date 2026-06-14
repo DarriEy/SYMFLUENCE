@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.registries import R
+from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
@@ -593,7 +594,6 @@ class SUMMAWorker(BaseWorker):
             Dictionary of metrics
         """
         try:
-            import pandas as pd
             import xarray as xr
 
             from symfluence.evaluation.metrics import kge, nse
@@ -633,15 +633,15 @@ class SUMMAWorker(BaseWorker):
             sim = sim * catchment_area_m2
             self.logger.debug(f"Converted runoff to discharge using area={catchment_area_m2:.2e} m²")
 
-            # Load observations
-            obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
-                       'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
-
-            if not obs_file.exists():
+            # Load observations — model-ready store first, CSV fallback.
+            project_dir = data_dir / f'domain_{domain_name}'
+            obs_values, obs_index = StreamflowMetrics().load_observations(
+                config, project_dir, domain_name, resample_freq=None,
+            )
+            if obs_values is None or obs_index is None:
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            obs = obs_df['discharge_cms'].values
+            obs = obs_values
 
             # Align lengths
             min_len = min(len(sim), len(obs))

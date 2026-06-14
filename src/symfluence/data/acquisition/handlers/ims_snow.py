@@ -42,8 +42,9 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 # NSIDC data endpoint
 IMS_BASE_URL = "https://noaadata.apps.nsidc.org/NOAA/G02156"
@@ -68,8 +69,8 @@ IMS_GRIDS = {
 }
 
 
-@AcquisitionRegistry.register('IMS_SNOW')
-@AcquisitionRegistry.register('IMS')
+@R.acquisition_handlers.add('IMS_SNOW')
+@R.acquisition_handlers.add('IMS')
 class IMSSnowAcquirer(BaseAcquisitionHandler):
     """
     Handles IMS snow cover data acquisition from NSIDC.

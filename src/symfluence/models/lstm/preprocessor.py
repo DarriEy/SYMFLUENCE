@@ -132,8 +132,8 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         """
         self.logger.info("Loading data for LSTM model")
 
-        # Load forcing data
-        forcing_path = self.project_forcing_dir / 'basin_averaged_data'
+        # Load forcing data — store-first (model_ready/forcings), else legacy.
+        forcing_path = self.forcing_basin_path
         self.logger.info(f"Looking for forcing files in: {forcing_path}")
 
         # Check if directory exists

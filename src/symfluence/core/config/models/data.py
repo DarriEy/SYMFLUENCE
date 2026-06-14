@@ -85,6 +85,16 @@ class DataConfig(BaseModel):
     additional_observations: Optional[List[str]] = Field(default=None, alias='ADDITIONAL_OBSERVATIONS')
     force_download: bool = Field(default=False, alias='FORCE_DOWNLOAD')
 
+    # Geofabric acquisition settings
+    hydrosheds_level: Optional[int] = Field(
+        default=None, alias='HYDROSHEDS_LEVEL',
+        description='HydroBASINS level to acquire (default 12)'
+    )
+    tdx_source: Optional[str] = Field(
+        default=None, alias='TDX_SOURCE',
+        description="TDX-Hydro download source (e.g. 'geoglows')"
+    )
+
     # Streamflow provider
     streamflow_data_provider: Optional[str] = Field(default=None, alias='STREAMFLOW_DATA_PROVIDER')
 

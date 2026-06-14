@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -789,6 +790,45 @@ class ToolInstaller(BaseService):
 
         return installation_results
 
+    def _clone_with_retry(
+        self,
+        clone_cmd: List[str],
+        build_env: Dict[str, str],
+        target_dir: Path,
+        attempts: int = 3,
+    ) -> None:
+        """
+        Run a ``git clone`` command, retrying transient network failures.
+
+        Upstreams hosted on flaky transports (notably SourceForge, which
+        intermittently rejects clones with "access denied or repository not
+        exported") fail sporadically rather than deterministically. A clone
+        that errors or times out is retried after a short backoff; any partial
+        checkout is removed first so each attempt starts from a clean target.
+        The final failure is re-raised so callers still surface a hard error.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, attempts + 1):
+            try:
+                subprocess.run(
+                    clone_cmd, capture_output=True, text=True, check=True,
+                    timeout=600, env=build_env,
+                )
+                return
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                last_exc = e
+                # Remove any partial clone so the retry sees an empty target.
+                if target_dir.exists():
+                    shutil.rmtree(target_dir, ignore_errors=True)
+                if attempt < attempts:
+                    self._console.indent(
+                        f"Clone attempt {attempt}/{attempts} failed; retrying "
+                        f"in {attempt * 5}s..."
+                    )
+                    time.sleep(attempt * 5)
+        assert last_exc is not None  # loop runs at least once
+        raise last_exc
+
     def _clone_repository(
         self,
         repository_url: Optional[str],
@@ -853,10 +893,7 @@ class ToolInstaller(BaseService):
                 # and abort, so we avoid them on the excluded entries.
                 # Clone fetches the objects and sets HEAD but leaves the working
                 # tree (and, on every platform we've seen, the index) empty.
-                subprocess.run(
-                    clone_cmd, capture_output=True, text=True, check=True,
-                    timeout=600, env=build_env,
-                )
+                self._clone_with_retry(clone_cmd, build_env, target_dir)
                 # Build the index directly from HEAD's tree, dropping the excluded
                 # / NTFS-illegal paths BEFORE they ever enter the index. We cannot
                 # use read-tree/checkout: on Windows git they validate path
@@ -895,10 +932,7 @@ class ToolInstaller(BaseService):
                     "before checkout"
                 )
             else:
-                subprocess.run(
-                    clone_cmd, capture_output=True, text=True, check=True,
-                    timeout=600, env=build_env,
-                )
+                self._clone_with_retry(clone_cmd, build_env, target_dir)
             self._console.success("Clone successful")
 
             # Checkout specific commit hash if requested

@@ -36,11 +36,12 @@ import pandas as pd
 import requests
 import xarray as xr
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 
 
-@AcquisitionRegistry.register('SMAP')
+@R.acquisition_handlers.add('SMAP')
 class SMAPAcquirer(BaseAcquisitionHandler):
     """
     Acquires SMAP Soil Moisture data via earthaccess streaming or NSIDC THREDDS NCSS.

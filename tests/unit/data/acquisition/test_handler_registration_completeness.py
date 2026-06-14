@@ -43,13 +43,13 @@ _ACQ_HANDLER_DIR = _SRC_ROOT / "data" / "acquisition" / "handlers"
 _OBS_HANDLER_DIR = _SRC_ROOT / "data" / "observation" / "handlers"
 
 
-def _modules_with_decorator(handler_dir: Path, decorator: str) -> list[str]:
-    """Return module stems whose source contains ``<decorator>.register(``."""
+def _modules_with_decorator(handler_dir: Path, registry_namespace: str) -> list[str]:
+    """Return module stems whose source contains ``@R.<namespace>.add(``."""
     found = []
     for path in sorted(handler_dir.glob("*.py")):
         if path.name == "__init__.py":
             continue
-        if f"{decorator}.register" in path.read_text(encoding="utf-8"):
+        if f"R.{registry_namespace}.add(" in path.read_text(encoding="utf-8"):
             found.append(path.stem)
     return found
 
@@ -59,7 +59,7 @@ class TestAcquisitionRegistrationCompleteness:
     """Every decorated acquisition handler must be in the import list."""
 
     def test_all_decorated_modules_are_in_import_list(self):
-        """A handler file with @AcquisitionRegistry.register must be listed.
+        """A handler file with @R.acquisition_handlers.add must be listed.
 
         Scans the handler directory for the register decorator and asserts each
         such module name appears in ``_handler_modules`` in ``__init__.py``.
@@ -71,11 +71,11 @@ class TestAcquisitionRegistrationCompleteness:
         list_body = init_src.split("_handler_modules", 1)[1].split("]", 1)[0]
         listed = set(re.findall(r"['\"]([a-zA-Z0-9_]+)['\"]", list_body))
 
-        decorated = _modules_with_decorator(_ACQ_HANDLER_DIR, "AcquisitionRegistry")
+        decorated = _modules_with_decorator(_ACQ_HANDLER_DIR, "acquisition_handlers")
         missing = sorted(m for m in decorated if m not in listed)
 
         assert not missing, (
-            "These acquisition handler modules use @AcquisitionRegistry.register "
+            "These acquisition handler modules use @R.acquisition_handlers.add "
             "but are NOT in _handler_modules in handlers/__init__.py, so they "
             f"will never register: {missing}. Add them to the list."
         )
@@ -94,7 +94,7 @@ class TestObservationRegistrationCompleteness:
     """
 
     def test_all_decorated_modules_are_reachable(self):
-        """A handler file with @ObservationRegistry.register must be reachable.
+        """A handler file with @R.observation_handlers.add must be reachable.
 
         Purely static: for each decorated observation module, require that its
         module stem is referenced by a relative import in ``__init__.py``. This
@@ -103,7 +103,7 @@ class TestObservationRegistrationCompleteness:
         optional dependencies are installed).
         """
         init_src = (_OBS_HANDLER_DIR / "__init__.py").read_text(encoding="utf-8")
-        decorated = _modules_with_decorator(_OBS_HANDLER_DIR, "ObservationRegistry")
+        decorated = _modules_with_decorator(_OBS_HANDLER_DIR, "observation_handlers")
 
         missing = []
         for module in decorated:
@@ -112,7 +112,7 @@ class TestObservationRegistrationCompleteness:
                 missing.append(module)
 
         assert not missing, (
-            "These observation handler modules use @ObservationRegistry.register "
+            "These observation handler modules use @R.observation_handlers.add "
             "but are NOT imported in observation/handlers/__init__.py, so they "
             f"will never register: {missing}. Add a `from .<module> import ...`."
         )

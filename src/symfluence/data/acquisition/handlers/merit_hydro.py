@@ -37,9 +37,10 @@ from pathlib import Path
 import rasterio
 from rasterio.merge import merge as rio_merge
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session, download_file_streaming
 
 # Base URL for MERIT-Hydro v1.0.1
@@ -80,7 +81,7 @@ def _get_tile_origin(coord: int, tile_size: int = 5) -> int:
     return -((abs(coord) + tile_size - 1) // tile_size) * tile_size
 
 
-@AcquisitionRegistry.register('MERIT_HYDRO')
+@R.acquisition_handlers.add('MERIT_HYDRO')
 class MERITHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
     """MERIT-Hydro acquisition via HTTP tile download.
 

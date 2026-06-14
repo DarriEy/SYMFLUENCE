@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.registries import R
+
 try:
     import cdsapi
     HAS_CDSAPI = True
@@ -32,7 +34,6 @@ except ImportError:
 
 from ...utils import VariableStandardizer
 from ..base import BaseAcquisitionHandler
-from ..registry import AcquisitionRegistry
 from .era5 import diagnose_cds_credentials
 
 
@@ -1032,7 +1033,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         return T_celsius + 243.5
 
 
-@AcquisitionRegistry.register('CARRA')
+@R.acquisition_handlers.add('CARRA')
 class CARRAAcquirer(CDSRegionalReanalysisHandler):
     """CARRA (Copernicus Arctic Regional Reanalysis) data acquisition handler.
 
@@ -1085,10 +1086,17 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         ]
 
     def _get_forecast_variables(self) -> List[str]:
+        """Return CARRA forecast variables.
+
+        NOTE: CARRA's CDS longwave name is ``thermal_surface_radiation_downwards``
+        (thermal BEFORE surface) — CERRA uses the ERA5-style
+        ``surface_thermal_radiation_downwards``. Do not "harmonize" these:
+        CDS silently drops unknown variable names.
+        """
         return [
             "total_precipitation",
             "surface_solar_radiation_downwards",
-            "thermal_surface_radiation_downwards"  # Correct name: thermal comes BEFORE surface
+            "thermal_surface_radiation_downwards"  # CARRA name (CERRA differs!)
         ]
 
     def _get_leadtime_hour(self) -> str:
@@ -1182,7 +1190,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return T_celsius + 243.5  # Standard Magnus formula
 
 
-@AcquisitionRegistry.register('CERRA')
+@R.acquisition_handlers.add('CERRA')
 class CERRAAcquirer(CDSRegionalReanalysisHandler):
     """CERRA (Copernicus European Regional Reanalysis) data acquisition handler.
 
@@ -1245,10 +1253,19 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         ]
 
     def _get_forecast_variables(self) -> List[str]:
+        """Return CERRA forecast variables.
+
+        NOTE: The CDS longwave name differs between the two regional
+        reanalyses — CARRA uses ``thermal_surface_radiation_downwards``
+        while CERRA uses the ERA5-style ``surface_thermal_radiation_downwards``.
+        CDS silently drops unknown variable names from a request, so using
+        the CARRA spelling here returned files without longwave and made
+        every native CERRA acquisition fail validation.
+        """
         return [
             "total_precipitation",
             "surface_solar_radiation_downwards",
-            "thermal_surface_radiation_downwards"  # Correct name: thermal comes BEFORE surface
+            "surface_thermal_radiation_downwards"  # CERRA name (CARRA differs!)
         ]
 
     def _get_leadtime_hour(self) -> str:

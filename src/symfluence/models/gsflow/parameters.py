@@ -30,7 +30,7 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
     'soil_moist_max': {'min': 1.0, 'max': 15.0},       # inches, max soil moisture storage
     'ssr2gw_rate': {'min': 0.001, 'max': 0.5},           # 1/day, gravity reservoir to GW
     # MODFLOW-NWT
-    'K': {'min': 0.001, 'max': 100.0},                   # m/d, hydraulic conductivity
+    'K': {'min': 0.1, 'max': 5000.0},                    # m/d, hydraulic conductivity (Iceland basalt: 1e2-1e4)
     'SY': {'min': 0.01, 'max': 0.4},                     # -, specific yield
     # PRMS runoff
     'slowcoef_lin': {'min': 0.001, 'max': 0.5},          # 1/day, linear gravity drainage
@@ -46,7 +46,7 @@ PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
 DEFAULT_PARAMS: Dict[str, float] = {
     'soil_moist_max': 6.0,
     'ssr2gw_rate': 0.1,
-    'K': 1.0,
+    'K': 50.0,
     'SY': 0.15,
     'slowcoef_lin': 0.015,
     'carea_max': 0.6,

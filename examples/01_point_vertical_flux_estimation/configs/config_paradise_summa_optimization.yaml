@@ -85,9 +85,6 @@ OPTIMIZATION_METRIC: KGE
 EVALUATION_DATA: ['SWE']
 NUMBER_OF_ITERATIONS: 1000
 
-# DDS settings
-DDS_POPULATION_SIZE: 20
-
 # Parameters to calibrate - Snow-focused for SNOTEL site
 # Focus on snow accumulation, melt, and albedo processes
 # Added frozenPrecipMultip and tempCritRain to handle ERA5 bias and partitioning

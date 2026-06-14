@@ -14,10 +14,9 @@ Each parameter manager is responsible for:
 
 Model-specific parameter managers are available via:
 1. Direct import: from symfluence.models.{model}.calibration.parameter_manager import {Model}ParameterManager
-2. Registry pattern: OptimizerRegistry.get_parameter_manager('{MODEL}')
+2. Registry pattern: R.parameter_managers.get('{MODEL}')
 
-Registration happens via ``@OptimizerRegistry.register_parameter_manager``
-decorators.  This module auto-discovers all model packages at import time
+Registration happens via ``@R.parameter_managers.add`` decorators.  This module auto-discovers all model packages at import time
 so that every ``calibration/parameter_manager.py`` is imported and its
 decorator fires.
 """
@@ -29,7 +28,7 @@ def _register_parameter_managers():
 
     Scans ``symfluence.models.*`` for sub-packages that contain a
     ``calibration.parameter_manager`` module and imports each one to
-    trigger its ``@register_parameter_manager`` decorator.  Models with no
+    trigger its ``R.parameter_managers`` registration.  Models with no
     calibration support are skipped silently; models whose parameter-manager
     module *exists but fails to import* are surfaced at WARNING (see
     ``discover_calibration_components``) instead of vanishing silently.

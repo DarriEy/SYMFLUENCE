@@ -137,6 +137,12 @@ class ForcingConfig(BaseModel):
     # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
 
+    # CARRA-specific settings
+    carra_domain: Optional[str] = Field(
+        default=None, alias='CARRA_DOMAIN',
+        description="CARRA regional domain: 'west_domain' or 'east_domain'"
+    )
+
     # Elevation correction settings
     lapse: Optional[LapseRateConfig] = Field(default=None)
 

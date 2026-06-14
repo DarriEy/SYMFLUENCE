@@ -36,9 +36,9 @@ import pandas as pd
 import requests
 
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.registries import R
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # PANGAEA direct download URL for CAMELS-CL streamflow (m3/s)
 PANGAEA_STREAMFLOW_URL = (
@@ -66,7 +66,7 @@ def _normalize_station_id(station_id: str) -> str:
     return str(station_id).split('-')[0].strip()
 
 
-@ObservationRegistry.register('dga_streamflow')
+@R.observation_handlers.add('dga_streamflow')
 class DGAStreamflowHandler(BaseObservationHandler):
     """Handles Chilean DGA streamflow data via CAMELS-CL (PANGAEA).
 

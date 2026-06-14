@@ -46,10 +46,43 @@ from rasterio.merge import merge as rio_merge
 from rasterio.transform import from_bounds as rio_from_bounds
 from rasterio.windows import Window, from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
+
+# =============================================================================
+# Grid alignment helper
+# =============================================================================
+
+def _snap_bounds_to_grid(
+    bounds: tuple[float, float, float, float],
+    transform: object,
+) -> tuple[float, float, float, float]:
+    """Expand bounds outward to the pixel edges of a reference grid.
+
+    ``rasterio.merge`` anchors the output grid at the requested west/north
+    bound. When that grid is offset from the source pixel grid (Copernicus
+    DEM tiles are half-pixel shifted: pixel *centers* sit on degree lines),
+    rounding can leave the easternmost/southernmost output column/row
+    uncovered by any source — silently 0-filled when nodata is None. Snapping
+    the request outward to the reference grid (≤1 native pixel per edge)
+    aligns the output with the sources so every pixel is covered.
+    """
+    t = transform  # affine.Affine
+    rx: float = t.a  # type: ignore[attr-defined]  # pixel width (> 0)
+    ry: float = -t.e  # type: ignore[attr-defined]  # pixel height (> 0)
+    x_off: float = t.c  # type: ignore[attr-defined]
+    y_off: float = t.f  # type: ignore[attr-defined]
+    west, south, east, north = bounds
+    eps_x, eps_y = rx * 1e-6, ry * 1e-6
+    west = x_off + math.floor((west - x_off) / rx + eps_x) * rx
+    east = x_off + math.ceil((east - x_off) / rx - eps_x) * rx
+    north = y_off - math.floor((y_off - north) / ry + eps_y) * ry
+    south = y_off - math.ceil((y_off - south) / ry - eps_y) * ry
+    return (west, south, east, north)
+
 
 # =============================================================================
 # Shared Tile Download Mixin
@@ -155,6 +188,11 @@ class _TileDownloadMixin:
                 (~26M pixels). Passing the bbox here cuts the merged
                 raster to the requested area, typically making
                 downstream TauDEM delineation ~10–100× faster.
+                The rectangle is snapped outward (≤1 native pixel per
+                edge) to the first tile's pixel grid before merging, so
+                grids whose pixel centers sit on degree lines (Copernicus)
+                cannot leave an uncovered, silently zero-filled edge
+                column/row in the mosaic.
         """
         if len(tile_paths) == 1 and bounds is None:
             if out_path.exists():
@@ -176,7 +214,12 @@ class _TileDownloadMixin:
 
             merge_kwargs = {}
             if bounds is not None:
-                merge_kwargs['bounds'] = tuple(bounds)
+                # Align the requested bounds with the source pixel grid
+                # (≤1 px outward per edge) so merge rounding can't leave
+                # edge columns/rows uncovered and silently zero-filled.
+                merge_kwargs['bounds'] = _snap_bounds_to_grid(
+                    tuple(bounds), src_files[0].transform
+                )
             if explicit_nodata is not None:
                 merge_kwargs['nodata'] = explicit_nodata
             mosaic, out_trans = rio_merge(src_files, **merge_kwargs)
@@ -209,7 +252,7 @@ class _TileDownloadMixin:
 # Copernicus DEM Acquirers (GLO-30 and GLO-90)
 # =============================================================================
 
-@AcquisitionRegistry.register('COPDEM30')
+@R.acquisition_handlers.add('COPDEM30')
 class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     """Copernicus DEM GLO-30 acquisition via AWS S3 with tile management.
 
@@ -321,7 +364,7 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
         return out_path
 
 
-@AcquisitionRegistry.register('COPDEM90')
+@R.acquisition_handlers.add('COPDEM90')
 class CopDEM90Acquirer(CopDEM30Acquirer):
     """Copernicus DEM GLO-90 acquisition via AWS S3.
 
@@ -350,7 +393,7 @@ class CopDEM90Acquirer(CopDEM30Acquirer):
 # FABDEM (unchanged)
 # =============================================================================
 
-@AcquisitionRegistry.register('FABDEM')
+@R.acquisition_handlers.add('FABDEM')
 class FABDEMAcquirer(BaseAcquisitionHandler):
     """FABDEM acquisition handler for forest/building-removed elevation data.
 
@@ -454,7 +497,7 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
 # NASADEM Local (unchanged)
 # =============================================================================
 
-@AcquisitionRegistry.register('NASADEM_LOCAL')
+@R.acquisition_handlers.add('NASADEM_LOCAL')
 class NASADEMLocalAcquirer(BaseAcquisitionHandler):
     """NASADEM local tile acquisition for pre-downloaded elevation data.
 
@@ -542,7 +585,7 @@ class NASADEMLocalAcquirer(BaseAcquisitionHandler):
 # SRTM GL1 (30m) via OpenTopography S3
 # =============================================================================
 
-@AcquisitionRegistry.register('SRTM')
+@R.acquisition_handlers.add('SRTM')
 class SRTMAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     """SRTM GL1 (30m) DEM acquisition via OpenTopography S3.
 
@@ -652,7 +695,7 @@ class SRTMAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 # ETOPO 2022 via NOAA OPeNDAP
 # =============================================================================
 
-@AcquisitionRegistry.register('ETOPO2022')
+@R.acquisition_handlers.add('ETOPO2022')
 class ETOPO2022Acquirer(BaseAcquisitionHandler):
     """ETOPO 2022 global relief model acquisition via NOAA OPeNDAP.
 
@@ -784,7 +827,7 @@ class ETOPO2022Acquirer(BaseAcquisitionHandler):
 # Mapzen Terrain Tiles via AWS S3
 # =============================================================================
 
-@AcquisitionRegistry.register('MAPZEN')
+@R.acquisition_handlers.add('MAPZEN')
 class MapzenAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     """Mapzen terrain tile acquisition from AWS S3 Skadi dataset.
 
@@ -906,7 +949,7 @@ class MapzenAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 # ALOS AW3D30 via Microsoft Planetary Computer STAC
 # =============================================================================
 
-@AcquisitionRegistry.register('ALOS')
+@R.acquisition_handlers.add('ALOS')
 class ALOSAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
     """ALOS AW3D30 DEM acquisition via Microsoft Planetary Computer STAC API.
 

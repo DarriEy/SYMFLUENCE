@@ -38,9 +38,10 @@ import rasterio
 from rasterio.merge import merge as rio_merge
 from rasterio.windows import from_bounds
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 _BASE_URL = "https://glad.umd.edu/users/Potapov/GLCLUC2020"
@@ -57,8 +58,8 @@ _LAYERS = {
 _DEFAULT_LAYERS = ['forest_extent_2020']
 
 
-@AcquisitionRegistry.register('GLCLU_2019')
-@AcquisitionRegistry.register('GLCLU')
+@R.acquisition_handlers.add('GLCLU_2019')
+@R.acquisition_handlers.add('GLCLU')
 class GLCLUAcquirer(BaseAcquisitionHandler, RetryMixin):
     """
     GLAD GLCLU 2020 land cover acquisition.

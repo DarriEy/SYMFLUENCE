@@ -19,10 +19,10 @@ from typing import Iterable
 import pandas as pd
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.registries import R
 from symfluence.data.acquisition.utils import create_robust_session
 
 from ..base import BaseObservationHandler
-from ..registry import ObservationRegistry
 
 # HydroShare record for LamaH-Ice (Helgason & Nijssen, 2024, ESSD).
 # DOI: 10.4211/hs.86117a5f36cc4b7c90a5d54e18161c91
@@ -155,7 +155,7 @@ def _extract_d_gauges(zip_path: Path, lamah_path: Path,
         ) from e
 
 
-@ObservationRegistry.register('lamah_ice_streamflow')
+@R.observation_handlers.add('lamah_ice_streamflow')
 class LamahIceStreamflowHandler(BaseObservationHandler):
     """Handles LamaH-ICE streamflow data processing, with auto-download
     from HydroShare when the local dataset is missing."""

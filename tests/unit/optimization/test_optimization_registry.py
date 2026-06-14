@@ -93,21 +93,3 @@ def test_objective_registry_get_and_list(temp_register):
     assert isinstance(instance, FakeObjective)
     assert ObjectiveRegistry.get_objective("DEFINITELY_UNKNOWN", {}, None) is None
     assert "FAKEOBJ" in ObjectiveRegistry.list_objectives()
-
-
-def test_objective_register_decorator_is_deprecated():
-    from symfluence.optimization.objectives.registry import ObjectiveRegistry
-
-    try:
-        with pytest.warns(DeprecationWarning):
-            @ObjectiveRegistry.register("TMPOBJ")
-            class _TmpObjective:
-                def __init__(self, config, logger):
-                    pass
-
-        assert R.objectives.get("TMPOBJ") is _TmpObjective
-    finally:
-        try:
-            R.objectives.remove("TMPOBJ")
-        except Exception:  # noqa: BLE001
-            pass

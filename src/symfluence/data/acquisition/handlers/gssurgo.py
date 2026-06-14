@@ -34,9 +34,10 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.registries import R
+
 from ..base import BaseAcquisitionHandler
 from ..mixins import RetryMixin
-from ..registry import AcquisitionRegistry
 from ..utils import create_robust_session
 
 # SDA REST endpoints
@@ -68,7 +69,7 @@ def _bbox_to_wkt(bbox: Dict[str, float]) -> str:
     )
 
 
-@AcquisitionRegistry.register('GSSURGO')
+@R.acquisition_handlers.add('GSSURGO')
 class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
     """gSSURGO soil property acquisition via USDA Soil Data Access REST API.
 

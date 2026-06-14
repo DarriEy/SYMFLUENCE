@@ -15,7 +15,7 @@ Phase 4 delegation shim: all state lives in ``R.observation_handlers``.
 Example:
     Register a custom handler:
 
-    >>> @ObservationRegistry.register('custom_sensor')
+    >>> @R.observation_handlers.add('custom_sensor')
     ... class CustomHandler(BaseObservationHandler):
     ...     def acquire(self): ...
     ...     def process(self, input_path): ...
@@ -40,7 +40,6 @@ class ObservationRegistry(HandlerRegistry["BaseObservationHandler"]):
     """Plugin registry for observation data handlers.
 
     Inherits from HandlerRegistry which provides:
-    - register(name) decorator (keys normalized to lowercase)
     - get_handler(name, config, logger)
     - is_registered(name)
     - list_handlers()
@@ -48,13 +47,10 @@ class ObservationRegistry(HandlerRegistry["BaseObservationHandler"]):
 
     All keys are automatically normalized to lowercase for consistency.
     Lookups are case-insensitive (e.g., 'GRACE' and 'grace' both work).
-
-    Class Attributes:
-        _handlers (dict): Maps observation type strings (lowercase) to handler classes.
+    Registration goes through ``R.observation_handlers.add()``.
     """
 
     _r_registry_name = "observation_handlers"
-    _handlers = {}  # Separate dict for this registry subclass
 
     @classmethod
     def list_observations(cls) -> list:
