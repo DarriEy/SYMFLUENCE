@@ -168,9 +168,10 @@ schema; unknown keys warn (strict mode errors). Legacy `CONFLUENCE_*` spellings
 are auto-aliased (`core/config/legacy_aliases.py`).
 
 Notes:
-- `FORCING_DATASET` / `HYDROLOGICAL_MODEL` must be **registered keys** — see the
-  add-data-handler / add-model-handler skills (registration happens at import via
-  `symfluence.plugins` entry points; a file existing isn't enough).
+- `FORCING_DATASET` / `HYDROLOGICAL_MODEL` must be **registered keys** — run
+  `symfluence list forcings` / `symfluence list models` to see the available names
+  (see the explore-platform skill), and add-data-handler / add-model-handler to add
+  new ones.
 - `SYMFLUENCE_DATA_DIR`/`CODE_DIR` may be `"default"` (resolved relative to the
   project at runtime); set explicit absolute paths to avoid surprises.
 - Env vars override file values (`SYMFLUENCE_*`, e.g.

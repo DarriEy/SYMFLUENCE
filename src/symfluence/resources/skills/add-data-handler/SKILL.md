@@ -193,7 +193,9 @@ self.bbox_to_wcs_params()  # OGC WCS SUBSET tuples
 
 ## 6. Categories & templates
 
-Pick the closest existing handler and copy its shape. Representative examples:
+(Run `symfluence list forcings` / `symfluence list observations` for the datasets
+registered right now.) Pick the closest existing handler and copy its shape.
+Representative examples:
 
 | Category | Pattern | Reference handler | Mixins |
 |----------|---------|-------------------|--------|
