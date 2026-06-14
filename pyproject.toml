@@ -250,7 +250,7 @@ symfluence_noahmp = "symfluence.models.noahmp:register"
 Homepage = "https://symfluence.org"
 Source = "https://github.com/symfluence-org/SYMFLUENCE"
 Issues = "https://github.com/symfluence-org/SYMFLUENCE/issues"
-Documentation = "https://symfluence.org/"
+Documentation = "https://symfluence.readthedocs.io"
 
 [tool.hatch.build.targets.sdist]
 include = [

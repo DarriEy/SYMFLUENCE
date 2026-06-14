@@ -555,7 +555,7 @@ Calibration Tips
 
    .. code-block:: yaml
 
-      OPTIMIZATION_METRICS: [NSE, KGE, RMSE_log]
+      OBJECTIVE_METRICS: [NSE, KGE, RMSE_log]
 
 5. **Start simple:**
 

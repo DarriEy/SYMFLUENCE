@@ -22,7 +22,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
    ```bash
    python -m venv venv
    source venv/bin/activate
-   pip install -r requirements.txt
+   pip install -e ".[dev]"
    ```
 
 3. **Verify installation**
@@ -45,7 +45,7 @@ When creating new source files, include the standard SPDX header:
 
 ```python
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright 2024-2026 SYMFLUENCE Foundation <dev@symfluence.org>
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 ```
 
 ### Contributor License Agreement (CLA)
@@ -107,7 +107,7 @@ main          ← Protected, releases only (v0.6.0, v0.7.0, v1.0.0)
   ↓
 develop       ← Active development, merge here first
   ↓
-feature/*     ← Individual features
+feat/*        ← Individual features
 hotfix/*      ← Emergency fixes
 ```
 
@@ -119,12 +119,12 @@ git checkout develop
 git pull origin develop
 
 # Create your feature branch
-git checkout -b feature/my-feature
+git checkout -b feat/my-feature
 
 # Work, commit, push
 git add .
 git commit -m "Add feature description"
-git push -u origin feature/my-feature
+git push -u origin feat/my-feature
 
 # Open PR to merge into develop
 ```
@@ -254,13 +254,13 @@ Use concise, descriptive messages:
 
 1. **Create a feature branch**
    ```bash
-   git checkout -b feature/my-update
+   git checkout -b feat/my-update
    ```
 
 2. **Commit and push**
    ```bash
    git commit -m "Describe your change"
-   git push origin feature/my-update
+   git push origin feat/my-update
    ```
 
 3. **Open a Pull Request (PR)**

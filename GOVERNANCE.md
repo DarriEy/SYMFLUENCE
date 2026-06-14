@@ -13,8 +13,9 @@ and [CLA.md](CLA.md), which covers intellectual property.
 SYMFLUENCE's architecture is designed around typed registry contracts that
 enable decentralized contribution without central gatekeeping. The value of the
 framework lies not in any single model or data handler but in the coherence of
-these contracts — the fact that 27 models, 68 data handlers, and 17
-optimization algorithms interoperate through shared interface definitions.
+these contracts — the fact that a broad and growing set of hydrological
+models, data handlers, and optimization algorithms interoperate through shared
+interface definitions.
 
 This governance document exists to protect that coherence as the contributor
 base grows. Architecture can enable coordination. It cannot sustain it. The
@@ -81,7 +82,7 @@ package that registers with SYMFLUENCE at install time. This includes:
   `model_manifest()`. A plugin may also ship its own **typed Pydantic
   configuration schema** (`model_manifest(config_schema=...)`), which the core
   validation pipeline consumes on equal footing with in-tree models — see
-  [ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md). See the six
+  [ADR-0002](docs/adr/0002-plugins-may-ship-typed-config.md). See the
   JAX-native packages (jHBV, jSACSMA, etc.) as reference implementations.
 - **New data handlers.** Implement the acquisition handler interface and
   register via decorator.
