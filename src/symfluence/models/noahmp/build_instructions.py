@@ -45,24 +45,31 @@ if ! command -v nf-config &>/dev/null && ! command -v nc-config &>/dev/null; the
     exit 1
 fi
 
-# Configure (select appropriate config for platform)
+# Configure: pick the gfortran build config for the platform. (NB: the Linux
+# config must be gfortran.linux — NOT pgf90.linux, which targets the PGI/NVIDIA
+# compiler and breaks under gfortran.)
 if [ "$(uname)" = "Darwin" ]; then
-    # macOS gfortran
-    if [ -f "config/user_build_options.macos.gfortran" ]; then
-        cp config/user_build_options.macos.gfortran user_build_options
-    elif [ -f "config/user_build_options.bigsur.gfortran" ]; then
-        cp config/user_build_options.bigsur.gfortran user_build_options
-    else
-        echo "WARNING: No macOS config found, trying ./configure"
-        ./configure 2>/dev/null || true
-    fi
+    cp config/user_build_options.macos.gfortran user_build_options 2>/dev/null \
+        || cp config/user_build_options.bigsur.gfortran user_build_options 2>/dev/null \
+        || { echo "WARNING: No macOS gfortran config found, trying ./configure"; ./configure 2>/dev/null || true; }
+elif [ -f "config/user_build_options.gfortran.linux" ]; then
+    cp config/user_build_options.gfortran.linux user_build_options
 else
-    # Linux gfortran
-    if [ -f "config/user_build_options.pgf90.linux" ]; then
-        cp config/user_build_options.pgf90.linux user_build_options
-    else
-        ./configure 2>/dev/null || true
-    fi
+    ./configure 2>/dev/null || true
+fi
+
+# The shipped configs hardcode NetCDF (and sometimes compiler) paths for one
+# specific machine. Rewrite the NetCDF lines from nf-config/nc-config so the
+# build finds NetCDF wherever it actually lives: Debian/Ubuntu multiarch
+# (/usr/lib/<arch>-linux-gnu, which ${NETCDF}/lib misses) and Homebrew's split
+# netcdf / netcdf-fortran prefixes on macOS. Also normalise the compiler to the
+# one on PATH (the macOS config hardcodes an Intel-Homebrew gfortran path).
+if [ -f user_build_options ] && command -v nf-config >/dev/null 2>&1; then
+    _NF_INC="$(nf-config --includedir 2>/dev/null)"
+    _NF_LIBS="$(nf-config --flibs 2>/dev/null) $(nc-config --libs 2>/dev/null)"
+    perl -pi -e "s|^\s*NETCDFMOD\s*=.*|NETCDFMOD = -I${_NF_INC}|" user_build_options
+    perl -pi -e "s|^\s*NETCDFLIB\s*=.*|NETCDFLIB = ${_NF_LIBS}|" user_build_options
+    perl -pi -e "s|^\s*COMPILERF90\s*=.*|COMPILERF90 = gfortran|" user_build_options
 fi
 
 make clean 2>/dev/null || true
