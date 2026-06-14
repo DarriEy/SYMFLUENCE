@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WATFLOOD and GSFLOW standalone postprocessors registered.
 
 ### Changed
+- **Agent interface simplified to a launcher.** `symfluence agent launch` now hands
+  off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...), primed with
+  the SYMFLUENCE skills, instead of running a bespoke in-house LLM agent. It detects
+  the CLI on `PATH` and uses whichever API key is set (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY` / `GEMINI_API_KEY`); override with `SYMFLUENCE_AGENT_CLI`, skip
+  skill materialization with `SYMFLUENCE_NO_SKILLS`. The skills now ship inside the
+  package. *(net ~ −7,000 LOC)*
 - **Config schema canonicalization (toward 1.0)**: promoted data-handler,
   HYPE/NGEN/FUSE/GR/mizuRoute/path, multi-gauge, optimizer/evaluator, and
   parameter-bounds flat keys to typed Pydantic fields; `RECOGNIZED_FLAT_KEYS` is
@@ -84,6 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The **CalMIP** example stub.
 - **DPE** (differentiable PE) and other dead/external config keys; shipped
   configs curated accordingly.
+- **The bespoke in-house LLM agent** (`symfluence.agent` internals) and the
+  optional `[llm]`/`openai` dependency — replaced by the launcher above.
+  `symfluence agent start`/`run` are deprecated aliases for `launch`. *(breaking:
+  the agent now requires an external coding-agent CLI)*
 
 ### CI / Release
 - `release-binaries`: build MODFLOW 6 from source on Linux, build ngen on

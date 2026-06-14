@@ -44,7 +44,7 @@
       :link: agent_guide
       :link-type: doc
 
-      Natural language interface for model configuration.
+      Drive SYMFLUENCE with your installed coding-agent CLI, primed with skills.
 
    .. grid-item-card:: API Reference
       :link: api
@@ -86,7 +86,6 @@
    :hidden:
 
    agent_guide
-   agent_tools
 
 .. toctree::
    :maxdepth: 1

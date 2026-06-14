@@ -5,40 +5,6 @@
 # (multiset semantics) so a new identical handler in the same scope
 # is still detected as a new occurrence.
 src/symfluence/__init__.py:<module>:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/agent/agent_manager.py:AgentManager._agent_loop:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/agent_manager.py:AgentManager._execute_tool_call:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/agent_manager.py:AgentManager._execute_tools_parallel:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/agent_manager.py:AgentManager.run_interactive_mode:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/agent_manager.py:AgentManager.run_single_prompt:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/api_client.py:APIClient.chat_completion:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/agent/api_client.py:APIClient.test_connection:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations._validate_python_syntax:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations.list_directory:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations.read_file:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations.show_diff:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations.stage_changes:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/file_operations.py:FileOperations.write_file:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager._create_github_pr:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.check_gh_auth:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.create_pr:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.create_pr_proposal:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.get_commit_log:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.get_current_branch:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.propose_code_change:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/pr_manager.py:PRManager.show_staged_changes:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/test_runner.py:TestRunner.check_syntax:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/test_runner.py:TestRunner.get_test_coverage:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/test_runner.py:TestRunner.run_specific_test:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/test_runner.py:TestRunner.run_tests:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/test_runner.py:TestRunner.run_tests_for_files:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_binary_operation:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_code_operations:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_config_operation:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_meta_operation:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_pour_point_setup:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_workflow_management:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor._execute_workflow_step:except Exception as e:  # noqa: BLE001 — agent resilience
-src/symfluence/agent/tool_executor.py:ToolExecutor.execute_tool:except Exception as e:  # noqa: BLE001 — agent resilience
 src/symfluence/cli/__init__.py:main:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/commands/base.py:BaseCommand.load_typed_config:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/commands/config_commands.py:ConfigCommands.resolve:except Exception:  # noqa: BLE001 — top-level fallback
