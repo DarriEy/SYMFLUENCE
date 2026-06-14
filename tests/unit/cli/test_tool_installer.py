@@ -117,6 +117,53 @@ def test_clone_repository_sparse_excludes_paths(mock_external_tools, tmp_path):
     assert not (target / "src" / "pkg" / "network" / "test" / "fixtures" / "data.ncdf").exists()
 
 
+def test_clone_with_retry_recovers_from_transient_failure(mock_external_tools, tmp_path, monkeypatch):
+    """A clone that fails once (e.g. flaky SourceForge) is retried and succeeds.
+
+    The partial target is cleaned between attempts and the backoff sleep is
+    stubbed so the test stays fast.
+    """
+    import subprocess
+
+    from symfluence.cli.services import tool_installer as ti
+
+    target = tmp_path / "clone"
+    calls = {"n": 0}
+
+    def fake_run(cmd, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # Simulate a partial clone left behind by the failed attempt.
+            target.mkdir(parents=True, exist_ok=True)
+            raise subprocess.CalledProcessError(128, cmd, stderr="access denied")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(ti.subprocess, "run", fake_run)
+    monkeypatch.setattr(ti.time, "sleep", lambda *_: None)
+
+    installer = ti.ToolInstaller(external_tools=mock_external_tools)
+    installer._clone_with_retry(["git", "clone", "x", str(target)], {}, target)
+
+    assert calls["n"] == 2  # failed once, succeeded on retry
+
+
+def test_clone_with_retry_reraises_after_exhausting_attempts(mock_external_tools, tmp_path, monkeypatch):
+    """When every attempt fails the last error is re-raised so install fails hard."""
+    import subprocess
+
+    from symfluence.cli.services import tool_installer as ti
+
+    def always_fail(cmd, *args, **kwargs):
+        raise subprocess.CalledProcessError(128, cmd, stderr="access denied")
+
+    monkeypatch.setattr(ti.subprocess, "run", always_fail)
+    monkeypatch.setattr(ti.time, "sleep", lambda *_: None)
+
+    installer = ti.ToolInstaller(external_tools=mock_external_tools)
+    with pytest.raises(subprocess.CalledProcessError):
+        installer._clone_with_retry(["git", "clone", "x", "y"], {}, tmp_path / "c", attempts=3)
+
+
 def test_install_fails_fast_when_required_tool_missing(mock_external_tools, tmp_path):
     """A tool with unmet `requires` should not proceed to build."""
     from symfluence.cli.services.tool_installer import ToolInstaller
