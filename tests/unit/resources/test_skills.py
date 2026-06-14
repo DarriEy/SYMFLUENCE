@@ -11,6 +11,7 @@ from symfluence.resources import get_skills_dir, prepare_agent_context
 EXPECTED_SKILLS = [
     'add-data-handler',
     'add-model-handler',
+    'add-optimizer',
     'debug-calibration',
     'run-workflow-locally',
 ]

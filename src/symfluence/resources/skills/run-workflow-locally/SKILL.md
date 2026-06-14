@@ -1,16 +1,14 @@
 ---
 name: run-workflow-locally
 description: >-
-  Run the SYMFLUENCE workflow locally end to end, or just part of it — from a
-  YAML config through pour point, attribute/forcing acquisition, domain
-  definition, discretization, preprocessing, model run, calibration, and
-  analysis. Covers the `symfluence workflow` CLI (run / step / steps / resume /
-  status / list-steps / validate / clean / diagnose), the 16-step canonical
-  order with aliases, the config-hash stage-marker system (steps auto-rerun when
-  their config section changes) and how to re-run a step, the essential config
-  keys, and the domain_{NAME} output layout. Invoke when setting up or running a
-  SYMFLUENCE experiment, debugging "why did my step get skipped (or re-run),"
-  resuming a partial run, or understanding the pipeline order.
+  Run the SYMFLUENCE workflow locally — full pipeline or single steps — via the
+  `symfluence workflow` CLI (run/step/steps/resume/status/validate/clean). Covers
+  the 16-step order + aliases, the config-hash stage-marker system (why a step is
+  skipped or auto-re-runs), authoring/validating a config, and the domain_{NAME} layout.
+when_to_use:
+  - Setting up or running a SYMFLUENCE experiment (end to end or part of it)
+  - '"Why did my step get skipped / re-run?", or resuming a partial run'
+  - Authoring or validating a config, or understanding the pipeline order
 ---
 
 # Running the SYMFLUENCE Workflow Locally
@@ -118,8 +116,9 @@ means the marker exists AND its hash matches the current config. So:
 - **Edit a relevant config section → that step (and dependents) auto-re-run** —
   no need to delete markers. `STAGE_CONFIG_SECTIONS` maps each step to its
   sections, e.g. `acquire_forcings: [forcing, domain]`,
-  `run_model: [model, domain]`, `calibrate_model: [optimization, model,
-  evaluation, domain]`.
+  `run_models: [model, domain]`, `calibrate_model: [optimization, model,
+  evaluation, domain]`. (The `STAGE_CONFIG_SECTIONS` key for the model-run step is
+  `run_models`, plural — the CLI step name is `run_model`.)
 - `--force-rerun` / `FORCE_RUN_ALL_STEPS` ignores markers entirely (clears them).
 
 **Re-run a single step manually** (e.g. output looks wrong but config didn't
@@ -161,16 +160,21 @@ Plus model-specific keys the chosen model needs (e.g. SUMMA: `SUMMA_INSTALL_PATH
 `POUR_POINT_COORDS`, `BOUNDING_BOX_COORDS`, `CALIBRATION_PERIOD`,
 `EVALUATION_PERIOD`, `ROUTING_MODEL`, `FORCE_RUN_ALL_STEPS`, optimization keys.
 
+**Authoring a config:** copy a template (`config_quickstart_minimal.yaml` to
+start, `config_template.yaml` for the documented standard), edit the keys above,
+then `symfluence workflow validate --config my_config.yaml` before a long run.
+The config is the public contract — keys are validated against the Pydantic
+schema; unknown keys warn (strict mode errors). Legacy `CONFLUENCE_*` spellings
+are auto-aliased (`core/config/legacy_aliases.py`).
+
 Notes:
 - `FORCING_DATASET` / `HYDROLOGICAL_MODEL` must be **registered keys** — see the
-  add-data-handler / add-model-handler skills (registration uses explicit import
-  lists; a file existing isn't enough).
+  add-data-handler / add-model-handler skills (registration happens at import via
+  `symfluence.plugins` entry points; a file existing isn't enough).
 - `SYMFLUENCE_DATA_DIR`/`CODE_DIR` may be `"default"` (resolved relative to the
   project at runtime); set explicit absolute paths to avoid surprises.
 - Env vars override file values (`SYMFLUENCE_*`, e.g.
-  `export SYMFLUENCE_DOMAIN_NAME=test`). Legacy `CONFLUENCE_*` key aliases are
-  honored (`core/config/legacy_aliases.py`).
-- Config can also be passed positionally to `run_symfluence.py my_config.yaml`.
+  `export SYMFLUENCE_DOMAIN_NAME=test`).
 
 ## 5. Output directory layout
 
@@ -249,7 +253,7 @@ the credential helpers in the add-data-handler skill.
 | Workflow CLI actions / handlers | `cli/commands/workflow_commands.py` |
 | Workflow arg parser | `cli/argument_parser.py` |
 | Canonical steps + aliases + resolver | `workflow_steps.py` (`WORKFLOW_STEP_ITEMS`, `WORKFLOW_STEP_ALIASES`, `resolve_workflow_step_name`) |
-| Top-level entry class | `core/system.py` (`SYMFLUENCE`: `run_workflow`, `run_individual_steps`) |
+| Top-level entry class | `project/system.py` (`SYMFLUENCE`: `run_workflow`, `run_individual_steps`; re-exported from `symfluence/__init__.py`) |
 | Orchestrator (step loop, skip logic) | `project/workflow_orchestrator.py` (`define_workflow_steps`, `run_workflow`) |
 | Per-step manager creation | `project/manager_factory.py` (`LazyManagerDict`) |
 | Stage markers + config hashing | `core/stage_marker.py` (`write_marker`, `is_stage_current`, `clear_markers`, `STAGE_CONFIG_SECTIONS`) |

@@ -1,15 +1,14 @@
 ---
 name: debug-calibration
 description: >-
-  Diagnose and fix SYMFLUENCE calibration / optimization problems — flat or
-  stuck objective scores, workers failing or crashing, parameters not changing
-  the model output, NaN/garbage metrics, parallel process-dir issues, and
-  regionalization not varying parameters spatially. Covers the optimizer loop
-  (DDS/PSO/SCE-UA/DE), the BaseWorker apply→run→metrics cycle, parameter
-  normalization, the process_N working directories, calibration targets, and
-  where to look when a calibration "runs but doesn't improve." Invoke when a
-  calibration behaves wrong, a worker errors, or you need to trace why scores
-  aren't moving.
+  Diagnose SYMFLUENCE calibration/optimization that misbehaves — flat or stuck
+  scores, workers crashing, params not reaching the model, NaN metrics, parallel
+  process-dir cross-talk, or regionalization not varying spatially. Fault-tree
+  for the DDS/PSO/SCE-UA/DE loop and the BaseWorker apply→run→metrics cycle.
+when_to_use:
+  - A calibration "runs but doesn't improve", or the score is flat/stuck
+  - A calibration worker errors, crashes, or returns no score / NaN metrics
+  - Params don't change the output, or regionalized params come out uniform
 ---
 
 # Debugging SYMFLUENCE Calibration
@@ -134,7 +133,8 @@ Check in this order:
 | Calibration targets (sim file location, extraction) | `optimization/calibration_targets/`, `models/<m>/calibration/targets.py` |
 | Regionalization strategies | `optimization/regionalization/strategies.py` |
 | Model-specific worker / param manager | `models/<model>/calibration/{worker,parameter_manager}.py` |
-| Optimizer/worker registration | `model_manifest(worker=, parameter_manager=)`; deprecated `optimization/registry.py` |
+| Optimizer/worker registration | `model_manifest(worker=, parameter_manager=)` |
+| Optimization algorithms | `ALGORITHM_REGISTRY` in `optimization/optimizers/algorithms/__init__.py` |
 
 ## 5. Config keys that affect calibration behavior
 
