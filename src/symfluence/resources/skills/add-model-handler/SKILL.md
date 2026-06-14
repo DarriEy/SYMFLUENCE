@@ -90,6 +90,9 @@ entry point to `pyproject.toml`** — otherwise registration silently never runs
 
 ## 3. Model taxonomy — pick the closest exemplar
 
+(Run `symfluence list models` for the models registered right now; the table below
+is the categories, not an exhaustive list.)
+
 | Category | Execution | Exemplars | Notes |
 |----------|-----------|-----------|-------|
 | Process-based executable | subprocess (Fortran/C binary) | `summa`, `fuse`, `hype`, `mesh`, `vic`, `swat`, `prms` | `_build_command()` returns argv; needs `build_instructions` |

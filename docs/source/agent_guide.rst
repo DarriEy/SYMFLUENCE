@@ -60,16 +60,17 @@ Skills
 ------
 
 Skills are concise domain guides the agent consults when working on SYMFLUENCE
-tasks. The packaged skills are:
+tasks — for both *running* the platform and *extending* it. The packaged skills:
 
 ==========================  =================================================
 Skill                       Use it for
 ==========================  =================================================
+``explore-platform``        Discovering available models/datasets/configs (live registry)
+``run-workflow-locally``    Running the workflow end to end (or a single step)
 ``add-data-handler``        Adding a forcing / attribute / observation dataset
 ``add-model-handler``       Adding or wiring a hydrological model
 ``add-optimizer``           Adding a calibration/search algorithm
 ``debug-calibration``       Diagnosing calibration / optimizer problems
-``run-workflow-locally``    Running the workflow end to end (or a single step)
 ==========================  =================================================
 
 Environment variables

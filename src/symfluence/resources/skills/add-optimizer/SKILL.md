@@ -31,7 +31,7 @@ local name→class map) — and instantiated by `get_algorithm(name, config, log
 
 Selection: the config key **`OPTIMIZATION_ALGORITHM`** (`config.optimization.algorithm`)
 picks the algorithm; `base_model_optimizer.py` calls `get_algorithm(...)` and
-drives it.
+drives it. (Run `symfluence list optimizers` for the currently registered set.)
 
 **To add one you must both** (a) create the algorithm class and (b) add an import
 + a `ALGORITHM_REGISTRY` entry in `algorithms/__init__.py`. A file alone won't be

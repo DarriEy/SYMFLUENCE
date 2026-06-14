@@ -185,6 +185,7 @@ For more help on a specific command:
         self._register_data_commands(subparsers)
         self._register_doctor_commands(subparsers)
         self._register_fews_commands(subparsers)
+        self._register_list_commands(subparsers)
 
         return parser
 
@@ -680,6 +681,25 @@ For more help on a specific command:
         run_parser.add_argument('--verbose', action='store_true',
                                 help='(deprecated, ignored)')
         run_parser.set_defaults(func=AgentCommands.run)
+
+    def _register_list_commands(self, subparsers):
+        """Register the registry/config introspection command."""
+        from .commands import ListCommands
+        from .commands.list_commands import LIST_KINDS
+
+        list_parser = subparsers.add_parser(
+            'list',
+            help='List available models, datasets, optimizers, config keys, etc. (live registry)',
+            description=(
+                'Introspect the SYMFLUENCE registry and config schema to discover '
+                'what is available right now. Run `symfluence list` for all catalogs.'
+            )
+        )
+        list_parser.add_argument(
+            'kind', nargs='?', default=None, choices=LIST_KINDS, metavar='KIND',
+            help=f"What to list ({', '.join(LIST_KINDS)}); omit to see all catalogs + counts"
+        )
+        list_parser.set_defaults(func=ListCommands.list_items)
 
     def _register_gui_commands(self, subparsers):
         """Register GUI launch commands."""
