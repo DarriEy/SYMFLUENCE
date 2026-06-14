@@ -14,7 +14,7 @@ SYMFLUENCE is built on a modular, manager-based architecture with clear separati
 **Core Principles:**
 
 - **Manager Pattern**: Subsystems coordinated through dedicated manager classes
-- **Registry Pattern**: Models self-register using decorators for plugin extensibility
+- **Registry Pattern**: Models self-register via ``model_manifest()`` for plugin extensibility
 - **Mixin Pattern**: Shared functionality distributed through composable mixins
 - **Typed Configuration**: Pydantic models for validation and type safety
 - **Lazy Loading**: Components instantiated on-demand for efficiency
@@ -45,7 +45,7 @@ System Architecture Diagram
            │                      │                      │
            ▼                      ▼                      ▼
    ┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-   │  Acquisition  │      │ ModelRegistry │      │  Optimizers   │
+   │  Acquisition  │      │  R registry   │      │  Optimizers   │
    │   Services    │      │   (Plugin)    │      │  (DE/DDS/     │
    │               │      │               │      │   ADAM/PSO)   │
    └───────────────┘      └───────────────┘      └───────────────┘
@@ -73,10 +73,11 @@ Directory Structure
 
    symfluence/
    ├── core/                      # Core framework infrastructure
-   │   ├── system.py             # SYMFLUENCE main class (entry point)
    │   ├── base_manager.py       # Abstract base for all managers
+   │   ├── registry.py           # Registry + model_manifest()
+   │   ├── registries.py         # Unified registry facade (R)
    │   ├── config/               # Configuration system
-   │   │   ├── models.py         # SymfluenceConfig (Pydantic)
+   │   │   ├── models/           # SymfluenceConfig (Pydantic) package
    │   │   ├── transformers.py   # Flat ↔ nested conversion
    │   │   └── validators.py     # Custom validation rules
    │   ├── exceptions.py         # Custom exception hierarchy
@@ -84,6 +85,7 @@ Directory Structure
    │   └── mixins/               # Shared functionality mixins
    │
    ├── project/                   # Project & workflow management
+   │   ├── system.py             # SYMFLUENCE main class (entry point)
    │   ├── project_manager.py    # Directory structure setup
    │   ├── workflow_orchestrator.py  # Step execution engine
    │   ├── logging_manager.py    # Logging configuration
@@ -104,7 +106,6 @@ Directory Structure
    │
    ├── models/                    # Hydrological model integrations
    │   ├── model_manager.py      # Model execution coordinator
-   │   ├── registry.py           # Plugin registration system
    │   ├── base/                 # Base classes for model components
    │   │   ├── base_preprocessor.py
    │   │   ├── base_runner.py
@@ -431,7 +432,7 @@ Complete Workflow
    │                    4. MODEL PREPROCESSING                               │
    │                                                                         │
    │  ModelManager.preprocess(model_name)                                    │
-   │  ├── Registry lookup: ModelRegistry.get_preprocessor(model_name)        │
+   │  ├── Registry lookup: R.preprocessors[model_name]                       │
    │  ├── Instantiate: preprocessor = PreprocessorClass(config, logger)      │
    │  └── Execute: preprocessor.run_preprocessing()                          │
    │                                                                         │
@@ -445,8 +446,8 @@ Complete Workflow
    │                    5. MODEL EXECUTION                                   │
    │                                                                         │
    │  ModelManager.run_models()                                              │
-   │  ├── Registry lookup: ModelRegistry.get_runner(model_name)              │
-   │  ├── Get method: ModelRegistry.get_runner_method(model_name)            │
+   │  ├── Registry lookup: R.runners[model_name]                             │
+   │  ├── Get method: R.runners.meta(model_name)["runner_method"]            │
    │  ├── Instantiate: runner = RunnerClass(config, logger)                  │
    │  └── Execute: getattr(runner, method_name)()                            │
    │                                                                         │
@@ -460,7 +461,7 @@ Complete Workflow
    │                    6. POSTPROCESSING & EVALUATION                       │
    │                                                                         │
    │  ModelManager.postprocess(model_name)                                   │
-   │  ├── Registry lookup: ModelRegistry.get_postprocessor(model_name)       │
+   │  ├── Registry lookup: R.postprocessors[model_name]                      │
    │  ├── Extract streamflow from model outputs                              │
    │  └── Standardize to common format (CSV, NetCDF)                         │
    │                                                                         │
@@ -473,7 +474,7 @@ Complete Workflow
    ┌─────────────────────────────────────────────────────────────────────────┐
    │                    7. CALIBRATION (Optional)                            │
    │                                                                         │
-   │  OptimizationManager.run_calibration()                                  │
+   │  OptimizationManager.calibrate_model()                                  │
    │  ├── Initialize optimizer (DE, DDS, ADAM, PSO, NSGA-II)                 │
    │  ├── Create parameter manager for model                                 │
    │  ├── Spawn workers for parallel evaluation                              │
@@ -603,8 +604,8 @@ Hierarchical Structure
    # Flat dict (legacy format)
    flat = {'DOMAIN_NAME': 'my_basin', 'FORCING_DATASET': 'ERA5', ...}
 
-   # Converted to hierarchical
-   config = SymfluenceConfig.from_dict(flat)
+   # Converted to hierarchical (flat keys are accepted by the constructor)
+   config = SymfluenceConfig(**flat)
    config.domain.name  # 'my_basin'
    config.forcing.dataset  # 'ERA5'
    config.model.summa.spatial_mode  # 'distributed'
@@ -631,18 +632,23 @@ Exception Hierarchy
 
 .. code-block:: text
 
-   SymfluenceError                    # Base exception
+   SYMFLUENCEError                    # Base exception
    ├── ConfigurationError             # Invalid configuration
-   │   ├── ConfigValidationError      # Pydantic validation failure
-   │   └── ConfigFileError            # Missing/unreadable config file
-   ├── DataError                      # Data acquisition/processing issues
-   │   ├── DataAcquisitionError       # Failed to download
-   │   └── DataValidationError        # Invalid data format
-   ├── ModelError                     # Model execution issues
-   │   ├── ModelExecutionError        # Runtime failure
-   │   └── ModelConfigError           # Missing model files
-   └── OptimizationError              # Calibration issues
-       └── ConvergenceError           # Failed to converge
+   │   └── ConfigValidationError      # Pydantic/config validation failure
+   ├── DataAcquisitionError           # Failed to acquire/process data
+   ├── ModelExecutionError            # Model runtime failure
+   ├── GeospatialError                # Geospatial operation failure
+   │   ├── DiscretizationError        # HRU/GRU discretization failure
+   │   ├── ShapefileError             # Shapefile read/write failure
+   │   └── RasterProcessingError      # Raster processing failure
+   ├── OptimizationError              # Calibration / optimization issues
+   │   ├── WorkerExecutionError       # Worker subprocess failure
+   │   └── RetryExhaustedError        # Retries exhausted
+   ├── ValidationError                # Input validation failure
+   ├── FileOperationError             # File I/O failure
+   ├── CodeAnalysisError              # Static/code analysis failure
+   ├── EvaluationError                # Metric/evaluation failure
+   └── ReportingError                 # Reporting/visualization failure
 
 Context Manager Pattern
 -----------------------

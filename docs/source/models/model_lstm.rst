@@ -351,7 +351,7 @@ Simple basin-scale LSTM:
 
    # Data split
    CALIBRATION_PERIOD: [2010, 2017]  # 8 years training+val
-   VALIDATION_PERIOD: [2018, 2020]   # 3 years testing
+   EVALUATION_PERIOD: "2018-01-01,2020-12-31"   # 3 years testing
 
 Run:
 
@@ -395,9 +395,7 @@ Train on data-rich basin, transfer to ungauged basin:
    HYDROLOGICAL_MODEL: LSTM
 
    # (standard config...)
-
-   # Train and save model
-   LSTM_SAVE_MODEL: true  # Saves to models/LSTM/donor_basin.pt
+   # The trained model is saved automatically under models/LSTM/
 
 .. code-block:: yaml
 
@@ -408,7 +406,6 @@ Train on data-rich basin, transfer to ungauged basin:
 
    # Load pre-trained model
    LSTM_LOAD: true
-   LSTM_PRETRAINED_MODEL: ../donor_basin/models/LSTM/donor_basin.pt
 
    # Fine-tune (if any observations available)
    LSTM_EPOCHS: 50  # Short fine-tuning
@@ -425,9 +422,6 @@ LSTM on distributed domain:
    POUR_POINT_COORDS: [-115.0, 51.0]
 
    HYDROLOGICAL_MODEL: LSTM
-
-   # Train LSTM per subcatchment
-   LSTM_SPATIAL_MODE: distributed
 
    # Optional: Train through routing
    LSTM_TRAIN_THROUGH_ROUTING: true

@@ -1,4 +1,6 @@
 # Configuration file for the Sphinx documentation builder.
+from __future__ import annotations
+
 import os
 import sys
 
@@ -161,7 +163,7 @@ source_suffix = {
 }
 
 html_context = {
-    "github_user": "DarriEy",
+    "github_user": "symfluence-org",
     "github_repo": "SYMFLUENCE",
     "github_version": "main",
     "doc_path": "docs/source",

@@ -383,7 +383,7 @@ River network with multiple gauged basins:
 
    # Data split
    CALIBRATION_PERIOD: [2010, 2017]  # Training + validation
-   VALIDATION_PERIOD: [2018, 2020]   # Testing
+   EVALUATION_PERIOD: "2018-01-01,2020-12-31"   # Testing
 
 Run:
 
@@ -453,9 +453,7 @@ Train on one network, apply to another:
 
    HYDROLOGICAL_MODEL: GNN
    GNN_EPOCHS: 300
-
-   # Save model
-   GNN_SAVE_MODEL: true
+   # The trained model is saved automatically under models/GNN/
 
 .. code-block:: yaml
 
@@ -468,7 +466,6 @@ Train on one network, apply to another:
 
    # Load pre-trained model
    GNN_LOAD: true
-   GNN_PRETRAINED_MODEL: ../colorado_river/models/GNN/best_model.pt
 
    # Fine-tune with available data
    GNN_EPOCHS: 50
