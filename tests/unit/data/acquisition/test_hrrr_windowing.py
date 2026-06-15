@@ -46,17 +46,34 @@ GRID_SPACING = 3000  # meters, like HRRR
 CHUNK = 10           # 10x10 chunks -> 16 chunks total
 
 
-class SpyStore(zarr.storage.LocalStore):
-    """Local zarr store that records every key fetched via ``get``."""
+# The synthetic store is read through whichever zarr major the environment
+# resolves (zarr is pulled in transitively, unpinned). The spy records every
+# key actually fetched so the tests can assert the bbox window is applied
+# before any data chunk is downloaded. zarr v3 stores expose an async ``get``;
+# v2 stores are mappings keyed via ``__getitem__`` — subclass whichever matches.
+if int(zarr.__version__.split(".", 1)[0]) >= 3:
+    class SpyStore(zarr.storage.LocalStore):
+        """Local zarr v3 store that records every key fetched via ``get``."""
 
-    def __init__(self, root, read_log):
-        super().__init__(root, read_only=True)
-        # object.__setattr__: zarr Store dataclasses can freeze attributes
-        object.__setattr__(self, 'read_log', read_log)
+        def __init__(self, root, read_log):
+            super().__init__(root, read_only=True)
+            # object.__setattr__: zarr Store dataclasses can freeze attributes
+            object.__setattr__(self, 'read_log', read_log)
 
-    async def get(self, key, prototype, byte_range=None):
-        self.read_log.append(key)
-        return await super().get(key, prototype, byte_range)
+        async def get(self, key, prototype, byte_range=None):
+            self.read_log.append(key)
+            return await super().get(key, prototype, byte_range)
+else:
+    class SpyStore(zarr.storage.DirectoryStore):
+        """Local zarr v2 store that records every key fetched via ``__getitem__``."""
+
+        def __init__(self, root, read_log):
+            super().__init__(str(root))
+            self.read_log = read_log
+
+        def __getitem__(self, key):
+            self.read_log.append(key)
+            return super().__getitem__(key)
 
 
 def _data_chunk_keys(read_log, var: str):
