@@ -334,10 +334,10 @@ class TestFUSEParameterUpdate:
         assert callable(manager.update_model_files)
 
     @patch('xarray.open_dataset')
-    def test_update_parameter_file_validates_params(
+    def test_validate_parameters_accepts_valid_params(
         self, mock_open, fuse_config, test_logger, fuse_project_structure, mock_netcdf_dataset
     ):
-        """Test that update validates parameters."""
+        """Test that validate_parameters accepts a valid parameter set."""
         from symfluence.optimization.parameter_managers import FUSEParameterManager
 
         mock_open.return_value.__enter__ = Mock(return_value=mock_netcdf_dataset)
