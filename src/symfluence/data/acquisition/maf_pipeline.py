@@ -179,7 +179,7 @@ class gistoolRunner(ConfigMixin):
 
     See Also:
         - data.acquisition.maf_processor.DataAcquisitionProcessor: Config generator
-        - data.preprocessing.attribute_processing: Processes gistool outputs
+        - data.preprocessing.attribute_processor: Processes gistool outputs
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any):

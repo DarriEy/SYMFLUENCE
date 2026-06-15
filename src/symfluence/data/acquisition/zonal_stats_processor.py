@@ -334,7 +334,7 @@ class DataPreProcessor(ConfigMixin):
         - rasterstats uses exact pixel-polygon intersection (not centroid method)
 
     See Also:
-        - data.preprocessing.attribute_processing: High-level attribute processing
+        - data.preprocessing.attribute_processor: High-level attribute processing
         - data.preprocessing.attribute_processors.utils: Zonal stats utilities
         - rasterstats documentation: https://pythonhosted.org/rasterstats/
     """
@@ -482,14 +482,6 @@ class DataPreProcessor(ConfigMixin):
             valid_aspect_mask = np.isfinite(aspect_deg) & (aspect_deg >= 0)
             sin_aspect = np.where(valid_aspect_mask, np.sin(np.radians(aspect_deg)), aspect_nodata)
             cos_aspect = np.where(valid_aspect_mask, np.cos(np.radians(aspect_deg)), aspect_nodata)
-
-        # Should do per domain
-        #for domain_type in range(1, 6): # currently only 5 domain types
-        #   domain_mask = type_data == domain_type
-        #   dem_domain_data = np.where(domain_mask, dem_data, nodata_value)
-        #   tan_slope_domain_data = np.where(domain_mask, tan_slope_for_stats, slope_nodata)
-        #   sin_aspect_domain_data = np.where(domain_mask, sin_aspect, aspect_nodata)
-        #   cos_aspect_domain_data = np.where(domain_mask, cos_aspect, aspect_nodata)
 
         stats = zonal_stats(catchment_gdf, dem_data, affine=affine, stats=['mean'], nodata=nodata_value)
         result_df = pd.DataFrame(stats).rename(columns={'mean': 'elev_mean_new'})
