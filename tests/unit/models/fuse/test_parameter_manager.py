@@ -416,8 +416,11 @@ class TestFUSEEdgeCases:
 
         manager = FUSEParameterManager(fuse_config, test_logger, settings_dir)
 
-        # Parameter file doesn't exist - verify_and_fix should handle gracefully
-        assert hasattr(manager, 'verify_and_fix_parameter_files')
+        # Parameter file doesn't exist - get_initial_parameters falls back to
+        # default values instead of raising.
+        assert not manager.param_file_path.exists()
+        initial = manager.get_initial_parameters()
+        assert isinstance(initial, dict) and initial
 
     def test_handles_unknown_parameter(self, fuse_config, test_logger, tmp_path):
         """Test handling of unknown parameter in config."""
