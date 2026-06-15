@@ -138,12 +138,17 @@ config_template.yaml
 
 # Benchmark results (auto-generated)
 benchmark_results/
+benchmark/
 plots/
 results/
 results\\*
 debug/
 debug\\*
 stop.txt
+
+# Model tool build/error output (e.g. Raven adapter runs)
+Raven_errors.txt
+*_errors.txt
 
 # Temporary calibration/comparison outputs
 hbv_calibration_comparison/
