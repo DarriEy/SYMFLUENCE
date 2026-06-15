@@ -5,10 +5,10 @@
 # -*- coding: utf-8 -*-
 
 """
-FUSE Parameter Manager - FIXED for NetCDF Index Issues
+FUSE Parameter Manager.
 
-This version fixes the "Index exceeds dimension bound" error by ensuring
-proper parameter file structure and indexing.
+Handles FUSE parameter bounds, normalization, and NetCDF parameter-file
+structure (including correct ``par`` dimension indexing).
 """
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import netCDF4 as nc
 import xarray as xr
 
 from symfluence.core.registries import R
@@ -46,7 +45,7 @@ DECISION_REQUIRED_PARAMS = {
 
 @R.parameter_managers.add('FUSE')
 class FUSEParameterManager(BaseParameterManager):
-    """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
+    """Handles FUSE parameter bounds, normalization, and file updates."""
 
     def __init__(self, config: Dict, logger: logging.Logger, fuse_settings_dir: Path):
         # Initialize base class
@@ -424,72 +423,6 @@ class FUSEParameterManager(BaseParameterManager):
             return 1.0
 
     # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
-
-    def update_parameter_file(self, params: Dict[str, float], use_best_file: bool = False) -> bool:
-        """Update FUSE parameter NetCDF file with new parameter values - FIXED VERSION"""
-        try:
-            # FIRST: Verify parameter files are properly structured
-            #if not self.verify_and_fix_parameter_files():
-            #    self.logger.error("Cannot proceed - parameter files have structural issues")
-            #    return False
-
-            # Choose which file to update
-            target_file = self.param_file_path
-
-            if not target_file.exists():
-                self.logger.error(f"Parameter file does not exist: {target_file}")
-                return False
-
-            self.logger.debug(f"Updating parameter file: {target_file}")
-
-            # SAFE NetCDF writing with proper error handling
-            try:
-                with nc.Dataset(target_file, 'r+') as ds:
-                    # Verify the file structure first
-                    if 'par' not in ds.dimensions:
-                        self.logger.error(f"Missing 'par' dimension in {target_file}")
-                        return False
-
-                    par_size = ds.dimensions['par'].size
-                    if par_size == 0:
-                        self.logger.error(f"Empty 'par' dimension in {target_file}")
-                        return False
-
-                    changed = 0
-                    for p, v in params.items():
-                        if p in ds.variables:
-                            try:
-                                # Always use index 0 for single parameter set
-                                before = float(ds.variables[p][0])
-                                ds.variables[p][0] = float(v)
-                                after = float(ds.variables[p][0])
-                                self.logger.debug(f"[param write] {p}: {before} -> {after}")
-                                changed += (abs(after - before) > 1e-10)
-                            except Exception as e:  # noqa: BLE001 — calibration resilience
-                                self.logger.error(f"Error updating parameter {p}: {str(e)}", exc_info=True)
-                                return False
-                        else:
-                            self.logger.error(f"[param write] {p} NOT FOUND in {target_file}")
-                            return False
-
-                    # Force sync to disk
-                    ds.sync()
-
-                if changed == 0:
-                    self.logger.warning("[param write] No values changed - check parameter bounds or file structure")
-                else:
-                    self.logger.debug(f"Successfully updated {changed} FUSE parameters in {target_file}")
-
-
-                return True
-
-            except Exception as e:  # noqa: BLE001 — calibration resilience
-                self.logger.error(f"NetCDF error updating {target_file}: {str(e)}", exc_info=True)
-                return False
-
-        except Exception as e:  # noqa: BLE001 — calibration resilience
-            self.logger.error(f"Error updating parameter file: {str(e)}", exc_info=True)
-            return False
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from existing FUSE parameter file or coefficient bounds."""
