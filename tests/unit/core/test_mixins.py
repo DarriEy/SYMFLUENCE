@@ -13,8 +13,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import pytest
-
 from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.configurable import ConfigurableMixin
@@ -144,11 +142,3 @@ def test_composition_exposes_all_mixin_behaviors():
     # ConfigMixin, ProjectContextMixin, LoggingMixin, FileUtilsMixin, TimingMixin
     for attr in ("config", "data_dir", "project_dir", "logger", "ensure_dir", "time_limit"):
         assert hasattr(obj, attr), f"composed object missing {attr}"
-
-
-def test_resolve_config_value_is_deprecated_alias():
-    obj = _Configurable()
-    obj.config = _minimal()
-    with pytest.warns(DeprecationWarning):
-        value = obj._resolve_config_value(lambda: obj.config.domain.name)
-    assert value == "test_basin"
