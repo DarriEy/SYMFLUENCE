@@ -30,6 +30,7 @@ from symfluence.core.registries import R
 from symfluence.data.backends.contract import (
     AcquisitionBackend,
     DatasetCapability,
+    Redistribution,
     is_compatible,
 )
 from symfluence.data.backends.errors import DatasetUnsupported
@@ -128,6 +129,19 @@ def _decline_reason(
         return (
             "dataset is ungraded (parity_grade=None) on a non-native backend; "
             "set ALLOW_UNGATED_BACKENDS: true to permit"
+        )
+    # Source-data license gate (contract 0.4.0). A non-native backend re-serves
+    # data from its own store/mirror, which is redistribution. The native
+    # backend fetches from source on the user's behalf and is never gated here.
+    # Only an EXPLICIT no-redistribution term is refused: it is a legal
+    # constraint, NOT overridable by ALLOW_UNGATED_BACKENDS (that flag waives
+    # the parity grade, not the data license). An undeclared posture (UNKNOWN)
+    # is permitted — the parity gate above already refuses ungraded non-native
+    # backends, and declaring redistribution is a backend's own responsibility.
+    if name != 'native' and getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
+        return (
+            "source data is redistribution=restricted; a mirroring backend "
+            "must not re-serve it (native backend fetches from source instead)"
         )
     return None
 

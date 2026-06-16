@@ -12,6 +12,7 @@ from symfluence.data.backends.contract import (
     PROTOCOL_VERSION,
     DatasetCapability,
     GridClass,
+    Redistribution,
     SchemaId,
 )
 from symfluence.data.backends.errors import DatasetUnsupported
@@ -28,7 +29,12 @@ logger = logging.getLogger('test_selection')
 DATASET = 'CHIRPS'
 
 
-def _capability(dataset=DATASET, parity_grade='bit-identical', variables=('precipitation_flux',)):
+def _capability(
+    dataset=DATASET,
+    parity_grade='bit-identical',
+    variables=('precipitation_flux',),
+    redistribution=Redistribution.OPEN,
+):
     return DatasetCapability(
         dataset_id=dataset,
         grid_class=GridClass.REGULAR_LATLON,
@@ -37,6 +43,7 @@ def _capability(dataset=DATASET, parity_grade='bit-identical', variables=('preci
         temporal=None,
         auth=frozenset(),
         parity_grade=parity_grade,
+        redistribution=redistribution,
     )
 
 
@@ -94,6 +101,53 @@ class TestPriority:
         with pytest.raises(DatasetUnsupported) as excinfo:
             select_backend('NO_SUCH_DATASET', {}, logger=logger)
         assert 'NO_SUCH_DATASET' in str(excinfo.value)
+
+
+class TestLicenseGate:
+    """Source-data redistribution gate (contract 0.4.0)."""
+
+    def test_restricted_source_declines_community_falls_to_native(
+        self, native_claims_dataset, register_backend
+    ):
+        # A community backend mirrors data; a restricted source must not be
+        # re-served, so selection falls through to the native backend (which
+        # fetches from source on the user's behalf — not redistribution).
+        community = FakeCommunityBackend([_capability(redistribution=Redistribution.RESTRICTED)])
+        register_backend('community', community)
+        selected = select_backend(DATASET, {'DATA_ACCESS': 'community'}, logger=logger)
+        assert selected.name == 'native'
+
+    def test_restricted_is_not_overridable_by_allow_ungated(
+        self, native_claims_dataset, register_backend
+    ):
+        # ALLOW_UNGATED_BACKENDS waives the parity grade, never a legal
+        # no-redistribution term: a restricted source stays refused.
+        community = FakeCommunityBackend([_capability(redistribution=Redistribution.RESTRICTED)])
+        register_backend('community', community)
+        selected = select_backend(
+            DATASET,
+            {'DATA_ACCESS': 'community', 'ALLOW_UNGATED_BACKENDS': True},
+            logger=logger,
+        )
+        assert selected.name == 'native'
+
+    def test_restricted_pinned_backend_raises(self, native_claims_dataset, register_backend):
+        # Pinning the restricted backend explicitly surfaces the refusal rather
+        # than silently falling through.
+        community = FakeCommunityBackend([_capability(redistribution=Redistribution.RESTRICTED)])
+        register_backend('community', community)
+        with pytest.raises(DatasetUnsupported) as excinfo:
+            select_backend(DATASET, {f'{DATASET}_BACKEND': 'community'}, logger=logger)
+        assert 'restricted' in str(excinfo.value).lower()
+
+    @pytest.mark.parametrize('posture', [Redistribution.OPEN, Redistribution.ATTRIBUTION, Redistribution.UNKNOWN])
+    def test_non_restricted_postures_are_served(
+        self, native_claims_dataset, register_backend, posture
+    ):
+        community = FakeCommunityBackend([_capability(redistribution=posture)])
+        register_backend('community', community)
+        selected = select_backend(DATASET, {'DATA_ACCESS': 'community'}, logger=logger)
+        assert selected is community
 
 
 class TestOverride:
