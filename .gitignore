@@ -187,6 +187,9 @@ domain_*/
 # Paper working directories (local)
 papers/
 
+# Working planning docs under docs/ (kept local, not tracked)
+docs/community_services_full_coverage_plan.md
+
 # Local settings
 settings/
 default/
