@@ -32,6 +32,9 @@ from symfluence.data.backends.contract import (
     AcquisitionResult,
     DatasetCapability,
     GridClass,
+    ObservationCapability,
+    ObservationRequest,
+    Redistribution,
     SchemaId,
     write_manifest,
 )
@@ -429,7 +432,219 @@ class NativeBackend:
         return (output,)
 
 
-# Register under the protocol-backend registry (importing this module is enough).
-R.acquisition_backends.add('native', NativeBackend)
+# ======================================================================
+# Observation flavour — NativeObservationBackend (contract 0.4.0)
+# ======================================================================
 
-__all__ = ["NativeBackend"]
+@dataclass(frozen=True)
+class _ProviderFacts:
+    """Static observation-capability facts for one natively-served provider.
+
+    ``data_license`` / ``redistribution`` document the SOURCE posture; native
+    is never gated on redistribution (it fetches from source on the user's
+    behalf, not a mirror), but declaring it lets the result/manifest carry the
+    obligation and lets the parity work compare native vs community on equal
+    footing.
+    """
+
+    station_id_scheme: str
+    data_license: str = ""
+    attribution: str = ""
+    redistribution: Redistribution = Redistribution.UNKNOWN
+    notes: str = ""
+
+
+# Legacy streamflow providers exposed through the protocol, added incrementally
+# as each is driven to a parity gate (community_services_full_coverage_plan.md).
+# USGS first (Phase 1c); WSC/SMHI/LAMAH_ICE/VI/CARAVANS follow as they are
+# verified. A provider appears here only when native genuinely serves it via a
+# registered observation handler.
+_OBSERVATION_FACTS: dict[str, _ProviderFacts] = {
+    'USGS': _ProviderFacts(
+        station_id_scheme="USGS NWIS site number (e.g. '06191500')",
+        data_license="public-domain",
+        attribution="U.S. Geological Survey, National Water Information System (NWIS)",
+        redistribution=Redistribution.OPEN,
+        notes="NWIS discharge; the native handler reads the station id and window from config.",
+    ),
+}
+
+#: Registry keys to probe for a provider's native handler, in order. The
+#: formalized observation handlers register under both the bare provider name
+#: and a ``<provider>_streamflow`` key; either satisfies the capability claim.
+def _native_handler_key(provider: str) -> Optional[str]:
+    registry = R.observation_handlers
+    for key in (provider.lower(), f"{provider.lower()}_streamflow"):
+        if registry.get(key) is not None:
+            return key
+    return None
+
+
+def _ensure_observation_handlers_registered() -> None:
+    """Trigger in-tree observation-handler registration (idempotent)."""
+    import symfluence.data.observation.handlers  # noqa: F401 — populates R.observation_handlers
+
+
+@dataclass
+class NativeObservationBackend:
+    """Adapter exposing the in-tree observation handlers via the protocol.
+
+    The observation-flavored sibling of :class:`NativeBackend`: handlers stay
+    UNTOUCHED; ``acquire()`` performs exactly the registry dispatch the
+    ``ObservedDataProcessor`` registry tier performs today
+    (``ObservationRegistry.get_handler(provider).acquire()`` then
+    ``.process()``), wrapping the processed CSV into an
+    :class:`AcquisitionResult` (``schema=OBS_CSV_V1``) with a sidecar manifest.
+
+    This is what makes native streamflow a co-equal protocol backend: under
+    ``DATA_ACCESS: community`` the selection layer can resolve to ``native``
+    (parity reference) when no community backend serves a provider, instead of
+    silently falling through to the legacy tiers. ``parity_grade`` is ``None``
+    for every native entry — native IS the reference and the selection policy
+    exempts it from the parity gate.
+    """
+
+    config: Any = None
+    logger: Any = field(default=None, repr=False)
+
+    name: str = field(default="native", init=False)
+    interface_version: str = field(default=PROTOCOL_VERSION, init=False)
+
+    def __post_init__(self) -> None:
+        if self.logger is None:
+            self.logger = _logger
+
+    def capabilities(self) -> Sequence[ObservationCapability]:
+        """Enumerate the natively-served streamflow providers exposed so far.
+
+        One capability per entry in :data:`_OBSERVATION_FACTS` that has a
+        registered native handler (so the claim never outruns what native can
+        actually serve).
+        """
+        _ensure_observation_handlers_registered()
+        caps: list[ObservationCapability] = []
+        for provider, facts in _OBSERVATION_FACTS.items():
+            if _native_handler_key(provider) is None:
+                continue
+            caps.append(ObservationCapability(
+                provider_id=provider,
+                kinds=frozenset({'streamflow'}),
+                station_id_scheme=facts.station_id_scheme,
+                temporal=None,
+                auth=frozenset(),
+                parity_grade=None,  # native is the parity reference; exempt from the gate
+                notes=facts.notes,
+                data_license=facts.data_license,
+                attribution=facts.attribution,
+                redistribution=facts.redistribution,
+            ))
+        return tuple(caps)
+
+    def acquire(self, request: ObservationRequest) -> AcquisitionResult:
+        """Acquire via the registered native observation handler.
+
+        Mirrors :meth:`NativeBackend.acquire`: the handler reads station id /
+        window / bbox from config (the request fields are framework-resolved
+        copies of the same values), so this adapter only orchestrates the
+        existing ``acquire()`` → ``process()`` pair and wraps the output.
+        """
+        if self.config is None:
+            raise AcquisitionError(
+                "NativeObservationBackend.acquire() requires a framework config "
+                "(native observation handlers are configuration-driven)"
+            )
+        _ensure_observation_handlers_registered()
+
+        from symfluence.core.exceptions import DataAcquisitionError
+        from symfluence.data.observation.registry import ObservationRegistry
+
+        provider = request.provider_id
+        key = _native_handler_key(provider)
+        if key is None:
+            raise DatasetUnsupported(
+                f"No native observation handler registered for provider '{provider}'",
+                dataset_id=provider,
+                backend=self.name,
+            )
+
+        try:
+            handler = ObservationRegistry.get_handler(key, self.config, self.logger)
+        except DataAcquisitionError as exc:
+            raise DatasetUnsupported(
+                f"No native observation handler registered for provider '{provider}'",
+                dataset_id=provider,
+                backend=self.name,
+            ) from exc
+
+        target_dir = Path(request.target_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            raw_path = handler.acquire()
+            processed_path = handler.process(raw_path)
+        except AcquisitionError:
+            raise  # already protocol taxonomy
+        except PermissionError as exc:
+            raise AuthRequired(
+                f"Native observation handler for '{provider}' was denied access: {exc}",
+            ) from exc
+        except (ConnectionError, TimeoutError) as exc:
+            raise UpstreamOutage(
+                f"Upstream failure while acquiring '{provider}' observations: {exc}",
+                upstream=provider,
+            ) from exc
+        except (DataAcquisitionError, OSError, ValueError, KeyError, TypeError,
+                RuntimeError, ImportError, AttributeError, IndexError) as exc:
+            raise AcquisitionError(
+                f"Native observation handler for '{provider}' failed: {exc}"
+            ) from exc
+
+        paths = self._verify_observation_delivery(processed_path, provider)
+        facts = _OBSERVATION_FACTS.get(provider.upper())
+
+        provenance = {
+            'handler': f"{type(handler).__module__}.{type(handler).__qualname__}",
+            'acquired_at': datetime.now(timezone.utc).isoformat(),
+            'provider_id': provider,
+            'kind': request.kind,
+            'honesty_checks': 'processed-path-exists,non-empty',
+        }
+        result = AcquisitionResult(
+            paths=paths,
+            schema=SchemaId.OBS_CSV_V1,
+            dataset_id=provider,
+            backend=self.name,
+            provenance=provenance,
+            variables_delivered=frozenset({request.kind}),
+            data_license=facts.data_license if facts else "",
+            attribution=facts.attribution if facts else "",
+            redistribution=facts.redistribution if facts else Redistribution.UNKNOWN,
+        )
+        write_manifest(result, target_dir)
+        return result
+
+    @staticmethod
+    def _verify_observation_delivery(processed_path: Any, provider: str) -> Tuple[Path, ...]:
+        """Honesty check: the handler's reported processed CSV exists and is non-empty."""
+        if processed_path is None:
+            raise IntegrityError(
+                f"Native observation handler for '{provider}' returned no processed path"
+            )
+        p = Path(processed_path)
+        if not p.exists():
+            raise IntegrityError(
+                f"Native observation handler for '{provider}' reported a path that "
+                f"does not exist: {p}"
+            )
+        if p.is_file() and p.stat().st_size == 0:
+            raise IntegrityError(
+                f"Native observation handler for '{provider}' produced an empty output: {p}"
+            )
+        return (p,)
+
+
+# Register under the protocol-backend registries (importing this module is enough).
+R.acquisition_backends.add('native', NativeBackend)
+R.observation_backends.add('native', NativeObservationBackend)
+
+__all__ = ["NativeBackend", "NativeObservationBackend"]
