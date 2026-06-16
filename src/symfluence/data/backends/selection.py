@@ -236,6 +236,7 @@ def select_backend(
 
 
 def _observation_decline_reason(
+    name: str,
     cap: Optional[Any],
     *,
     kind: str,
@@ -251,11 +252,20 @@ def _observation_decline_reason(
         start, end = cap.temporal
         if window[0] < start or window[1] > end:
             return f"window {window} outside declared coverage [{start}, {end})"
-    if cap.parity_grade is None and not allow_ungated:
-        return (
-            "provider is ungraded (parity_grade=None) on this backend; "
-            "set ALLOW_UNGATED_BACKENDS: true to permit"
-        )
+    # The native backend is the parity reference and fetches from source on the
+    # user's behalf, so it is exempt from BOTH the parity gate and the
+    # redistribution gate (mirrors the forcing _decline_reason native exemption).
+    if name != 'native':
+        if cap.parity_grade is None and not allow_ungated:
+            return (
+                "provider is ungraded (parity_grade=None) on this backend; "
+                "set ALLOW_UNGATED_BACKENDS: true to permit"
+            )
+        if getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
+            return (
+                "source data is redistribution=restricted; a mirroring backend "
+                "must not re-serve it (native backend fetches from source instead)"
+            )
     return None
 
 
@@ -271,18 +281,20 @@ def select_observation_backend(
 
     The observation-flavored sibling of :func:`select_backend`, consulted by
     the observed_processor's backend-first tier under ``DATA_ACCESS:
-    community``. There is **no native observation backend**: the legacy
-    registry-handler/provider-branch tiers are the fallthrough, so callers
-    treat :class:`DatasetUnsupported` as "use the existing dispatch" — the
-    same inert-seam discipline as forcing (no backend registered → exactly
-    today's behavior).
+    community``. The ``native`` backend (``NativeObservationBackend``) is the
+    parity reference and the last-priority fallthrough: when no community
+    backend serves a provider that native exposes, selection resolves to
+    native. When native does not yet expose the provider either,
+    :class:`DatasetUnsupported` is raised and the caller falls through to the
+    legacy registry/provider-branch tiers (the same inert-seam discipline as
+    forcing — these tiers are retired in Phase 3 of the coverage plan).
 
-    Per-provider pin ``<PROVIDER>_BACKEND: native`` forces the legacy tiers
-    (raises :class:`DatasetUnsupported` so the caller falls through);
-    pinning any other name requires that backend to serve, or it raises.
-    The parity gate applies to every observation backend (none is the
-    parity reference): an ungraded provider is refused unless
-    ``ALLOW_UNGATED_BACKENDS: true``.
+    Per-provider pin ``<PROVIDER>_BACKEND: native`` resolves the native backend
+    directly (or, if native does not expose the provider, raises so the caller
+    falls through); pinning any other name requires that backend to serve, or
+    it raises. The parity gate and the source-data redistribution gate apply to
+    every NON-native backend; native is exempt from both (it is the reference
+    and fetches from source rather than mirroring).
 
     Raises:
         DatasetUnsupported: when no registered observation backend can serve
@@ -292,14 +304,11 @@ def select_observation_backend(
     allow_ungated = _allow_ungated(config)
 
     override = _backend_override(config, provider_id)
-    if override == 'native':
-        raise DatasetUnsupported(
-            f"Provider '{provider_id}' is pinned to the legacy tier via "
-            f"{provider_id.upper()}_BACKEND: native",
-            dataset_id=provider_id,
-            backend='native',
-        )
     if override is not None:
+        # 'native' resolves the NativeObservationBackend like any other pin
+        # (mirrors forcing select_backend); if native does not expose the
+        # provider it raises below and the caller falls through to the legacy
+        # tiers — same outcome the old 'native'-special-case produced.
         priority = [override]
         pinned = True
     else:
@@ -337,7 +346,7 @@ def select_observation_backend(
             None,
         )
         reason = _observation_decline_reason(
-            cap, kind=kind, window=window, allow_ungated=allow_ungated,
+            name, cap, kind=kind, window=window, allow_ungated=allow_ungated,
         )
         if reason is not None:
             declined.append(f"{name}: {reason}")
