@@ -74,10 +74,13 @@ from typing import Any, Protocol, runtime_checkable
 #: observation flavour (``ObservationCapability`` / ``ObservationRequest`` /
 #: ``ObservationBackend``); 0.3.0 added the attribute flavour
 #: (``AttributeCapability`` / ``AttributeRequest`` / ``AttributeBackend``,
-#: schema :attr:`SchemaId.HRU_STATS_V1`). Backends hardcoding an older target
-#: are *detected* as skew by the selection layer and declined — never silently
-#: claimed compatible.
-PROTOCOL_VERSION = "0.3.0"
+#: schema :attr:`SchemaId.HRU_STATS_V1`); 0.4.0 added the source-data license
+#: posture (``Redistribution`` + ``data_license`` / ``attribution`` /
+#: ``redistribution`` fields on every capability and on ``AcquisitionResult``),
+#: which the selection parity gate uses to refuse mirroring of restricted
+#: sources. Backends hardcoding an older target are *detected* as skew by the
+#: selection layer and declined — never silently claimed compatible.
+PROTOCOL_VERSION = "0.4.0"
 
 #: Name of the sidecar manifest written next to acquired raw files. The
 #: persisted, declared schema lets resumed runs dispatch preprocessing
@@ -109,6 +112,29 @@ class SchemaId(StrEnum):
     CANONICAL_V1 = "canonical-v1"    # CFS canonical (CF-aligned SI, fluxes)
     OBS_CSV_V1 = "obs-csv-v1"        # datetime,value,quality_flag (UTC, SI)
     HRU_STATS_V1 = "hru-stats-v1"    # per-HRU attribute table
+
+
+class Redistribution(StrEnum):
+    """Whether the SOURCE data a backend serves may be redistributed/mirrored.
+
+    This is the *data* license posture, distinct from the *code* license of the
+    backend. A community backend that re-serves data from its own store/mirror
+    is redistributing it, which the upstream source may permit, permit with
+    attribution, or forbid. The selection parity gate uses this to refuse a
+    non-native (mirroring) backend for sources it must not redistribute.
+
+    Default is :attr:`UNKNOWN`: undeclared posture is treated conservatively
+    (refused on non-native backends unless ``ALLOW_UNGATED_BACKENDS``), exactly
+    like an ungraded ``parity_grade``. :attr:`RESTRICTED` is a HARD refusal on
+    non-native backends — ``ALLOW_UNGATED_BACKENDS`` does NOT override a legal
+    no-redistribution term (e.g. GRDC). The native backend is never gated: it
+    fetches from source on the user's own behalf, which is not redistribution.
+    """
+
+    OPEN = "open"                    # public domain / unrestricted (USGS, NASA)
+    ATTRIBUTION = "attribution"      # redistributable WITH attribution (CC-BY, Copernicus, OGL-Canada)
+    RESTRICTED = "restricted"        # no third-party redistribution (e.g. GRDC) — must not be mirrored
+    UNKNOWN = "unknown"              # undeclared; treated conservatively by the gate
 
 
 @dataclass(frozen=True)
@@ -149,6 +175,10 @@ class DatasetCapability:
     auth: frozenset[str]             # e.g. {"earthdata"}, {"cds"}; empty = anonymous
     parity_grade: str | None         # "bit-identical" | "value-identical:<tol>" | None = ungated
     notes: str = ""
+    # Source-data license posture (contract 0.4.0). See :class:`Redistribution`.
+    data_license: str = ""           # SPDX id or label of the SOURCE data (e.g. "CC-BY-4.0", "public-domain")
+    attribution: str = ""            # required attribution text to propagate to users; "" = none required
+    redistribution: Redistribution = Redistribution.UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -175,6 +205,12 @@ class AcquisitionResult:
     provenance: Mapping[str, str]     # upstream URL/version/access time/checksums
     variables_delivered: frozenset[str]
     warnings: tuple[str, ...] = ()
+    # Source-data license posture of what was DELIVERED (contract 0.4.0), so the
+    # obligation propagates to end users and into the sidecar manifest. Defaults
+    # mirror an undeclared/native fetch (no redistribution claim).
+    data_license: str = ""
+    attribution: str = ""
+    redistribution: Redistribution = Redistribution.UNKNOWN
 
 
 @runtime_checkable
@@ -214,6 +250,10 @@ class ObservationCapability:
     auth: frozenset[str]              # auth-provider ids; empty = anonymous
     parity_grade: str | None          # "bit-identical" | "value-identical:<tol>" | None = ungated
     notes: str = ""
+    # Source-data license posture (contract 0.4.0). See :class:`Redistribution`.
+    data_license: str = ""            # e.g. "public-domain" (USGS), "OGL-Canada" (WSC), "GRDC-restricted"
+    attribution: str = ""             # required attribution text to propagate; "" = none required
+    redistribution: Redistribution = Redistribution.UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -292,6 +332,10 @@ class AttributeCapability:
     auth: frozenset[str]              # auth-provider ids; empty = anonymous
     parity_grade: str | None          # tolerance grade "value-within:<tol>" | None = ungated
     notes: str = ""
+    # Source-data license posture (contract 0.4.0). See :class:`Redistribution`.
+    data_license: str = ""            # e.g. "CC-BY-4.0" (SoilGrids), "public-domain"
+    attribution: str = ""             # required attribution text to propagate; "" = none required
+    redistribution: Redistribution = Redistribution.UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -365,7 +409,8 @@ def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION
     Same major version always required. While the contract is pre-1.0
     (major == 0), each MINOR bump is *additive-only* and never removes or
     changes an existing flavour's types — 0.2.0 added observations on top of
-    0.1.0's forcing surface, 0.3.0 added attributes on top of 0.2.0. So a
+    0.1.0's forcing surface, 0.3.0 added attributes on top of 0.2.0, 0.4.0
+    added defaulted license fields (older backends omit them harmlessly). So a
     backend targeting an OLDER-or-equal minor than the running protocol is
     compatible (it uses only types the protocol still ships); FORWARD skew —
     a backend targeting a NEWER minor than the framework's protocol — is the
@@ -415,6 +460,11 @@ def build_manifest(result: AcquisitionResult) -> dict[str, Any]:
         "variables_delivered": sorted(result.variables_delivered),
         "provenance": dict(result.provenance),
         "warnings": list(result.warnings),
+        # Source-data license posture (contract 0.4.0). Persisted so the
+        # obligation survives into resumed runs and downstream provenance.
+        "data_license": result.data_license,
+        "attribution": result.attribution,
+        "redistribution": str(result.redistribution),
     }
 
 
@@ -455,6 +505,18 @@ def validate_manifest(payload: Any) -> None:
     if not isinstance(warnings_field, list):
         problems.append("'warnings' must be a list when present")
 
+    # License posture is optional in the manifest (contract 0.4.0): pre-0.4.0
+    # manifests on disk omit it, so it is validated only when present.
+    redistribution = payload.get("redistribution")
+    if redistribution is not None:
+        try:
+            Redistribution(redistribution)
+        except ValueError:
+            problems.append(
+                f"unknown redistribution {redistribution!r} "
+                f"(known: {[r.value for r in Redistribution]})"
+            )
+
     if problems:
         raise ValueError("invalid acquisition manifest: " + "; ".join(problems))
 
@@ -484,6 +546,7 @@ __all__ = [
     "MANIFEST_VERSION",
     "GridClass",
     "SchemaId",
+    "Redistribution",
     "CredentialContext",
     "DatasetCapability",
     "AcquisitionRequest",

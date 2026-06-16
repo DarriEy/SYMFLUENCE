@@ -142,22 +142,24 @@ climate-classification = [
 # Install via: uv pip install "symfluence[community]" (or cfs/cas/csfs singly)
 # Upper bound is intentional: the acquisition-backend contract is pre-1.0,
 # where a MINOR bump is a BREAKING change (contract PROTOCOL_VERSION, enforced
-# by is_compatible). Each package version tracks the contract minor it targets,
-# so a `<0.4.0` cap blocks an auto-upgrade across a breaking contract boundary.
-# Bump both bounds together when the contract minor advances.
+# by is_compatible). Each package version tracks the contract minor it targets;
+# the in-tree contract is currently 0.4.0 (added the source-data license
+# posture), so a `<0.5.0` cap admits 0.3.x/0.4.x packages (additive-compatible)
+# while blocking an auto-upgrade across the next breaking contract boundary.
+# Bump the cap when the contract minor advances.
 cfs = [
-  "community-forcing-service>=0.3.0,<0.4.0",
+  "community-forcing-service>=0.3.0,<0.5.0",
 ]
 cas = [
-  "community-attribute-service>=0.3.0,<0.4.0",
+  "community-attribute-service>=0.3.0,<0.5.0",
 ]
 csfs = [
-  "community-streamflow-service>=0.3.0,<0.4.0",
+  "community-streamflow-service>=0.3.0,<0.5.0",
 ]
 community = [
-  "community-forcing-service>=0.3.0,<0.4.0",
-  "community-attribute-service>=0.3.0,<0.4.0",
-  "community-streamflow-service>=0.3.0,<0.4.0",
+  "community-forcing-service>=0.3.0,<0.5.0",
+  "community-attribute-service>=0.3.0,<0.5.0",
+  "community-streamflow-service>=0.3.0,<0.5.0",
 ]
 # Development tools
 dev = [
