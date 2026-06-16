@@ -87,3 +87,10 @@ class TestDatasetArtifactTier:
 
     def test_open_license_also_accepted(self):
         assert _decline(self._artifact(redistribution=Redistribution.OPEN)) is None
+
+    def test_noncommercial_artifact_is_still_admitted(self):
+        # NonCommercial is a use-restriction surfaced to the user (logged on
+        # selection), orthogonal to redistribution — it does not refuse here.
+        cap = self._artifact(redistribution=Redistribution.ATTRIBUTION, noncommercial=True)
+        assert cap.noncommercial is True
+        assert _decline(cap) is None
