@@ -31,6 +31,7 @@ from symfluence.data.backends.contract import (
     AcquisitionBackend,
     DatasetCapability,
     Redistribution,
+    SourceKind,
     is_compatible,
 )
 from symfluence.data.backends.errors import DatasetUnsupported
@@ -253,19 +254,51 @@ def _observation_decline_reason(
         if window[0] < start or window[1] > end:
             return f"window {window} outside declared coverage [{start}, {end})"
     # The native backend is the parity reference and fetches from source on the
-    # user's behalf, so it is exempt from BOTH the parity gate and the
-    # redistribution gate (mirrors the forcing _decline_reason native exemption).
-    if name != 'native':
-        if cap.parity_grade is None and not allow_ungated:
-            return (
-                "provider is ungraded (parity_grade=None) on this backend; "
-                "set ALLOW_UNGATED_BACKENDS: true to permit"
-            )
-        if getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
-            return (
-                "source data is redistribution=restricted; a mirroring backend "
-                "must not re-serve it (native backend fetches from source instead)"
-            )
+    # user's behalf, so it is exempt from every gate below (mirrors the forcing
+    # _decline_reason native exemption).
+    if name == 'native':
+        return None
+
+    # Restricted redistribution is a legal constraint refused for ALL non-native
+    # backends regardless of source kind, and NOT waivable by ALLOW_UNGATED.
+    if getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
+        return (
+            "source data is redistribution=restricted; a mirroring backend "
+            "must not re-serve it (native backend fetches from source instead)"
+        )
+
+    source_kind = getattr(cap, 'source_kind', SourceKind.PROVIDER_API)
+    if source_kind == SourceKind.DATASET_ARTIFACT:
+        # Provenance gate (contract 0.5.0): a published artifact is admitted on
+        # a verifiable DOI + version + content checksum and an open/attribution
+        # license — NOT a parity grade (there is usually no native API to be
+        # parity-equivalent to; the dataset is the source of truth).
+        if not allow_ungated:
+            missing = [
+                f for f in ('dataset_doi', 'dataset_version', 'dataset_checksum')
+                if not getattr(cap, f, '')
+            ]
+            if missing:
+                return (
+                    f"dataset artifact is missing provenance {missing}; declare "
+                    "DOI/version/checksum or set ALLOW_UNGATED_BACKENDS: true"
+                )
+            if getattr(cap, 'redistribution', None) not in (
+                Redistribution.OPEN, Redistribution.ATTRIBUTION
+            ):
+                return (
+                    "dataset artifact license posture is not open/attribution; "
+                    "declare it or set ALLOW_UNGATED_BACKENDS: true"
+                )
+        return None
+
+    # PROVIDER_API: the parity gate (a non-native backend mirrors a live API and
+    # must be parity-graded against the native handler).
+    if cap.parity_grade is None and not allow_ungated:
+        return (
+            "provider is ungraded (parity_grade=None) on this backend; "
+            "set ALLOW_UNGATED_BACKENDS: true to permit"
+        )
     return None
 
 
