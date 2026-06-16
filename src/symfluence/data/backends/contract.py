@@ -1,5 +1,11 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+#
+# NOTE: This module is licensed Apache-2.0, NOT GPL-3.0 like the rest of
+# SYMFLUENCE. It is the extraction-bound acquisition-backend contract
+# (destined for the standalone ``symfluence-data-interface`` package); a
+# permissive license lets third-party backend authors implement against it
+# without inheriting GPL obligations. Implementations choose their own license.
 
 """AcquisitionBackend protocol contract (Phase A).
 
@@ -18,6 +24,10 @@ design but not currently needed). No ``symfluence.*`` import may occur here,
 directly or transitively — enforced by
 ``tests/conformance/test_extraction_readiness.py``, which executes this file
 in an isolated subprocess with all ``symfluence`` imports blocked.
+
+This module (with ``errors.py``) is licensed **Apache-2.0**, not GPL-3.0 — a
+permissive interface so third-party backends can target the contract without
+inheriting GPL obligations. The extracted package carries the same license.
 
 WINDOW SEMANTICS (normative, conformance item 4)
 ------------------------------------------------

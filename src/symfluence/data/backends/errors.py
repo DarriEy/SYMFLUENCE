@@ -1,5 +1,9 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+#
+# NOTE: Apache-2.0, NOT GPL-3.0 — this error taxonomy ships alongside
+# ``contract.py`` in the extraction-bound ``symfluence-data-interface``
+# package and carries the same permissive license. See contract.py.
 
 """Protocol-owned, framework-actionable error taxonomy for acquisition backends.
 
