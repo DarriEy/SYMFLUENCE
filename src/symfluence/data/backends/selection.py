@@ -400,6 +400,12 @@ def select_observation_backend(
             "Observation backend '%s' serves provider '%s' (kind=%s%s)",
             name, provider_id, kind, ", pinned" if pinned else "",
         )
+        if getattr(cap, 'noncommercial', False):
+            log.warning(
+                "Provider '%s' carries a NonCommercial license clause (%s); the "
+                "data may not be used for commercial purposes. Ensure your use "
+                "complies.", provider_id, getattr(cap, 'data_license', '') or 'non-commercial',
+            )
         return backend
 
     raise DatasetUnsupported(

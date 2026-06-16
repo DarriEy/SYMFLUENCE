@@ -291,6 +291,13 @@ class ObservationCapability:
     dataset_doi: str = ""             # e.g. "10.5281/zenodo.5153305" (LamaH-CE)
     dataset_version: str = ""         # publisher version/tag, e.g. "v1.6"
     dataset_checksum: str = ""        # content hash the backend verifies on fetch, e.g. "sha256:abc…"
+    # Use-restriction axis, orthogonal to redistribution (contract 0.5.0). True
+    # when the source carries a NonCommercial clause (e.g. LamaH-Ice streamflow
+    # is CC-BY-NC-4.0). Redistribution may still be permitted with attribution;
+    # this flags that *commercial* use is not. Surfaced to users (logged on
+    # selection, recorded in provenance); not refused by the gate — research use
+    # is the framework default. A future commercial-context policy can act on it.
+    noncommercial: bool = False
 
 
 @dataclass(frozen=True)
