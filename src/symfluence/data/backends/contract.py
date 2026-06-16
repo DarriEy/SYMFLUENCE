@@ -78,9 +78,13 @@ from typing import Any, Protocol, runtime_checkable
 #: posture (``Redistribution`` + ``data_license`` / ``attribution`` /
 #: ``redistribution`` fields on every capability and on ``AcquisitionResult``),
 #: which the selection parity gate uses to refuse mirroring of restricted
-#: sources. Backends hardcoding an older target are *detected* as skew by the
+#: sources; 0.5.0 added the source-kind tier (``SourceKind`` +
+#: ``dataset_doi`` / ``dataset_version`` / ``dataset_checksum`` on
+#: ``ObservationCapability``) so DATASET_ARTIFACT sources are admitted by a
+#: provenance gate (DOI+version+checksum+license) rather than the parity gate.
+#: Backends hardcoding an older target are *detected* as skew by the
 #: selection layer and declined — never silently claimed compatible.
-PROTOCOL_VERSION = "0.4.0"
+PROTOCOL_VERSION = "0.5.0"
 
 #: Name of the sidecar manifest written next to acquired raw files. The
 #: persisted, declared schema lets resumed runs dispatch preprocessing
@@ -135,6 +139,32 @@ class Redistribution(StrEnum):
     ATTRIBUTION = "attribution"      # redistributable WITH attribution (CC-BY, Copernicus, OGL-Canada)
     RESTRICTED = "restricted"        # no third-party redistribution (e.g. GRDC) — must not be mirrored
     UNKNOWN = "unknown"              # undeclared; treated conservatively by the gate
+
+
+class SourceKind(StrEnum):
+    """How a backend obtains the data it serves — selects the acceptance gate.
+
+    Two fundamentally different kinds of source need different acceptance tests
+    (design: community_services_full_coverage_plan.md, dataset-artifact tier):
+
+    * :attr:`PROVIDER_API` — a live provider endpoint (USGS NWIS, WSC GeoMet,
+      SMHI hydroobs). Acceptance is the **parity gate**: a non-native backend
+      must be parity-graded against the native handler that hits the same API.
+
+    * :attr:`DATASET_ARTIFACT` — a published, DOI-pinned, version-frozen
+      large-sample dataset (LAMAH, CAMELS, GSIM, eStreams, ROBIN, …). There is
+      usually no native API to be parity-equivalent to; the dataset IS the
+      source of truth. Acceptance is the **provenance gate**: a verifiable DOI
+      + version + content checksum, plus an open/attribution license. A
+      parity grade is optional (some artifacts, e.g. LAMAH-ICE, also have a
+      native reader of the same archive and can additionally be parity-graded).
+
+    Default is :attr:`PROVIDER_API` so pre-0.5.0 capabilities keep the existing
+    parity-gated behavior unchanged.
+    """
+
+    PROVIDER_API = "provider_api"
+    DATASET_ARTIFACT = "dataset_artifact"
 
 
 @dataclass(frozen=True)
@@ -254,6 +284,13 @@ class ObservationCapability:
     data_license: str = ""            # e.g. "public-domain" (USGS), "OGL-Canada" (WSC), "GRDC-restricted"
     attribution: str = ""             # required attribution text to propagate; "" = none required
     redistribution: Redistribution = Redistribution.UNKNOWN
+    # Source kind + provenance (contract 0.5.0). For DATASET_ARTIFACT the gate
+    # requires a verifiable DOI + version + content checksum instead of a parity
+    # grade; PROVIDER_API ignores these (stays parity-gated). See :class:`SourceKind`.
+    source_kind: SourceKind = SourceKind.PROVIDER_API
+    dataset_doi: str = ""             # e.g. "10.5281/zenodo.5153305" (LamaH-CE)
+    dataset_version: str = ""         # publisher version/tag, e.g. "v1.6"
+    dataset_checksum: str = ""        # content hash the backend verifies on fetch, e.g. "sha256:abc…"
 
 
 @dataclass(frozen=True)
@@ -410,7 +447,8 @@ def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION
     (major == 0), each MINOR bump is *additive-only* and never removes or
     changes an existing flavour's types — 0.2.0 added observations on top of
     0.1.0's forcing surface, 0.3.0 added attributes on top of 0.2.0, 0.4.0
-    added defaulted license fields (older backends omit them harmlessly). So a
+    added defaulted license fields, 0.5.0 added the defaulted source-kind tier
+    (older backends omit them harmlessly). So a
     backend targeting an OLDER-or-equal minor than the running protocol is
     compatible (it uses only types the protocol still ships); FORWARD skew —
     a backend targeting a NEWER minor than the framework's protocol — is the
@@ -547,6 +585,7 @@ __all__ = [
     "GridClass",
     "SchemaId",
     "Redistribution",
+    "SourceKind",
     "CredentialContext",
     "DatasetCapability",
     "AcquisitionRequest",
