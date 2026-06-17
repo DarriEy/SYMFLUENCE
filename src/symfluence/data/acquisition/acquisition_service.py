@@ -1181,6 +1181,39 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
+    def _community_serves_streamflow(self, provider: str) -> bool:
+        """True if a community ObservationBackend serves *provider*'s streamflow.
+
+        Mirrors ``DataManager._observation_backend_serves``: only under
+        ``DATA_ACCESS: community`` with a backend registered that actually
+        admits the provider (license/parity/provenance gate passes, no native
+        pin). When True, the native ``<PROVIDER>_STREAMFLOW`` download is skipped
+        here — ObservedDataProcessor's backend tier fetches it instead — so the
+        provider is not double-fetched (native raw + community re-fetch). Returns
+        False for every other mode, leaving the legacy native path unchanged.
+        """
+        if not provider:
+            return False
+        data_access = str(self._get_config_value(
+            lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+        if data_access != 'community':
+            return False
+        from symfluence.core.registries import R
+        if not R.observation_backends.keys():
+            return False
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_observation_backend
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+        try:
+            select_observation_backend(
+                provider, self.config, kind='streamflow', window=window, logger=self.logger,
+            )
+            return True
+        except AcquisitionError:
+            return False
+
     def acquire_observations(self):
         """
         Acquire additional observations based on configuration.
@@ -1207,7 +1240,18 @@ class AcquisitionService(ConfigurableMixin):
 
         # Auto-detect observation types based on config flags (matching process_observed_data logic)
         streamflow_provider = (self._get_config_value(lambda: self.config.data.streamflow_data_provider) or '').upper()
-        if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
+        # Under DATA_ACCESS: community, when a community backend (e.g. CSFS) serves
+        # this provider, ObservedDataProcessor's backend tier fetches it. Do NOT
+        # also queue the native <PROVIDER>_STREAMFLOW download here — that produced
+        # a redundant double-fetch (native raw downloaded, then re-fetched via the
+        # backend, which is what is actually used). Mirrors the same skip in
+        # DataManager.process_observed_data's additional_obs assembly.
+        if self._community_serves_streamflow(streamflow_provider):
+            self.logger.info(
+                f"Streamflow provider '{streamflow_provider}' is community-served; "
+                "skipping the native observation download (handled by the backend tier)."
+            )
+        elif streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
             additional_obs.append('USGS_STREAMFLOW')
             primary_obs.add('USGS_STREAMFLOW')
         elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
