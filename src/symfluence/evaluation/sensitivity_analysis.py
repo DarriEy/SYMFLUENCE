@@ -418,6 +418,22 @@ class SensitivityAnalyzer(ConfigMixin):
         results_preprocessed = self.preprocess_data(results, metric=metric_col)
         self.logger.info("Data preprocessing completed")
 
+        # The len(results) >= 10 guard above counts raw rows; preprocessing then
+        # drops non-finite and failure-sentinel (<= -900) scores. When a model
+        # crashed on most/all calibration trials, every row is a penalty score and
+        # nothing usable remains — feeding that empty set to SALib raises a cryptic
+        # "array of sample points is empty". Re-check the cleaned count and skip with
+        # an actionable message instead.
+        if len(results_preprocessed) < 10:
+            self.logger.warning(
+                f"Only {len(results_preprocessed)} usable calibration samples remain "
+                f"after dropping non-finite / failure-sentinel '{metric_col}' values "
+                f"(from {len(results)} raw rows). This usually means the model crashed "
+                f"on most or all calibration trials, so there is no response variation "
+                f"to analyse. Skipping sensitivity analysis — fix the model run first."
+            )
+            return None
+
         methods = {
             'pyViscous': self.perform_sensitivity_analysis,
             'Sobol': self.perform_sobol_analysis,
