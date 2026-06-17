@@ -132,24 +132,29 @@ def _decline_reason(
         start, end = cap.temporal
         if window[0] < start or window[1] > end:
             return f"window {window} outside declared coverage [{start}, {end})"
-    if name != 'native' and cap.parity_grade is None and not allow_ungated:
-        return (
-            "dataset is ungraded (parity_grade=None) on a non-native backend; "
-            "set ALLOW_UNGATED_BACKENDS: true to permit"
-        )
-    # Source-data license gate (contract 0.4.0). A non-native backend re-serves
-    # data from its own store/mirror, which is redistribution. The native
-    # backend fetches from source on the user's behalf and is never gated here.
-    # Only an EXPLICIT no-redistribution term is refused: it is a legal
-    # constraint, NOT overridable by ALLOW_UNGATED_BACKENDS (that flag waives
-    # the parity grade, not the data license). An undeclared posture (UNKNOWN)
-    # is permitted — the parity gate above already refuses ungraded non-native
-    # backends, and declaring redistribution is a backend's own responsibility.
+    # Source-data license gate (contract 0.4.0), checked first because it is a
+    # legal constraint refused for ALL non-native backends and NOT waivable by
+    # ALLOW_UNGATED_BACKENDS (that flag waives the parity grade, not the licence).
+    # The native backend fetches from source on the user's behalf — never gated.
     if name != 'native' and getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
         return (
             "source data is redistribution=restricted; a mirroring backend "
             "must not re-serve it (native backend fetches from source instead)"
         )
+    # Admission for a non-native backend: EITHER a parity grade (validated
+    # against the native pipeline) OR — when there is no native pipeline to be
+    # parity-equivalent to — the posture-only gate: the SOURCE licence is
+    # open/attribution, so a mirror may serve. An undeclared posture (UNKNOWN)
+    # on an ungraded dataset still needs ALLOW_UNGATED_BACKENDS.
+    if name != 'native' and cap.parity_grade is None and not allow_ungated:
+        if getattr(cap, 'redistribution', None) not in (
+            Redistribution.OPEN, Redistribution.ATTRIBUTION
+        ):
+            return (
+                "dataset is ungraded (parity_grade=None) and its source licence "
+                "posture is not open/attribution; declare the posture or set "
+                "ALLOW_UNGATED_BACKENDS: true"
+            )
     return None
 
 
