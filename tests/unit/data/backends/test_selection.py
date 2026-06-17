@@ -236,19 +236,36 @@ class TestCapabilityDecline:
 
 
 class TestParityPolicy:
-    def test_ungraded_dataset_refused_from_non_native_backend(
+    def test_ungraded_unknown_posture_refused_from_non_native_backend(
         self, native_claims_dataset, register_backend
     ):
-        community = FakeCommunityBackend([_capability(parity_grade=None)])
+        # Ungraded AND undeclared posture -> needs ALLOW_UNGATED_BACKENDS.
+        community = FakeCommunityBackend([
+            _capability(parity_grade=None, redistribution=Redistribution.UNKNOWN)
+        ])
         register_backend('community', community)
         selected = select_backend(DATASET, {'DATA_ACCESS': 'community'}, logger=logger)
         assert selected.name == 'native'
+
+    @pytest.mark.parametrize('posture', [Redistribution.OPEN, Redistribution.ATTRIBUTION])
+    def test_ungraded_open_posture_is_served_without_optin(
+        self, native_claims_dataset, register_backend, posture
+    ):
+        # Posture-only gate: no native pipeline to parity-grade against, but the
+        # source licence is open/attribution -> a mirror may serve, no opt-in.
+        community = FakeCommunityBackend([_capability(parity_grade=None, redistribution=posture)])
+        register_backend('community', community)
+        assert select_backend(
+            DATASET, {'DATA_ACCESS': 'community'}, logger=logger
+        ) is community
 
     @pytest.mark.parametrize('flag', [True, 'true', 'TRUE', 'yes', '1'])
     def test_allow_ungated_backends_permits_ungraded(
         self, native_claims_dataset, register_backend, flag
     ):
-        community = FakeCommunityBackend([_capability(parity_grade=None)])
+        community = FakeCommunityBackend([
+            _capability(parity_grade=None, redistribution=Redistribution.UNKNOWN)
+        ])
         register_backend('community', community)
         config = {'DATA_ACCESS': 'community', 'ALLOW_UNGATED_BACKENDS': flag}
         assert select_backend(DATASET, config, logger=logger) is community
@@ -257,9 +274,23 @@ class TestParityPolicy:
     def test_falsy_allow_ungated_still_refuses(
         self, native_claims_dataset, register_backend, flag
     ):
-        community = FakeCommunityBackend([_capability(parity_grade=None)])
+        community = FakeCommunityBackend([
+            _capability(parity_grade=None, redistribution=Redistribution.UNKNOWN)
+        ])
         register_backend('community', community)
         config = {'DATA_ACCESS': 'community', 'ALLOW_UNGATED_BACKENDS': flag}
+        assert select_backend(DATASET, config, logger=logger).name == 'native'
+
+    def test_restricted_ungraded_not_waivable_by_allow_ungated(
+        self, native_claims_dataset, register_backend
+    ):
+        # Restricted is a legal refusal — not rescued by an open posture path
+        # nor by ALLOW_UNGATED_BACKENDS.
+        community = FakeCommunityBackend([
+            _capability(parity_grade=None, redistribution=Redistribution.RESTRICTED)
+        ])
+        register_backend('community', community)
+        config = {'DATA_ACCESS': 'community', 'ALLOW_UNGATED_BACKENDS': True}
         assert select_backend(DATASET, config, logger=logger).name == 'native'
 
     def test_native_backend_is_exempt_from_parity_gate(self, native_claims_dataset):
