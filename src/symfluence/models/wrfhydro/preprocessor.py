@@ -599,7 +599,7 @@ class WRFHydroPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
  START_YEAR  = {start_date.year}
  START_MONTH = {start_date.month:02d}
  START_DAY   = {start_date.day:02d}
- START_HOUR  = {max(start_date.hour, 1):02d}
+ START_HOUR  = {start_date.hour:02d}
  START_MIN   = 00
 
  ! Simulation length in hours

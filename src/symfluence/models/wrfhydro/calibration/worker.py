@@ -488,6 +488,22 @@ class WRFHydroWorker(BaseWorker):
             if result.returncode != 0:
                 self._last_error = f"WRF-Hydro failed with return code {result.returncode}"
                 self.logger.error(self._last_error)
+                # Surface the model's own diagnostics so the failure is debuggable
+                # from the worklog instead of a bare return code. WRF-Hydro writes
+                # its real error into stderr and the HRLDAS/hydro diag files.
+                diag_sources = [stderr_file, stdout_file]
+                diag_sources += sorted(wrfhydro_output_dir.glob('diag_hydro.*'))
+                for diag in diag_sources:
+                    try:
+                        if diag.exists() and diag.stat().st_size > 0:
+                            tail = diag.read_text(errors='replace').splitlines()[-25:]
+                            if tail:
+                                self.logger.error(
+                                    f"WRF-Hydro {diag.name} (last {len(tail)} lines):\n"
+                                    + "\n".join(tail)
+                                )
+                    except OSError:
+                        pass
                 return False
 
             # Verify output
