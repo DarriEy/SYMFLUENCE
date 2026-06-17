@@ -141,6 +141,21 @@ jobs:
             assert R.runners.get('SUMMA') is not None, 'SUMMA not registered via entry points'; \
             print('import + entry-point registration OK')"
 
+      - name: Optional-extra hygiene (core runs without community packages)
+        # This job installs no community extras, so it proves the community
+        # data packages are genuinely optional: absent from the import graph,
+        # yet the acquisition-backend seam still imports and resolves to the
+        # native backend. Guards against a community package becoming a hidden
+        # hard dependency. See docs/community_services_full_coverage_plan.md.
+        run: |
+          python -c "import importlib.util; \
+            absent = [p for p in ('cfs', 'cas', 'csfs', 'cos') if importlib.util.find_spec(p) is None]; \
+            assert absent == ['cfs', 'cas', 'csfs', 'cos'], f'community package unexpectedly installed: {sorted(set([\"cfs\",\"cas\",\"csfs\",\"cos\"]) - set(absent))}'; \
+            from symfluence.data.backends.selection import select_backend; \
+            from symfluence.core.registries import R; \
+            assert R.acquisition_backends.get('native') is not None, 'native backend must exist without any community package'; \
+            print('optional-extra hygiene OK: core runs, native backend present, no community package required')"
+
       - name: CLI performance regression tests
         # Lazy-import guard: fails if a heavy dependency creeps into CLI
         # startup. Serial (-n 0) so subprocess wall-clock timings are stable.

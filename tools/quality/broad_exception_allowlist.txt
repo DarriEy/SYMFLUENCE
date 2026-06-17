@@ -195,6 +195,8 @@ src/symfluence/data/cache/forcing_cache.py:RawForcingCache._evict_if_needed:exce
 src/symfluence/data/cache/forcing_cache.py:RawForcingCache.get_cache_stats:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/data_manager.py:DataManager._ensure_gauge_segment_mapping:except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
 src/symfluence/data/data_manager.py:DataManager._ensure_multi_gauge_dataset_present:except Exception as exc:  # noqa: BLE001 — let downstream errors surface specifics
+src/symfluence/data/data_manager.py:DataManager._run_attribute_backends:except Exception as exc:  # noqa: BLE001 — capability probing must not break the run
+src/symfluence/data/data_manager.py:DataManager._run_attribute_plugins:except Exception as exc:  # noqa: BLE001 — plugins must never break preprocessing
 src/symfluence/data/data_manager.py:DataManager.process_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_climate_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_csv_group:except Exception as e:  # noqa: BLE001

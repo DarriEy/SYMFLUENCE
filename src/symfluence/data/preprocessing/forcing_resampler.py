@@ -189,7 +189,6 @@ from typing import List, Tuple
 import geopandas as gpd
 
 from symfluence.core.path_resolver import PathResolverMixin
-from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
 from symfluence.data.preprocessing.dataset_handlers.base_dataset import BaseDatasetHandler
 
 from .resampling import (
@@ -249,9 +248,13 @@ class _ParallelWorker:
         self._logger = logging.getLogger(f"forcing_worker_{mp.current_process().pid}")
         self._logger.setLevel(logging.WARNING)  # Reduce noise in parallel workers
 
-        # Initialize dataset handler
-        from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
-        dataset_handler = DatasetRegistry.get_handler(
+        # Initialize dataset handler (declared-schema dispatch: a sidecar
+        # acquisition manifest in raw_data/ routes to the schema-keyed
+        # handler; no manifest = legacy per-dataset lookup, unchanged).
+        from symfluence.data.preprocessing.dataset_handlers.schema_dispatch import (
+            resolve_dataset_handler,
+        )
+        dataset_handler = resolve_dataset_handler(
             self.forcing_dataset,
             self.config_dict,
             self._logger,
@@ -327,9 +330,16 @@ class ForcingResampler(PathResolverMixin):
         # Note: catchment_path will be resolved dynamically using _get_catchment_file_path()
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/raw_data')
 
-        # Initialize dataset-specific handler
+        # Initialize dataset-specific handler via declared-schema dispatch:
+        # when the acquisition manifest in raw_data/ declares a non-native
+        # schema (e.g. canonical-v1 from a protocol backend), the handler
+        # registered under that SCHEMA key serves; otherwise the existing
+        # per-dataset lookup runs unchanged (legacy native files).
         try:
-            self.dataset_handler = DatasetRegistry.get_handler(
+            from symfluence.data.preprocessing.dataset_handlers.schema_dispatch import (
+                resolve_dataset_handler,
+            )
+            self.dataset_handler = resolve_dataset_handler(
                 self.forcing_dataset,
                 self.config,
                 self.logger,
