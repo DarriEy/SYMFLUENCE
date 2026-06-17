@@ -80,7 +80,9 @@ jobs:
   unit-tests:
     name: Unit Tests (ubuntu, Python 3.11)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The `-m "unit" -n auto` suite runs right up against 20 min on slower
+    # runners (intermittent timeout-cancellations); 30 gives headroom.
+    timeout-minutes: 30
     steps:
       - name: Free up disk space
         run: |
