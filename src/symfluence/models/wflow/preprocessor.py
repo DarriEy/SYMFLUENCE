@@ -191,7 +191,12 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not forcing_files:
             forcing_files = sorted(forcing_path.glob('**/*.nc'))
         if not forcing_files:
-            raise FileNotFoundError(f"No forcing files found in {forcing_path}")
+            raise FileNotFoundError(
+                f"No basin-averaged forcing (*.nc) found in {forcing_path}. WFLOW "
+                f"consumes the basin-averaged store produced upstream; run the "
+                f"'model_agnostic_preprocessing' (basin-averaging) and "
+                f"'build_model_ready_store' steps before WFLOW preprocessing."
+            )
         # Canonical reader: CF-named variables with a declared timestep, so we no
         # longer guess source names, units, or assume an hourly step.
         ds_forcing = open_canonical_forcing(forcing_files)

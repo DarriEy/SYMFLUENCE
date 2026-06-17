@@ -52,6 +52,10 @@ class PIHMPreProcessor(BaseModelPreProcessor):
     def __init__(self, config, logger, **kwargs):
         self.config = config
         self.logger = logger
+        # We skip super().__init__ (see note above), so set the instance attribute
+        # the ModelPreProcessor protocol requires. Without it, isinstance() fails
+        # and ModelManager silently skips PIHM preprocessing (no settings/PIHM).
+        self.model_name = self.MODEL_NAME
         self.config_dict = config.to_dict(flatten=True) if hasattr(config, 'to_dict') else (config if isinstance(config, dict) else {})
 
         self.domain_name = self._get_cfg('DOMAIN_NAME', 'unknown')
@@ -190,40 +194,65 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             solar (W/m2), longwave (W/m2), pres (Pa)
         """
         try:
-            import xarray as xr
+            import xarray as xr  # noqa: F401 — availability guard
         except ImportError:
             self.logger.warning("xarray not available; using synthetic forcing data")
             return None
+        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
 
-        datasets = []
-        for f in sorted(forcing_files):
-            try:
-                ds = xr.open_dataset(f)
-                datasets.append(ds)
-            except Exception as e:  # noqa: BLE001 — model execution resilience
-                self.logger.warning(f"Could not read {f.name}: {e}", exc_info=True)
-
-        if not datasets:
+        if not forcing_files:
             return None
 
-        combined = xr.concat(datasets, dim='time')
+        try:
+            # Canonical reader: source variables under aliased names (airtemp,
+            # pptrate, ...) are renamed to the CFIF vocabulary this method expects,
+            # and multi-file concat is coordinate-aware — avoiding the duplicate-time
+            # / NaT artifacts a naive xr.concat(dim='time') produced on these files.
+            combined = open_canonical_forcing(sorted(forcing_files))
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.warning(f"Could not read forcing via canonical reader: {e}", exc_info=True)
+            return None
+
         # Select time range
         combined = combined.sel(time=slice(str(start_dt), str(end_dt)))
 
         if combined.time.size == 0:
             self.logger.warning("No forcing data within simulation time range")
-            return None
-
-        # Extract variables -- squeeze the hru dimension (lumped = single HRU)
-        def _get_var(ds, name):
-            if name in ds:
-                arr = ds[name].values
-                if arr.ndim > 1:
-                    arr = arr[:, 0]  # first HRU
-                return arr
+            combined.close()
             return None
 
         times = pd.DatetimeIndex(combined.time.values)
+
+        # Each canonical CFIF variable can be NaN for some timesteps when the local
+        # store mixes vocabularies across files (some carry 'pptrate', others
+        # 'precipitation_flux'); the by-coords merge then leaves gaps. Coalesce the
+        # canonical name with its known SUMMA-shorthand aliases so every timestep
+        # gets a value wherever any source provided one. Squeeze the hru dimension.
+        aliases = {
+            'precipitation_flux': ['pptrate'],
+            'air_temperature': ['airtemp'],
+            'specific_humidity': ['spechum'],
+            'wind_speed': ['windspd'],
+            'surface_downwelling_shortwave_flux': ['SWRadAtm'],
+            'surface_downwelling_longwave_flux': ['LWRadAtm'],
+            'surface_air_pressure': ['airpres'],
+        }
+
+        def _get_var(ds, name):
+            out = None
+            for candidate in [name, *aliases.get(name, [])]:
+                if candidate not in ds:
+                    continue
+                arr = ds[candidate].values
+                if arr.ndim > 1:
+                    arr = arr[:, 0]  # first HRU
+                arr = np.asarray(arr, dtype=np.float64)
+                if out is None:
+                    out = arr
+                else:
+                    out = np.where(np.isnan(out), arr, out)
+            return out
+
         prcp = _get_var(combined, 'precipitation_flux')        # mm/s -> need kg/m2/s (same numerically)
         temp = _get_var(combined, 'air_temperature')         # K
         spechum = _get_var(combined, 'specific_humidity')      # kg/kg
@@ -236,25 +265,34 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         # Using Tetens formula for saturation vapor pressure
         rh = self._spechum_to_rh(spechum, temp, pres)
 
-        # Convert precipitation from mm/s to kg/m2/s
-        # 1 mm/s water = 1 kg/m2/s (density of water = 1000 kg/m3, 1mm = 0.001m)
-        # So mm/s and kg/m2/s are numerically identical
-        prcp_kgm2s = prcp if prcp is not None else np.zeros(len(times))
+        # Fill missing/residual-NaN values per variable with a physical default. This
+        # keeps PIHM's .meteo numeric (a NaN beside the Timestamp would otherwise be
+        # coerced to NaT by DataFrame.iterrows and crash .meteo writing) and lets a
+        # partial/mixed store still produce a runnable forcing file.
+        def _filled(arr, default):
+            if arr is None:
+                return np.full(len(times), default, dtype=np.float64)
+            arr = np.asarray(arr, dtype=np.float64)
+            return np.where(np.isnan(arr), default, arr)
 
+        # Convert precipitation from mm/s to kg/m2/s (numerically identical for water).
         df = pd.DataFrame({
             'time': times,
-            'prcp': prcp_kgm2s,
-            'temp': temp if temp is not None else np.full(len(times), 273.15),
-            'rh': rh if rh is not None else np.full(len(times), 50.0),
-            'wind': wind if wind is not None else np.full(len(times), 2.0),
-            'solar': solar if solar is not None else np.full(len(times), 200.0),
-            'longwave': longwave if longwave is not None else np.full(len(times), 300.0),
-            'pres': pres if pres is not None else np.full(len(times), 101325.0),
+            'prcp': _filled(prcp, 0.0),
+            'temp': _filled(temp, 273.15),
+            'rh': _filled(rh, 50.0),
+            'wind': _filled(wind, 2.0),
+            'solar': _filled(solar, 200.0),
+            'longwave': _filled(longwave, 300.0),
+            'pres': _filled(pres, 101325.0),
         })
 
-        # Close datasets
-        for ds in datasets:
-            ds.close()
+        combined.close()
+
+        # Drop any rows with an invalid (NaT) timestamp so downstream .meteo
+        # writing never formats a NaT (which raises "NaTType does not support
+        # strftime"). Order is preserved.
+        df = df[df['time'].notna()].reset_index(drop=True)
 
         return df
 
@@ -599,7 +637,8 @@ class PIHMPreProcessor(BaseModelPreProcessor):
 
         for _, row in forcing_df.iterrows():
             ts = row['time']
-            if isinstance(ts, pd.Timestamp):
+            # isinstance(pd.NaT, pd.Timestamp) is True, so guard on notna too.
+            if isinstance(ts, pd.Timestamp) and pd.notna(ts):
                 time_str = ts.strftime('%Y-%m-%d %H:%M')
             else:
                 time_str = str(ts)[:16]

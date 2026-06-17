@@ -205,20 +205,26 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
             make cvode
             ;;
     esac
-    make pihm -j "${NCPU}"
+    # Build the Flux-PIHM variant (-D_NOAH_): SYMFLUENCE's preprocessor writes the
+    # Noah-LSM initial-condition layout (.ic) and the .lsm file, so the binary must
+    # be the Noah-enabled build. The plain `pihm` target expects a smaller .ic and
+    # rejects ours with "Error in initial condition file ... size does not match".
+    make flux-pihm -j "${NCPU}"
 
-    # The Makefile places the binary in the source root (gcc -o pihm ...);
-    # on Windows it's pihm.exe.
+    # The Makefile places the binary in the source root (gcc -o flux-pihm ...);
+    # on Windows it's flux-pihm.exe. Prefer the flux-pihm name, but tolerate builds
+    # that emit a plain `pihm` name for the same target.
     PIHM_BIN=""
-    for p in "${SRC_DIR}/pihm" "${SRC_DIR}/pihm.exe" "${SRC_DIR}/bin/pihm" "${SRC_DIR}/bin/pihm.exe"; do
+    for p in "${SRC_DIR}/flux-pihm" "${SRC_DIR}/flux-pihm.exe" "${SRC_DIR}/bin/flux-pihm" "${SRC_DIR}/bin/flux-pihm.exe" \
+             "${SRC_DIR}/pihm" "${SRC_DIR}/pihm.exe" "${SRC_DIR}/bin/pihm" "${SRC_DIR}/bin/pihm.exe"; do
         if [ -f "$p" ]; then
             PIHM_BIN="$p"
             break
         fi
     done
     if [ -z "$PIHM_BIN" ]; then
-        # Fallback: search for any executable named pihm (or pihm.exe)
-        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 \( -name "pihm" -o -name "pihm.exe" \) -type f 2>/dev/null | head -1)
+        # Fallback: search for any executable named flux-pihm or pihm
+        PIHM_BIN=$(find "${SRC_DIR}" -maxdepth 2 \( -name "flux-pihm" -o -name "flux-pihm.exe" -o -name "pihm" -o -name "pihm.exe" \) -type f 2>/dev/null | head -1)
     fi
 
     if [ -n "$PIHM_BIN" ]; then
@@ -229,8 +235,8 @@ if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
         esac
         chmod +x "${INSTALL_DIR}/bin/pihm"* 2>/dev/null || true
     else
-        echo "ERROR: Build succeeded but pihm binary not found"
-        find "${SRC_DIR}" -maxdepth 2 -name "pihm*" -type f 2>/dev/null || echo "No pihm files found"
+        echo "ERROR: Build succeeded but flux-pihm/pihm binary not found"
+        find "${SRC_DIR}" -maxdepth 2 \( -name "flux-pihm*" -o -name "pihm*" \) -type f 2>/dev/null || echo "No pihm files found"
         exit 1
     fi
 

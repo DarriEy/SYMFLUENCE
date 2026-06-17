@@ -191,3 +191,37 @@ class TestCalibrationTargets:
 
     def test_get_calibration_target_miss(self):
         assert Registries.get_calibration_target("SUMMA", "snow") is None
+
+
+# ======================================================================
+# Model-name normalization (separators in config spellings)
+# ======================================================================
+
+
+class TestModelNameNormalization:
+    """Model-keyed registries strip word separators so config spellings like
+    'WRF-Hydro' resolve to the registered 'WRFHYDRO' entry, while underscores in
+    intentional compound keys (e.g. 'CFUSE_ROUTED') are preserved.
+    """
+
+    def test_hyphenated_spelling_resolves(self):
+        class _Runner:
+            pass
+
+        R.runners.add("WRFHYDRO", _Runner)
+        assert R.runners.get("WRF-Hydro") is _Runner
+        assert R.runners.get("wrf hydro") is _Runner
+        assert R.runners.get("WRFHYDRO") is _Runner
+
+    def test_underscore_compound_key_is_preserved(self):
+        class _PostA:
+            pass
+
+        class _PostB:
+            pass
+
+        # Two distinct underscore-compound models must not collapse together.
+        R.postprocessors.add("CFUSE_ROUTED", _PostA)
+        R.postprocessors.add("HBV_ROUTED", _PostB)
+        assert R.postprocessors.get("CFUSE_ROUTED") is _PostA
+        assert R.postprocessors.get("HBV_ROUTED") is _PostB

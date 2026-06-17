@@ -22,7 +22,7 @@ from typing import List, Union
 import numpy as np
 import xarray as xr
 
-from .cf_conventions import CANONICAL_FORCING, resolve_forcing_var
+from .cf_conventions import CANONICAL_FORCING
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +54,29 @@ def open_canonical_forcing(
         except (ValueError, OSError):
             ds = xr.concat([xr.open_dataset(f) for f in sorted(files)], dim='time')
 
-    # Rename any aliased source variable to its canonical name.
-    rename = {}
-    for canonical in CANONICAL_FORCING:
-        src = resolve_forcing_var(ds, canonical)
-        if src is not None and src != canonical:
-            rename[src] = canonical
-    if rename:
-        ds = ds.rename(rename)
+    # Resolve each canonical variable, coalescing across every spelling present.
+    # A partially-regenerated store can carry more than one spelling of the same
+    # variable spread across files (e.g. 'precipitation_flux' in some, 'pptrate' in
+    # others); the by-coords merge then leaves each spelling NaN wherever the other
+    # supplied the data. Fill the canonical name from its aliases so every timestep
+    # gets a value where any source provided one. With a single spelling present
+    # (the clean-store case) this reduces to a plain rename.
+    for canonical, spec in CANONICAL_FORCING.items():
+        # spec['aliases'] already includes the canonical name; dict.fromkeys
+        # de-duplicates while preserving order so the canonical stays the primary.
+        candidates = dict.fromkeys([canonical, *spec['aliases']])  # type: ignore[misc]
+        present = [name for name in candidates if name in ds]
+        if not present:
+            continue
+        primary = present[0]
+        if len(present) > 1:
+            filled = ds[primary]
+            for alt in present[1:]:
+                filled = filled.where(~filled.isnull(), ds[alt])
+            ds[primary] = filled
+            ds = ds.drop_vars(present[1:])
+        if primary != canonical:
+            ds = ds.rename({primary: canonical})
 
     # Declared timestep wins; otherwise infer from the time axis.
     ts = ds.attrs.get('timestep_seconds')
