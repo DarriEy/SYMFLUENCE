@@ -140,3 +140,31 @@ def test_viscous_normal_result_passes_through():
         )
     assert result['p1'] == pytest.approx(0.42)
     assert result['p2'] == pytest.approx(0.43)
+
+
+def test_all_crashed_calibration_skips_without_salib_error(tmp_path, caplog):
+    """When a model crashed on every calibration trial, every score is a failure
+    sentinel (<= -900). preprocess_data drops them all, leaving an empty sample
+    set. The raw len>=10 guard passes (there are 20 rows), so without a post-clean
+    re-check this empty array reached SALib and raised the cryptic
+    'array of sample points is empty'. The analyzer must instead skip gracefully
+    with an actionable message (this is what MESH/WFLOW hit in the ensemble run).
+    """
+    analyzer = _make_analyzer()
+    analyzer.output_folder = tmp_path
+    df = pd.DataFrame({
+        'iteration': np.arange(20),
+        'score': np.full(20, -999.0),          # every trial crashed
+        'p1': np.linspace(0.1, 0.9, 20),
+        'p2': np.linspace(1.0, 9.0, 20),
+    })
+    results_file = tmp_path / "all_crashed.csv"
+    df.to_csv(results_file, index=False)
+
+    with caplog.at_level(logging.WARNING):
+        result = analyzer.run_sensitivity_analysis(results_file)
+
+    assert result is None, "all-crashed calibration must skip, not run SA"
+    warn_text = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+    assert "usable calibration samples" in warn_text
+    assert "array of sample points is empty" not in warn_text
