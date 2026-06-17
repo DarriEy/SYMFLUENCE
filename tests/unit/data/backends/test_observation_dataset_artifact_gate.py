@@ -36,11 +36,31 @@ def _decline(cap, *, name="community", allow_ungated=False):
 
 
 class TestProviderApiTier:
-    def test_ungraded_provider_api_is_refused(self):
-        assert _decline(_cap(parity_grade=None)) is not None
-
     def test_graded_provider_api_is_admitted(self):
+        # Parity gate: a parity_grade admits regardless of posture detail.
         assert _decline(_cap(parity_grade="bit-identical", redistribution=Redistribution.OPEN)) is None
+
+    def test_ungraded_provider_api_with_unknown_posture_is_refused(self):
+        # No native to grade against AND posture undeclared -> needs opt-in.
+        assert _decline(_cap(parity_grade=None, redistribution=Redistribution.UNKNOWN)) is not None
+
+    @pytest.mark.parametrize("posture", [Redistribution.OPEN, Redistribution.ATTRIBUTION])
+    def test_ungraded_provider_api_with_open_posture_is_admitted(self, posture):
+        # Posture-only gate: a live provider with no native handler may still
+        # serve if its source license is open/attribution.
+        assert _decline(_cap(parity_grade=None, redistribution=posture)) is None
+
+    def test_ungraded_unknown_posture_waived_by_allow_ungated(self):
+        assert _decline(
+            _cap(parity_grade=None, redistribution=Redistribution.UNKNOWN), allow_ungated=True
+        ) is None
+
+    def test_restricted_provider_api_is_refused_even_with_posture_gate(self):
+        # Restricted is refused before either gate and not waivable.
+        assert _decline(_cap(parity_grade=None, redistribution=Redistribution.RESTRICTED)) is not None
+        assert _decline(
+            _cap(parity_grade=None, redistribution=Redistribution.RESTRICTED), allow_ungated=True
+        ) is not None
 
     def test_native_is_exempt_even_when_ungraded(self):
         assert _decline(_cap(parity_grade=None), name="native") is None

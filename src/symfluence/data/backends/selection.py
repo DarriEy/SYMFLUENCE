@@ -13,10 +13,16 @@ Resolves which registered :class:`AcquisitionBackend` serves a dataset:
 * A backend may decline at capability time (does not claim the dataset, cannot
   serve the requested variables, or declares a coverage window excluding the
   request) → clean fallthrough to the next backend with an INFO log.
-* Parity-gate policy: a non-native backend whose capability for the dataset is
-  ungraded (``parity_grade is None``) is refused unless
-  ``ALLOW_UNGATED_BACKENDS: true``. The native backend is the parity
-  reference and is exempt.
+* Admission policy for a non-native backend depends on the capability's
+  ``source_kind``:
+  - ``dataset_artifact`` → provenance gate (DOI + version + checksum + an
+    open/attribution license).
+  - ``provider_api`` → parity gate (a ``parity_grade`` validated against the
+    native handler) OR, when there is no native handler to grade against, the
+    posture-only gate (source license is open/attribution).
+  Restricted redistribution is refused for every non-native backend. Anything
+  still ungated needs ``ALLOW_UNGATED_BACKENDS: true``. The native backend is
+  the parity reference and is exempt from all of the above.
 
 No registry overwriting, no captured classes, no ordering dependence.
 """
@@ -292,13 +298,24 @@ def _observation_decline_reason(
                 )
         return None
 
-    # PROVIDER_API: the parity gate (a non-native backend mirrors a live API and
-    # must be parity-graded against the native handler).
+    # PROVIDER_API: admitted by EITHER of two gates.
+    #  * Parity gate: a parity_grade declares the backend was validated
+    #    value/bit-identical against the native handler for this live API.
+    #  * Posture-only gate: many live providers have NO native handler to be
+    #    parity-equivalent to. Such a backend may still serve if the SOURCE
+    #    data's license posture is open/attribution (a redistributable mirror) —
+    #    the same posture bar the dataset-artifact tier clears. Restricted
+    #    redistribution was already refused above; an unknown posture still needs
+    #    ALLOW_UNGATED_BACKENDS.
     if cap.parity_grade is None and not allow_ungated:
-        return (
-            "provider is ungraded (parity_grade=None) on this backend; "
-            "set ALLOW_UNGATED_BACKENDS: true to permit"
-        )
+        if getattr(cap, 'redistribution', None) not in (
+            Redistribution.OPEN, Redistribution.ATTRIBUTION
+        ):
+            return (
+                "provider is ungraded (parity_grade=None) and its source license "
+                "posture is not open/attribution; declare the posture or set "
+                "ALLOW_UNGATED_BACKENDS: true"
+            )
     return None
 
 
