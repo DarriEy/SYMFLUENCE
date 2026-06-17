@@ -17,7 +17,6 @@ import pandas as pd
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.registries import R
-from symfluence.models.base.protocols import ModelPostProcessor, ModelPreProcessor, ModelRunner
 from symfluence.models.utilities.routing_decider import RoutingDecider
 
 
@@ -332,8 +331,15 @@ class ModelManager(BaseManager):
                     if model in ['LSTM']:
                         self.logger.debug(f"Model {model} doesn't require preprocessing")
                     else:
-                        # Only warn if it's a primary model, not a utility like MIZUROUTE which definitely has one
-                        self.logger.debug(f"No preprocessor registered for {model} (or not required).")
+                        # A configured model with no registered preprocessor is almost
+                        # always a name-resolution miss (e.g. 'WRF-Hydro' not matching the
+                        # 'WRFHYDRO' registry key). Silently skipping leaves the model with
+                        # no inputs and a confusing downstream failure — surface it.
+                        self.logger.warning(
+                            f"No preprocessor registered for model '{model}'; its inputs "
+                            f"will not be generated. Check that the model name resolves to a "
+                            f"registered preprocessor."
+                        )
                     continue
 
                 # Run model-specific preprocessing
@@ -362,12 +368,17 @@ class ModelManager(BaseManager):
 
                 preprocessor = preprocessor_class(self.config, self.logger, **kwargs)
 
-                # Call appropriate preprocessing method
-                if isinstance(preprocessor, ModelPreProcessor):
-                    preprocessor.run_preprocessing()
+                # Call the preprocessing entry point. We probe for the method directly
+                # rather than isinstance(preprocessor, ModelPreProcessor): that Protocol is
+                # runtime_checkable and also requires a `model_name` attribute, so a
+                # preprocessor that defines run_preprocessing() but skips super().__init__
+                # (e.g. PIHM's defensive ctor) would otherwise be silently skipped.
+                run_preprocessing = getattr(preprocessor, "run_preprocessing", None)
+                if callable(run_preprocessing):
+                    run_preprocessing()
                 else:
-                    # Some models like LSTM don't need preprocessing
-                    self.logger.debug(f"No run_preprocessing method for {model} preprocessor")
+                    # Genuinely no preprocessing entry point (e.g. data-driven models).
+                    self.logger.debug(f"{model} preprocessor exposes no run_preprocessing(); skipping")
 
             # Generate preprocessing diagnostics
             if self.reporting_manager:
@@ -494,8 +505,12 @@ class ModelManager(BaseManager):
                 if hasattr(runner, '_resolved_executables'):
                     self.resolved_executables.extend(runner._resolved_executables)
                 method_name = R.runners.meta(model).get("runner_method", "run")
-                if isinstance(runner, ModelRunner) and hasattr(runner, method_name):
-                    getattr(runner, method_name)()
+                # Probe for the run method directly rather than isinstance(ModelRunner):
+                # the Protocol also requires a `model_name` attribute, so a runner that
+                # skips super().__init__ would be wrongly reported as missing its method.
+                runner_method = getattr(runner, method_name, None)
+                if callable(runner_method):
+                    runner_method()
                 else:
                     self.logger.error(f"Runner method '{method_name}' not found for model: {model}")
                     continue
@@ -553,10 +568,13 @@ class ModelManager(BaseManager):
                 # Create postprocessor instance
                 postprocessor = postprocessor_class(self.config, self.logger, reporting_manager=self.reporting_manager)
 
-                # Run postprocessing
-                # Standardized interface: extract_streamflow is the main entry point
-                if isinstance(postprocessor, ModelPostProcessor):
-                    postprocessor.extract_streamflow()
+                # Run postprocessing. Probe for the method directly rather than
+                # isinstance(ModelPostProcessor): the runtime_checkable Protocol also
+                # requires a `model_name` attribute, so a postprocessor that skips
+                # super().__init__ would be wrongly treated as having no entry point.
+                extract_streamflow = getattr(postprocessor, 'extract_streamflow', None)
+                if callable(extract_streamflow):
+                    extract_streamflow()
                 elif hasattr(postprocessor, 'extract_results'):
                     # Legacy fallback — will be removed in a future release
                     self.logger.warning(

@@ -74,6 +74,30 @@ def test_already_cf_named_source_is_unchanged(tmp_path):
     assert "precipitation_flux" in ds and "air_temperature" in ds
 
 
+def test_mixed_vocabulary_store_is_coalesced(tmp_path):
+    """A partially-regenerated store can spread spellings of one variable across
+    files (some carry 'pptrate', others 'precipitation_flux'); the by-coords merge
+    then leaves each spelling NaN where the other supplied data. open_canonical_forcing
+    must coalesce them into a single, gap-free canonical variable.
+    """
+    t_old = pd.date_range("2002-01-01", periods=4, freq="D")
+    t_new = pd.date_range("2002-01-05", periods=4, freq="D")
+    # File A: SUMMA-shorthand spelling, first half of the period.
+    xr.Dataset({"pptrate": ("time", np.full(4, 1.0))},
+               coords={"time": t_old}).to_netcdf(tmp_path / "a.nc")
+    # File B: canonical CF spelling, second half.
+    xr.Dataset({"precipitation_flux": ("time", np.full(4, 2.0))},
+               coords={"time": t_new}).to_netcdf(tmp_path / "b.nc")
+
+    ds = open_canonical_forcing([tmp_path / "a.nc", tmp_path / "b.nc"])
+
+    assert "precipitation_flux" in ds
+    assert "pptrate" not in ds  # redundant alias dropped after coalescing
+    vals = ds["precipitation_flux"].values
+    assert not np.isnan(vals).any(), "coalesced variable must have no gaps"
+    assert vals[0] == 1.0 and vals[-1] == 2.0  # values taken from whichever source had them
+
+
 def test_timestep_inferred_from_daily_axis(tmp_path):
     path = _write(tmp_path, ["pptrate"])
     ds = open_canonical_forcing(path)
