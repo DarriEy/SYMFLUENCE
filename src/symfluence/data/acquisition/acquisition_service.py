@@ -385,8 +385,12 @@ class AcquisitionService(ConfigurableMixin):
         for dir_path in [dem_dir, soilclass_dir, landclass_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for attributes (DEM_SOURCE: {dem_source})")
+        # COMMUNITY follows the CLOUD pathway for attribute acquisition (see
+        # acquire_forcings): rasters still come from the registry handlers;
+        # the community attribute layer (CAS) plugs in downstream as an
+        # attribute processor, not here.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for attributes (DEM_SOURCE: {dem_source})")
 
             bbox_str = self._resolve_bounding_box("attributes")
 
@@ -723,6 +727,216 @@ class AcquisitionService(ConfigurableMixin):
 
         return actual_times[0] <= expected_times[0] and actual_times[-1] >= expected_times[-1]
 
+    def _forcing_request_facts(self, forcing_dataset: str):
+        """Window/variables for a forcing request, resolved exactly once.
+
+        Returns ``(window, variables)`` where ``window`` is an ISO-string
+        ``(start, end)`` tuple (or ``None``) and ``variables`` a frozenset of
+        requested names (or ``None`` = dataset default).
+        """
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+
+        dataset_vars_key = f"{forcing_dataset.upper()}_VARS"
+        variables = self._get_config_value(lambda: None, default=None, dict_key=dataset_vars_key)
+        if variables is None:
+            variables = self._get_config_value(
+                lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
+        variables = frozenset(variables) if isinstance(variables, list) and variables else None
+        return window, variables
+
+    def _maybe_select_protocol_backend(self, forcing_dataset: str):
+        """Consult the AcquisitionBackend selector — only once it can matter.
+
+        Returns ``None`` (meaning "use the existing dispatch unchanged")
+        unless BOTH hold: (a) at least one non-native backend is registered
+        under the protocol (e.g. the cfs plugin's CommunityForcingBackend),
+        and (b) the selector resolves the request to that non-native backend.
+        Selection honours ``DATA_ACCESS`` priority, per-dataset
+        ``<DATASET>_BACKEND`` pins, capability variable/window checks, and the
+        parity-gate policy (ungraded datasets refused unless
+        ``ALLOW_UNGATED_BACKENDS``). Without a non-native backend installed,
+        cloud/community/MAF behavior is bit-identical to the legacy dispatch.
+        """
+        from symfluence.core.registries import R
+
+        non_native = [k for k in R.acquisition_backends.keys() if k != 'native']
+        if not non_native:
+            return None
+
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_backend
+
+        window, variables = self._forcing_request_facts(forcing_dataset)
+        try:
+            backend = select_backend(
+                forcing_dataset, self.config,
+                variables=variables, window=window, logger=self.logger,
+            )
+        except AcquisitionError as exc:
+            self.logger.info(
+                f"Acquisition-backend selection declined for {forcing_dataset} ({exc}); "
+                f"using the existing dispatch."
+            )
+            return None
+        if getattr(backend, 'name', 'native') == 'native':
+            return None  # native == the existing dispatch below, untouched
+        return backend
+
+    def _protocol_backend_cache(self):
+        """The raw-forcing cache, configured exactly like the legacy path's."""
+        return RawForcingCache(
+            cache_root=self.data_dir / 'cache' / 'raw_forcing',
+            max_size_gb=self._get_config_value(
+                lambda: self.config.data.forcing_cache_size_gb,
+                default=3.0, dict_key='FORCING_CACHE_SIZE_GB'),
+            ttl_days=self._get_config_value(
+                lambda: self.config.data.forcing_cache_ttl_days,
+                default=30, dict_key='FORCING_CACHE_TTL_DAYS'),
+            enable_checksum=self._get_config_value(
+                lambda: self.config.data.forcing_cache_checksum,
+                default=True, dict_key='FORCING_CACHE_CHECKSUM'),
+        )
+
+    @staticmethod
+    def _declared_schema_for(backend, forcing_dataset: str) -> str:
+        """The schema the backend declares for a dataset (capability lookup)."""
+        wanted = forcing_dataset.lower()
+        try:
+            for cap in backend.capabilities():
+                if cap.dataset_id.lower() == wanted:
+                    return str(cap.schema)
+        except (AttributeError, TypeError, ValueError, KeyError, RuntimeError, ImportError):
+            pass  # capability probing must never break acquisition; key degrades to 'unknown'
+        return 'unknown'
+
+    def _restore_protocol_cache_hit(self, meta: dict, raw_data_dir: Path, cached_file: Path) -> bool:
+        """Restore a protocol-path cache entry: raw file + sidecar manifest.
+
+        Returns False when the entry predates manifest-aware caching (treated
+        as a miss: without the manifest, downstream schema dispatch would
+        silently fall back to the native heuristics path).
+        """
+        import shutil
+
+        from symfluence.data.backends.contract import (
+            MANIFEST_FILENAME,
+            validate_manifest,
+        )
+
+        payload = meta.get('manifest')
+        if not isinstance(payload, dict):
+            return False
+        dest = raw_data_dir / str(meta.get('original_name') or cached_file.name)
+        shutil.copy(cached_file, dest)
+        payload = dict(payload)
+        payload['paths'] = [str(dest)]
+        try:
+            validate_manifest(payload)
+        except ValueError as exc:
+            self.logger.warning(f"Cached acquisition manifest invalid ({exc}); re-acquiring.")
+            dest.unlink(missing_ok=True)
+            return False
+        import json as _json
+        (raw_data_dir / MANIFEST_FILENAME).write_text(
+            _json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding='utf-8')
+        self.logger.info(f"✓ Restored cached protocol-backend forcing to: {dest}")
+        return True
+
+    def _acquire_forcing_via_protocol_backend(self, backend, forcing_dataset: str):
+        """Acquire forcing through a protocol backend (non-native).
+
+        Builds the :class:`AcquisitionRequest` from config exactly as the
+        legacy path resolves bbox/window/variables and lets the backend
+        deliver into ``raw_data/``. The declared-schema result (and its
+        sidecar manifest, written by the backend) drives downstream dispatch.
+
+        Cache: keyed structurally on (dataset, bbox, window, variables,
+        schema, backend) — the schema/backend salt is part of the key, so
+        protocol-path entries never collide with the legacy path's
+        ``DATA_ACCESS``-salted entries. The sidecar manifest is stored in the
+        cache metadata and restored on hit, keeping schema dispatch intact
+        for resumed runs.
+        """
+        import json as _json
+
+        from symfluence.data.backends.contract import (
+            AcquisitionRequest,
+            CredentialContext,
+            build_manifest,
+        )
+
+        bbox_str = self._resolve_bounding_box("forcing")
+        north, west, south, east = (float(part) for part in bbox_str.split('/'))
+
+        raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
+        raw_data_dir.mkdir(parents=True, exist_ok=True)
+
+        window, variables = self._forcing_request_facts(forcing_dataset)
+        schema = self._declared_schema_for(backend, forcing_dataset)
+
+        cache = self._protocol_backend_cache()
+        cache_key = cache.generate_cache_key(
+            dataset=forcing_dataset,
+            bbox=bbox_str,
+            time_start=window[0] if window else '',
+            time_end=window[1] if window else '',
+            variables=sorted(variables) if variables else None,
+            backend=f"{getattr(backend, 'name', 'backend')}:{schema}",
+        )
+
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD')
+        if not force_download:
+            cached_file = cache.get(cache_key)
+            if cached_file is not None:
+                meta_path = cache.cache_root / f"{cache_key}.meta.json"
+                try:
+                    meta = _json.loads(meta_path.read_text(encoding='utf-8'))
+                except (OSError, _json.JSONDecodeError):
+                    meta = {}
+                if self._restore_protocol_cache_hit(meta, raw_data_dir, cached_file):
+                    return None
+                self.logger.info(
+                    "Cached protocol-backend entry lacks a usable manifest; re-acquiring."
+                )
+
+        request = AcquisitionRequest(
+            dataset_id=forcing_dataset,
+            bbox=(south, west, north, east),
+            window=window,
+            variables=variables,
+            target_dir=raw_data_dir,
+            credentials=CredentialContext(),
+        )
+        result = backend.acquire(request)
+        self.logger.info(
+            f"✓ Forcing data acquired via '{backend.name}' backend "
+            f"(schema={result.schema}, {len(result.paths)} file(s))"
+        )
+        for warning in result.warnings:
+            self.logger.warning(f"Backend '{backend.name}' warning: {warning}")
+
+        # Single-file results are cached with their manifest; multi-file
+        # results (e.g. NEX-GDDP per-scenario sets) skip caching, like the
+        # legacy path skips directory outputs.
+        if len(result.paths) == 1 and str(result.paths[0]).endswith('.nc'):
+            try:
+                cache.put(cache_key, result.paths[0], metadata={
+                    'dataset': forcing_dataset,
+                    'bbox': bbox_str,
+                    'time_start': window[0] if window else '',
+                    'time_end': window[1] if window else '',
+                    'backend': getattr(backend, 'name', 'backend'),
+                    'schema': str(result.schema),
+                    'original_name': Path(result.paths[0]).name,
+                    'manifest': build_manifest(result),
+                })
+            except (OSError, ValueError) as exc:
+                self.logger.warning(f"Failed to cache protocol-backend forcing output: {exc}")
+        return result
+
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
@@ -776,11 +990,32 @@ class AcquisitionService(ConfigurableMixin):
         else:
             self._effective_forcing_time_step = configured_ts or _GENERIC_DEFAULT
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for {forcing_dataset}")
+        # COMMUNITY consults the AcquisitionBackend selector first (below);
+        # datasets no registered non-native backend claims fall through to the
+        # same registry-handler pathway as CLOUD, so behavior without protocol
+        # backends installed is identical to CLOUD.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for {forcing_dataset}")
+
+            # ── AcquisitionBackend protocol selection ─────────────────────
+            # Consulted only when a NON-native backend has registered under
+            # the protocol (e.g. the cfs plugin's CommunityForcingBackend).
+            # DATA_ACCESS: community routes eligible datasets through the
+            # protocol path; cloud/MAF and <DATASET>_BACKEND: native keep the
+            # legacy dispatch below byte-for-byte.
+            protocol_backend = self._maybe_select_protocol_backend(forcing_dataset)
+            if protocol_backend is not None:
+                self._acquire_forcing_via_protocol_backend(protocol_backend, forcing_dataset)
+                if self._get_config_value(lambda: self.config.forcing.supplement, default=False):
+                    self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
+                    self.acquire_em_earth_forcings()
+                return
 
             if not check_cloud_access_availability(forcing_dataset, self.logger):
-                raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
+                raise ValueError(
+                    f"Dataset '{forcing_dataset}' has no registered acquisition handler "
+                    f"(DATA_ACCESS: {data_access.lower()})."
+                )
 
             bbox = self._resolve_bounding_box("forcing")
 
@@ -813,7 +1048,8 @@ class AcquisitionService(ConfigurableMixin):
                 bbox=bbox,
                 time_start=time_start,
                 time_end=time_end,
-                variables=variables if isinstance(variables, list) else None
+                variables=variables if isinstance(variables, list) else None,
+                backend=data_access,
             )
 
             # Check cache first
@@ -945,6 +1181,39 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
+    def _community_serves_streamflow(self, provider: str) -> bool:
+        """True if a community ObservationBackend serves *provider*'s streamflow.
+
+        Mirrors ``DataManager._observation_backend_serves``: only under
+        ``DATA_ACCESS: community`` with a backend registered that actually
+        admits the provider (license/parity/provenance gate passes, no native
+        pin). When True, the native ``<PROVIDER>_STREAMFLOW`` download is skipped
+        here — ObservedDataProcessor's backend tier fetches it instead — so the
+        provider is not double-fetched (native raw + community re-fetch). Returns
+        False for every other mode, leaving the legacy native path unchanged.
+        """
+        if not provider:
+            return False
+        data_access = str(self._get_config_value(
+            lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+        if data_access != 'community':
+            return False
+        from symfluence.core.registries import R
+        if not R.observation_backends.keys():
+            return False
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_observation_backend
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+        try:
+            select_observation_backend(
+                provider, self.config, kind='streamflow', window=window, logger=self.logger,
+            )
+            return True
+        except AcquisitionError:
+            return False
+
     def acquire_observations(self):
         """
         Acquire additional observations based on configuration.
@@ -971,7 +1240,18 @@ class AcquisitionService(ConfigurableMixin):
 
         # Auto-detect observation types based on config flags (matching process_observed_data logic)
         streamflow_provider = (self._get_config_value(lambda: self.config.data.streamflow_data_provider) or '').upper()
-        if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
+        # Under DATA_ACCESS: community, when a community backend (e.g. CSFS) serves
+        # this provider, ObservedDataProcessor's backend tier fetches it. Do NOT
+        # also queue the native <PROVIDER>_STREAMFLOW download here — that produced
+        # a redundant double-fetch (native raw downloaded, then re-fetched via the
+        # backend, which is what is actually used). Mirrors the same skip in
+        # DataManager.process_observed_data's additional_obs assembly.
+        if self._community_serves_streamflow(streamflow_provider):
+            self.logger.info(
+                f"Streamflow provider '{streamflow_provider}' is community-served; "
+                "skipping the native observation download (handled by the backend tier)."
+            )
+        elif streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
             additional_obs.append('USGS_STREAMFLOW')
             primary_obs.add('USGS_STREAMFLOW')
         elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:

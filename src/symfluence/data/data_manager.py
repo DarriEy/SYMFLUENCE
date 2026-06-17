@@ -255,7 +255,21 @@ class DataManager(BaseManager):
                 lambda: self.config.data.streamflow_data_provider,
                 ''
             )).upper()
-            if streamflow_provider == 'USGS' and 'usgs_streamflow' not in [o.lower() for o in additional_obs]:
+            # Backend-first routing: under DATA_ACCESS: community, if a registered
+            # ObservationBackend (e.g. the CSFS CommunityObservationBackend) serves
+            # this provider, do NOT pre-empt it into additional_obs as a "formalized"
+            # native handler. Leaving it out lets ObservedDataProcessor
+            # .process_streamflow_data() reach its backend-first tier (contract
+            # 0.2.0). The native-formalized path is preserved bit-identically for
+            # cloud/MAF modes and whenever no backend claims the provider.
+            backend_serves_primary = self._observation_backend_serves(streamflow_provider)
+            if backend_serves_primary:
+                self.logger.info(
+                    f"Streamflow provider '{streamflow_provider}' is served by a community "
+                    "observation backend; routing through ObservedDataProcessor's backend tier "
+                    "(not pre-empted into additional_observations)."
+                )
+            elif streamflow_provider == 'USGS' and 'usgs_streamflow' not in [o.lower() for o in additional_obs]:
                 # Automatically add usgs_streamflow if it's the primary provider but not in additional_obs
                 additional_obs.append('usgs_streamflow')
             elif streamflow_provider == 'WSC' and 'wsc_streamflow' not in [o.lower() for o in additional_obs]:
@@ -328,7 +342,13 @@ class DataManager(BaseManager):
             additional_obs_lower = [o.lower() for o in additional_obs]
             is_formalized = any(obs in additional_obs_lower for obs in formalized_providers)
 
-            if not is_formalized:
+            # When a community observation backend serves the primary provider it
+            # was never added to additional_obs above (is_formalized stays False
+            # on its account), so process_streamflow_data() runs and dispatches to
+            # the backend tier. Run it explicitly even if some OTHER formalized
+            # provider sits in additional_obs, so the backend-served primary still
+            # gets processed.
+            if backend_serves_primary or not is_formalized:
                 observed_data_processor.process_streamflow_data()
 
             observed_data_processor.process_fluxnet_data()
@@ -390,6 +410,221 @@ class DataManager(BaseManager):
 
             self.logger.info("Observed data processing completed successfully")
 
+    def _run_community_attribute_pipeline(self) -> None:
+        """Run community attribute backends + the entry-point plugin seam.
+
+        Two coexisting tiers, both gated to ``DATA_ACCESS: community`` and both
+        inert when nothing is registered/opted-in (default path unchanged):
+
+        1. **AttributeBackends** (``R.attribute_backends``, contract 0.3.0): the
+           proper Phase-C tier. For every provider a registered backend claims,
+           selection (parity-gated) resolves it and ``acquire()`` writes a
+           per-HRU ``HRU_STATS_V1`` CSV under ``data/attributes/{provider}/``,
+           ingested by :class:`AttributesNetCDFBuilder` as a ``{provider}`` group.
+        2. **Plugin seam** (``symfluence.attribute_processors`` entry points):
+           the climaclass-style loop ``attributeProcessor._process_plugin_attributes``.
+           This is the seam climaclass (and the CAS *processor*) rely on; it had
+           no caller in the pipeline (Finding 2). Its merged dict is written to
+           ``data/attributes/community/`` and ingested as a ``community`` group.
+
+        Layering: a provider served by a backend in tier 1 is excluded from the
+        plugin loop (tier 2) so it is not extracted twice — the backend is
+        canonical. climaclass and any other plugins still run.
+        """
+        data_access = str(self._get_config_value(
+            lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+        if data_access != 'community':
+            return
+
+        served_providers = self._run_attribute_backends()
+        self._run_attribute_plugins(exclude_providers=served_providers)
+
+    def _run_attribute_backends(self) -> set:
+        """Run every registered AttributeBackend for the providers it claims.
+
+        Returns the set of lowercased provider ids actually served (so the
+        plugin loop can skip them). Selection declines (ungated, pinned-native,
+        nothing registered) are logged and skipped — never fatal.
+        """
+        served: set = set()
+        if not R.attribute_backends.keys():
+            return served
+
+        from symfluence.data.backends.contract import AttributeRequest
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_attribute_backend
+
+        # Collect candidate provider ids from every registered backend's
+        # declared capabilities (deduplicated, case-insensitive).
+        providers: dict = {}
+        for name in R.attribute_backends.keys():
+            entry = R.attribute_backends.get(name)
+            backend = entry(self.config, self.logger) if isinstance(entry, type) else entry
+            try:
+                for cap in backend.capabilities():
+                    providers.setdefault(cap.provider_id.lower(), cap.provider_id)
+            except Exception as exc:  # noqa: BLE001 — capability probing must not break the run
+                self.logger.warning(f"Attribute backend '{name}' capability probe failed: {exc}")
+
+        if not providers:
+            return served
+
+        attrs_dir = self.project_dir / 'data' / 'attributes'
+        catchment_path = self._resolve_catchment_shapefile()
+        lumped = str(self._get_config_value(
+            lambda: self.config.domain.definition_method, default='lumped',
+            dict_key='DOMAIN_DEFINITION_METHOD')).lower() == 'lumped'
+
+        for provider in providers.values():
+            try:
+                backend = select_attribute_backend(provider, self.config, logger=self.logger)
+            except AcquisitionError as exc:
+                self.logger.info(
+                    f"Attribute-backend selection declined for {provider} ({exc}); "
+                    "using the in-tree/plugin path."
+                )
+                continue
+
+            target_dir = attrs_dir / provider.lower()
+            target_dir.mkdir(parents=True, exist_ok=True)
+            request = AttributeRequest(
+                provider_id=provider,
+                attribute_ids=(),
+                hru_ids=(),
+                geometries=(),
+                catchment_path=catchment_path,
+                target_dir=target_dir,
+                lumped=lumped,
+            )
+            try:
+                result = backend.acquire(request)
+            except AcquisitionError as exc:
+                self.logger.warning(
+                    f"Attribute backend '{getattr(backend, 'name', '?')}' failed for "
+                    f"{provider}: {exc}; falling back to the plugin path."
+                )
+                continue
+            self.logger.info(
+                f"✓ Attributes acquired via '{backend.name}' backend for {provider} "
+                f"(schema={result.schema}, {len(result.paths)} file(s))"
+            )
+            for warning in result.warnings:
+                self.logger.warning(f"Attribute backend '{backend.name}' warning: {warning}")
+            served.add(provider.lower())
+        return served
+
+    def _run_attribute_plugins(self, exclude_providers: set) -> None:
+        """Run the entry-point attribute plugin loop and write a ``community`` group CSV.
+
+        Wraps ``attributeProcessor._process_plugin_attributes`` — the seam that
+        had no pipeline caller (Finding 2), which climaclass and the CAS
+        processor both rely on. Providers already served by a backend are added
+        to ``ATTRIBUTE_PLUGINS_EXCLUDE`` so they are not extracted twice. The
+        merged ``{key: value}`` dict is reshaped to a per-HRU table and written
+        to ``data/attributes/community/{domain}_attributes.csv``.
+        """
+        from symfluence.data.preprocessing.attribute_processor import attributeProcessor
+
+        ap = attributeProcessor(self.config, self.logger)
+        # Skip plugins whose name collides with a backend-served provider so we
+        # don't double-extract (the backend is canonical). Plugin names are
+        # lowercased (e.g. 'cas'); provider ids likewise lowercased above.
+        existing_exclude = self._get_config_value(
+            lambda: self.config.attributes.plugins_exclude, default=[],
+            dict_key='ATTRIBUTE_PLUGINS_EXCLUDE') or []
+        ap._plugin_exclude_override = set(existing_exclude) | set(exclude_providers)
+
+        try:
+            results = ap._process_plugin_attributes()
+        except Exception as exc:  # noqa: BLE001 — plugins must never break preprocessing
+            self.logger.warning(f"Attribute plugin loop failed (non-fatal): {exc}")
+            return
+
+        if not results:
+            return
+
+        self._write_community_attributes_csv(results)
+
+    def _write_community_attributes_csv(self, results: dict) -> None:
+        """Reshape the plugin merged dict to a per-HRU CSV under attributes/community/."""
+        lumped = str(self._get_config_value(
+            lambda: self.config.domain.definition_method, default='lumped',
+            dict_key='DOMAIN_DEFINITION_METHOD')).lower() == 'lumped'
+
+        if lumped:
+            rows = [dict(results)]
+        else:
+            # Keys are HRU_{id}_{attr}; pivot back to one row per HRU id.
+            hru_ids: set = set()
+            for key in results:
+                if key.startswith('HRU_'):
+                    parts = key.split('_')
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        hru_ids.add(int(parts[1]))
+            rows = []
+            for hru_id in sorted(hru_ids):
+                prefix = f"HRU_{hru_id}_"
+                row = {'hru_id': hru_id}
+                for key, value in results.items():
+                    if key.startswith(prefix):
+                        row[key[len(prefix):]] = value
+                rows.append(row)
+            if not rows:
+                rows = [dict(results)]
+
+        out_dir = self.project_dir / 'data' / 'attributes' / 'community'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{self._get_config_value(lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')}_attributes.csv"
+        pd.DataFrame(rows).to_csv(out_path, index=False)
+        self.logger.info(f"Wrote community attribute plugin results to {out_path}")
+
+    def _resolve_catchment_shapefile(self) -> Optional[Path]:
+        """Best-effort path to the discretized HRU/catchment shapefile."""
+        base = self.project_dir / 'shapefiles' / 'catchment'
+        if not base.exists():
+            return None
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
+        matches = sorted(base.rglob(f"{domain_name}_HRUs_*.shp"))
+        if matches:
+            return matches[0]
+        matches = sorted(base.rglob("*.shp"))
+        return matches[0] if matches else None
+
+    def _observation_backend_serves(self, provider: str) -> bool:
+        """Return True if a registered ObservationBackend serves *provider*.
+
+        Mirrors the inert-seam discipline of the forcing/observation selection
+        layers: only consulted under ``DATA_ACCESS: community``, and only when at
+        least one backend is registered under ``R.observation_backends`` (the
+        CSFS ``CommunityObservationBackend``). Selection declines — no backend,
+        ungated provider without ``ALLOW_UNGATED_BACKENDS``, window/kind mismatch,
+        a ``<PROVIDER>_BACKEND: native`` pin — all return False so the legacy
+        native-formalized path runs exactly as before. The streamflow processor
+        re-runs the same selector authoritatively; this is a cheap pre-check that
+        only decides whether to keep the provider out of ``additional_obs``.
+        """
+        if not provider:
+            return False
+        data_access = str(self._get_config_value(
+            lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+        if data_access != 'community':
+            return False
+        if not R.observation_backends.keys():
+            return False
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_observation_backend
+
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+        try:
+            select_observation_backend(
+                provider, self.config, kind='streamflow', window=window, logger=self.logger,
+            )
+            return True
+        except AcquisitionError:
+            return False
+
     def run_model_agnostic_preprocessing(self):
         """
         Run model-agnostic preprocessing including basin averaging and resampling.
@@ -424,6 +659,14 @@ class DataManager(BaseManager):
                 from symfluence.data.preprocessing.attribute_processor import attributeProcessor
                 ap = attributeProcessor(self.config, self.logger)
                 ap.process_profile_attributes(attribute_profile.lower())
+
+            # Community attribute layer: registered AttributeBackends (e.g. the
+            # CAS CommunityAttributeBackend) + the symfluence.attribute_processors
+            # entry-point plugin seam (climaclass, the CAS processor). Runs only
+            # under DATA_ACCESS: community and only when something is registered;
+            # writes per-HRU CSVs to data/attributes/{provider}/ that the
+            # AttributesNetCDFBuilder ingests as a group. Default path unchanged.
+            self._run_community_attribute_pipeline()
 
             # Run forcing resampling (non-fatal when no forcing data available)
             try:
