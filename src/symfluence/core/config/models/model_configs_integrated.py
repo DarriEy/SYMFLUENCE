@@ -250,7 +250,10 @@ class PIHMConfig(BaseModel):
 
     # Installation
     install_path: str = Field(default='default', alias='PIHM_INSTALL_PATH')
-    exe: str = Field(default='pihm', alias='PIHM_EXE')
+    # Flux-PIHM (Noah-LSM build) is the canonical PIHM SYMFLUENCE targets: the
+    # preprocessor writes the Noah .ic/.lsm format and the installer builds the
+    # flux-pihm binary. A plain 'pihm' build rejects the .ic ("size does not match").
+    exe: str = Field(default='flux-pihm', alias='PIHM_EXE')
 
     # Settings
     settings_path: str = Field(default='default', alias='SETTINGS_PIHM_PATH')

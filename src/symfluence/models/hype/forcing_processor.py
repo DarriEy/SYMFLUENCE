@@ -315,8 +315,25 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             if actual_id_level in series.index.names:
                 df = series.unstack(level=actual_id_level)
             else:
-                # Lumped domain: the forcing has no spatial/ID dimension, so the
-                # series is indexed by time alone and there is nothing to unstack.
+                # Lumped domain: the forcing has no spatial/ID dimension to unstack.
+                # Usually the series is indexed by time alone, but some model-ready
+                # stores carry a singleton spatial dimension whose level name isn't
+                # one we unstack on (not time/id/hru/subid). That leaves a MultiIndex
+                # whose entries are tuples, which pd.to_datetime later rejects with
+                # "<class 'tuple'> is not convertible to datetime". Collapse any such
+                # extra levels onto the time axis before framing.
+                if isinstance(series.index, pd.MultiIndex):
+                    for level_name in [n for n in series.index.names if n != 'time']:
+                        n_unique = series.index.get_level_values(level_name).nunique()
+                        if n_unique > 1:
+                            self.logger.warning(
+                                f"Lumped HYPE forcing has non-singleton dimension "
+                                f"'{level_name}' ({n_unique} values); using its first slice."
+                            )
+                            first = series.index.get_level_values(level_name)[0]
+                            series = series.xs(first, level=level_name)
+                        else:
+                            series = series.droplevel(level_name)
                 # Emit a single subbasin column (id 0; the +1 shift below promotes
                 # it to 1, since HYPE requires subid > 0).
                 df = series.to_frame(name=0)
