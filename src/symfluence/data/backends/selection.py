@@ -443,18 +443,42 @@ def _attribute_decline_reason(
     attribute_ids: Optional[frozenset],
     allow_ungated: bool,
 ) -> Optional[str]:
-    """Return why an attribute backend cannot serve, or None if it can."""
+    """Return why an attribute backend cannot serve, or None if it can.
+
+    There is no native attribute backend (the in-tree geospatial/profile
+    processors are the default path), so every backend reaching this gate is a
+    mirroring/community backend and the licence + parity policy below applies to
+    all of them — mirroring the non-native branch of
+    :func:`_observation_decline_reason`.
+    """
     if cap is None:
         return "does not claim the provider"
     if attribute_ids:
         missing = set(attribute_ids) - set(cap.attribute_ids)
         if missing:
             return f"cannot serve requested attribute ids {sorted(missing)}"
-    if cap.parity_grade is None and not allow_ungated:
+    # Restricted redistribution is a legal constraint refused for ALL community
+    # backends and NOT waivable by ALLOW_UNGATED_BACKENDS (that flag waives the
+    # parity grade, not the licence).
+    if getattr(cap, 'redistribution', None) == Redistribution.RESTRICTED:
         return (
-            "provider is ungraded (parity_grade=None) on this backend; "
-            "set ALLOW_UNGATED_BACKENDS: true to permit"
+            "source data is redistribution=restricted; a mirroring backend "
+            "must not re-serve it (use the in-tree processors instead)"
         )
+    # Admission: EITHER a tolerance parity grade (validated against an in-tree
+    # extraction) OR — since zonal stats often have no native reference to be
+    # parity-equivalent to — the posture-only gate: the SOURCE licence is
+    # open/attribution, so a mirror may serve. An undeclared posture (UNKNOWN)
+    # on an ungraded provider still needs ALLOW_UNGATED_BACKENDS.
+    if cap.parity_grade is None and not allow_ungated:
+        if getattr(cap, 'redistribution', None) not in (
+            Redistribution.OPEN, Redistribution.ATTRIBUTION
+        ):
+            return (
+                "provider is ungraded (parity_grade=None) and its source licence "
+                "posture is not open/attribution; declare the posture or set "
+                "ALLOW_UNGATED_BACKENDS: true"
+            )
     return None
 
 
@@ -476,9 +500,13 @@ def select_attribute_backend(
     behavior).
 
     Per-provider pin ``<PROVIDER>_BACKEND: native`` forces the default path
-    (raises :class:`DatasetUnsupported`). The parity gate applies to every
-    attribute backend; an ungraded provider is refused unless
-    ``ALLOW_UNGATED_BACKENDS: true``.
+    (raises :class:`DatasetUnsupported`). Acceptance mirrors the forcing/
+    observation gates: ``redistribution=restricted`` is refused first (a legal
+    constraint, non-waivable), then a provider is admitted by EITHER a tolerance
+    parity grade OR the posture-only gate (source licence open/attribution);
+    an ungraded provider with an undeclared posture is refused unless
+    ``ALLOW_UNGATED_BACKENDS: true``. A served provider that carries a
+    NonCommercial clause is surfaced with a warning (not refused).
 
     Raises:
         DatasetUnsupported: when no registered attribute backend can serve the
@@ -552,6 +580,12 @@ def select_attribute_backend(
             "Attribute backend '%s' serves provider '%s'%s",
             name, provider_id, ", pinned" if pinned else "",
         )
+        if getattr(cap, 'noncommercial', False):
+            log.warning(
+                "Provider '%s' carries a NonCommercial license clause (%s); the "
+                "data may not be used for commercial purposes. Ensure your use "
+                "complies.", provider_id, getattr(cap, 'data_license', '') or 'non-commercial',
+            )
         return backend
 
     raise DatasetUnsupported(
