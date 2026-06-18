@@ -380,6 +380,16 @@ class AttributeCapability:
     data_license: str = ""            # e.g. "CC-BY-4.0" (SoilGrids), "public-domain"
     attribution: str = ""             # required attribution text to propagate; "" = none required
     redistribution: Redistribution = Redistribution.UNKNOWN
+    # Use-restriction axis, orthogonal to redistribution (contract 0.5.0). True
+    # when the source carries a NonCommercial clause (e.g. FABDEM is
+    # CC-BY-NC-SA-4.0). Surfaced to users (logged on selection, recorded in
+    # provenance); not refused by the gate — research use is the framework
+    # default. Mirrors :class:`ObservationCapability.noncommercial`. The
+    # dataset-artifact provenance fields (DOI/version/checksum) the observation
+    # flavour carries are deliberately ABSENT here: attribute outputs are zonal
+    # statistics *computed* per-HRU, not redistributed published artifacts, so
+    # the artifact-provenance gate does not apply.
+    noncommercial: bool = False
 
 
 @dataclass(frozen=True)
