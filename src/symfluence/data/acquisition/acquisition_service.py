@@ -1279,9 +1279,29 @@ class AcquisitionService(ConfigurableMixin):
             lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
         raw_dir = resolve_data_subdir(self.project_dir, 'observations') / kind / 'community_raw'
         raw_dir.mkdir(parents=True, exist_ok=True)
+        # Spatial-reduction context for gridded products (GRACE basin-mean needs a
+        # bbox). The backend reads these from request.options; translate the
+        # SYMFLUENCE bbox "lat_max/lon_min/lat_min/lon_max" to the (lat_min,
+        # lon_min, lat_max, lon_max) order COS expects.
+        options: Dict[str, Any] = {'domain_name': domain_name}
+        bbox = self._get_config_value(
+            lambda: self.config.domain.bounding_box_coords, dict_key='BOUNDING_BOX_COORDS')
+        if bbox:
+            try:
+                lat_max, lon_min, lat_min, lon_max = (float(x) for x in str(bbox).split('/'))
+                options['bbox'] = (lat_min, lon_min, lat_max, lon_max)
+            except (ValueError, TypeError):
+                self.logger.debug(f"Could not parse BOUNDING_BOX_COORDS {bbox!r} for community obs reduction")
+        # GRACE: COS v0.1.0 reduces a supplied NetCDF (its Earthdata live-fetch is
+        # not yet wired), so hand it a downloaded mascon if one is present under
+        # observations/grace/ (the JPL RL06 product the config selects, else any).
+        # Absent one, COS declines and the routing falls back to the native handler.
+        connector_config = self._community_grace_connector_config() if provider == 'grace' else {}
+        if connector_config:
+            options['connector_config'] = connector_config
         request = ObservationRequest(
             provider_id=provider, station_ids=(), kind=kind,
-            window=self._observation_window(), target_dir=raw_dir,
+            window=self._observation_window(), target_dir=raw_dir, options=options,
         )
         result = backend.acquire(request)
         if kind == 'tws':
@@ -1290,6 +1310,24 @@ class AcquisitionService(ConfigurableMixin):
         # mapping table is the gate). Treat as unhandled so native runs.
         self.logger.warning(f"No canonical writer for community obs kind '{kind}'; using native.")
         return False
+
+    def _community_grace_connector_config(self) -> Dict[str, Any]:
+        """COS connector config for GRACE: a downloaded mascon NetCDF to reduce.
+
+        COS's GRACE connector reduces a supplied NetCDF (its Earthdata live fetch
+        is not yet implemented in v0.1.0), so we point it at an already-downloaded
+        mascon under ``observations/grace/`` — preferring the JPL RL06 product the
+        config selects. Returns ``{}`` when none is present, in which case COS
+        declines and the routing falls back to the native GRACE handler.
+        """
+        grace_dir = resolve_data_subdir(self.project_dir, 'observations') / 'grace'
+        if not grace_dir.exists():
+            return {}
+        ncs = sorted(grace_dir.glob('*.nc'))
+        if not ncs:
+            return {}
+        preferred = [p for p in ncs if 'JPL' in p.name.upper()] or ncs
+        return {'nc_path': str(preferred[0])}
 
     def _write_community_tws_output(self, result, domain_name: str) -> bool:
         """Adapt a community TWS delivery (OBS_CSV_V1) to the canonical GRACE file.
