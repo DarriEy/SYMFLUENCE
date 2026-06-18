@@ -501,7 +501,9 @@ def build_manifest(result: AcquisitionResult) -> dict[str, Any]:
         "dataset_id": result.dataset_id,
         "schema": str(result.schema),
         "backend": result.backend,
-        "paths": [str(p) for p in result.paths],
+        # POSIX-style so the sidecar manifest is portable across platforms
+        # (str() would emit backslashes on Windows). Path() reads them back fine.
+        "paths": [p.as_posix() for p in result.paths],
         "variables_delivered": sorted(result.variables_delivered),
         "provenance": dict(result.provenance),
         "warnings": list(result.warnings),
