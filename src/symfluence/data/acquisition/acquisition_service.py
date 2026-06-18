@@ -1228,14 +1228,34 @@ class AcquisitionService(ConfigurableMixin):
 
     #: Non-streamflow additional-obs keys that, under DATA_ACCESS: community, are
     #: served by an ObservationBackend (e.g. COS) instead of the native
-    #: ``evaluation.<kind>.download`` handler. Maps the native key -> (community
-    #: provider_id, contract kind). The community backend acquires AND reduces in
-    #: a single call; :meth:`_route_community_nonstreamflow_obs` writes the
-    #: canonical processed file each evaluator reads, so the matching native
-    #: handler is skipped. Extend this as COS connectors graduate (SNOTEL->swe,
-    #: openet->et, ...); a kind needs a canonical writer below before it is added.
+    #: ``evaluation.<kind>.download`` handler. Maps the native key -> a full adapter
+    #: spec ``(cos_provider, kind, output_path_helper, out_column, value_scale)``:
+    #:
+    #:  * ``output_path_helper`` — the name of a ``data.observation.paths`` helper
+    #:    returning the FIRST file the matching evaluator searches, so the canonical
+    #:    write is picked up transparently;
+    #:  * ``out_column`` — the column name that evaluator reads the observed value
+    #:    from;
+    #:  * ``value_scale`` — factor applied to the COS canonical value to match the
+    #:    evaluator's expected magnitude/unit. Identity for kinds whose canonical
+    #:    unit already matches; ``1/25.4`` for SWE because the snow evaluator
+    #:    force-converts inches->mm by magnitude (threshold 250), so COS mm is
+    #:    written as inches to reconstruct the correct mm downstream.
+    #:
+    #: The community backend acquires AND reduces in one call;
+    #: :meth:`_route_community_nonstreamflow_obs` then writes the canonical file and
+    #: the native handler is skipped. Gridded COS connectors (grace, mod16_et,
+    #: modis_sca) reduce a SUPPLIED granule (live-fetch is not wired in COS v0.1.0):
+    #: only GRACE has a pre-staged-mascon convention here, so the other gridded
+    #: providers decline and fall back to native; the point/tower connectors
+    #: (snotel, usgs_gw, fluxnet_et) fetch live.
     _COMMUNITY_NONSTREAMFLOW_OBS = {
-        'GRACE': ('grace', 'tws'),
+        'GRACE':      ('grace',      'tws',         'tws_default_observation_path',         'grace_jpl_anomaly', 1.0),
+        'SNOTEL':     ('snotel',     'swe',         'swe_default_observation_path',         'swe',               1.0 / 25.4),
+        'MODIS_SNOW': ('modis_sca',  'snow_cover',  'snow_cover_default_observation_path',  'sca',               1.0),
+        'MODIS_ET':   ('mod16_et',   'et',          'modis_et_default_observation_path',    'et_mm_day',         1.0),
+        'FLUXNET_ET': ('fluxnet_et', 'et',          'fluxnet_et_default_observation_path',  'et_mm_day',         1.0),
+        'USGS_GW':    ('usgs_gw',    'groundwater', 'groundwater_default_observation_path', 'depth',             1.0),
     }
 
     def _route_community_nonstreamflow_obs(self, additional_obs) -> set:
@@ -1250,15 +1270,15 @@ class AcquisitionService(ConfigurableMixin):
         """
         handled: set = set()
         for obs_type in list(additional_obs):
-            mapping = self._COMMUNITY_NONSTREAMFLOW_OBS.get(str(obs_type).upper())
-            if not mapping:
+            spec = self._COMMUNITY_NONSTREAMFLOW_OBS.get(str(obs_type).upper())
+            if not spec:
                 continue
-            provider, kind = mapping
+            provider, kind = spec[0], spec[1]
             backend = self._community_observation_backend(provider, kind)
             if backend is None:
                 continue
             try:
-                if self._acquire_observation_via_backend(backend, provider, kind):
+                if self._acquire_observation_via_backend(backend, spec):
                     handled.add(obs_type)
                     self.logger.info(
                         f"Observation '{obs_type}' ({kind}) served by the "
@@ -1271,18 +1291,23 @@ class AcquisitionService(ConfigurableMixin):
                 )
         return handled
 
-    def _acquire_observation_via_backend(self, backend, provider: str, kind: str) -> bool:
-        """Acquire one (provider, kind) via *backend*, write its canonical file."""
+    def _acquire_observation_via_backend(self, backend, spec: tuple) -> bool:
+        """Acquire one (provider, kind) via *backend*, write its canonical file.
+
+        *spec* is a :data:`_COMMUNITY_NONSTREAMFLOW_OBS` entry
+        ``(provider, kind, path_helper, out_column, value_scale)``.
+        """
         from symfluence.data.backends.contract import ObservationRequest
 
+        provider, kind, path_helper, out_column, value_scale = spec
         domain_name = self._get_config_value(
             lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
         raw_dir = resolve_data_subdir(self.project_dir, 'observations') / kind / 'community_raw'
         raw_dir.mkdir(parents=True, exist_ok=True)
-        # Spatial-reduction context for gridded products (GRACE basin-mean needs a
-        # bbox). The backend reads these from request.options; translate the
-        # SYMFLUENCE bbox "lat_max/lon_min/lat_min/lon_max" to the (lat_min,
-        # lon_min, lat_max, lon_max) order COS expects.
+        # Spatial-reduction context for gridded products (basin-mean needs a bbox).
+        # The backend reads these from request.options; translate the SYMFLUENCE bbox
+        # "lat_max/lon_min/lat_min/lon_max" to the (lat_min, lon_min, lat_max,
+        # lon_max) order COS expects.
         options: Dict[str, Any] = {'domain_name': domain_name}
         bbox = self._get_config_value(
             lambda: self.config.domain.bounding_box_coords, dict_key='BOUNDING_BOX_COORDS')
@@ -1292,11 +1317,7 @@ class AcquisitionService(ConfigurableMixin):
                 options['bbox'] = (lat_min, lon_min, lat_max, lon_max)
             except (ValueError, TypeError):
                 self.logger.debug(f"Could not parse BOUNDING_BOX_COORDS {bbox!r} for community obs reduction")
-        # GRACE: COS v0.1.0 reduces a supplied NetCDF (its Earthdata live-fetch is
-        # not yet wired), so hand it a downloaded mascon if one is present under
-        # observations/grace/ (the JPL RL06 product the config selects, else any).
-        # Absent one, COS declines and the routing falls back to the native handler.
-        connector_config = self._community_grace_connector_config() if provider == 'grace' else {}
+        connector_config = self._community_connector_config(provider)
         if connector_config:
             options['connector_config'] = connector_config
         request = ObservationRequest(
@@ -1304,12 +1325,22 @@ class AcquisitionService(ConfigurableMixin):
             window=self._observation_window(), target_dir=raw_dir, options=options,
         )
         result = backend.acquire(request)
-        if kind == 'tws':
-            return self._write_community_tws_output(result, domain_name)
-        # No canonical writer for this kind yet (should never happen — the
-        # mapping table is the gate). Treat as unhandled so native runs.
-        self.logger.warning(f"No canonical writer for community obs kind '{kind}'; using native.")
-        return False
+        return self._write_community_obs_output(
+            result, domain_name, path_helper=path_helper,
+            out_column=out_column, value_scale=value_scale,
+        )
+
+    def _community_connector_config(self, provider: str) -> Dict[str, Any]:
+        """COS connector config for a community provider (a supplied granule, if any).
+
+        Gridded COS connectors reduce a supplied NetCDF (Earthdata live-fetch is not
+        wired in COS v0.1.0). Only GRACE has a pre-staged-mascon convention here, so
+        the other gridded providers (mod16_et, modis_sca) return ``{}`` and decline
+        -> fall back to native. The point/tower connectors fetch live (no file).
+        """
+        if provider == 'grace':
+            return self._community_grace_connector_config()
+        return {}
 
     def _community_grace_connector_config(self) -> Dict[str, Any]:
         """COS connector config for GRACE: a downloaded mascon NetCDF to reduce.
@@ -1329,41 +1360,56 @@ class AcquisitionService(ConfigurableMixin):
         preferred = [p for p in ncs if 'JPL' in p.name.upper()] or ncs
         return {'nc_path': str(preferred[0])}
 
-    def _write_community_tws_output(self, result, domain_name: str) -> bool:
-        """Adapt a community TWS delivery (OBS_CSV_V1) to the canonical GRACE file.
+    def _write_community_obs_output(
+        self, result, domain_name: str, *, path_helper: str, out_column: str, value_scale: float = 1.0,
+    ) -> bool:
+        """Adapt a community observation delivery (OBS_CSV_V1) to its canonical file.
 
-        COS delivers a per-site OBS_CSV_V1 table (``datetime, tws_anomaly_mm``);
-        the TWS evaluator reads a CSV with the GRACE anomaly column. We rename the
-        value column to ``grace_jpl_anomaly`` and write the canonical
-        ``{domain}_grace_tws_processed.csv`` so downstream eval/calibration read it
-        transparently. Units differ from the native product (COS delivers mm, the
-        native JPL mascon cm), but the TWS objective is correlation, which is
-        scale-invariant — so the difference does not affect the metric.
+        COS delivers a per-site OBS_CSV_V1 table (``datetime, value, quality_flag``);
+        each evaluator reads a specific file + column. We take the value column,
+        scale it to the evaluator's expected unit (``value_scale``), rename it to
+        ``out_column``, aggregate to one series per ``datetime`` (basin-representative
+        mean across delivered sites), and write the first path the evaluator searches
+        (``path_helper`` in :mod:`symfluence.data.observation.paths`). Returns False
+        when nothing usable was delivered, so the routing falls back to native.
+
+        Unit notes: TWS is correlation-scored (scale-invariant — COS mm vs native cm
+        does not affect it); SWE is written in inches (COS mm * 1/25.4) because the
+        snow evaluator force-converts inches->mm by magnitude; the rest already match
+        the evaluator's expected unit.
         """
         import pandas as pd
 
-        from symfluence.data.observation.paths import tws_default_observation_path
+        from symfluence.data.observation import paths as _obs_paths
 
         if not result.paths:
             return False
+        # OBS_CSV_V1 always delivers a 'value' column; the kind-specific names cover
+        # backends that label it (e.g. the GRACE 'tws_anomaly_mm' delivery).
+        value_candidates = (
+            'value', 'tws_anomaly_mm', 'tws_anomaly', 'swe_mm', 'et_mm_day',
+            'sca_fraction', 'sca', 'groundwater_level',
+        )
         frames = []
         for path in result.paths:
             df = pd.read_csv(path)
             if 'datetime' not in df.columns:
                 continue
-            value_col = next(
-                (c for c in ('tws_anomaly_mm', 'tws_anomaly', 'value') if c in df.columns), None
-            )
+            value_col = next((c for c in value_candidates if c in df.columns), None)
             if value_col is None:
                 continue
-            frames.append(df[['datetime', value_col]].rename(columns={value_col: 'grace_jpl_anomaly'}))
+            frames.append(df[['datetime', value_col]].rename(columns={value_col: out_column}))
         if not frames:
             return False
-        out = pd.concat(frames).groupby('datetime', as_index=False)['grace_jpl_anomaly'].mean()
-        out_path = tws_default_observation_path(self.project_dir, domain_name)
+        out = pd.concat(frames).groupby('datetime', as_index=False)[out_column].mean()
+        if value_scale != 1.0:
+            out[out_column] = out[out_column] * value_scale
+        out_path = getattr(_obs_paths, path_helper)(self.project_dir, domain_name)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out.to_csv(out_path, index=False)
-        self.logger.info(f"Wrote canonical community TWS observations to {out_path} ({len(out)} rows)")
+        self.logger.info(
+            f"Wrote canonical community observations to {out_path} ({len(out)} rows, col '{out_column}')"
+        )
         return True
 
     def acquire_observations(self):

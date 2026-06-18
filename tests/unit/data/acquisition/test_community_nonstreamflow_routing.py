@@ -142,6 +142,82 @@ def test_noop_outside_community_mode(tmp_path, register_tws_backend):
 
 def test_unmapped_obs_is_left_for_native(tmp_path, register_tws_backend):
     svc = _service(tmp_path, ALLOW_UNGATED_BACKENDS=True)
-    # MODIS_SNOW is not in the community mapping yet -> untouched (native path).
-    handled = svc._route_community_nonstreamflow_obs(["MODIS_SNOW"])
+    # SMAP is not in the community mapping -> untouched (native path).
+    handled = svc._route_community_nonstreamflow_obs(["SMAP"])
     assert handled == set()
+
+
+class _FakeObsBackend:
+    """COS-like backend serving one (provider, kind), delivering OBS_CSV_V1."""
+
+    name = "community-observation"
+    interface_version = "0.3.0"
+
+    def __init__(self, provider, kind, value=254.0, config=None, logger=None):
+        self._provider = provider
+        self._kind = kind
+        self._value = value
+        self.acquired = []
+
+    def capabilities(self):
+        return (
+            ObservationCapability(
+                provider_id=self._provider, kinds=frozenset({self._kind}),
+                station_id_scheme="x", temporal=None, auth=frozenset(),
+                parity_grade=None, notes="ungated COS-like",
+            ),
+        )
+
+    def acquire(self, request):
+        self.acquired.append(request)
+        from pathlib import Path
+        target = Path(request.target_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        out = target / f"cos_{self._provider}_obs_v1.csv"
+        # Canonical OBS_CSV_V1 delivery: datetime, value, quality_flag.
+        out.write_text(
+            "datetime,value,quality_flag\n"
+            f"2010-01-15,{self._value},good\n2010-02-15,{self._value},good\n"
+        )
+        return AcquisitionResult(
+            paths=(out,), schema=SchemaId.OBS_CSV_V1, dataset_id=self._provider,
+            backend=self.name, provenance={"integration": "test"},
+            variables_delivered=frozenset({self._kind}),
+        )
+
+
+@pytest.mark.parametrize(
+    "native_key,provider,kind,path_helper,out_column,scale",
+    [
+        ("SNOTEL", "snotel", "swe", "swe_default_observation_path", "swe", 1.0 / 25.4),
+        ("MODIS_SNOW", "modis_sca", "snow_cover", "snow_cover_default_observation_path", "sca", 1.0),
+        ("MODIS_ET", "mod16_et", "et", "modis_et_default_observation_path", "et_mm_day", 1.0),
+        ("FLUXNET_ET", "fluxnet_et", "et", "fluxnet_et_default_observation_path", "et_mm_day", 1.0),
+        ("USGS_GW", "usgs_gw", "groundwater", "groundwater_default_observation_path", "depth", 1.0),
+    ],
+)
+def test_each_kind_routes_and_writes_canonical(
+    tmp_path, native_key, provider, kind, path_helper, out_column, scale
+):
+    """Each mapped kind acquires via the backend and writes the exact file +
+    column its evaluator reads, with the kind's value scale applied."""
+    from symfluence.data.observation import paths as obs_paths
+
+    backend = _FakeObsBackend(provider, kind, value=254.0)
+    restore = _swap(R.observation_backends, "community-observation", backend)
+    try:
+        svc = _service(tmp_path, ALLOW_UNGATED_BACKENDS=True)
+        handled = svc._route_community_nonstreamflow_obs([native_key])
+
+        assert native_key in handled
+        assert backend.acquired and backend.acquired[0].provider_id == provider
+        assert backend.acquired[0].kind == kind
+
+        out_path = getattr(obs_paths, path_helper)(svc.project_dir, "bow")
+        assert out_path.exists(), f"canonical file not written at {out_path}"
+        df = pd.read_csv(out_path)
+        assert out_column in df.columns
+        # SWE is written in inches (254 mm -> 10 in); the rest are identity-scaled.
+        assert df[out_column].iloc[0] == pytest.approx(254.0 * scale)
+    finally:
+        restore()

@@ -227,6 +227,35 @@ def tws_default_observation_path(project_dir: Path, domain_name: str) -> Path:
     return resolve_data_subdir(project_dir, 'observations') / "grace" / "preprocessed" / f"{domain_name}_grace_tws_processed.csv"
 
 
+# Canonical write targets for the community-observation routing: each is the FIRST
+# path the matching evaluator searches (see the *_observation_candidates above), so
+# a community backend writing here is picked up transparently by evaluation.
+
+def swe_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default SWE observation path (first candidate the snow/swe evaluator reads)."""
+    return resolve_data_subdir(project_dir, 'observations') / "snow" / "swe" / "processed" / f"{domain_name}_swe_processed.csv"
+
+
+def snow_cover_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default snow-cover (SCA) observation path (first candidate the snow/sca evaluator reads)."""
+    return resolve_data_subdir(project_dir, 'observations') / "snow" / "sca" / "processed" / f"{domain_name}_sca_processed.csv"
+
+
+def modis_et_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default MODIS ET observation path (first candidate the ET evaluator reads for mod16)."""
+    return resolve_data_subdir(project_dir, 'observations') / "et" / "preprocessed" / f"{domain_name}_modis_et_processed.csv"
+
+
+def fluxnet_et_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default FLUXNET ET observation path (first candidate the ET evaluator reads for fluxnet)."""
+    return resolve_data_subdir(project_dir, 'observations') / "et" / "preprocessed" / f"{domain_name}_fluxnet_et_processed.csv"
+
+
+def groundwater_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default groundwater-depth observation path (first candidate the gw_depth evaluator reads)."""
+    return resolve_data_subdir(project_dir, 'observations') / "groundwater" / "depth" / "processed" / f"{domain_name}_gw_processed.csv"
+
+
 def observation_output_candidates_by_family(project_dir: Path, domain_name: str) -> Dict[str, List[Path]]:
     """Canonical + legacy candidate observation output paths by family."""
 

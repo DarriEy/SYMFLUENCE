@@ -70,6 +70,7 @@ src/symfluence/coupling/worker.py:DCouplerWorker._load_observations:except Excep
 src/symfluence/coupling/worker.py:DCouplerWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/worker.py:DCouplerWorker.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/worker.py:DCouplerWorker.run_model:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/data/acquisition/acquisition_service.py:AcquisitionService._route_community_nonstreamflow_obs:except Exception as exc:  # noqa: BLE001 — best-effort; fall back to native
 src/symfluence/data/acquisition/base.py:BaseAcquisitionHandler.plot_diagnostics:except Exception as e:  # noqa: BLE001 — diagnostic plots are non-critical
 src/symfluence/data/acquisition/handlers/__init__.py:<module>:except Exception as _e:  # noqa: BLE001 — optional handler import resilience
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer._download_latlon_grid:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -650,15 +651,9 @@ src/symfluence/models/fuse/calibration/optimizer.py:FUSEModelOptimizer._transfer
 src/symfluence/models/fuse/calibration/optimizer.py:FUSEModelOptimizer._validate_decision_param_consistency:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_application.py:_verify_para_def_write:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_application.py:apply_regionalization:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager._fix_parameter_file_indexing:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager._update_constraints_file:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.update_parameter_file:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.update_parameter_file:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.update_parameter_file:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.validate_params_for_decisions:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.verify_and_fix_parameter_files:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/models/fuse/calibration/parameter_manager.py:FUSEParameterManager.verify_and_fix_parameter_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/transfer_functions.py:ParameterTransferManager.create_distributed_para_def:except Exception as e:  # noqa: BLE001
 src/symfluence/models/fuse/calibration/worker.py:FUSEWorker._calculate_multi_gauge_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/fuse/calibration/worker.py:FUSEWorker._calculate_multi_gauge_metrics:except Exception as exc:  # noqa: BLE001 — let the existence check below surface the real failure
