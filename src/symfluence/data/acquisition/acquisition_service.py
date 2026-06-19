@@ -1181,38 +1181,236 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
-    def _community_serves_streamflow(self, provider: str) -> bool:
-        """True if a community ObservationBackend serves *provider*'s streamflow.
+    def _observation_window(self):
+        """The (start, end) ISO window for observation requests, or None."""
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        return (str(time_start), str(time_end)) if time_start and time_end else None
 
-        Mirrors ``DataManager._observation_backend_serves``: only under
-        ``DATA_ACCESS: community`` with a backend registered that actually
-        admits the provider (license/parity/provenance gate passes, no native
-        pin). When True, the native ``<PROVIDER>_STREAMFLOW`` download is skipped
-        here — ObservedDataProcessor's backend tier fetches it instead — so the
-        provider is not double-fetched (native raw + community re-fetch). Returns
-        False for every other mode, leaving the legacy native path unchanged.
+    def _community_observation_backend(self, provider: str, kind: str):
+        """Return the community ObservationBackend serving (provider, kind), else None.
+
+        The single seam through which BOTH streamflow (CSFS) and non-streamflow
+        kinds (COS: TWS/SWE/ET/...) are routed to the community tier instead of
+        the native ``evaluation.<kind>.download`` handlers. Only under
+        ``DATA_ACCESS: community`` with a backend registered that actually admits
+        the provider for this kind (license/parity gate passes, no native pin);
+        returns None for every other mode, leaving the legacy native path intact.
         """
         if not provider:
-            return False
+            return None
         data_access = str(self._get_config_value(
             lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
         if data_access != 'community':
-            return False
+            return None
         from symfluence.core.registries import R
         if not R.observation_backends.keys():
-            return False
+            return None
         from symfluence.data.backends.errors import AcquisitionError
         from symfluence.data.backends.selection import select_observation_backend
-        time_start = self._get_config_value(lambda: self.config.domain.time_start)
-        time_end = self._get_config_value(lambda: self.config.domain.time_end)
-        window = (str(time_start), str(time_end)) if time_start and time_end else None
         try:
-            select_observation_backend(
-                provider, self.config, kind='streamflow', window=window, logger=self.logger,
+            return select_observation_backend(
+                provider, self.config, kind=kind,
+                window=self._observation_window(), logger=self.logger,
             )
-            return True
         except AcquisitionError:
+            return None
+
+    def _community_serves_streamflow(self, provider: str) -> bool:
+        """True if a community ObservationBackend serves *provider*'s streamflow.
+
+        Mirrors ``DataManager._observation_backend_serves``. When True, the native
+        ``<PROVIDER>_STREAMFLOW`` download is skipped here — ObservedDataProcessor's
+        backend tier fetches it instead — so the provider is not double-fetched
+        (native raw + community re-fetch).
+        """
+        return self._community_observation_backend(provider, 'streamflow') is not None
+
+    #: Non-streamflow additional-obs keys that, under DATA_ACCESS: community, are
+    #: served by an ObservationBackend (e.g. COS) instead of the native
+    #: ``evaluation.<kind>.download`` handler. Maps the native key -> a full adapter
+    #: spec ``(cos_provider, kind, output_path_helper, out_column, value_scale)``:
+    #:
+    #:  * ``output_path_helper`` — the name of a ``data.observation.paths`` helper
+    #:    returning the FIRST file the matching evaluator searches, so the canonical
+    #:    write is picked up transparently;
+    #:  * ``out_column`` — the column name that evaluator reads the observed value
+    #:    from;
+    #:  * ``value_scale`` — factor applied to the COS canonical value to match the
+    #:    evaluator's expected magnitude/unit. Identity for kinds whose canonical
+    #:    unit already matches; ``1/25.4`` for SWE because the snow evaluator
+    #:    force-converts inches->mm by magnitude (threshold 250), so COS mm is
+    #:    written as inches to reconstruct the correct mm downstream.
+    #:
+    #: The community backend acquires AND reduces in one call;
+    #: :meth:`_route_community_nonstreamflow_obs` then writes the canonical file and
+    #: the native handler is skipped. Gridded COS connectors (grace, mod16_et,
+    #: modis_sca) reduce a SUPPLIED granule (live-fetch is not wired in COS v0.1.0):
+    #: only GRACE has a pre-staged-mascon convention here, so the other gridded
+    #: providers decline and fall back to native; the point/tower connectors
+    #: (snotel, usgs_gw, fluxnet_et) fetch live.
+    _COMMUNITY_NONSTREAMFLOW_OBS = {
+        'GRACE':      ('grace',      'tws',         'tws_default_observation_path',         'grace_jpl_anomaly', 1.0),
+        'SNOTEL':     ('snotel',     'swe',         'swe_default_observation_path',         'swe',               1.0 / 25.4),
+        'MODIS_SNOW': ('modis_sca',  'snow_cover',  'snow_cover_default_observation_path',  'sca',               1.0),
+        'MODIS_ET':   ('mod16_et',   'et',          'modis_et_default_observation_path',    'et_mm_day',         1.0),
+        'FLUXNET_ET': ('fluxnet_et', 'et',          'fluxnet_et_default_observation_path',  'et_mm_day',         1.0),
+        'USGS_GW':    ('usgs_gw',    'groundwater', 'groundwater_default_observation_path', 'depth',             1.0),
+    }
+
+    def _route_community_nonstreamflow_obs(self, additional_obs) -> set:
+        """Acquire community-served non-streamflow observations via the backend tier.
+
+        For each additional-obs key whose (provider, kind) a community backend
+        serves, acquire through the backend and write the canonical processed
+        file the evaluators read; return the set of keys handled so the caller
+        drops them from the native task list. Best-effort: a community failure
+        logs a warning and leaves the native key in place (graceful fallback).
+        No-op unless ``DATA_ACCESS: community`` with a backend registered.
+        """
+        handled: set = set()
+        for obs_type in list(additional_obs):
+            spec = self._COMMUNITY_NONSTREAMFLOW_OBS.get(str(obs_type).upper())
+            if not spec:
+                continue
+            provider, kind = spec[0], spec[1]
+            backend = self._community_observation_backend(provider, kind)
+            if backend is None:
+                continue
+            try:
+                if self._acquire_observation_via_backend(backend, spec):
+                    handled.add(obs_type)
+                    self.logger.info(
+                        f"Observation '{obs_type}' ({kind}) served by the "
+                        f"'{backend.name}' community backend; skipping native download."
+                    )
+            except Exception as exc:  # noqa: BLE001 — best-effort; fall back to native
+                self.logger.warning(
+                    f"Community acquisition of {obs_type} via '{backend.name}' failed "
+                    f"({exc}); falling back to the native handler."
+                )
+        return handled
+
+    def _acquire_observation_via_backend(self, backend, spec: tuple) -> bool:
+        """Acquire one (provider, kind) via *backend*, write its canonical file.
+
+        *spec* is a :data:`_COMMUNITY_NONSTREAMFLOW_OBS` entry
+        ``(provider, kind, path_helper, out_column, value_scale)``.
+        """
+        from symfluence.data.backends.contract import ObservationRequest
+
+        provider, kind, path_helper, out_column, value_scale = spec
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
+        raw_dir = resolve_data_subdir(self.project_dir, 'observations') / kind / 'community_raw'
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        # Spatial-reduction context for gridded products (basin-mean needs a bbox).
+        # The backend reads these from request.options; translate the SYMFLUENCE bbox
+        # "lat_max/lon_min/lat_min/lon_max" to the (lat_min, lon_min, lat_max,
+        # lon_max) order COS expects.
+        options: Dict[str, Any] = {'domain_name': domain_name}
+        bbox = self._get_config_value(
+            lambda: self.config.domain.bounding_box_coords, dict_key='BOUNDING_BOX_COORDS')
+        if bbox:
+            try:
+                lat_max, lon_min, lat_min, lon_max = (float(x) for x in str(bbox).split('/'))
+                options['bbox'] = (lat_min, lon_min, lat_max, lon_max)
+            except (ValueError, TypeError):
+                self.logger.debug(f"Could not parse BOUNDING_BOX_COORDS {bbox!r} for community obs reduction")
+        connector_config = self._community_connector_config(provider)
+        if connector_config:
+            options['connector_config'] = connector_config
+        request = ObservationRequest(
+            provider_id=provider, station_ids=(), kind=kind,
+            window=self._observation_window(), target_dir=raw_dir, options=options,
+        )
+        result = backend.acquire(request)
+        return self._write_community_obs_output(
+            result, domain_name, path_helper=path_helper,
+            out_column=out_column, value_scale=value_scale,
+        )
+
+    def _community_connector_config(self, provider: str) -> Dict[str, Any]:
+        """COS connector config for a community provider (a supplied granule, if any).
+
+        Gridded COS connectors reduce a supplied NetCDF (Earthdata live-fetch is not
+        wired in COS v0.1.0). Only GRACE has a pre-staged-mascon convention here, so
+        the other gridded providers (mod16_et, modis_sca) return ``{}`` and decline
+        -> fall back to native. The point/tower connectors fetch live (no file).
+        """
+        if provider == 'grace':
+            return self._community_grace_connector_config()
+        return {}
+
+    def _community_grace_connector_config(self) -> Dict[str, Any]:
+        """COS connector config for GRACE: a downloaded mascon NetCDF to reduce.
+
+        COS's GRACE connector reduces a supplied NetCDF (its Earthdata live fetch
+        is not yet implemented in v0.1.0), so we point it at an already-downloaded
+        mascon under ``observations/grace/`` — preferring the JPL RL06 product the
+        config selects. Returns ``{}`` when none is present, in which case COS
+        declines and the routing falls back to the native GRACE handler.
+        """
+        grace_dir = resolve_data_subdir(self.project_dir, 'observations') / 'grace'
+        if not grace_dir.exists():
+            return {}
+        ncs = sorted(grace_dir.glob('*.nc'))
+        if not ncs:
+            return {}
+        preferred = [p for p in ncs if 'JPL' in p.name.upper()] or ncs
+        return {'nc_path': str(preferred[0])}
+
+    def _write_community_obs_output(
+        self, result, domain_name: str, *, path_helper: str, out_column: str, value_scale: float = 1.0,
+    ) -> bool:
+        """Adapt a community observation delivery (OBS_CSV_V1) to its canonical file.
+
+        COS delivers a per-site OBS_CSV_V1 table (``datetime, value, quality_flag``);
+        each evaluator reads a specific file + column. We take the value column,
+        scale it to the evaluator's expected unit (``value_scale``), rename it to
+        ``out_column``, aggregate to one series per ``datetime`` (basin-representative
+        mean across delivered sites), and write the first path the evaluator searches
+        (``path_helper`` in :mod:`symfluence.data.observation.paths`). Returns False
+        when nothing usable was delivered, so the routing falls back to native.
+
+        Unit notes: TWS is correlation-scored (scale-invariant — COS mm vs native cm
+        does not affect it); SWE is written in inches (COS mm * 1/25.4) because the
+        snow evaluator force-converts inches->mm by magnitude; the rest already match
+        the evaluator's expected unit.
+        """
+        import pandas as pd
+
+        from symfluence.data.observation import paths as _obs_paths
+
+        if not result.paths:
             return False
+        # OBS_CSV_V1 always delivers a 'value' column; the kind-specific names cover
+        # backends that label it (e.g. the GRACE 'tws_anomaly_mm' delivery).
+        value_candidates = (
+            'value', 'tws_anomaly_mm', 'tws_anomaly', 'swe_mm', 'et_mm_day',
+            'sca_fraction', 'sca', 'groundwater_level',
+        )
+        frames = []
+        for path in result.paths:
+            df = pd.read_csv(path)
+            if 'datetime' not in df.columns:
+                continue
+            value_col = next((c for c in value_candidates if c in df.columns), None)
+            if value_col is None:
+                continue
+            frames.append(df[['datetime', value_col]].rename(columns={value_col: out_column}))
+        if not frames:
+            return False
+        out = pd.concat(frames).groupby('datetime', as_index=False)[out_column].mean()
+        if value_scale != 1.0:
+            out[out_column] = out[out_column] * value_scale
+        out_path = getattr(_obs_paths, path_helper)(self.project_dir, domain_name)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(out_path, index=False)
+        self.logger.info(
+            f"Wrote canonical community observations to {out_path} ({len(out)} rows, col '{out_column}')"
+        )
+        return True
 
     def acquire_observations(self):
         """
@@ -1315,6 +1513,17 @@ class AcquisitionService(ConfigurableMixin):
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
                 additional_obs.append('MODIS_ET')
 
+        if not additional_obs:
+            return
+
+        # Under DATA_ACCESS: community, route non-streamflow kinds (GRACE TWS, …)
+        # through the ObservationBackend tier (COS) instead of the native
+        # evaluation.<kind>.download handler, mirroring the streamflow routing.
+        # Handled keys are dropped from the native task list below; anything the
+        # community tier declines or fails on falls back to its native handler.
+        community_handled = self._route_community_nonstreamflow_obs(additional_obs)
+        if community_handled:
+            additional_obs = [o for o in additional_obs if o not in community_handled]
         if not additional_obs:
             return
 
