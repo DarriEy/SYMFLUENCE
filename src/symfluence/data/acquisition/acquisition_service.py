@@ -1321,7 +1321,7 @@ class AcquisitionService(ConfigurableMixin):
         if connector_config:
             options['connector_config'] = connector_config
         request = ObservationRequest(
-            provider_id=provider, station_ids=(), kind=kind,
+            provider_id=provider, station_ids=self._community_station_ids(provider), kind=kind,
             window=self._observation_window(), target_dir=raw_dir, options=options,
         )
         result = backend.acquire(request)
@@ -1341,6 +1341,30 @@ class AcquisitionService(ConfigurableMixin):
         if provider == 'grace':
             return self._community_grace_connector_config()
         return {}
+
+    def _community_station_ids(self, provider: str) -> tuple:
+        """Explicit station ids for a point/tower community provider.
+
+        Point networks (SNOTEL, USGS groundwater) and flux towers (FLUXNET) select
+        by station, read from the SAME config the native handler uses — so a domain
+        that already names its station is served by COS without extra config.
+        Gridded providers (grace/tws, mod16_et, modis_sca) select by bbox and get
+        no station ids. A comma-separated config value yields multiple stations.
+        """
+        raw: Any = None
+        if provider == 'snotel':
+            raw = (self._get_config_value(lambda: self.config.evaluation.snotel.station, dict_key='SNOTEL_STATION')
+                   or self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID'))
+        elif provider == 'fluxnet_et':
+            raw = self._get_config_value(lambda: self.config.evaluation.fluxnet.station, dict_key='FLUXNET_STATION')
+        elif provider == 'usgs_gw':
+            raw = (self._get_config_value(lambda: self.config.data.usgs_site_code, dict_key='USGS_SITE_CODE')
+                   or self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID'))
+        if not raw:
+            return ()
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(s).strip() for s in raw if str(s).strip())
+        return tuple(s.strip() for s in str(raw).split(',') if s.strip())
 
     def _community_grace_connector_config(self) -> Dict[str, Any]:
         """COS connector config for GRACE: a downloaded mascon NetCDF to reduce.
