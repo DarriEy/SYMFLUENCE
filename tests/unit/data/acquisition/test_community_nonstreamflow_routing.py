@@ -221,3 +221,52 @@ def test_each_kind_routes_and_writes_canonical(
         assert df[out_column].iloc[0] == pytest.approx(254.0 * scale)
     finally:
         restore()
+
+
+def test_station_ids_resolved_from_native_config(tmp_path):
+    """Point/tower providers pass the station the native handler's config names;
+    gridded providers select by bbox (no station ids)."""
+    svc = _service(tmp_path, SNOTEL_STATION="679:WA:SNTL", FLUXNET_STATION="US-Ne1",
+                   USGS_SITE_CODE="375907091433301")
+    assert svc._community_station_ids("snotel") == ("679:WA:SNTL",)
+    assert svc._community_station_ids("fluxnet_et") == ("US-Ne1",)
+    assert svc._community_station_ids("usgs_gw") == ("375907091433301",)
+    # gridded -> bbox-based, no station ids
+    assert svc._community_station_ids("grace") == ()
+    assert svc._community_station_ids("mod16_et") == ()
+    # comma-separated -> multiple stations
+    svc2 = _service(tmp_path, SNOTEL_STATION="679:WA:SNTL, 999:OR:SNTL")
+    assert svc2._community_station_ids("snotel") == ("679:WA:SNTL", "999:OR:SNTL")
+
+
+@pytest.mark.live
+def test_live_acceptance_snotel_swe_through_cos(tmp_path):
+    """LIVE acceptance: real SNOTEL SWE acquired via COS and written as the canonical
+    swe file (inches) the snow evaluator reads — end-to-end through #247 routing.
+
+    Requires COS installed + network. snotel is graded LIVE + redistribution=open,
+    so it is admitted WITHOUT ALLOW_UNGATED_BACKENDS.
+    Run: pytest -m live tests/unit/data/acquisition/test_community_nonstreamflow_routing.py
+    """
+    pytest.importorskip("cos")
+    import cos.integrations.symfluence as integ
+
+    from symfluence.data.observation.paths import swe_default_observation_path
+
+    integ.register()
+    svc = _service(
+        tmp_path, SNOTEL_STATION="679:WA:SNTL",
+        BOUNDING_BOX_COORDS="47.3/-122.0/46.5/-121.2",
+    )
+    # Use the experiment window from _service (2002-2017) — Paradise has a long POR.
+    handled = svc._route_community_nonstreamflow_obs(["SNOTEL"])
+    assert handled == {"SNOTEL"}, "SNOTEL not served by COS (gate decline or empty fetch)"
+
+    out = swe_default_observation_path(svc.project_dir, "bow")
+    assert out.exists(), f"canonical SWE file not written at {out}"
+    df = pd.read_csv(out)
+    assert list(df.columns) == ["datetime", "swe"]
+    assert len(df) > 100  # a multi-year daily SWE series
+    # Written in inches (COS mm * 1/25.4); Paradise peaks well above 10 in but
+    # below the evaluator's 250-threshold, so the inches round-trip is correct.
+    assert 0.0 <= df["swe"].min() and df["swe"].max() < 250.0
