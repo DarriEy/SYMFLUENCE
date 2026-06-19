@@ -11,11 +11,13 @@ domain:
   definition_method: semidistributed
   pour_point_coords: 51.1722/-115.5717
   bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  dem_source: copdem90
   delineation:
     routing: distributed
-    geofabric_type: TDX
-    stream_threshold: 5000
-  discretization: elevation_bands
+    # TauDEM delineation from the 90 m DEM (not a TDX subset). stream_threshold
+    # 3400 on the 90 m DEM reproduces the published 49 GRUs / 49 segments.
+    stream_threshold: 3400
+  discretization: elevation
   elevation_band_size: 200
   time_start: 2002-01-01 01:00
   time_end: 2009-12-31 23:00

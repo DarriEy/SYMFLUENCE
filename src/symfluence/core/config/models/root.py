@@ -41,6 +41,18 @@ def _sanitize_cwd() -> Path:
     return Path(*clean) if len(clean) != len(parts) else cwd
 
 
+# Legacy spatial-mode tokens that older configs placed in the discretization key
+# (before DOMAIN_DEFINITION_METHOD existed), mapped to the canonical method.
+# Deliberately excludes 'lumped' and 'point', which are valid discretization values
+# in their own right ('lumped' = a single HRU per GRU).
+_LEGACY_SPATIAL_MODE_TOKENS = {
+    'semi_distributed': 'semidistributed',
+    'semi-distributed': 'semidistributed',
+    'semidistributed': 'semidistributed',
+    'distributed': 'distributed',
+}
+
+
 class SymfluenceConfig(BaseModel):
     """
     Hierarchical root configuration model for SYMFLUENCE.
@@ -99,6 +111,57 @@ class SymfluenceConfig(BaseModel):
     # CROSS-FIELD VALIDATORS (from original model)
     # ========================================
 
+    @classmethod
+    def _migrate_legacy_spatial_mode(cls, values: dict) -> None:
+        """Back-compat: migrate spatial mode expressed in the discretization key.
+
+        Older flat configs (pre-DOMAIN_DEFINITION_METHOD) set the spatial mode via
+        ``SUB_GRID_DISCRETIZATION``/``DOMAIN_DISCRETIZATION: semi_distributed`` (etc.).
+        When ``DOMAIN_DEFINITION_METHOD`` is absent and the discretization key holds
+        such a spatial-mode token, move it to ``DOMAIN_DEFINITION_METHOD`` and reset
+        the discretization to ``GRUs`` (one HRU per GRU), with a deprecation warning.
+        Mutates ``values`` in place; no-op for current configs.
+        """
+        if values.get('DOMAIN_DEFINITION_METHOD'):
+            return
+
+        def _spatial_token(key):
+            v = values.get(key)
+            if isinstance(v, str):
+                return _LEGACY_SPATIAL_MODE_TOKENS.get(v.strip().lower())
+            return None
+
+        # Find the discretization key that holds a spatial-mode token (canonical
+        # SUB_GRID_DISCRETIZATION wins over its legacy DOMAIN_DISCRETIZATION alias).
+        disc_key = next(
+            (k for k in ('SUB_GRID_DISCRETIZATION', 'DOMAIN_DISCRETIZATION') if _spatial_token(k)),
+            None,
+        )
+        if disc_key is None:
+            return
+        canonical = _spatial_token(disc_key)
+
+        warnings.warn(
+            f"{disc_key}: '{values[disc_key]}' is a legacy spatial-mode value. Set "
+            f"DOMAIN_DEFINITION_METHOD: {canonical} and use SUB_GRID_DISCRETIZATION "
+            f"for the sub-grid method (e.g. 'GRUs', 'elevation'). Auto-migrated for now.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        values['DOMAIN_DEFINITION_METHOD'] = canonical
+
+        # Preserve a genuine sub-grid method if the *other* discretization key
+        # carries one (e.g. SUB_GRID='semi_distributed' + DOMAIN_DISCRETIZATION='elevation');
+        # otherwise default to one HRU per GRU. Either way SUB_GRID_DISCRETIZATION is
+        # the single key that survives, so the required-field check still passes.
+        other_key = 'DOMAIN_DISCRETIZATION' if disc_key == 'SUB_GRID_DISCRETIZATION' else 'SUB_GRID_DISCRETIZATION'
+        other_val = values.get(other_key)
+        if isinstance(other_val, str) and _spatial_token(other_key) is None:
+            values['SUB_GRID_DISCRETIZATION'] = other_val
+        else:
+            values['SUB_GRID_DISCRETIZATION'] = 'GRUs'
+        values.pop('DOMAIN_DISCRETIZATION', None)
+
     @model_validator(mode='before')
     @classmethod
     def normalize_flat_config(cls, values):
@@ -107,6 +170,8 @@ class SymfluenceConfig(BaseModel):
             return values
         if not isinstance(values, dict):
             return values
+
+        cls._migrate_legacy_spatial_mode(values)
 
         from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
         from symfluence.core.config.transformers import transform_flat_to_nested

@@ -11,9 +11,10 @@ domain:
   definition_method: lumped
   pour_point_coords: 51.1722/-115.5717
   bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  dem_source: copdem90
   delineation:
     routing: lumped
-  discretization: elevation_bands
+  discretization: elevation
   elevation_band_size: 200
   time_start: 2002-01-01 01:00
   time_end: 2009-12-31 23:00

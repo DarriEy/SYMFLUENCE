@@ -260,39 +260,16 @@ class AcquisitionService(ConfigurableMixin):
         if bbox_str:
             return bbox_str
 
-        definition_method = str(self._get_config_value(
-            lambda: self.config.domain.definition_method, default=''
-        )).lower()
-        pour_point = self._get_config_value(
-            lambda: self.config.domain.pour_point_coords, default=None
-        )
-
-        if definition_method == 'point' and pour_point:
-            try:
-                lat_str, lon_str = str(pour_point).split('/')
-                lat, lon = float(lat_str), float(lon_str)
-            except (ValueError, AttributeError) as exc:
-                raise ValueError(
-                    f"Cannot auto-derive BOUNDING_BOX_COORDS for {purpose}: "
-                    f"POUR_POINT_COORDS='{pour_point}' is not in 'lat/lon' format."
-                ) from exc
-
-            buffer = self._get_config_value(
-                lambda: self.config.domain.delineation.point_buffer_distance,
-                default=None,
-                dict_key='POINT_BUFFER_DISTANCE',
-            )
-            if buffer is None:
-                buffer = 0.01  # ~1 km at the equator
-            buffer = float(buffer)
-
-            derived = f"{lat + buffer}/{lon - buffer}/{lat - buffer}/{lon + buffer}"
+        # Point domains may be configured with only POUR_POINT_COORDS; the shared
+        # helper on ConfigMixin derives the square extent (single source of truth,
+        # also used by the point delineator and acquisition handlers).
+        derived = self._resolve_point_bbox()
+        if derived:
             if not self._auto_bbox_logged:
                 self.logger.info(
-                    f"BOUNDING_BOX_COORDS not set; auto-derived {derived} "
-                    f"from POUR_POINT_COORDS={pour_point} with buffer={buffer}° "
-                    f"(point domain). Override by setting BOUNDING_BOX_COORDS "
-                    f"explicitly or POINT_BUFFER_DISTANCE."
+                    f"BOUNDING_BOX_COORDS not set; auto-derived {derived} from "
+                    f"POUR_POINT_COORDS (point domain). Override by setting "
+                    f"BOUNDING_BOX_COORDS explicitly or POINT_BUFFER_DISTANCE."
                 )
                 self._auto_bbox_logged = True
             return derived

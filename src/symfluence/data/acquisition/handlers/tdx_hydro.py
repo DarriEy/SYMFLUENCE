@@ -17,8 +17,9 @@ Primary Source:
     ~7M global river segments organized by ~125 VPUs
     Format: GeoParquet (catchments), GeoPackage (streams)
 
-Column Convention (matches subsetter TDX type):
-    streamID, LINKNO, DSLINKNO, USLINKNO1, USLINKNO2
+Column Convention (GEOGLOWS V2, matches subsetter TDX type):
+    catchments parquet: linkno, geometry
+    streams gpkg: LINKNO, DSLINKNO (downstream pointer, terminal == -1), ...
 
 References:
     - Sanchez Lozano et al. (2021). A Streamflow-Based Global River Network
@@ -116,7 +117,8 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
             nearest_idx = distances.idxmin()
             matching_vpus = vpu_index.iloc[[nearest_idx]]
 
-        vpu_ids = matching_vpus["VPUCode"].unique().tolist()
+        vpu_col = self._resolve_vpu_column(matching_vpus)
+        vpu_ids = matching_vpus[vpu_col].unique().tolist()
         self.logger.info(f"Matched VPU(s): {vpu_ids}")
 
         session = create_robust_session(max_retries=5, backoff_factor=2.0)
@@ -171,6 +173,38 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         lat = (self.bbox['lat_min'] + self.bbox['lat_max']) / 2
         lon = (self.bbox['lon_min'] + self.bbox['lon_max']) / 2
         return lat, lon
+
+    @staticmethod
+    def _resolve_vpu_column(frame) -> str:
+        """Resolve the VPU identifier column across GEOGLOWS schema versions.
+
+        The current GEOGLOWS V2 ``vpu-boundaries.gpkg`` names the field ``VPU``,
+        while older index releases used ``VPUCode``. Prefer ``VPU`` and fall back
+        to ``VPUCode`` (case-insensitive), so both schemas resolve without a
+        KeyError.
+
+        Args:
+            frame: GeoDataFrame/DataFrame with VPU boundary attributes
+
+        Returns:
+            Name of the column holding the VPU identifier
+
+        Raises:
+            KeyError: If no recognized VPU column is present
+        """
+        candidates = ('VPU', 'VPUCode')
+        columns = list(frame.columns)
+        lower_map = {str(c).lower(): c for c in columns}
+        for candidate in candidates:
+            if candidate in columns:
+                return candidate
+            actual = lower_map.get(candidate.lower())
+            if actual is not None:
+                return actual
+        raise KeyError(
+            "No VPU identifier column found in GEOGLOWS VPU boundary index. "
+            f"Expected one of {candidates}; available columns: {columns}"
+        )
 
     def _get_vpu_index(self, cache_dir: Path):
         """Download or load cached VPU boundary index.
@@ -257,7 +291,11 @@ class TDXHydroAcquirer(BaseAcquisitionHandler, RetryMixin):
         import geopandas as gpd
         import pandas as pd
 
-        gdfs = [gpd.read_parquet(p) for p in file_paths if p.exists()]
+        from symfluence.geospatial.geofabric.utils.io_utils import GeofabricIOUtils
+
+        # Read through the shared loader, which handles the pyarrow/GDAL Arrow
+        # 'file'-scheme collision in one place.
+        gdfs = [GeofabricIOUtils.load_geopandas(p, self.logger) for p in file_paths if p.exists()]
         if gdfs:
             merged = pd.concat(gdfs, ignore_index=True)
             merged = gpd.GeoDataFrame(merged, crs=gdfs[0].crs)
