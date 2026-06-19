@@ -10,6 +10,9 @@ domain:
   name: Iceland_coastal
   definition_method: semidistributed
   bounding_box_coords: 66.6/-24.6/63.2/-13.2
+  # River-basin GRUs are subset from the TDX-Hydro geofabric (paper Fig 3b);
+  # subset_from_geofabric must be set to use TDX rather than TauDEM delineation.
+  subset_from_geofabric: true
   delineation:
     routing: distributed
     delineate_coastal_watersheds: true

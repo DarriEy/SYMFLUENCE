@@ -12,9 +12,13 @@ domain:
   definition_method: lumped
   pour_point_coords: 51.1722/-115.5717
   bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  dem_source: copdem90
   delineation:
-    routing: distributed
-  discretization: elevation_bands
+    # river_network triggers delineation of the routing network alongside the
+    # single lumped GRU; stream_threshold 3400 on the 90 m DEM gives 49 segments.
+    routing: river_network
+    stream_threshold: 3400
+  discretization: elevation
   elevation_band_size: 200
   time_start: 2002-01-01 01:00
   time_end: 2009-12-31 23:00
