@@ -8,8 +8,13 @@ system:
 domain:
   name: Iceland_regional
   definition_method: semidistributed
+  # Iceland's 6,606 river-basin GRUs are subset from the TDX-Hydro geofabric
+  # (paper Fig 3a), NOT delineated with TauDEM. subset_from_geofabric must be
+  # set or the workflow falls back to a (very large) TauDEM delineation.
+  subset_from_geofabric: true
   delineation:
     routing: distributed
+    geofabric_type: TDX
   time_start: 2000-01-01 01:00
   time_end: 2008-12-31 23:00
   discretization: GRUs
