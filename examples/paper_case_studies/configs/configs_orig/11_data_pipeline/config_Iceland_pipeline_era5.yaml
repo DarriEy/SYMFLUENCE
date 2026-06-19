@@ -21,20 +21,22 @@ FORCE_RUN_ALL_STEPS: False
 
 # --- Section 2: Geospatial settings ---
 POUR_POINT_SHP_PATH: default
-POUR_POINT_COORDS: default
-DOMAIN_DEFINITION_METHOD: geofabric
+POUR_POINT_COORDS: 63.93/-21.03
+BOUNDING_BOX_COORDS: 66.6/-24.6/63.2/-13.2   # Iceland extent (lat_max/lon_min/lat_min/lon_max)
+DOMAIN_DEFINITION_METHOD: semidistributed
+SUBSET_FROM_GEOFABRIC: true                  # Iceland GRUs are subset from TDX-Hydro
 GEOFABRIC_TYPE: TDX
 BOUNDING_BOX_BUFFER: 0.2
 
 # Regional discretization (6,600 GRUs -> 21,474 HRUs with elevation bands)
-DOMAIN_DISCRETIZATION: semi_distributed
+SUB_GRID_DISCRETIZATION: GRUs
 CATCHMENT_SHP_PATH: default
 RIVER_NETWORK_SHP_PATH: default
 ELEVATION_BAND_SIZE: 200  # metres
 MIN_HRU_SIZE: 10.0        # km² (larger minimum for regional domain)
 
 # DEM and geospatial attributes
-DEM_SOURCE: copernicus   # Cloud-reachable default (Copernicus GLO-30). Use 'merit_hydro' only with DATA_ACCESS: hpc via MAF gistool.
+DEM_SOURCE: copdem90   # Copernicus GLO-90 (90 m) reproduces the paper's domain delineation ('copernicus' = 30 m; 'merit_hydro' needs DATA_ACCESS: hpc).
 DEM_PATH: default
 SOIL_CLASS_PATH: default
 LAND_CLASS_PATH: default
