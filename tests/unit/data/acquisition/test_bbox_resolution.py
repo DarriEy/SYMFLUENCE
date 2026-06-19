@@ -141,3 +141,54 @@ def test_paradise_point_config_resolves_bbox(tmp_path):
     # pour_point_coords: 46.78/-121.75 + default buffer 0.01°
     assert parts[0] == pytest.approx(46.79)
     assert parts[2] == pytest.approx(46.77)
+
+
+# ---------------------------------------------------------------------------
+# Shared ConfigMixin._resolve_point_bbox helper — single source of truth used
+# by AcquisitionService, BaseAcquisitionHandler, and PointDelineator.
+# ---------------------------------------------------------------------------
+
+def test_resolve_point_bbox_point_default_buffer(tmp_path):
+    """Point domain with only a pour point → 0.01° square (north/west/south/east)."""
+    svc = _service(tmp_path, DOMAIN_DEFINITION_METHOD="point", POUR_POINT_COORDS="46.78/-121.75")
+    assert svc._resolve_point_bbox() == "46.79/-121.76/46.77/-121.74"
+
+
+def test_resolve_point_bbox_custom_buffer(tmp_path):
+    """POINT_BUFFER_DISTANCE is honored via the canonical domain field."""
+    svc = _service(
+        tmp_path, DOMAIN_DEFINITION_METHOD="point",
+        POUR_POINT_COORDS="50.0/-120.0", POINT_BUFFER_DISTANCE=0.05,
+    )
+    assert svc._resolve_point_bbox() == "50.05/-120.05/49.95/-119.95"
+
+
+def test_resolve_point_bbox_non_point_returns_none(tmp_path):
+    """Non-point domains do not auto-derive (caller decides how to handle)."""
+    svc = _service(tmp_path, DOMAIN_DEFINITION_METHOD="lumped", POUR_POINT_COORDS="50.0/-120.0")
+    assert svc._resolve_point_bbox() is None
+
+
+def test_resolve_point_bbox_missing_pour_point_returns_none(tmp_path):
+    """Point domain without a pour point yields None rather than guessing."""
+    svc = _service(tmp_path, DOMAIN_DEFINITION_METHOD="point")
+    assert svc._resolve_point_bbox() is None
+
+
+def test_malformed_pour_point_rejected_at_config_validation(tmp_path):
+    """A malformed pour point is caught at config validation, never reaching the
+    helper — so the helper only ever sees well-formed 'lat/lon' strings."""
+    from symfluence.core.exceptions import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="POUR_POINT_COORDS"):
+        _service(tmp_path, DOMAIN_DEFINITION_METHOD="point", POUR_POINT_COORDS="not-a-coordinate")
+
+
+def test_resolve_point_bbox_shared_across_call_sites():
+    """The helper has a single definition on ConfigMixin (no per-class copies)."""
+    from symfluence.core.mixins.config import ConfigMixin
+    from symfluence.data.acquisition.base import BaseAcquisitionHandler
+    from symfluence.geospatial.geofabric.delineators.point_delineator import PointDelineator
+
+    for cls in (AcquisitionService, BaseAcquisitionHandler, PointDelineator):
+        assert cls._resolve_point_bbox is ConfigMixin._resolve_point_bbox
