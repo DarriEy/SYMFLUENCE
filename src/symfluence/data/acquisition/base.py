@@ -70,6 +70,11 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         self.bbox = self._parse_bbox(self._get_config_value(
             lambda: self.config.domain.bounding_box_coords, default=None,
             dict_key='BOUNDING_BOX_COORDS'))
+        if not self.bbox:
+            # Point domains may set only POUR_POINT_COORDS; derive the same square
+            # extent the delineator and AcquisitionService use (shared ConfigMixin
+            # helper) so cloud handlers (DEM, forcing, …) have a bbox to fetch.
+            self.bbox = self._parse_bbox(self._resolve_point_bbox())
         self.start_date = pd.to_datetime(self._get_config_value(
             lambda: self.config.domain.time_start, default=None,
             dict_key='EXPERIMENT_TIME_START'))
