@@ -49,7 +49,20 @@ class GeofabricIOUtils:
             raise FileNotFoundError(f"Geospatial file not found: {path}")
 
         suffix = path.suffix.lower()
-        if suffix == '.parquet':
+        # A partitioned .parquet *directory* must be resolved from its path, so
+        # only single files take the file-handle path below.
+        if suffix == '.parquet' and path.is_file():
+            # Pass an open binary handle rather than the path. When GDAL (loaded
+            # via fiona/pyogrio/rasterio elsewhere in the process) has registered
+            # the 'file' VSI scheme in its bundled Arrow, pyarrow's own
+            # LocalFileSystem() construction — triggered when read_parquet resolves
+            # a path string — raises ArrowKeyError("scheme 'file' already
+            # registered"). Handing pyarrow a file-like object skips filesystem
+            # resolution entirely, so the two Arrow copies never collide.
+            with open(path, 'rb') as fh:
+                gdf = gpd.read_parquet(fh)
+        elif suffix == '.parquet':
+            # Partitioned dataset directory — pyarrow resolves it from the path.
             gdf = gpd.read_parquet(path)
         else:
             gdf = gpd.read_file(path)
