@@ -105,7 +105,18 @@ class ForcingsStoreBuilder:
     # ------------------------------------------------------------------
 
     def _create_links(self, nc_files: list) -> None:
-        """Create symlinks or copies from source to target directory."""
+        """Create symlinks or copies from source to target directory.
+
+        Prunes stale target entries first: a store built from an earlier, smaller source set (e.g.
+        before basin-averaging extended the forcing to the full period) must reconcile against the
+        current source on rebuild, not just add missing links -- otherwise it keeps serving the old,
+        truncated file set.
+        """
+        current = {src.name for src in nc_files}
+        for existing in self.target_dir.glob('*.nc'):
+            if existing.name not in current:
+                existing.unlink()
+                logger.debug("Pruned stale forcing link %s", existing.name)
         for src_file in nc_files:
             dst = self.target_dir / src_file.name
             if dst.exists() or dst.is_symlink():
