@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.config.models.optimization import MultiGaugeConfig
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
@@ -55,6 +56,32 @@ BENCHMARK_CONFIGS = [
     ("config_bow_benchmark_gr4j.yaml",  "GR4J"),
     ("config_bow_benchmark_hype.yaml",  "HYPE"),
 ]
+
+
+def test_multi_gauge_accepts_int_ids_and_mapping_path():
+    """The large_domain (Iceland) configs supply integer LaMAH-Ice gauge IDs in
+    MULTI_GAUGE_EXCLUDE_IDS and a CSV *path string* in GAUGE_SEGMENT_MAPPING —
+    exactly what the calibration workers read back via flat ``config.get(...)``.
+
+    A prior change typed exclude_ids as ``List[str]`` and gauge_segment_mapping
+    as ``Dict``, which made every large_domain paper config fail typed loading
+    (raising before the workers' flat access ever ran). This pins the contract:
+    integer IDs and a mapping path must both validate and round-trip unchanged.
+    """
+    cfg = MultiGaugeConfig.model_validate({
+        "MULTI_GAUGE_CALIBRATION": True,
+        "MULTI_GAUGE_EXCLUDE_IDS": [13, 39, 104, 1010],  # ints, not strings
+        "GAUGE_SEGMENT_MAPPING": "/data/domain_X/settings/mizuRoute/gauge_segment_mapping.csv",
+    })
+    assert cfg.exclude_ids == [13, 39, 104, 1010]
+    assert all(isinstance(i, int) for i in cfg.exclude_ids)
+    # The mapping must stay a path string (what Path(config.get(...)) consumes),
+    # not be coerced into a dict.
+    assert isinstance(cfg.gauge_segment_mapping, str)
+    assert cfg.gauge_segment_mapping.endswith("gauge_segment_mapping.csv")
+    # The explicit-dict form must still validate for callers that pass one.
+    cfg_dict = MultiGaugeConfig.model_validate({"GAUGE_SEGMENT_MAPPING": {"1": 5979}})
+    assert cfg_dict.gauge_segment_mapping == {"1": 5979}
 
 
 @pytest.mark.parametrize("filename,expected_model", BENCHMARK_CONFIGS)
