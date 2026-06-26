@@ -363,14 +363,52 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             expected_ids = [f"cat-{x}" for x in catchment_gdf[self.hru_id_col].astype(str).tolist()]
             existing_csvs = list(csv_dir.glob("cat-*_forcing.csv"))
             if len(existing_csvs) >= len(expected_ids):
-                self.logger.info(
-                    f"Forcing files already exist ({len(existing_csvs)} CSVs, forcing.nc) — skipping regeneration. "
-                    f"Delete {self.forcing_dir} to force rebuild."
+                # Guard against a stale forcing cache written for a different
+                # module chain. NOAH-OWP/Snow-17/SAC-SMA consume precipitation in
+                # mm/s (kg m-2 s-1) whereas pure-CFE expects mm/h. If a cached CSV
+                # was produced while one of those modules was disabled (e.g. its
+                # BMI library was missing) and the module is later enabled, silently
+                # reusing the mm/h file feeds CFE 3600x too much water. Rebuild when
+                # the cached precip scale disagrees with the active chain.
+                expect_mm_per_s = (
+                    self._include_noah or self._include_snow17 or self._include_sacsma
                 )
-                self._forcing_file = forcing_nc
-                return
+                if self._forcing_precip_units_mismatch(existing_csvs[0], expect_mm_per_s):
+                    self.logger.warning(
+                        "Existing NGEN forcing precipitation is inconsistent with the "
+                        "active module chain (expected %s) — rebuilding forcing to avoid "
+                        "a unit mismatch.",
+                        "mm/s" if expect_mm_per_s else "mm/h",
+                    )
+                else:
+                    self.logger.info(
+                        f"Forcing files already exist ({len(existing_csvs)} CSVs, forcing.nc) — skipping regeneration. "
+                        f"Delete {self.forcing_dir} to force rebuild."
+                    )
+                    self._forcing_file = forcing_nc
+                    return
 
         self._forcing_file = self.prepare_forcing_data()
+
+    @staticmethod
+    def _forcing_precip_units_mismatch(csv_path: Path, expect_mm_per_s: bool) -> bool:
+        """Whether a cached NGEN forcing CSV's precip scale disagrees with the chain.
+
+        Returns True only when we can confidently tell the cached precipitation is
+        in the wrong units for the active module chain (mm/s for NOAH/Snow-17/SAC-SMA,
+        mm/h for pure-CFE). Returns False when undeterminable, so a rebuild is only
+        forced on a clear mismatch.
+        """
+        try:
+            import pandas as pd
+            col = "atmosphere_water__liquid_equivalent_precipitation_rate"
+            mean = float(pd.read_csv(csv_path, usecols=[col])[col].mean())
+        except (OSError, ValueError, KeyError):
+            return False
+        # Liquid-equivalent precip means ~1e-5 in mm/s vs ~1e-2 in mm/h; 1e-3 cleanly
+        # separates the two scales for realistic forcing.
+        looks_mm_per_s = mean < 1e-3
+        return looks_mm_per_s != expect_mm_per_s
 
     def _create_model_configs(self) -> None:
         """NGEN-specific configuration file creation."""
