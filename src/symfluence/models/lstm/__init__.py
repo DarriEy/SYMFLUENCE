@@ -54,8 +54,14 @@ from .plotter import LSTMPlotter
 
 def register() -> None:
     """Register LSTM components with the unified registry."""
+    from .postprocessor import LSTMPostProcessor
+    from .preprocessor import LSTMPreProcessor
+    from .runner import LSTMRunner
     model_manifest(
         "LSTM",
+        preprocessor=LSTMPreProcessor,
+        runner=LSTMRunner,
+        postprocessor=LSTMPostProcessor,
         config_adapter=LSTMConfigAdapter,
         result_extractor=LSTMResultExtractor,
         plotter=LSTMPlotter,

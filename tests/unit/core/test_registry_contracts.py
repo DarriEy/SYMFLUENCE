@@ -248,7 +248,6 @@ INCOMPLETE_MODELS: dict[str, str] = {
     "HBV_ROUTED": "routed variant; reuses HBV runner/preprocessor",
     "JFUSE_ROUTED": "routed variant; reuses JFUSE runner/preprocessor",
     "GNN": "ML model; runs via adapter (config_adapter + result_extractor only)",
-    "LSTM": "ML model; runs via adapter (config_adapter + result_extractor only)",
     "SNOW17": "conceptual/BMI model; runs via NGEN/BMI coupling, not standalone",
     "MIZUROUTE": "routing model; output handled by coupled postprocessing",
     "WMFIRE": "wildfire model; postprocessor-only registration",
