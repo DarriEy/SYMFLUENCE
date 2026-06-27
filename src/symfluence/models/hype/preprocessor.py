@@ -13,6 +13,7 @@ Uses the generalized pipeline pattern with manager classes for:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
 import pandas as pd
@@ -21,7 +22,10 @@ from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.hype.config_manager import HYPEConfigManager
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
-from symfluence.models.hype.geodata_manager import HYPEGeoDataManager
+from symfluence.models.hype.geodata_manager import (
+    HYPEGeoDataManager,
+    load_elevation_band_table,
+)
 
 from ..base import BaseModelPreProcessor
 
@@ -287,6 +291,21 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             geofabric_mapping=self.geofabric_mapping
         )
 
+        # When elevation banding is requested, hand the forcing processor the
+        # band table so it expands the basin-averaged obs into per-band columns
+        # (lapse-corrected) that match the banded GeoData sub-basins.
+        band_shp = self._find_elevation_band_shapefile()
+        if band_shp is not None:
+            band_table = load_elevation_band_table(band_shp)
+            if band_table:
+                lapse = self._get_config_value(
+                    lambda: self.config.forcing.lapse_rate, default=0.0065)
+                self.forcing_processor.set_elevation_bands(
+                    band_table, lapse_rate=lapse)
+                self.logger.info(
+                    "HYPE forcing will be expanded to %d elevation bands "
+                    "(lapse=%.4f K/m).", len(band_table), lapse)
+
     def copy_base_settings(self, source_dir=None, file_patterns=None):
         """
         Override base class method - HYPE generates all configs dynamically.
@@ -402,6 +421,10 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 river_path = legacy_river
                 self.logger.info(f"Using legacy river network path: {river_path.name}")
 
+        # Detect elevation-banded discretization and locate its HRU shapefile so
+        # the GeoData manager can expand each sub-basin into elevation bands.
+        elevation_band_shp = self._find_elevation_band_shapefile()
+
         # Write geographic data files using manager and get land use information
         land_uses = self.geodata_manager.create_geofiles(
             gistool_output=self.gistool_output,
@@ -411,7 +434,8 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                 lambda: self.config.model.hype.frac_threshold if self.config.model and self.config.model.hype else None,
                 default=0.05
             ),
-            intersect_base_path=self.intersect_path
+            intersect_base_path=self.intersect_path,
+            elevation_band_shapefile=elevation_band_shp
         )
 
         # Write parameter file using manager
@@ -441,3 +465,35 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # not from filedir.txt. Create symlinks in settings/HYPE/ pointing to
         # forcing files in data/forcing/HYPE_input/ so HYPE can find them.
         self._link_forcing_to_settings()
+
+    def _find_elevation_band_shapefile(self) -> Path | None:
+        """Locate the elevation-banded HRU shapefile when banding is requested.
+
+        Returns the path to ``{domain}_HRUs_*elevation*.shp`` under
+        ``shapefiles/catchment/<method>/<experiment_id>/`` when
+        ``SUB_GRID_DISCRETIZATION`` includes 'elevation', otherwise None (HYPE
+        then runs lumped, unchanged). The generic elevation discretizer writes
+        this shapefile; HYPE is the consumer added here.
+        """
+        disc = self._get_config_value(
+            lambda: self.config.domain.discretization, default='') or ''
+        if 'elevation' not in str(disc).lower():
+            return None
+
+        experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id, default='') or ''
+        catchment_root = self.project_dir / 'shapefiles' / 'catchment'
+        for pattern in (
+            f"*/{experiment_id}/{self.domain_name}_HRUs_*elevation*.shp",
+            f"*/{experiment_id}/*_HRUs_*elevation*.shp",
+        ):
+            matches = sorted(catchment_root.glob(pattern))
+            if matches:
+                self.logger.info("Using elevation-band HRU shapefile: %s", matches[0])
+                return matches[0]
+
+        self.logger.warning(
+            "SUB_GRID_DISCRETIZATION includes 'elevation' but no elevation HRU "
+            "shapefile was found under %s for experiment '%s'; HYPE stays lumped.",
+            catchment_root, experiment_id)
+        return None
