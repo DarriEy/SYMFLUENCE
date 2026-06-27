@@ -191,3 +191,61 @@ def test_multi_subbasin_drains_to_downstream_valley_band(manager):
     valley_2 = out[out["subid"] == 201].iloc[0]
     assert valley_2["maindown"] == 0
 
+# ── Forcing-side band expansion (lapse) ──────────────────────────────────────
+
+@pytest.fixture
+def forcing_processor(tmp_path):
+    from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
+    fp = HYPEForcingProcessor(
+        config={}, logger=logging.getLogger("test"),
+        forcing_input_dir=tmp_path, output_path=tmp_path, cache_path=tmp_path,
+    )
+    # three bands: 1000 m (low), 2000 m (ref-ish), 3000 m (high), equal area
+    fp.set_elevation_bands([
+        {"hru_id": 1, "elev_mean": 1000.0, "area": 1.0},
+        {"hru_id": 2, "elev_mean": 2000.0, "area": 1.0},
+        {"hru_id": 3, "elev_mean": 3000.0, "area": 1.0},
+    ], lapse_rate=0.0065)
+    return fp
+
+
+def _one_col_df():
+    idx = pd.date_range("2002-01-01", periods=4, freq="D")
+    return pd.DataFrame({1: [10.0, 10.0, 10.0, 10.0]}, index=idx)
+
+
+def test_temperature_expands_with_lapse(forcing_processor):
+    out = forcing_processor._expand_columns_to_bands(_one_col_df(), "Tobs")
+    # 3 columns keyed by hru_id
+    assert list(out.columns) == [1, 2, 3]
+    # ref_elev = 2000 (equal-area mean). Low band warmer, high band colder.
+    assert out[1].iloc[0] == pytest.approx(10.0 + 0.0065 * (2000 - 1000))  # +6.5
+    assert out[2].iloc[0] == pytest.approx(10.0)                            # at ref
+    assert out[3].iloc[0] == pytest.approx(10.0 + 0.0065 * (2000 - 3000))  # -6.5
+
+
+def test_tmax_tmin_also_lapsed(forcing_processor):
+    for var in ("TMAXobs", "TMINobs"):
+        out = forcing_processor._expand_columns_to_bands(_one_col_df(), var)
+        assert out[1].iloc[0] > out[2].iloc[0] > out[3].iloc[0]
+
+
+def test_precip_replicated_unchanged(forcing_processor):
+    out = forcing_processor._expand_columns_to_bands(_one_col_df(), "Pobs")
+    assert list(out.columns) == [1, 2, 3]
+    for c in (1, 2, 3):
+        assert (out[c].to_numpy() == 10.0).all()
+
+
+def test_no_bands_returns_input_unchanged(tmp_path):
+    from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
+    fp = HYPEForcingProcessor(
+        config={}, logger=logging.getLogger("test"),
+        forcing_input_dir=tmp_path, output_path=tmp_path, cache_path=tmp_path,
+    )
+    # No bands set -> expansion is a no-op guarded at the call site; the helper
+    # with <2 bands returns the frame as-is.
+    fp.set_elevation_bands([{"hru_id": 1, "elev_mean": 1000.0, "area": 1.0}])
+    df = _one_col_df()
+    out = fp._expand_columns_to_bands(df, "Tobs")
+    pd.testing.assert_frame_equal(out, df)

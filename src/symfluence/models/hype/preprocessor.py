@@ -22,7 +22,10 @@ from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.hype.config_manager import HYPEConfigManager
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
-from symfluence.models.hype.geodata_manager import HYPEGeoDataManager
+from symfluence.models.hype.geodata_manager import (
+    HYPEGeoDataManager,
+    load_elevation_band_table,
+)
 
 from ..base import BaseModelPreProcessor
 
@@ -287,6 +290,21 @@ class HYPEPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             output_path=self.output_path,
             geofabric_mapping=self.geofabric_mapping
         )
+
+        # When elevation banding is requested, hand the forcing processor the
+        # band table so it expands the basin-averaged obs into per-band columns
+        # (lapse-corrected) that match the banded GeoData sub-basins.
+        band_shp = self._find_elevation_band_shapefile()
+        if band_shp is not None:
+            band_table = load_elevation_band_table(band_shp)
+            if band_table:
+                lapse = self._get_config_value(
+                    lambda: self.config.forcing.lapse_rate, default=0.0065)
+                self.forcing_processor.set_elevation_bands(
+                    band_table, lapse_rate=lapse)
+                self.logger.info(
+                    "HYPE forcing will be expanded to %d elevation bands "
+                    "(lapse=%.4f K/m).", len(band_table), lapse)
 
     def copy_base_settings(self, source_dir=None, file_patterns=None):
         """
