@@ -27,6 +27,7 @@ def register() -> None:
         "PCRGLOBWB",
         preprocessor=PCRGLOBWBPreProcessor,
         runner=PCRGLOBWBRunner,
+        postprocessor=PCRGLOBWBPostProcessor,
         result_extractor=PCRGLOBWBResultExtractor,
         config_adapter=PCRGLOBWBConfigAdapter,
         build_instructions_module="symfluence.models.pcrglobwb.build_instructions",
