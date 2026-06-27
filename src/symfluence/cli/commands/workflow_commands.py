@@ -91,8 +91,13 @@ class WorkflowCommands(BaseCommand):
         BaseCommand._console.info(f"Executing step: {args.step_name}")
         BaseCommand._console.indent(WorkflowCommands.WORKFLOW_STEPS.get(args.step_name, ''))
 
+        # --force-rerun must reach the step internals (e.g. the forcing remap's
+        # per-file skip cache); plumb it as a FORCE_RUN_ALL_STEPS override so the
+        # whole config chain honours it.
+        force_rerun = BaseCommand.get_arg(args, 'force_rerun', False)
         symfluence = SYMFLUENCE(
             config_path,
+            config_overrides={'FORCE_RUN_ALL_STEPS': True} if force_rerun else None,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
             diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
@@ -127,8 +132,13 @@ class WorkflowCommands(BaseCommand):
         for step_name in args.step_names:
             BaseCommand._console.indent(f"{step_name}: {WorkflowCommands.WORKFLOW_STEPS.get(step_name, '')}")
 
+        # --force-rerun must reach the step internals (e.g. the forcing remap's
+        # per-file skip cache); plumb it as a FORCE_RUN_ALL_STEPS override so the
+        # whole config chain honours it.
+        force_rerun = BaseCommand.get_arg(args, 'force_rerun', False)
         symfluence = SYMFLUENCE(
             config_path,
+            config_overrides={'FORCE_RUN_ALL_STEPS': True} if force_rerun else None,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
             diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
