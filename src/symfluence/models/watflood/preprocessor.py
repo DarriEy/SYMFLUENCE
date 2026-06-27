@@ -178,10 +178,11 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(f"No NetCDF files in {forcing_path}")
 
         logger.info(f"Loading forcing ({len(forcing_files)} files)")
-        # Canonical model-ready forcing: pptrate (kg m-2 s-1 == mm s-1) and airtemp
-        # (K) under canonical names, with the real timestep on
-        # ds.attrs['timestep_seconds'] -- integrate precip over the ACTUAL step
-        # (CARRA is 3-hourly) rather than a hardcoded hour.
+        # open_canonical_forcing guarantees the canonical CFIF vocabulary —
+        # air_temperature (K) and precipitation_flux (kg m-2 s-1 == mm s-1),
+        # renaming aliases like pptrate/airtemp — and records the real timestep
+        # on ds.attrs so precip integrates over the ACTUAL step (e.g. 3-hourly
+        # CARRA) rather than a hardcoded hour.
         from symfluence.data.model_ready.forcing_reader import (
             forcing_timestep_seconds,
             open_canonical_forcing,
@@ -189,8 +190,8 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start), str(end)))
 
-        airtemp = ds['airtemp'].values.squeeze()   # K
-        pptrate = ds['pptrate'].values.squeeze()   # mm/s
+        airtemp = ds['air_temperature'].values.squeeze()      # K
+        pptrate = ds['precipitation_flux'].values.squeeze()   # mm/s
         dt_seconds = forcing_timestep_seconds(ds)
         times = pd.DatetimeIndex(ds['time'].values)
 
