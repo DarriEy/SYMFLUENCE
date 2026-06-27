@@ -41,6 +41,35 @@ if TYPE_CHECKING:
     pass
 
 
+def load_elevation_band_table(shapefile: Path | str) -> list[dict[str, float]]:
+    """Read an elevation-banded HRU shapefile into an ordered band table.
+
+    Returns a list of ``{'hru_id', 'elev_mean', 'area'}`` dicts sorted by
+    elevation (lowest first). Robust to column-name variants. Shared by the
+    GeoData manager (sub-basin expansion) and the forcing processor (per-band
+    lapse expansion) so both key bands by the same HRU ids — the invariant that
+    makes GeoData sub-basins line up with forcing columns.
+    """
+    gdf = gpd.read_file(shapefile)
+    elev_col = next((c for c in ('elev_mean', 'elevMean', 'mean', 'ELEV_MEAN',
+                                 'elevation', 'avg_elevcl') if c in gdf.columns), None)
+    if elev_col is None:
+        return []
+    id_col = next((c for c in ('HRU_ID', 'hru_id', 'hruId', 'HRUID')
+                   if c in gdf.columns), None)
+    area_col = next((c for c in ('HRU_area', 'HRU_AREA', 'area', 'Area', 'AREA')
+                     if c in gdf.columns), None)
+    table: list[dict[str, float]] = []
+    for i, (_, row) in enumerate(gdf.iterrows()):
+        table.append({
+            'hru_id': int(row[id_col]) if id_col is not None else i + 1,
+            'elev_mean': float(row[elev_col]),
+            'area': float(row[area_col]) if area_col is not None else 1.0,
+        })
+    table.sort(key=lambda d: d['elev_mean'])
+    return table
+
+
 class HYPEGeoDataManager:
     """
     Manager for HYPE geographic and classification data.
@@ -115,7 +144,8 @@ class HYPEGeoDataManager:
         subbasins_shapefile: Path,
         rivers_shapefile: Path,
         frac_threshold: float,
-        intersect_base_path: Optional[Path] = None
+        intersect_base_path: Optional[Path] = None,
+        elevation_band_shapefile: Optional[Path] = None
     ) -> np.ndarray:
         """
         Create GeoData.txt, GeoClass.txt, and ForcKey.txt files.
@@ -126,6 +156,11 @@ class HYPEGeoDataManager:
             rivers_shapefile: Path to river network shapefile
             frac_threshold: Minimum landcover fraction to consider
             intersect_base_path: Optional path to intersection shapefiles
+            elevation_band_shapefile: Optional path to an elevation-banded HRU
+                shapefile (``{domain}_HRUs_elevation.shp``). When provided, each
+                sub-basin is expanded into a vertical cascade of elevation-band
+                sub-basins so HYPE can resolve elevation-dependent snow/glacier
+                melt timing instead of running as a single lumped bucket.
 
         Returns:
             Array of unique land use IDs for parameter file generation
@@ -288,6 +323,24 @@ class HYPEGeoDataManager:
             base_df = base_df[~missing_mask].copy()
             # Remove any maindown references to dropped sub-basins
             base_df.loc[base_df['maindown'].isin(dropped_ids), 'maindown'] = 0
+
+        # 7b. Expand into elevation-band sub-basins (semi-distributed HYPE).
+        # Done after geometry/SLC/glacier are resolved per original sub-basin so
+        # each band inherits clean parent attributes; gated on the caller passing
+        # an elevation-band HRU shapefile (i.e. SUB_GRID_DISCRETIZATION=elevation).
+        if elevation_band_shapefile is not None and Path(elevation_band_shapefile).exists():
+            bands_by_parent = self._load_elevation_bands(
+                Path(elevation_band_shapefile), base_df
+            )
+            if bands_by_parent:
+                n_before = len(base_df)
+                base_df = self._build_banded_geodata(base_df, bands_by_parent)
+                self.logger.info(
+                    "Elevation banding: expanded %d sub-basin(s) into %d "
+                    "elevation-band sub-basins (elev range %.0f-%.0f m).",
+                    n_before, len(base_df),
+                    base_df['elev_mean'].min(), base_df['elev_mean'].max(),
+                )
 
         # 8. Handle ID shifting (HYPE requires IDs > 0)
         base_df = self._shift_ids_if_needed(base_df)
@@ -607,6 +660,162 @@ class HYPEGeoDataManager:
                     base_df.loc[base_df['subid'] == basin_id, f'SLC_{slc_idx}'] = 0
 
         return slc_df, base_df
+
+    # Multiplier used to derive band sub-basin IDs (parent*MULT + band_index).
+    # Must exceed the maximum number of elevation bands per sub-basin.
+    _BAND_ID_MULTIPLIER = 100
+
+    def _load_elevation_bands(
+        self, shapefile: Path, base_df: pd.DataFrame
+    ) -> dict[int, list[dict[str, float]]]:
+        """Read an elevation-banded HRU shapefile into per-parent band lists.
+
+        Returns a mapping ``parent_subid -> [{'hru_id', 'elev_mean', 'area_frac'}]``.
+        The ``hru_id`` becomes the band sub-basin id, so GeoData sub-basins line
+        up with the forcing columns (which the forcing processor keys by the same
+        HRU id). Robust to column-name variants.
+        """
+        try:
+            table = load_elevation_band_table(shapefile)
+        except (OSError, ValueError, KeyError) as e:
+            self.logger.warning(
+                "Could not read elevation-band shapefile %s: %s", shapefile, e,
+                exc_info=True)
+            return {}
+        if not table:
+            self.logger.warning(
+                "Elevation-band shapefile %s has no elevation column; skipping banding.",
+                shapefile)
+            return {}
+
+        single_parent = len(base_df) == 1
+        if single_parent:
+            pid = int(base_df['subid'].iloc[0])
+            return {pid: [{'hru_id': b['hru_id'], 'elev_mean': b['elev_mean'],
+                           'area_frac': b['area']} for b in table]}
+
+        # Multi-sub-basin: group bands by their parent GRU id.
+        gdf = gpd.read_file(shapefile)
+        parent_col = next((c for c in ('GRU_ID', 'gru_id', 'GRU', 'COMID', 'gruId')
+                           if c in gdf.columns), None)
+        if parent_col is None:
+            self.logger.warning(
+                "Multi-sub-basin banding needs a parent (GRU) column in %s; skipping.",
+                shapefile)
+            return {}
+        id_col = next((c for c in ('HRU_ID', 'hru_id', 'hruId', 'HRUID')
+                       if c in gdf.columns), None)
+        elev_col = next((c for c in ('elev_mean', 'elevMean', 'mean', 'ELEV_MEAN',
+                                     'elevation', 'avg_elevcl') if c in gdf.columns), None)
+        area_col = next((c for c in ('HRU_area', 'HRU_AREA', 'area', 'Area', 'AREA')
+                         if c in gdf.columns), None)
+        bands_by_parent: dict[int, list[dict[str, float]]] = {}
+        for i, (_, row) in enumerate(gdf.iterrows()):
+            pid = int(row[parent_col])
+            bands_by_parent.setdefault(pid, []).append({
+                'hru_id': int(row[id_col]) if id_col is not None else i + 1,
+                'elev_mean': float(row[elev_col]),
+                'area_frac': float(row[area_col]) if area_col is not None else 1.0,
+            })
+        return bands_by_parent
+
+    def _build_banded_geodata(
+        self,
+        base_df: pd.DataFrame,
+        bands_by_parent: dict[int, list[dict[str, float]]],
+    ) -> pd.DataFrame:
+        """Expand each sub-basin into a vertical cascade of elevation bands.
+
+        Pure DataFrame transform (no I/O) so it is unit-testable. Per band:
+        - ``subid``: the band's ``hru_id`` when available (so it matches the
+          forcing columns), else ``parent*MULT + j`` (j = 1..N, lowest first).
+        - ``maindown``: band drains to the next lower band; the lowest band drains
+          to the parent's downstream sub-basin's outlet band (or 0 at the domain
+          outlet) — water flows high -> low -> downstream.
+        - ``area``: parent area * band area fraction.
+        - ``elev_mean``: the band's mean elevation (drives HYPE's per-sub-basin
+          temperature/precipitation lapse — the point of banding).
+        - ``glacier_fraction``: the parent's glacier *area* concentrated into the
+          highest band(s), which is where alpine ice actually sits.
+        - SLC fractions are inherited from the parent (land partitioning is
+          unchanged; banding adds the elevation/routing dimension HYPE needs).
+        """
+        mult = self._BAND_ID_MULTIPLIER
+        # Use real HRU ids as sub-basin ids only when every band carries one.
+        use_hru_id = all(
+            all(b.get('hru_id') is not None for b in bands)
+            for bands in bands_by_parent.values() if bands)
+
+        def band_subid(pid: int, rank: int, band: dict[str, float]) -> int:
+            # rank is 1-based position by ascending elevation.
+            return int(band['hru_id']) if use_hru_id else pid * mult + rank
+
+        # Each parent's outlet (lowest-elevation) band, for downstream routing.
+        parent_outlet: dict[int, int] = {}
+        for pid, bands in bands_by_parent.items():
+            if bands:
+                low = sorted(bands, key=lambda b: b['elev_mean'])[0]
+                parent_outlet[pid] = band_subid(pid, 1, low)
+
+        out_rows: list[dict[str, Any]] = []
+        for _, prow in base_df.iterrows():
+            pid = int(prow['subid'])
+            bands = bands_by_parent.get(pid)
+            if not bands:
+                out_rows.append(prow.to_dict())
+                continue
+            n = len(bands)
+            if not use_hru_id and n >= mult:
+                self.logger.warning(
+                    "Sub-basin %d has %d elevation bands (>= id multiplier %d); "
+                    "keeping it lumped to avoid id collisions.", pid, n, mult)
+                out_rows.append(prow.to_dict())
+                continue
+
+            bands_sorted = sorted(bands, key=lambda b: b['elev_mean'])
+            total_frac = sum(b['area_frac'] for b in bands_sorted) or 1.0
+            parent_area = float(prow['area'])
+            band_areas = [b['area_frac'] / total_frac * parent_area for b in bands_sorted]
+            subids = [band_subid(pid, k + 1, b) for k, b in enumerate(bands_sorted)]
+
+            # Distribute the parent's glacier area from the top band downward.
+            remaining_glac = float(prow.get('glacier_fraction', 0.0)) * parent_area
+            band_glac = [0.0] * n
+            for j in range(n - 1, -1, -1):
+                take = min(band_areas[j], remaining_glac)
+                band_glac[j] = take
+                remaining_glac -= take
+                if remaining_glac <= 1e-9:
+                    break
+
+            parent_maindown = int(prow['maindown'])
+            parent_rivlen = float(prow.get('rivlen', 0.0))
+            for k, band in enumerate(bands_sorted):
+                row = prow.to_dict()
+                row['subid'] = subids[k]
+                if k == 0:
+                    row['maindown'] = (0 if parent_maindown <= 0
+                                       else parent_outlet.get(parent_maindown, 0))
+                else:
+                    row['maindown'] = subids[k - 1]
+                row['grwdown'] = row['maindown']
+                row['area'] = band_areas[k]
+                row['elev_mean'] = band['elev_mean']
+                row['glacier_fraction'] = (
+                    band_glac[k] / band_areas[k] if band_areas[k] > 0 else 0.0)
+                # Full channel length only for the valley (outlet) band; internal
+                # band-to-band links are vertical, not channel reaches.
+                if k > 0:
+                    row['rivlen'] = min(parent_rivlen, 100.0)
+                out_rows.append(row)
+
+        result = pd.DataFrame(out_rows).reset_index(drop=True)
+        # Keep id/routing columns integer so GeoData.txt never writes "100.0"
+        # (HYPE parses sub-basin ids as integers).
+        for col in ('subid', 'maindown', 'grwdown'):
+            if col in result.columns:
+                result[col] = result[col].astype(int)
+        return result
 
     def _shift_ids_if_needed(self, base_df: pd.DataFrame) -> pd.DataFrame:
         """

@@ -69,6 +69,23 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         self.forcing_input_dir = self.input_path
         self.timeshift = timeshift
         self.forcing_units = forcing_units or {}
+        # Elevation-band forcing expansion (set by the preprocessor when
+        # SUB_GRID_DISCRETIZATION=elevation). When present, the single
+        # basin-averaged obs column is expanded into one column per band with a
+        # temperature lapse correction; precipitation is replicated.
+        self._elevation_bands: Optional[list] = None
+        self._lapse_rate: float = 0.0065
+
+    def set_elevation_bands(self, bands: list, lapse_rate: float = 0.0065) -> None:
+        """Enable per-band forcing expansion.
+
+        Args:
+            bands: ordered band table — list of dicts with 'hru_id' and
+                'elev_mean' (and optionally 'area' for the reference elevation).
+            lapse_rate: temperature lapse rate in K/m (default standard ELR).
+        """
+        self._elevation_bands = bands or None
+        self._lapse_rate = lapse_rate
 
     @property
     def model_name(self) -> str:
@@ -354,6 +371,12 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             df.columns.name = None
             df.index.name = 'time'
 
+            # Expand the single basin-averaged column into per-elevation-band
+            # columns (lapse-corrected temperature; replicated precipitation) so
+            # the obs files match the banded GeoData sub-basins.
+            if self._elevation_bands and df.shape[1] == 1:
+                df = self._expand_columns_to_bands(df, variable_out)
+
             # Ensure time index is formatted as YYYY-MM-DD for HYPE
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
 
@@ -363,3 +386,42 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                 df.to_csv(output_file_name_txt, sep='\t', na_rep='-9999.0', index=True, float_format='%.3f')
 
             return ds_daily
+
+    def _expand_columns_to_bands(
+        self, df: pd.DataFrame, variable_out: str
+    ) -> pd.DataFrame:
+        """Expand a single-column daily obs frame into one column per band.
+
+        Temperature variables (Tobs/TMAXobs/TMINobs) are lapse-corrected to each
+        band's mean elevation relative to the area-weighted reference elevation
+        (warmer below the reference, colder above). Precipitation (Pobs) is
+        replicated unchanged. Columns are keyed by band ``hru_id`` so they match
+        the banded GeoData sub-basin ids and ForcKey.
+        """
+        bands = self._elevation_bands or []
+        if len(bands) < 2:
+            return df
+
+        elevs = np.array([b['elev_mean'] for b in bands], dtype=float)
+        areas = np.array([float(b.get('area', 1.0)) for b in bands], dtype=float)
+        wsum = areas.sum() or float(len(bands))
+        ref_elev = float((elevs * areas).sum() / wsum)
+
+        base = df.iloc[:, 0].to_numpy(dtype=float)
+        is_temperature = variable_out.upper().startswith('T')
+
+        expanded: dict[int, np.ndarray] = {}
+        for band in bands:
+            col_id = int(band['hru_id'])
+            if is_temperature:
+                delta = self._lapse_rate * (ref_elev - float(band['elev_mean']))
+                expanded[col_id] = base + delta
+            else:
+                expanded[col_id] = base
+        out = pd.DataFrame(expanded, index=df.index)
+        if is_temperature:
+            deltas = [f"{self._lapse_rate * (ref_elev - e):+.1f}" for e in elevs]
+            self.logger.info(
+                "HYPE %s: expanded to %d bands (ref_elev=%.0fm, deltas[C]=%s)",
+                variable_out, len(bands), ref_elev, ",".join(deltas))
+        return out
