@@ -181,21 +181,31 @@ class NoahMPWorker(BaseWorker):
 
         lines = soilparm_path.read_text().splitlines()
 
-        # SOILPARM.TBL format: header lines, then data lines with comma-separated values.
-        # Find the data section for the active classification (STAS).
-        # Data lines start with a soil type index and contain many numeric fields
-        # (>5 comma-separated values). The header "19,1 'BB ...'" has quotes
-        # and fewer numeric fields, so we skip it.
+        # SOILPARM.TBL format: header lines, then data lines with comma-separated
+        # values. Find the data section for the active classification (STAS).
+        # A data row starts with an integer soil-type index whose *second* field
+        # is numeric (e.g. "1, 2.79, ..."). The dimension header
+        # ("19,1  'BB  DRYSMC ...") also starts with a digit, but its second
+        # field is the quoted column-name list, so it is not float-parseable.
+        # NOTE: extended tables append a quoted soil-name label to every data row
+        # (".. , 'SAND'"), so we must NOT skip lines merely because they contain a
+        # quote — that would skip every data row.
+        def _is_float(token: str) -> bool:
+            try:
+                float(token)
+                return True
+            except ValueError:
+                return False
+
         data_start = None
         for i, line in enumerate(lines):
             stripped = line.strip()
             if not stripped or not stripped[0].isdigit():
                 continue
-            # Skip header lines with quotes or fewer than 5 comma-separated fields
-            if "'" in stripped or '"' in stripped:
-                continue
             parts = [p.strip() for p in stripped.split(',')]
-            if len(parts) >= 5:
+            if (len(parts) >= 5
+                    and parts[0].lstrip('-').isdigit()
+                    and _is_float(parts[1])):
                 data_start = i
                 break
 
@@ -255,11 +265,19 @@ class NoahMPWorker(BaseWorker):
                 install_dir = Path(install_path)
 
             exe_name = config.get('NOAHMP_EXE', 'noah_owp_modular.exe')
-            noahmp_exe = install_dir / 'bin' / exe_name
-            if not noahmp_exe.exists():
-                noahmp_exe = install_dir / exe_name
-            if not noahmp_exe.exists():
-                self.logger.error(f"Noah-MP executable not found: {noahmp_exe}")
+            # The noah-owp-modular build places the executable under run/; older
+            # layouts used bin/ or the install root. Check all three.
+            noahmp_exe = None
+            for sub in ('run', 'bin', '.'):
+                cand = install_dir / sub / exe_name
+                if cand.exists():
+                    noahmp_exe = cand
+                    break
+            if noahmp_exe is None:
+                self.logger.error(
+                    f"Noah-MP executable '{exe_name}' not found under "
+                    f"{install_dir}/(run|bin|.)"
+                )
                 return False
 
             # noah-owp-modular reads namelist.input from cwd

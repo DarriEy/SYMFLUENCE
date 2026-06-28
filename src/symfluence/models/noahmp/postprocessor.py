@@ -49,17 +49,29 @@ class NoahMPPostProcessor(StandardModelPostProcessor):
         import xarray as xr
 
         self.logger.info("Extracting runoff from Noah-MP outputs")
-        output_dir = self._get_output_dir()
+        # The namelist uses a relative output_filename, so the model writes
+        # output.nc into its working directory (settings/NOAHMP) for the
+        # standalone run_model step. Search both the simulations output dir and
+        # the settings dir.
+        search_dirs = [
+            self._get_output_dir(),
+            self.project_dir / 'settings' / 'NOAHMP',
+        ]
 
         nc_file = None
-        for pattern in ['output.nc', 'output*.nc', '*output*.nc']:
-            matches = list(output_dir.glob(pattern))
-            if matches:
-                nc_file = matches[0]
+        for output_dir in search_dirs:
+            for pattern in ['output.nc', 'output*.nc', '*output*.nc']:
+                matches = list(output_dir.glob(pattern))
+                if matches:
+                    nc_file = matches[0]
+                    break
+            if nc_file is not None:
                 break
 
         if nc_file is None:
-            self.logger.error(f"Noah-MP output not found in {output_dir}")
+            self.logger.error(
+                f"Noah-MP output not found in any of {search_dirs}"
+            )
             return None
 
         try:
