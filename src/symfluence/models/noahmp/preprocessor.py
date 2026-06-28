@@ -49,6 +49,24 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self._forcing_start: Optional[datetime] = None
         self._forcing_end: Optional[datetime] = None
 
+    def get_base_settings_source_dir(self) -> Path:
+        """Resolve base settings against the shared ``NOAH`` resource dir.
+
+        The standalone NOAH-MP model (MODEL_NAME=NOAHMP) shares its Noah-OWP
+        base settings — the parameter lookup tables under
+        resources/base_settings/NOAH — with the NGEN NOAH BMI module; there is
+        no separate ``NOAHMP`` resource directory. Override the default lookup
+        (which keys on MODEL_NAME) to use ``NOAH``."""
+        from symfluence.resources import get_base_settings_dir
+        code_dir_value = self._get_config_value(
+            lambda: self.config.system.code_dir, default=None)
+        if code_dir_value:
+            src = (Path(code_dir_value) / "src" / "symfluence" / "resources"
+                   / "base_settings" / "NOAH")
+            if src.exists():
+                return src
+        return get_base_settings_dir("NOAH")
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
@@ -83,14 +101,22 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             ds = xr.open_mfdataset(forcing_files, combine='by_coords')
 
             # Variable mapping (SYMFLUENCE standard -> Noah-MP names)
+            # Aliases include the canonical CFIF names that the model-ready
+            # store actually uses (surface_air_pressure, precipitation_flux,
+            # surface_downwelling_{short,long}wave_flux) — these were missing,
+            # so airpres/SW/LW/pptrate lookups failed and no forcing was written.
             var_map = {
-                'windspd': ['windspd', 'WIND', 'wind_speed', 'u10'],
-                'airtemp': ['airtemp', 'TAIR', 'air_temperature', 't2m', 'TMP'],
-                'spechum': ['spechum', 'SPFH', 'specific_humidity', 'q2'],
-                'airpres': ['airpres', 'PRES', 'air_pressure', 'sp', 'PSFC'],
-                'SWRadAtm': ['SWRadAtm', 'DSWRF', 'SWDOWN', 'ssrd'],
-                'LWRadAtm': ['LWRadAtm', 'DLWRF', 'LWDOWN', 'strd'],
-                'pptrate': ['pptrate', 'APCP', 'RAINRATE', 'tp', 'PRATE'],
+                'windspd': ['windspd', 'wind_speed', 'WIND', 'u10'],
+                'airtemp': ['airtemp', 'air_temperature', 'TAIR', 't2m', 'TMP'],
+                'spechum': ['spechum', 'specific_humidity', 'SPFH', 'q2'],
+                'airpres': ['airpres', 'surface_air_pressure', 'air_pressure',
+                            'PRES', 'sp', 'PSFC'],
+                'SWRadAtm': ['SWRadAtm', 'surface_downwelling_shortwave_flux',
+                             'DSWRF', 'SWDOWN', 'ssrd'],
+                'LWRadAtm': ['LWRadAtm', 'surface_downwelling_longwave_flux',
+                             'DLWRF', 'LWDOWN', 'strd'],
+                'pptrate': ['pptrate', 'precipitation_flux', 'APCP', 'RAINRATE',
+                            'tp', 'PRATE'],
             }
 
             def _find_var(ds, aliases):
@@ -125,18 +151,28 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self._forcing_start = times[0].to_pydatetime()
             self._forcing_end = times[-1].to_pydatetime()
 
-            # Write ASCII forcing file
+            # Write ASCII forcing file.
+            # noah-owp-modular's read_forcing_text (driver/AsciiReadModule.f90)
+            # reads the 8 data columns in this exact order and with these units:
+            #   windspeed [m/s], winddir [deg], temperature [K], humidity [%RH],
+            #   pressure [mb/hPa], shortwave [W/m2], longwave [W/m2], precip [kg/m2/s]
+            # It then converts pressure*100 -> Pa, humidity*0.01 -> fraction, and
+            # derives u/v from speed+direction. We have no wind direction, so we
+            # write 0.0 (the model uses wind-speed magnitude regardless), supply
+            # relative humidity in percent, and convert pressure Pa -> hPa.
             forcing_path = self.noahmp_forcing_dir / 'forcing.txt'
+            winddir = np.zeros_like(windspd)
+            airpres_hpa = airpres / 100.0
             with open(forcing_path, 'w') as f:
                 f.write('<FORCING>\n')
                 for i, t in enumerate(times):
                     line = (
                         f"{t.year:04d} {t.month:02d} {t.day:02d} "
                         f"{t.hour:02d} {t.minute:02d}"
-                        f"{windspd[i]:17.10f}{airtemp[i]:17.10f}"
-                        f"{spechum[i]:17.10f}{airpres[i]:17.10f}"
-                        f"{swrad[i]:17.10f}{lwrad[i]:17.10f}"
-                        f"{pptrate[i]:17.10f}{rh[i]:17.10f}"
+                        f"{windspd[i]:17.10f}{winddir[i]:17.10f}"
+                        f"{airtemp[i]:17.10f}{rh[i]:17.10f}"
+                        f"{airpres_hpa[i]:17.10f}{swrad[i]:17.10f}"
+                        f"{lwrad[i]:17.10f}{pptrate[i]:17.10f}"
                     )
                     f.write(line + '\n')
 
@@ -218,7 +254,13 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ))
 
         forcing_path = self.noahmp_forcing_dir / 'forcing.txt'
-        output_path = self.noahmp_settings_dir / 'output.nc'
+        # Use a RELATIVE output filename so the model writes output.nc into its
+        # working directory (the settings dir the runner/worker launch from).
+        # The calibration worker runs each evaluation with cwd=<process settings
+        # dir> and looks for output.nc there; an absolute path would send every
+        # run's output to a single shared location the worker never checks,
+        # making every iteration score -9999 (counted as a crash).
+        output_path = 'output.nc'
 
         namelist = f"""\
 &timing
@@ -231,6 +273,9 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
 &parameters
   parameter_dir      = "{self.noahmp_settings_dir}/"
+  general_table      = "GENPARM.TBL"
+  soil_table         = "SOILPARM.TBL"
+  noahowp_table      = "MPTABLE.TBL"
   soil_class_name    = "STAS"
   veg_class_name     = "MODIFIED_IGBP_MODIS_NOAH"
 /
@@ -244,13 +289,27 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
 &forcing
   ZREF               =  10.0
+  rain_snow_thresh   =  1.0
 /
 
 &model_options
-  dynamic_veg_option         = {dynamic_veg}
-  runoff_option              = 8
-  drainage_option            = 8
-  snowsoil_temp_time_option  = 1
+  precip_phase_option           = 1
+  snow_albedo_option            = 1
+  dynamic_veg_option            = {dynamic_veg}
+  runoff_option                 = 8
+  drainage_option               = 8
+  frozen_soil_option            = 1
+  dynamic_vic_option            = 1
+  radiative_transfer_option     = 3
+  sfc_drag_coeff_option         = 1
+  canopy_stom_resist_option     = 1
+  crop_model_option             = 0
+  snowsoil_temp_time_option     = 3
+  soil_temp_boundary_option     = 2
+  supercooled_water_option      = 1
+  stomatal_resistance_option    = 1
+  evap_srfc_resistance_option   = 1
+  subsurface_option             = 1
 /
 
 &structure
@@ -260,7 +319,15 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
   nveg               = 20
   vegtyp             = 1
   croptype           = 0
+  sfctyp             = 1
+  soilcolor          = 4
+/
+
+&initial_values
   dzsnso             = 0.0, 0.0, 0.0, 0.1, 0.3, 0.6, 1.0
+  sice               = 0.0, 0.0, 0.0, 0.0
+  sh2o               = 0.3, 0.3, 0.3, 0.3
+  zwt                = -2.0
 /
 """
         nl_path = self.noahmp_settings_dir / 'namelist.input'
