@@ -87,7 +87,8 @@ class FinalResultsSaver:
             Path to saved file, or None if failed
         """
         try:
-            output_file = self.results_dir / f'{self.experiment_id}_{algorithm.lower()}_final_evaluation.json'
+            safe_algorithm = algorithm.lower().replace('/', '_')
+            output_file = self.results_dir / f'{self.experiment_id}_{safe_algorithm}_final_evaluation.json'
 
             serializable_result = {
                 'algorithm': algorithm,
