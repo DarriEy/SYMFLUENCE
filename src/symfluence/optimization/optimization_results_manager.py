@@ -128,7 +128,8 @@ class OptimizationResultsManager:
 
             # Create DataFrame and save
             history_df = pd.DataFrame(history_data)
-            history_file = self.opt_dir / f"{self.experiment_id}_{algorithm.lower()}_history.csv"
+            safe_algorithm = algorithm.lower().replace('/', '_')
+            history_file = self.opt_dir / f"{self.experiment_id}_{safe_algorithm}_history.csv"
             history_df.to_csv(history_file, index=False)
             self.logger.info(f"Saved optimization history to {history_file}")
 
