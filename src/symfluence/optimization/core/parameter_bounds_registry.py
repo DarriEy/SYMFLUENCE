@@ -140,6 +140,7 @@ class ParameterBoundsRegistry:
         'noah_frzk': ParameterInfo(0.0, 10.0, '-', 'NOAH frozen ground parameter', 'soil'),
         'noah_salp': ParameterInfo(-2.0, 2.0, '-', 'NOAH shape parameter', 'soil'),
         'refkdt': ParameterInfo(0.5, 5.0, '-', 'Reference surface runoff parameter (expanded for infiltration control)', 'soil'),
+        'route_k': ParameterInfo(1.0, 40.0, 'days', 'Nash-cascade routing time constant for post-model runoff routing (column LSMs emit unrouted runoff)', 'routing'),
     }
 
     # ========================================================================
@@ -1158,7 +1159,7 @@ def get_gsflow_bounds() -> Dict[str, Dict[str, float]]:
 def get_noahmp_bounds() -> Dict[str, Dict[str, Any]]:
     noahmp_params = [
         'slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt', 'smcref',
-        'refkdt', 'noah_czil', 'rain_snow_thresh', 'ZREF',
+        'refkdt', 'noah_czil', 'rain_snow_thresh', 'ZREF', 'route_k',
     ]
     return get_registry().get_bounds_for_params(noahmp_params)
 
