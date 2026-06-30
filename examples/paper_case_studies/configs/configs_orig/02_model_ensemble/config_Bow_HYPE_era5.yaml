@@ -42,8 +42,18 @@ MOVE_OUTLETS_MAX_DISTANCE: 200
 MIN_GRU_SIZE: 1
 
 # Domain discretization settings
-SUB_GRID_DISCRETIZATION: GRUS
+# HYPE is run semi-distributed over elevation bands (Paper 3, Section 4.2): the
+# Bow at Banff is a snowmelt-dominated alpine headwater, and resolving the
+# snowmelt freshet across elevation is what lets HYPE reach eval KGE ~0.81
+# (r ~0.91). A lumped (GRUS) single sub-basin caps out near eval 0.57 / r 0.70
+# because it cannot resolve elevation-dependent melt timing. Land cover is taken
+# from MODIS so each band carries real land classes; glacier data is not needed
+# (the glacier_fraction column is inert without a glacier SLC class).
+SUB_GRID_DISCRETIZATION: elevation
 ELEVATION_BAND_SIZE: 200
+LAND_CLASS_SOURCE: modis
+DOWNLOAD_LAND_COVER: True
+DOWNLOAD_GLACIER_DATA: False
 MIN_HRU_SIZE: 4
 RADIATION_CLASS_NUMBER: 5
 ASPECT_CLASS_NUMBER: 8
