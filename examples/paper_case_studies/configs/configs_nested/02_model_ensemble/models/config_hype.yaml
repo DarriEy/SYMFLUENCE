@@ -19,7 +19,14 @@ domain:
   calibration_period: 2004-01-01, 2007-12-31
   evaluation_period: 2008-01-01, 2009-12-31
   spinup_period: 2002-01-01, 2003-12-31
-  discretization: GRUs
+  # HYPE is run semi-distributed over elevation bands (Paper 3, Sec. 4.2): the
+  # snowmelt-dominated Bow headwater needs elevation to resolve the freshet
+  # timing, which lifts HYPE to eval KGE ~0.81 (r ~0.91). A lumped (GRUs) single
+  # sub-basin caps near eval 0.57 / r 0.70. Land cover defaults to MODIS and
+  # glacier download defaults off (glacier_fraction is inert without an SLC
+  # class), so the elevation discretization is the only change vs lumped.
+  discretization: elevation
+  elevation_band_size: 200
   experiment_id: run_1
 data:
   streamflow_data_provider: WSC
