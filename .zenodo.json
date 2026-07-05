@@ -20,28 +20,75 @@
     }
   ],
   "creators": [
-    { "name": "Eythorsson, Darri" },
-    { "name": "Knoben, Wouter J. M." },
-    { "name": "Van Beusekom, Ashley" },
-    { "name": "Keshavarz, Kasra" },
-    { "name": "Thébault, Cyril" },
-    { "name": "Casson, Dave R." },
-    { "name": "Moghairib, Mohamed" },
-    { "name": "Vásquez, Nicolás" },
-    { "name": "Woldegiorgis, Befekadu Taddesse" },
-    { "name": "Gautier, C." },
-    { "name": "Wagener, Peter" },
-    { "name": "Aguirre, Ignacio" },
-    { "name": "Reece, Katherine Hope" },
-    { "name": "Liu, H." },
-    { "name": "Pietroniro, Alain" },
-    { "name": "Patel, A." },
-    { "name": "Cunningham, Josh" },
-    { "name": "Hut, Rolf" },
-    { "name": "Halgren, James" },
-    { "name": "Spiteri, Raymond J." },
-    { "name": "Read, Jordan" },
-    { "name": "Tarboton, David G." },
-    { "name": "Clark, Martyn P." }
+    {
+      "name": "Eythorsson, Darri",
+      "orcid": "0000-0003-3653-3936"
+    },
+    {
+      "name": "Knoben, Wouter J. M."
+    },
+    {
+      "name": "Van Beusekom, Ashley"
+    },
+    {
+      "name": "Keshavarz, Kasra"
+    },
+    {
+      "name": "Thébault, Cyril"
+    },
+    {
+      "name": "Casson, Dave R."
+    },
+    {
+      "name": "Moghairib, Mohamed"
+    },
+    {
+      "name": "Vásquez, Nicolás"
+    },
+    {
+      "name": "Woldegiorgis, Befekadu Taddesse"
+    },
+    {
+      "name": "Gautier, C."
+    },
+    {
+      "name": "Wagener, Peter"
+    },
+    {
+      "name": "Aguirre, Ignacio"
+    },
+    {
+      "name": "Reece, Katherine Hope"
+    },
+    {
+      "name": "Liu, H."
+    },
+    {
+      "name": "Pietroniro, Alain"
+    },
+    {
+      "name": "Patel, A."
+    },
+    {
+      "name": "Cunningham, Josh"
+    },
+    {
+      "name": "Hut, Rolf"
+    },
+    {
+      "name": "Halgren, James"
+    },
+    {
+      "name": "Spiteri, Raymond J."
+    },
+    {
+      "name": "Read, Jordan"
+    },
+    {
+      "name": "Tarboton, David G."
+    },
+    {
+      "name": "Clark, Martyn P."
+    }
   ]
 }
