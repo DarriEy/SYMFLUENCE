@@ -31,17 +31,21 @@ def _load(path: Path) -> SymfluenceConfig:
     return SymfluenceConfig.model_validate(data)
 
 
-def test_decision_ensemble_sets_random_seed():
-    """Decision ensemble must pin a random_seed for paper reproducibility.
+def test_calibration_ensemble_sets_random_seed():
+    """Calibration-ensemble configs must pin a random_seed for reproducibility.
 
     PW reported best-run performance diverging from the paper (0.89 vs 0.86)
-    with three different decision choices. Root cause: DDS initialized with
-    unseeded RNG. This test prevents the seed from being silently dropped.
+    when DDS was initialized with an unseeded RNG (originally caught on the
+    since-removed decision-ensemble config, also FUSE + DDS). The shipped paper configs report
+    single fixed-seed runs, so this guards the seed from being silently
+    dropped from the calibration comparison.
     """
-    cfg = _load(CONFIGS_NESTED / "06_decision_ensemble" / "config_fuse_decisions.yaml")
+    cfg = _load(
+        CONFIGS_NESTED / "04_calibration_ensemble" / "fuse" / "config_bow_fuse_dds.yaml"
+    )
     assert cfg.system.random_seed is not None, (
-        "06_decision_ensemble config must set system.random_seed for "
-        "reproducibility of DDS-driven decision enumeration."
+        "04_calibration_ensemble configs must set system.random_seed for "
+        "reproducibility of the DDS-driven algorithm comparison."
     )
     assert isinstance(cfg.system.random_seed, int)
 
