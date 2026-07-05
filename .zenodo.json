@@ -1,0 +1,47 @@
+{
+  "title": "SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration",
+  "description": "<p>SYMFLUENCE is a computational environmental modeling platform that streamlines the hydrological modeling workflow from domain setup through data acquisition, model execution, calibration, and evaluation. A four-tier layered architecture governed by typed component registries integrates hydrological models spanning multiple programming languages and modeling paradigms, unified through declarative YAML configuration with provenance captured by default.</p><p>Described and evaluated in the three-part paper series &quot;Out-standing in Every Field&quot;, &quot;The Registry as Social Contract&quot;, and &quot;From Configuration to Prediction&quot; (Eythorsson et al., 2026, Water Resources Research).</p>",
+  "upload_type": "software",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "hydrology",
+    "hydrological modeling",
+    "model intercomparison",
+    "calibration",
+    "reproducibility",
+    "workflow",
+    "registry"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/symfluence-org/SYMFLUENCE",
+      "resource_type": "software"
+    }
+  ],
+  "creators": [
+    { "name": "Eythorsson, Darri" },
+    { "name": "Knoben, Wouter J. M." },
+    { "name": "Van Beusekom, Ashley" },
+    { "name": "Keshavarz, Kasra" },
+    { "name": "Thébault, Cyril" },
+    { "name": "Casson, Dave R." },
+    { "name": "Moghairib, Mohamed" },
+    { "name": "Vásquez, Nicolás" },
+    { "name": "Woldegiorgis, Befekadu Taddesse" },
+    { "name": "Gautier, C." },
+    { "name": "Wagener, Peter" },
+    { "name": "Aguirre, Ignacio" },
+    { "name": "Reece, Katherine Hope" },
+    { "name": "Liu, H." },
+    { "name": "Pietroniro, Alain" },
+    { "name": "Patel, A." },
+    { "name": "Cunningham, Josh" },
+    { "name": "Hut, Rolf" },
+    { "name": "Halgren, James" },
+    { "name": "Spiteri, Raymond J." },
+    { "name": "Read, Jordan" },
+    { "name": "Tarboton, David G." },
+    { "name": "Clark, Martyn P." }
+  ]
+}

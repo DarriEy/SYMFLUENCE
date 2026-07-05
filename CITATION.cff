@@ -1,0 +1,75 @@
+cff-version: 1.2.0
+message: >-
+  If you use SYMFLUENCE in your research, please cite it using the metadata
+  below, alongside the companion papers (Eythorsson et al., 2026a,b,c;
+  Water Resources Research).
+title: >-
+  SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying
+  Earth-system Nexii for Computational Exploration
+type: software
+license: GPL-3.0-or-later
+repository-code: "https://github.com/symfluence-org/SYMFLUENCE"
+url: "https://symfluence.org"
+keywords:
+  - hydrology
+  - hydrological modeling
+  - model intercomparison
+  - calibration
+  - reproducibility
+  - workflow
+  - registry
+authors:
+  - family-names: Eythorsson
+    given-names: Darri
+  - family-names: Knoben
+    given-names: Wouter J. M.
+  - family-names: Van Beusekom
+    given-names: Ashley
+  - family-names: Keshavarz
+    given-names: Kasra
+  - family-names: Thébault
+    given-names: Cyril
+  - family-names: Casson
+    given-names: Dave R.
+  - family-names: Moghairib
+    given-names: Mohamed
+  - family-names: Vásquez
+    given-names: Nicolás
+  - family-names: Woldegiorgis
+    given-names: Befekadu Taddesse
+  - family-names: Gautier
+    given-names: C.
+  - family-names: Wagener
+    given-names: Peter
+  - family-names: Aguirre
+    given-names: Ignacio
+  - family-names: Reece
+    given-names: Katherine Hope
+  - family-names: Liu
+    given-names: H.
+  - family-names: Pietroniro
+    given-names: Alain
+  - family-names: Patel
+    given-names: A.
+  - family-names: Cunningham
+    given-names: Josh
+  - family-names: Hut
+    given-names: Rolf
+  - family-names: Halgren
+    given-names: James
+  - family-names: Spiteri
+    given-names: Raymond J.
+  - family-names: Read
+    given-names: Jordan
+  - family-names: Tarboton
+    given-names: David G.
+  - family-names: Clark
+    given-names: Martyn P.
+abstract: >-
+  SYMFLUENCE is a computational environmental modeling platform that
+  streamlines the hydrological modeling workflow from domain setup through
+  data acquisition, model execution, calibration, and evaluation. A four-tier
+  layered architecture governed by typed component registries integrates
+  hydrological models spanning multiple programming languages and modeling
+  paradigms, unified through declarative YAML configuration with provenance
+  captured by default.
