@@ -1,4 +1,4 @@
-# Experiment 1: Domain Definition Across Scales (Section 2)
+# Experiment 1: Domain Definition Across Scales (Section 2.1)
 
 ## Scientific Question
 How does SYMFLUENCE represent hydrological domains across spatial scales, from

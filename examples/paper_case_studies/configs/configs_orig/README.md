@@ -1,29 +1,27 @@
-# Paper 3 — Raw Configuration Files (configs_dir/)
+# Paper 3 — Raw Configuration Files (configs_orig/)
 
 This directory contains the original SYMFLUENCE configuration files used to produce
-the results in **"From Configuration to Prediction: A Unified Framework for
-Hydrological Model Intercomparison and Ensemble Analysis"**.
+the results in **"From Configuration to Prediction: Multi-Model, Multi-Basin
+Experiments with SYMFLUENCE"**.
 
-Each subdirectory corresponds to one experiment in the paper.
+Each subdirectory corresponds to one experiment or infrastructure demonstration in
+the paper. Directories retain their original numbering; experiments that were removed
+from the final manuscript (structural decision ensemble, sensitivity analysis,
+large-sample and large-domain Iceland calibration) have been removed from this
+archive as well, which is why the numbering has gaps.
 
 ## Directory Map
 
 | Dir | Experiment | Paper Section | Configs | Description |
 |-----|-----------|---------------|---------|-------------|
-| `01_domain_definition/` | Domain definition | Section 2 | 4 | Point, lumped, semi-distributed, regional domains |
-| `02_model_ensemble/` | Model ensemble | Section 3.1 | 28 | 27-model intercomparison (Table 1, Figure 2) |
-| `03_forcing_ensemble/` | Forcing ensemble | Section 3.2 | 15 | 14 forcing products + ERA5 baseline (Figure 5) |
-| `04_calibration_ensemble/` | Calibration ensemble | Section 3.3 | 470 | 17 algorithms x 8 models x 5 seeds (Figure 6) |
-| `05_benchmarking/` | Benchmarking | Section 3.4 | 1 | Statistical benchmark comparison (Figure 8) |
-| `06_decision_ensemble/` | Decision ensemble | Section 3.5 | 1 | 64 FUSE model structures (Figure 9) |
-| `07_sensitivity_analysis/` | Sensitivity analysis | Section 3.6 | 24 | Sobol sensitivity for 22 models (Figure 10) |
-| `08_large_sample/` | Large sample | Section 3.7 | 117 | 59 Icelandic catchments, FUSE + GR4J (Figure 11) |
-| `09_large_domain/` | Large domain | Section 3.8 | 3 | Iceland distributed modeling (Figure 12) |
-| `10_multivariate_evaluation/` | Multivariate eval | Section 3.9 | 8 | GRACE TWS + streamflow calibration (Figure 13) |
-| `11_data_pipeline/` | Data pipeline | Section 3.10 | 4 | Automated data acquisition demos |
-| `12_parallel_scaling/` | Parallel scaling | Section 3.10 | 93 | TauDEM, calibration, actors scaling (Figure 14) |
-
-**Total: ~768 configuration files**
+| `01_domain_definition/` | Domain definition | Section 2.1 | 4 | Point, lumped, semi-distributed, regional domains |
+| `02_model_ensemble/` | Model ensemble | Section 4.2.1 | 28 | Multi-model intercomparison (Figure 7) |
+| `03_forcing_ensemble/` | Forcing ensemble | Section 4.1 | 5 | ERA5, RDRS, AORC, CONUS404 at Paradise (Figure 6) |
+| `04_calibration_ensemble/` | Calibration comparison | Section 4.2.3 | 130 | 17 algorithms × 8 models, fixed seed (Figure 9) |
+| `05_benchmarking/` | Benchmarking | Section 4.2.2 | 1 | Reference-predictor comparison via HydroBM (Figure 8) |
+| `10_multivariate_evaluation/` | Multivariate calibration | Section 4.2.4 | 8 | GRACE TWS + streamflow calibration (Figure 10) |
+| `11_data_pipeline/` | Data pipeline | Section 2.2 | 4 | Automated data acquisition demos |
+| `12_parallel_scaling/` | Parallel scaling | Section 5 | 93 | TauDEM, calibration, actors scaling (Figure 11) |
 
 ## Experiment Details
 
@@ -39,41 +37,32 @@ SUMMA, FUSE, jFUSE, HBV, HYPE, RHESSys, CRHM, PRMS, CLM, VIC, MESH, mHM,
 SWAT, GR4J, SAC-SMA, XAJ, XAJ+Snow17, HEC-HMS, TOPMODEL, SUMMA+MODFLOW,
 GSFLOW, CLM+ParFlow, ParFlow, WRF-Hydro, WFLOW, WATFLOOD, LSTM, NGEN.
 
+The paper reports the 19-member subset that could be reproduced end-to-end from a
+clean install (Figure 7b); the remaining configs are provided as starting points.
+
 **Excluded:** MIKE SHE (proprietary), duplicate MESH elevation band variants.
 
-### 03 — Forcing Ensemble (15 configs)
-Paradise Creek with SUMMA under 15 forcing products:
-ERA5, AORC, RDRS, HRRR, CONUS404, and 10 NEX-GDDP-CMIP6 GCMs.
+### 03 — Forcing Ensemble (5 configs)
+Paradise SNOTEL with SUMMA under the four forcing products compared in the paper
+(ERA5, RDRS, AORC, CONUS404) plus the shared base configuration.
 
-### 04 — Calibration Ensemble (470 configs)
+### 04 — Calibration Comparison (130 configs)
 Organized by model subdirectory (`hbv/`, `hechms/`, `topmodel/`, `xinanjiang/`,
 `sacsma/`, `fuse/`, `summa/`, `hype/`).
 
-Each model has configs for up to 17 calibration algorithms (DDS, SCE-UA, PSO,
+Each model has one config per applicable calibration algorithm (DDS, SCE-UA, PSO,
 DE, CMA-ES, GA, SA, Nelder-Mead, Basin-Hopping, Bayesian Optimization, GLUE,
-L-BFGS, Adam, ABC, NSGA-II, MOEA/D, DREAM) across 5 random seeds.
+L-BFGS, Adam, ABC, NSGA-II, MOEA/D, DREAM), all with the fixed random seed (42)
+reported in the paper — 130 valid model–algorithm combinations in total.
 
 ### 05 — Benchmarking (1 config)
-Evaluates ensemble against persistence, climatology, and statistical benchmarks.
+Evaluates the ensemble against 12 reference predictors computed from observed
+streamflow and precipitation (HydroBM).
 
-### 06 — Decision Ensemble (1 config)
-FUSE model with enumerated structural decisions (64 combinations).
-
-### 07 — Sensitivity Analysis (24 configs)
-Sobol global sensitivity analysis for 22 models.
-**Excluded:** LSTM (neural network), WATFLOOD (failed objective function).
-
-### 08 — Large Sample (117 configs)
-- `fuse_v3/` — 51 FUSE decision analysis configs for Icelandic catchments
-- `gr4j_v2/` — 66 GR4J+CemaNeige configs for comparison
-
-### 09 — Large Domain (3 configs)
-Iceland-wide distributed modeling with FUSE and CARRA forcing.
-
-### 10 — Multivariate Evaluation (8 configs)
+### 10 — Multivariate Calibration (8 configs)
 - `bow_grace_tws/` — Streamflow + GRACE TWS joint calibration (6 configs)
-- `iceland_scf_trend/` — Snow cover fraction trend analysis (1 config)
-- `paradise_sca_sm/` — Snow cover area + soil moisture (1 config)
+- `iceland_scf_trend/`, `paradise_sca_sm/` — additional multivariate demonstrations
+  not reported in the paper
 
 ### 11 — Data Pipeline (4 configs)
 Automated data acquisition for Paradise, Bow, and Iceland domains.
@@ -87,7 +76,7 @@ Automated data acquisition for Paradise, Bow, and Iceland domains.
 ## Notes
 
 - These are the **original** configs with absolute paths from the development machine.
-  For portable versions with relative paths, see `../configs_minimal/`.
+  For portable versions with relative paths, see `../configs_nested/`.
 - All configs follow the SYMFLUENCE YAML schema (6 sections: Global, Geospatial,
   Model Agnostic, Model Specific, Evaluation, Optimization).
 - Settings with value `default` use SYMFLUENCE's built-in defaults.

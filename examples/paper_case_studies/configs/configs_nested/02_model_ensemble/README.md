@@ -1,4 +1,4 @@
-# Experiment 2: Model Ensemble (Section 3.1)
+# Experiment 2: Model Ensemble (Section 4.2.1)
 
 ## Scientific Question
 How do 27 different hydrological models compare when applied to the same domain
