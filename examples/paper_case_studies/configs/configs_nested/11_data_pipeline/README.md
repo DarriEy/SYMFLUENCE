@@ -1,4 +1,4 @@
-# Experiment 11: Data Processing Pipeline (Section 3.10)
+# Experiment 11: Data Processing Pipeline (Section 2.2)
 
 ## Scientific Question
 How does SYMFLUENCE automate the data acquisition and preprocessing workflow

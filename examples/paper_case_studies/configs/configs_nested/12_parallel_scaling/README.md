@@ -1,4 +1,4 @@
-# Experiment 12: Parallel Scaling (Section 3.10)
+# Experiment 12: Parallel Scaling (Section 5)
 
 ## Scientific Question
 How does SYMFLUENCE's computational performance scale with increasing
