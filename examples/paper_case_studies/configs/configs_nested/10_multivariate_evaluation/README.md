@@ -1,4 +1,4 @@
-# Experiment 10: Multivariate Evaluation (Section 3.9)
+# Experiment 10: Multivariate Evaluation (Section 4.2.4)
 
 ## Scientific Question
 Does calibrating to multiple observation types (streamflow + GRACE TWS)

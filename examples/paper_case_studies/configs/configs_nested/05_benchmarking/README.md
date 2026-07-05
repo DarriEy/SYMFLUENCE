@@ -1,4 +1,4 @@
-# Experiment 5: Benchmarking (Section 3.4)
+# Experiment 5: Benchmarking (Section 4.2.2)
 
 ## Scientific Question
 How do calibrated hydrological models compare against simple statistical

@@ -1,4 +1,4 @@
-# Experiment 3: Forcing Ensemble (Section 3.2)
+# Experiment 3: Forcing Ensemble (Section 4.1)
 
 ## Scientific Question
 How sensitive is model performance to the choice of meteorological forcing data,
