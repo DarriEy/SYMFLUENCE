@@ -258,6 +258,11 @@ class PIHMConfig(BaseModel):
     # Settings
     settings_path: str = Field(default='default', alias='SETTINGS_PIHM_PATH')
     spatial_mode: SpatialModeType = Field(default='lumped', alias='PIHM_SPATIAL_MODE')
+    # Number of hillslope bands per bank for a semi-distributed mesh (1 = lumped
+    # two-element mesh). >1 discretises each hillslope into a cascade so
+    # subsurface water traverses several elements before reaching the channel,
+    # supplying the slow hillslope storage-routing a lumped element cannot.
+    hillslope_bands: int = Field(default=1, alias='PIHM_HILLSLOPE_BANDS', ge=1)
 
     # Subsurface properties
     k_sat: float = Field(default=1e-5, alias='PIHM_K_SAT', gt=0)
