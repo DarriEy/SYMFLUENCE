@@ -1,0 +1,91 @@
+cff-version: 1.2.0
+message: If you use SYMFLUENCE in your research, please cite it using the metadata below, alongside the
+  companion papers (Eythorsson et al., 2026a,b,c; Water Resources Research).
+title: 'SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational
+  Exploration'
+type: software
+license: GPL-3.0-or-later
+repository-code: https://github.com/symfluence-org/SYMFLUENCE
+url: https://symfluence.org
+keywords:
+- hydrology
+- hydrological modeling
+- model intercomparison
+- calibration
+- reproducibility
+- workflow
+- registry
+authors:
+- family-names: Eythorsson
+  given-names: Darri
+  orcid: https://orcid.org/0000-0003-3653-3936
+- family-names: Knoben
+  given-names: Wouter J. M.
+  orcid: https://orcid.org/0000-0001-8301-3787
+- family-names: Van Beusekom
+  given-names: Ashley
+  orcid: https://orcid.org/0000-0002-6996-978X
+- family-names: Keshavarz
+  given-names: Kasra
+  orcid: https://orcid.org/0000-0002-7093-3928
+- family-names: Thébault
+  given-names: Cyril
+  orcid: https://orcid.org/0000-0002-4259-0497
+- family-names: Casson
+  given-names: Dave R.
+  orcid: https://orcid.org/0000-0003-0452-0284
+- family-names: Moghairib
+  given-names: Mohamed
+  orcid: https://orcid.org/0000-0003-3423-7041
+- family-names: Vásquez
+  given-names: Nicolás
+  orcid: https://orcid.org/0000-0002-4651-8935
+- family-names: Woldegiorgis
+  given-names: Befekadu Taddesse
+  orcid: https://orcid.org/0000-0002-0576-4312
+- family-names: Gautier
+  given-names: Camille
+- family-names: Wagener
+  given-names: Peter
+  orcid: https://orcid.org/0009-0005-5560-3698
+- family-names: Aguirre
+  given-names: Ignacio
+  orcid: https://orcid.org/0000-0002-7722-9677
+- family-names: Reece
+  given-names: Katherine Hope
+  orcid: https://orcid.org/0000-0003-2402-1386
+- family-names: Liu
+  given-names: Hongli
+  orcid: https://orcid.org/0000-0002-2756-3247
+- family-names: Pietroniro
+  given-names: Alain
+  orcid: https://orcid.org/0000-0001-5792-9177
+- family-names: Patel
+  given-names: Arpita
+  orcid: https://orcid.org/0000-0003-1483-1078
+- family-names: Cunningham
+  given-names: Josh
+  orcid: https://orcid.org/0009-0004-1765-3574
+- family-names: Hut
+  given-names: Rolf
+  orcid: https://orcid.org/0000-0002-5697-5697
+- family-names: Halgren
+  given-names: James
+  orcid: https://orcid.org/0009-0005-1884-1638
+- family-names: Spiteri
+  given-names: Raymond J.
+  orcid: https://orcid.org/0000-0002-3513-6237
+- family-names: Read
+  given-names: Jordan
+  orcid: https://orcid.org/0000-0002-3888-6631
+- family-names: Tarboton
+  given-names: David G.
+  orcid: https://orcid.org/0000-0002-1998-3479
+- family-names: Clark
+  given-names: Martyn P.
+  orcid: https://orcid.org/0000-0002-2186-2625
+abstract: SYMFLUENCE is a computational environmental modeling platform that streamlines the hydrological
+  modeling workflow from domain setup through data acquisition, model execution, calibration, and evaluation.
+  A four-tier layered architecture governed by typed component registries integrates hydrological models
+  spanning multiple programming languages and modeling paradigms, unified through declarative YAML configuration
+  with provenance captured by default.
