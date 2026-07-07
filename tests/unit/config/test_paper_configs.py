@@ -103,3 +103,20 @@ def test_benchmark_config_loads(filename, expected_model):
         f"{filename} must include 'benchmarking' in evaluation.analyses; "
         f"got {analyses}"
     )
+_CALIBRATION_CONFIGS = sorted(
+    (CONFIGS_NESTED / "04_calibration_ensemble").glob("*/config_bow_*.yaml")
+)
+
+
+@pytest.mark.parametrize(
+    "config_path", _CALIBRATION_CONFIGS, ids=lambda p: f"{p.parent.name}/{p.name}"
+)
+def test_calibration_configs_validate_strictly(config_path: Path):
+    """Every shipped calibration config must pass strict schema validation.
+
+    The paper's reproducibility claim depends on these configs loading as-is;
+    stale keys from older plugin schemas (e.g. model.hbv.initial_params) made
+    five models' configs unloadable without CI noticing, because the strict
+    shipped-configs guard does not cover examples/.
+    """
+    _load(config_path)

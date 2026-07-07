@@ -35,7 +35,6 @@ model:
     backend: jax
     warmup_days: 730
     snow_module: snow17
-    initial_params: SCF=1.05,PXTEMP=0.0,MFMAX=1.25,MFMIN=0.325,NMF=0.275,MBASE=0.5,TIPM=0.505,UADJ=0.105,PLWHC=0.155,DAYGM=0.15,UZTWM=75.5,UZFWM=75.5,UZK=0.425,LZTWM=250.5,LZFPM=500.5,LZFSM=500.5,LZPK=0.0255,LZSK=0.13,ZPERC=175.5,REXP=3.0,PFREE=0.4,PCTIM=0.05,ADIMP=0.2,RIVA=0.1,SIDE=0.25,RSERV=0.2
 optimization:
   methods:
   - iteration
