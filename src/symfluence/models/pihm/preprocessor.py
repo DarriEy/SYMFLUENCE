@@ -417,7 +417,7 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         self._write_att(settings_dir, name)
         self._write_soil(settings_dir, name, k_sat, porosity,
                          vg_alpha, vg_n, macropore_k, macropore_depth, soil_depth)
-        self._write_geol(settings_dir, name, k_sat)
+        self._write_geol(settings_dir, name, k_sat, porosity)
         self._write_riv(settings_dir, name, k_sat)
         self._write_meteo(settings_dir, name, forcing_df)
         self._write_lai(settings_dir, name, start_dt, end_dt)
@@ -434,8 +434,119 @@ class PIHMPreProcessor(BaseModelPreProcessor):
     # File writers
     # -------------------------------------------------------------------------
 
+    def _n_hillslope_bands(self) -> int:
+        """Number of hillslope bands per bank (1 = lumped 2-element mesh).
+
+        Set ``PIHM_HILLSLOPE_BANDS`` > 1 for a semi-distributed mesh: each bank
+        is discretised into a cascade of bands from the channel up to the
+        divide, so subsurface water must traverse several elements before
+        reaching the channel. That lateral storage-routing supplies the slow
+        hillslope response a single lumped element cannot (a lumped element has
+        a uniform water table, hence no within-hillslope travel time).
+        """
+        try:
+            return max(1, int(self._get_pihm_cfg('HILLSLOPE_BANDS', 1)))
+        except (TypeError, ValueError):
+            return 1
+
+    def _build_grid_mesh(self, area_m2: float, soil_depth: float, n_rows: int):
+        """Build a quality M x N structured grid mesh with a multi-segment channel.
+
+        A rectangular valley of length ``L = sqrt(area)`` with the channel down
+        the centreline (y=0). Each bank spans 0..Ymax (``Ymax = area/(2L)``) and
+        is gridded into ``N = n_rows`` hillslope rows x ``M = 2N`` columns, so
+        cells are ~square (good aspect ratio, unlike the elongated 1-band
+        cascade). Each cell -> 2 triangles with a consistent SW-NE diagonal.
+        The channel is ``M`` segments cascaded downstream (x=0 -> x=L outlet).
+
+        Returns ``(ele_lines, node_lines, n_ele, river)`` where ``river`` is a
+        list of ``(from_node, to_node, down, left_ele, right_ele)``.
+        """
+        import math as _math
+        N = max(1, int(n_rows))
+        M = max(2, 2 * N)                       # ~square cells
+        L = _math.sqrt(area_m2)
+        ymax = area_m2 / (2.0 * L)
+        dx, dy = L / M, ymax / N
+        chan_slope, hill_grad, elev_outlet = 0.0008, 0.02, 1500.0
+
+        def nidx(i, j):                          # node at column i, row j (y=j*dy)
+            return (j + N) * (M + 1) + (i + 1)
+
+        # ---- nodes (rows j=-N..N, cols i=0..M) ---------------------------
+        node_lines = ["INDEX\tX\tY\tZMIN\tZMAX"]
+        for j in range(-N, N + 1):
+            for i in range(0, M + 1):
+                x, y = i * dx, j * dy
+                z = elev_outlet + chan_slope * (L - x) + hill_grad * abs(y)
+                node_lines.append(
+                    f"{nidx(i, j)}\t{x:.2f}\t{y:.2f}\t{z - soil_depth:.1f}\t{z:.1f}")
+
+        # ---- element-id helpers (left bank then right bank) --------------
+        nMN = M * N
+
+        def lL(i, j):
+            return 2 * ((j - 1) * M + (i - 1)) + 1
+
+        def lU(i, j):
+            return 2 * ((j - 1) * M + (i - 1)) + 2
+
+        def rL(i, j):
+            return 2 * nMN + 2 * ((j - 1) * M + (i - 1)) + 1
+
+        def rU(i, j):
+            return 2 * nMN + 2 * ((j - 1) * M + (i - 1)) + 2
+
+        def inb(i, j):
+            return 1 <= i <= M and 1 <= j <= N
+
+        def vlL(i, j):
+            return lL(i, j) if inb(i, j) else 0
+
+        def vlU(i, j):
+            return lU(i, j) if inb(i, j) else 0
+
+        def vrL(i, j):
+            return rL(i, j) if inb(i, j) else 0
+
+        def vrU(i, j):
+            return rU(i, j) if inb(i, j) else 0
+
+        # ---- elements ----------------------------------------------------
+        # Each cell: lower tri (SW,SE,NE), upper tri (SW,NE,NW); diagonal SW-NE.
+        # NABR order: edge1=N2-N3, edge2=N3-N1, edge3=N1-N2.
+        ele = []
+        for j in range(1, N + 1):
+            for i in range(1, M + 1):
+                # left bank cell
+                sw, se, ne, nw = nidx(i - 1, j - 1), nidx(i, j - 1), nidx(i, j), nidx(i - 1, j)
+                south = vlU(i, j - 1) if j > 1 else vrL(i, 1)  # j==1 -> across channel
+                ele.append((lL(i, j), sw, se, ne, vlU(i + 1, j), lU(i, j), south))
+                ele.append((lU(i, j), sw, ne, nw, vlL(i, j + 1), vlL(i - 1, j), lL(i, j)))
+                # right bank cell (mirror in -y)
+                sw2, se2 = nidx(i - 1, -(j - 1)), nidx(i, -(j - 1))
+                ne2, nw2 = nidx(i, -j), nidx(i - 1, -j)
+                south2 = vrU(i, j - 1) if j > 1 else vlL(i, 1)
+                ele.append((rL(i, j), sw2, se2, ne2, vrU(i + 1, j), rU(i, j), south2))
+                ele.append((rU(i, j), sw2, ne2, nw2, vrL(i, j + 1), vrL(i - 1, j), rL(i, j)))
+        ele.sort(key=lambda e: e[0])
+        n_ele = len(ele)
+        ele_lines = [f"NUMELE\t{n_ele}",
+                     "INDEX\tNODE1\tNODE2\tNODE3\tNABR1\tNABR2\tNABR3"]
+        ele_lines += ["\t".join(str(v) for v in e) for e in ele]
+        ele_lines.append(f"NUMNODE\t{(M + 1) * (2 * N + 1)}")
+
+        # ---- channel: M segments cascaded x=0 -> x=L (outlet) ------------
+        river = []
+        for i in range(1, M + 1):
+            down = (i + 1) if i < M else -3
+            river.append((nidx(i - 1, 0), nidx(i, 0), down, lL(i, 1), rL(i, 1)))
+        return ele_lines, node_lines, n_ele, river
+
     def _write_mesh(self, d: Path, name: str, area_m2: float, soil_depth: float):
-        """Write .mesh file -- two-element mesh for lumped mode.
+        """Write .mesh file -- 2-element lumped mesh, or an n-band cascade.
+
+        For two-element (lumped) mode:
 
         MM-PIHM requires LEFT != RIGHT for river segments so that the
         elem<->river water exchange is correctly reflected back to the
@@ -461,6 +572,19 @@ class PIHMPreProcessor(BaseModelPreProcessor):
 
         Each triangle has area = catchment_area / 2.
         """
+        n_bands = self._n_hillslope_bands()
+        if n_bands > 1:
+            ele_lines, node_lines, n_ele, river = self._build_grid_mesh(
+                area_m2, soil_depth, n_bands)
+            (d / f"{name}.mesh").write_text(
+                "\n".join(ele_lines + node_lines) + "\n")
+            self._n_ele = n_ele
+            self._river_segments = river
+            self.logger.info(
+                f"Wrote {name}.mesh (semi-distributed grid: {n_ele} elements, "
+                f"{len(river)} channel segments, N={n_bands} rows/bank)")
+            return
+
         # River length (edge 1-2).  Use sqrt(area) as characteristic length.
         # Each triangle: area = 0.5 * L * (H/2) = L*H/4.
         # Two triangles: total = L*H/2 = area_m2  =>  H = 2*area_m2/L.
@@ -489,6 +613,8 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             f"4\t{L/2:.2f}\t{-H/2:.2f}\t{elev_mid - soil_depth:.1f}\t{elev_mid:.1f}",
         ]
         (d / f"{name}.mesh").write_text("\n".join(lines) + "\n")
+        self._n_ele = 2
+        self._river_segments = [(1, 2, -3, 1, 2)]
         centroid_dist = H / 2 / 3  # dist from centroid to river (y=0)
         self.logger.debug(
             f"Wrote {name}.mesh (2 elements, L={L:.0f}m, H={H:.0f}m, "
@@ -503,15 +629,13 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             INDEX   SOIL    GEOL    LC      METEO   LAI     BC1     BC2     BC3
 
         BC values: 0 = no boundary condition on that edge.
-        Two elements share the same soil, geology, land cover, forcing, and LAI.
+        All elements share the same soil, geology, land cover, forcing, and LAI.
         """
-        lines = [
-            "INDEX\tSOIL\tGEOL\tLC\tMETEO\tLAI\tBC1\tBC2\tBC3",
-            "1\t1\t1\t1\t1\t1\t0\t0\t0",
-            "2\t1\t1\t1\t1\t1\t0\t0\t0",
-        ]
+        n_ele = getattr(self, '_n_ele', 2)
+        lines = ["INDEX\tSOIL\tGEOL\tLC\tMETEO\tLAI\tBC1\tBC2\tBC3"]
+        lines += [f"{i}\t1\t1\t1\t1\t1\t0\t0\t0" for i in range(1, n_ele + 1)]
         (d / f"{name}.att").write_text("\n".join(lines) + "\n")
-        self.logger.debug(f"Wrote {name}.att (2 elements)")
+        self.logger.debug(f"Wrote {name}.att ({n_ele} elements)")
 
     def _write_soil(self, d: Path, name: str, k_sat, porosity,
                     vg_alpha, vg_n, macropore_k, macropore_depth, soil_depth):
@@ -542,7 +666,7 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         (d / f"{name}.soil").write_text("\n".join(lines) + "\n")
         self.logger.debug(f"Wrote {name}.soil")
 
-    def _write_geol(self, d: Path, name: str, k_sat):
+    def _write_geol(self, d: Path, name: str, k_sat, porosity: float = 0.4):
         """Write .geol file -- deep subsurface (geology) properties.
 
         Format:
@@ -553,13 +677,19 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             KMACV_RO    <ratio>
             KMACH_RO    <ratio>
         """
-        # Deep geology: much lower K, lower porosity, larger pore size param
+        # Deep geology: lower K than the soil. Its porosity (MAXSMC) is the
+        # aquifer storage that produces baseflow recession; a too-small value
+        # leaves no storage, so the subsurface cannot attenuate and the response
+        # is far too flashy. Derive it from the soil porosity (about half, for
+        # the denser deeper material) with a physical floor, rather than a tiny
+        # hard-coded constant.
         geol_k = k_sat / 100.0
+        geol_maxsmc = max(0.08, float(porosity) * 0.5)
         lines = [
             "NUMGEOL\t1",
             ("INDEX\tKSATV\tKSATH\tMAXSMC\tMINSMC\tALPHA\tBETA\t"
              "MACHF\tMACVF\tDMAC"),
-            (f"1\t{geol_k:.6e}\t{geol_k:.6e}\t0.037\t0.00\t10.0\t2.0\t"
+            (f"1\t{geol_k:.6e}\t{geol_k:.6e}\t{geol_maxsmc:.4f}\t0.00\t10.0\t2.0\t"
              f"0.01\t0.01\t1.0"),
             "KMACV_RO\t100.0",
             "KMACH_RO\t1000.0",
@@ -596,10 +726,12 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             f"depth={channel_depth:.1f}m (scaled from {area_km2:.0f} km2)"
         )
 
-        lines = [
-            "NUMRIV\t1",
-            "INDEX\tFROM\tTO\tDOWN\tLEFT\tRIGHT\tSHAPE\tMATL\tBC\tRES",
-            "1\t1\t2\t-3\t1\t2\t1\t1\t0\t0",
+        segments = getattr(self, '_river_segments', [(1, 2, -3, 1, 2)])
+        lines = ["NUMRIV\t%d" % len(segments),
+                 "INDEX\tFROM\tTO\tDOWN\tLEFT\tRIGHT\tSHAPE\tMATL\tBC\tRES"]
+        for k, (frm, to, down, left, right) in enumerate(segments, start=1):
+            lines.append(f"{k}\t{frm}\t{to}\t{down}\t{left}\t{right}\t1\t1\t0\t0")
+        lines += [
             "SHAPE\t1",
             "INDEX\tDPTH\tOINT\tCWID",
             "#-\tm\t-\t-",
@@ -842,15 +974,17 @@ class PIHMPreProcessor(BaseModelPreProcessor):
             d_ += struct.pack(f'{MAXLYR}d', *([init_smc] * MAXLYR))
             return d_
 
-        # Two elements with identical initial conditions
-        data = _pack_one_elem() + _pack_one_elem()
+        # One ic_struct per element, all with identical initial conditions
+        n_ele = getattr(self, '_n_ele', 2)
+        n_riv = len(getattr(self, '_river_segments', [None]))
+        data = _pack_one_elem() * n_ele
 
-        # River IC: stage
-        data += struct.pack('d', 0.1)
+        # River IC: one stage per channel segment
+        data += struct.pack('d', 0.1) * n_riv
 
         (d / f"{name}.ic").write_bytes(data)
         self.logger.info(
-            f"Wrote {name}.ic (Noah format, 2 elements, {len(data)} bytes, "
+            f"Wrote {name}.ic (Noah format, {n_ele} elements, {len(data)} bytes, "
             f"GW={gw:.2f}m, unsat={unsat:.2f}m, smc={init_smc:.3f})"
         )
 

@@ -91,7 +91,13 @@ class PIHMResultExtractor(ModelResultExtractor):
                 if len(parts) >= 2:
                     try:
                         ts_str = parts[0].strip('"')
-                        val = float(parts[-1])
+                        # Column 1 is the outlet river segment's discharge. For a
+                        # lumped mesh there is only one segment; for a distributed
+                        # mesh the generator writes the outlet (DOWN=-3) as segment
+                        # 1, so column 1 is total basin discharge either way.
+                        # (parts[-1] would grab the LAST segment — a near-dry
+                        # headwater on a distributed mesh.)
+                        val = float(parts[1])
                         times.append(pd.Timestamp(ts_str))
                         values.append(val)
                     except (ValueError, IndexError):
