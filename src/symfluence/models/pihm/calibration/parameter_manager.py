@@ -527,11 +527,15 @@ class PIHMParameterManager(BaseParameterManager):
     def _update_ic_file(self, params: Dict[str, float]) -> None:
         """Update binary .ic file when SOIL_DEPTH or POROSITY change.
 
-        Flux-PIHM IC format (2 elements + 1 river):
+        Flux-PIHM IC format:
             Per element: cmc, sneqv, surf, unsat, gw, t1, snowh,
                         stc[11], smc[11], swc[11]  = 40 doubles
-            River: stage = 1 double
-            Total: 2*40 + 1 = 81 doubles = 648 bytes
+            Per river segment: stage = 1 double
+            Total: NUMELE*40 + NUMRIV doubles
+
+        The element/river counts are read from the .mesh/.riv files so this works
+        for both the lumped (2 elem + 1 river) and distributed (TIN) meshes,
+        instead of assuming a fixed 2-element layout.
         """
         import struct
 
@@ -562,8 +566,26 @@ class PIHMParameterManager(BaseParameterManager):
             d_ += struct.pack(f'{MAXLYR}d', *([init_smc] * MAXLYR))
             return d_
 
-        data = pack_elem() + pack_elem()
-        data += struct.pack('d', 0.1)  # river stage
+        # Size the .ic to the actual mesh (NUMELE elements + NUMRIV river stages),
+        # not a hardcoded 2-element lumped layout, so distributed meshes work.
+        def _count(glob_pat: str, keyword: str, default: int) -> int:
+            files = list(self.settings_dir.glob(glob_pat))
+            if not files:
+                return default
+            with open(files[0]) as fh:
+                first = fh.readline().split()
+            if len(first) >= 2 and first[0].upper().startswith(keyword):
+                try:
+                    return int(first[1])
+                except ValueError:
+                    return default
+            return default
+
+        n_ele = _count('*.mesh', 'NUMELE', 2)
+        n_riv = _count('*.riv', 'NUMRIV', 1)
+
+        data = pack_elem() * n_ele
+        data += struct.pack('d', 0.1) * n_riv  # one stage per river segment
         ic_files[0].write_bytes(data)
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
