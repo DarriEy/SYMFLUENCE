@@ -457,7 +457,8 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         is gridded into ``N = n_rows`` hillslope rows x ``M = 2N`` columns, so
         cells are ~square (good aspect ratio, unlike the elongated 1-band
         cascade). Each cell -> 2 triangles with a consistent SW-NE diagonal.
-        The channel is ``M`` segments cascaded downstream (x=0 -> x=L outlet).
+        The channel is ``M`` segments (x=0 -> x=L outlet), numbered
+        outlet-first so segment 1 always carries total basin discharge.
 
         Returns ``(ele_lines, node_lines, n_ele, river)`` where ``river`` is a
         list of ``(from_node, to_node, down, left_ele, right_ele)``.
@@ -536,10 +537,13 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         ele_lines += ["\t".join(str(v) for v in e) for e in ele]
         ele_lines.append(f"NUMNODE\t{(M + 1) * (2 * N + 1)}")
 
-        # ---- channel: M segments cascaded x=0 -> x=L (outlet) ------------
+        # ---- channel: M segments, numbered outlet-first ------------------
+        # Segment 1 is the outlet (DOWN=-3, at x=L) and numbering walks
+        # upstream, matching the TauDEM-mesh convention so the extractor can
+        # always read column 1 of the river output as total basin discharge.
         river = []
-        for i in range(1, M + 1):
-            down = (i + 1) if i < M else -3
+        for k, i in enumerate(range(M, 0, -1), start=1):
+            down = -3 if k == 1 else k - 1
             river.append((nidx(i - 1, 0), nidx(i, 0), down, lL(i, 1), rL(i, 1)))
         return ele_lines, node_lines, n_ele, river
 
