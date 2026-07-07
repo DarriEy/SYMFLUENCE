@@ -6486,6 +6486,12 @@ SETTINGS_PIHM_PATH: default
 #   Source:      PIHMConfig (model_configs.py)
 PIHM_SPATIAL_MODE: lumped
 
+# PIHM_HILLSLOPE_BANDS — Hillslope bands per bank (1 = lumped; >1 semi-distributed)
+#   Type:        int
+#   Default:     1
+#   Source:      PIHMConfig (model_configs.py)
+PIHM_HILLSLOPE_BANDS: 1
+
 # PIHM_K_SAT — Saturated hydraulic conductivity (m/s)
 #   Type:        float
 #   Default:     1e-5
