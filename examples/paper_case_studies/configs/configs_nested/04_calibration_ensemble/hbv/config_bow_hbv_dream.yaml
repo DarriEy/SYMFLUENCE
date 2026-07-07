@@ -35,9 +35,6 @@ model:
     backend: jax
     timestep_hours: 24
     warmup_days: 730
-    initial_params: tt=0.0,cfmax=5.5,sfcf=1.0,cfr=0.05,cwh=0.1,fc=375.0,lp=0.65,beta=3.5,k0=0.52,k1=0.255,k2=0.05,uzl=50.0,perc=5.0,maxbas=4.0
-    smoothing: false
-    smoothing_factor: 15.0
 optimization:
   methods:
   - iteration

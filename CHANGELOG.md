@@ -11,6 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.2] - 2026-07-07
+
+Archival release accompanying the SYMFLUENCE paper series
+("Out-standing in Every Field", "The Registry as Social Contract",
+"From Configuration to Prediction"; Eythorsson et al., 2026, Water
+Resources Research, submitted). First release archived on Zenodo via the
+GitHub integration.
+
+### Added
+- **Citation metadata**: `CITATION.cff` (GitHub "Cite this repository") and
+  `.zenodo.json` (Zenodo deposit metadata) with the full author list and
+  ORCIDs (#269).
+- Guard test validating every shipped paper calibration config against the
+  strict config schema.
+
+### Changed
+- **Paper supplementary configs trimmed to the final manuscript** (#268):
+  removed the four cut experiments (decision ensemble, sensitivity analysis,
+  large-sample and large-domain Iceland calibration), reduced the forcing
+  ensemble to the four reported products (ERA5, RDRS, AORC, CONUS404), and
+  kept only the 130 fixed-seed (42) calibration combinations the paper
+  reports; all READMEs updated to the manuscript's section and figure
+  numbering.
+
+### Fixed
+- Shipped calibration configs for the five JAX-native models (HBV, HEC-HMS,
+  SAC-SMA, TOPMODEL, Xinanjiang) failed strict validation due to stale keys
+  from older plugin schemas (`initial_params`; HBV also `smoothing`,
+  `smoothing_factor`) and could not be loaded; the stale keys are removed
+  (85 configs).
+- Paper-config seed guard repointed after the #268 trim removed the config
+  it loaded (#270).
+
+---
+
 ## [0.9.1] - 2026-06-14
 
 > **Note**: Versions 0.8.0–0.9.0 were tagged and published without CHANGELOG
