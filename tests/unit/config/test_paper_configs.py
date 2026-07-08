@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.config.models.optimization import MultiGaugeConfig
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
@@ -30,17 +31,21 @@ def _load(path: Path) -> SymfluenceConfig:
     return SymfluenceConfig.model_validate(data)
 
 
-def test_decision_ensemble_sets_random_seed():
-    """Decision ensemble must pin a random_seed for paper reproducibility.
+def test_calibration_ensemble_sets_random_seed():
+    """Calibration-ensemble configs must pin a random_seed for reproducibility.
 
     PW reported best-run performance diverging from the paper (0.89 vs 0.86)
-    with three different decision choices. Root cause: DDS initialized with
-    unseeded RNG. This test prevents the seed from being silently dropped.
+    when DDS was initialized with an unseeded RNG (originally caught on the
+    since-removed decision-ensemble config, also FUSE + DDS). The shipped paper configs report
+    single fixed-seed runs, so this guards the seed from being silently
+    dropped from the calibration comparison.
     """
-    cfg = _load(CONFIGS_NESTED / "06_decision_ensemble" / "config_fuse_decisions.yaml")
+    cfg = _load(
+        CONFIGS_NESTED / "04_calibration_ensemble" / "fuse" / "config_bow_fuse_dds.yaml"
+    )
     assert cfg.system.random_seed is not None, (
-        "06_decision_ensemble config must set system.random_seed for "
-        "reproducibility of DDS-driven decision enumeration."
+        "04_calibration_ensemble configs must set system.random_seed for "
+        "reproducibility of the DDS-driven algorithm comparison."
     )
     assert isinstance(cfg.system.random_seed, int)
 
@@ -55,6 +60,32 @@ BENCHMARK_CONFIGS = [
     ("config_bow_benchmark_gr4j.yaml",  "GR4J"),
     ("config_bow_benchmark_hype.yaml",  "HYPE"),
 ]
+
+
+def test_multi_gauge_accepts_int_ids_and_mapping_path():
+    """The large_domain (Iceland) configs supply integer LaMAH-Ice gauge IDs in
+    MULTI_GAUGE_EXCLUDE_IDS and a CSV *path string* in GAUGE_SEGMENT_MAPPING —
+    exactly what the calibration workers read back via flat ``config.get(...)``.
+
+    A prior change typed exclude_ids as ``List[str]`` and gauge_segment_mapping
+    as ``Dict``, which made every large_domain paper config fail typed loading
+    (raising before the workers' flat access ever ran). This pins the contract:
+    integer IDs and a mapping path must both validate and round-trip unchanged.
+    """
+    cfg = MultiGaugeConfig.model_validate({
+        "MULTI_GAUGE_CALIBRATION": True,
+        "MULTI_GAUGE_EXCLUDE_IDS": [13, 39, 104, 1010],  # ints, not strings
+        "GAUGE_SEGMENT_MAPPING": "/data/domain_X/settings/mizuRoute/gauge_segment_mapping.csv",
+    })
+    assert cfg.exclude_ids == [13, 39, 104, 1010]
+    assert all(isinstance(i, int) for i in cfg.exclude_ids)
+    # The mapping must stay a path string (what Path(config.get(...)) consumes),
+    # not be coerced into a dict.
+    assert isinstance(cfg.gauge_segment_mapping, str)
+    assert cfg.gauge_segment_mapping.endswith("gauge_segment_mapping.csv")
+    # The explicit-dict form must still validate for callers that pass one.
+    cfg_dict = MultiGaugeConfig.model_validate({"GAUGE_SEGMENT_MAPPING": {"1": 5979}})
+    assert cfg_dict.gauge_segment_mapping == {"1": 5979}
 
 
 @pytest.mark.parametrize("filename,expected_model", BENCHMARK_CONFIGS)
@@ -72,3 +103,20 @@ def test_benchmark_config_loads(filename, expected_model):
         f"{filename} must include 'benchmarking' in evaluation.analyses; "
         f"got {analyses}"
     )
+_CALIBRATION_CONFIGS = sorted(
+    (CONFIGS_NESTED / "04_calibration_ensemble").glob("*/config_bow_*.yaml")
+)
+
+
+@pytest.mark.parametrize(
+    "config_path", _CALIBRATION_CONFIGS, ids=lambda p: f"{p.parent.name}/{p.name}"
+)
+def test_calibration_configs_validate_strictly(config_path: Path):
+    """Every shipped calibration config must pass strict schema validation.
+
+    The paper's reproducibility claim depends on these configs loading as-is;
+    stale keys from older plugin schemas (e.g. model.hbv.initial_params) made
+    five models' configs unloadable without CI noticing, because the strict
+    shipped-configs guard does not cover examples/.
+    """
+    _load(config_path)

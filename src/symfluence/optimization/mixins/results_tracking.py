@@ -256,7 +256,7 @@ class ResultsTrackingMixin(ConfigMixin):
         if standard_filename:
             filename = f"{experiment_id}_parallel_iteration_results.csv"
         else:
-            filename = f"{experiment_id}_{algorithm.lower()}_results.csv"
+            filename = f"{experiment_id}_{algorithm.lower().replace('/', '_')}_results.csv"
 
         results_path = self.results_dir / filename
 
@@ -442,7 +442,7 @@ class ResultsTrackingMixin(ConfigMixin):
         df = pd.DataFrame(records)
 
         # Generate filename
-        filename = f"{experiment_id}_{algorithm.lower()}_pareto_front.csv"
+        filename = f"{experiment_id}_{algorithm.lower().replace('/', '_')}_pareto_front.csv"
         pareto_path = self.results_dir / filename
 
         # Save

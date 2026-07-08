@@ -42,10 +42,16 @@ class WATFLOODWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             original_dir = data_dir / f'domain_{domain_name}' / 'WATFLOOD_input' / 'settings'
 
+            par_file = config.get('WATFLOOD_PAR_FILE', 'bow.par')
             if original_dir.exists() and original_dir.resolve() != settings_dir.resolve():
                 settings_dir.mkdir(parents=True, exist_ok=True)
-                # Copy entire directory tree (WATFLOOD needs subdirectories)
-                if not (settings_dir / 'basin').exists():
+                # Copy the WATFLOOD settings tree (subdirectories included) when the
+                # parameter file isn't already staged here. Key on the .par file
+                # rather than the basin/ dir: a stale, empty basin/ left by a
+                # previous failed run must not silently skip the copy.
+                have_par = ((settings_dir / 'basin' / par_file).exists()
+                            or (settings_dir / par_file).exists())
+                if not have_par:
                     for item in original_dir.iterdir():
                         dest = settings_dir / item.name
                         if item.is_dir():
@@ -55,7 +61,6 @@ class WATFLOODWorker(BaseWorker):
                             shutil.copy2(item, dest)
 
             # Find .par file (check basin/ subdirectory too)
-            par_file = config.get('WATFLOOD_PAR_FILE', 'bow.par')
             par_path = settings_dir / 'basin' / par_file
             if not par_path.exists():
                 par_path = settings_dir / par_file

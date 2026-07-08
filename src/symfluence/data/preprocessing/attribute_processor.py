@@ -128,6 +128,9 @@ class attributeProcessor(ConfigMixin):
             dict_key='ATTRIBUTE_PLUGINS_EXCLUDE',
         ) or []
         exclude = set(exclude)
+        # The pipeline can inject additional exclusions (e.g. providers already
+        # served by an AttributeBackend, to avoid double-extraction).
+        exclude |= getattr(self, '_plugin_exclude_override', set())
 
         for name, cls in discover_attribute_plugins(self.logger):
             if name in exclude:

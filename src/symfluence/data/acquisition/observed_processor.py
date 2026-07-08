@@ -321,10 +321,35 @@ class ObservedDataProcessor(ConfigMixin):
         else:
             return f'{self.forcing_time_step_size}s'
 
+    #: Providers handled by the hardcoded legacy dispatch below. Anything else
+    #: (or any provider when ``DATA_ACCESS: community``) is looked up in
+    #: ``R.observation_handlers`` so plugin-supplied handlers can serve it.
+    LEGACY_STREAMFLOW_PROVIDERS = frozenset({'USGS', 'WSC', 'SMHI', 'LAMAH_ICE', 'VI'})
+
     def process_streamflow_data(self):
         try:
             if self._get_config_value(lambda: None, default=False, dict_key='PROCESS_CARAVANS'):
                 self._process_caravans_data()
+                return
+            from symfluence.core.registries import R
+            from symfluence.data.observation.registry import ObservationRegistry
+            backend = str(self._get_config_value(
+                lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+            key = self.data_provider.lower()
+            # ── ObservationBackend protocol tier (contract 0.2.0) ─────────
+            # Backend-first under DATA_ACCESS: community: providers claimed
+            # by a registered ObservationBackend are served through the
+            # protocol BEFORE the R.observation_handlers lookup. Inert seam:
+            # with no observation backend registered (every existing
+            # configuration), the tiers below run exactly as before.
+            if backend == 'community' and self._process_streamflow_via_backend():
+                return
+            use_registry = backend == 'community' or self.data_provider not in self.LEGACY_STREAMFLOW_PROVIDERS
+            if use_registry and key in R.observation_handlers:
+                self.logger.info(f"Dispatching streamflow provider '{self.data_provider}' to registered handler")
+                handler = ObservationRegistry.get_handler(key, self.config, self.logger)
+                raw_data = handler.acquire()
+                handler.process(raw_data)
             elif self.data_provider == 'USGS':
                 self.logger.info("USGS streamflow data handled by formalized observation handler")
             elif self.data_provider == 'WSC':
@@ -336,8 +361,14 @@ class ObservedDataProcessor(ConfigMixin):
             elif self.data_provider == 'VI':
                 self._process_vi_data()
             else:
-                self.logger.error(f"Unsupported streamflow data provider: {self.data_provider}")
-                raise DataAcquisitionError(f"Unsupported streamflow data provider: {self.data_provider}")
+                msg = (
+                    f"Unsupported streamflow data provider: {self.data_provider}. "
+                    "Built-in providers: USGS, WSC, SMHI, LAMAH_ICE, VI. Additional providers can be "
+                    "supplied by plugins that register in R.observation_handlers "
+                    "(selected automatically, or force registry dispatch with DATA_ACCESS: community)."
+                )
+                self.logger.error(msg)
+                raise DataAcquisitionError(msg)
         except (
             DataAcquisitionError,
             OSError,
@@ -348,6 +379,87 @@ class ObservedDataProcessor(ConfigMixin):
             RuntimeError,
         ) as e:
             self.logger.error(f'Issue in streamflow data preprocessing: {e}')
+
+    def _observation_station_ids(self) -> tuple:
+        """Resolve the provider-scheme station id(s) from the existing config keys.
+
+        Resolution order mirrors the native handlers' own lookups (e.g.
+        ``handlers/usgs.py``): the shared evaluation station id first, then
+        provider-specific keys. Returns ``()`` when nothing is configured —
+        the backend then falls back to its own config-driven resolution.
+        """
+        keys = ['STATION_ID', f'{self.data_provider}_SITE_CODE', 'STREAMFLOW_STATION_ID']
+        if self.data_provider == 'CSFS':
+            keys.insert(0, 'CSFS_STATION_ID')
+
+        raw = None
+        for dict_key in keys:
+            if dict_key == 'STATION_ID':
+                raw = self._get_config_value(
+                    lambda: self.config.evaluation.streamflow.station_id,
+                    default=None, dict_key='STATION_ID')
+            else:
+                raw = self._get_config_value(lambda: None, default=None, dict_key=dict_key)
+            if raw not in (None, '', 'default'):
+                break
+        if raw in (None, '', 'default'):
+            return ()
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(s).strip() for s in raw if str(s).strip())
+        return tuple(part.strip() for part in str(raw).split(',') if part.strip())
+
+    def _process_streamflow_via_backend(self) -> bool:
+        """Serve primary streamflow through a registered ObservationBackend.
+
+        Returns False (meaning "use the existing dispatch unchanged") unless
+        BOTH hold: (a) at least one backend is registered under
+        ``R.observation_backends`` (e.g. the csfs plugin's
+        CommunityObservationBackend), and (b) the selector resolves the
+        configured provider to it — honoring ``<PROVIDER>_BACKEND`` pins,
+        capability kind/window checks, and the parity-gate policy. Selection
+        failures fall through cleanly; acquisition failures propagate to the
+        caller's existing error handling (same UX as a handler failure).
+        """
+        from symfluence.core.registries import R
+
+        if not R.observation_backends.keys():
+            return False
+
+        from symfluence.data.backends.contract import ObservationRequest
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_observation_backend
+
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+
+        try:
+            backend = select_observation_backend(
+                self.data_provider, self.config,
+                kind='streamflow', window=window, logger=self.logger,
+            )
+        except AcquisitionError as exc:
+            self.logger.info(
+                f"Observation-backend selection declined for {self.data_provider} "
+                f"({exc}); using the existing dispatch."
+            )
+            return False
+
+        request = ObservationRequest(
+            provider_id=self.data_provider,
+            station_ids=self._observation_station_ids(),
+            kind='streamflow',
+            window=window,
+            target_dir=Path(self.streamflow_raw_path),
+        )
+        result = backend.acquire(request)
+        self.logger.info(
+            f"✓ Streamflow observations acquired via '{backend.name}' backend "
+            f"(schema={result.schema}, {len(result.paths)} file(s))"
+        )
+        for warning in result.warnings:
+            self.logger.warning(f"Backend '{backend.name}' warning: {warning}")
+        return True
 
     def _process_vi_data(self):
         self.logger.info("Processing VI (Iceland) streamflow data")

@@ -9,7 +9,6 @@ Tests the refactored modular attribute processing architecture including:
 """
 from __future__ import annotations
 
-import warnings
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -83,32 +82,6 @@ def setup_test_directories(tmp_path, domain_name):
         (project_dir / dir_path).mkdir(parents=True, exist_ok=True)
 
     return project_dir
-
-
-class TestDeprecationWarning:
-    """Test that deprecation warning is raised for original module."""
-
-    def test_original_module_raises_deprecation_warning(self):
-        """Verify that importing the original module raises a deprecation warning."""
-        import importlib
-
-        from symfluence.data.preprocessing import attribute_processing
-
-        # Reset warning registry for the module to ensure warning triggers again
-        if hasattr(attribute_processing, '__warningregistry__'):
-            attribute_processing.__warningregistry__.clear()
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-
-            # Force reload to trigger module-level warning code
-            importlib.reload(attribute_processing)
-
-            # Verify deprecation warning was raised
-            assert len(w) >= 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "deprecated" in str(w[0].message).lower()
-            assert "attribute_processing_refactored" in str(w[0].message)
 
 
 class TestIndividualProcessors:

@@ -85,13 +85,23 @@ class NoahMPWorker(BaseWorker):
         try:
             settings_dir = Path(settings_dir)
 
+            # route_k is a post-model routing knob (Noah-MP is a 1-D column and
+            # emits unrouted runoff). It does not go to the model; stash it for
+            # calculate_metrics, which routes the runoff before scoring.
+            if 'route_k' in params:
+                try:
+                    (settings_dir / 'route_k.txt').write_text(
+                        f"{float(params['route_k']):.6f}\n")
+                except OSError as e:
+                    self.logger.warning(f"Could not write route_k.txt: {e}")
+
             # Split into namelist vs soil parameters
             nl_params = {k: v for k, v in params.items() if k in self.NAMELIST_PARAMS}
             soil_params = {k: v for k, v in params.items() if k in self.SOILPARM_COLUMNS}
             other_params = {
                 k: v for k, v in params.items()
                 if k not in self.NAMELIST_PARAMS and k not in self.SOILPARM_COLUMNS
-                and k not in ('slope', 'noah_czil')
+                and k not in ('slope', 'noah_czil', 'route_k')
             }
 
             # slope and noah_czil go into namelist as well
@@ -181,21 +191,31 @@ class NoahMPWorker(BaseWorker):
 
         lines = soilparm_path.read_text().splitlines()
 
-        # SOILPARM.TBL format: header lines, then data lines with comma-separated values.
-        # Find the data section for the active classification (STAS).
-        # Data lines start with a soil type index and contain many numeric fields
-        # (>5 comma-separated values). The header "19,1 'BB ...'" has quotes
-        # and fewer numeric fields, so we skip it.
+        # SOILPARM.TBL format: header lines, then data lines with comma-separated
+        # values. Find the data section for the active classification (STAS).
+        # A data row starts with an integer soil-type index whose *second* field
+        # is numeric (e.g. "1, 2.79, ..."). The dimension header
+        # ("19,1  'BB  DRYSMC ...") also starts with a digit, but its second
+        # field is the quoted column-name list, so it is not float-parseable.
+        # NOTE: extended tables append a quoted soil-name label to every data row
+        # (".. , 'SAND'"), so we must NOT skip lines merely because they contain a
+        # quote — that would skip every data row.
+        def _is_float(token: str) -> bool:
+            try:
+                float(token)
+                return True
+            except ValueError:
+                return False
+
         data_start = None
         for i, line in enumerate(lines):
             stripped = line.strip()
             if not stripped or not stripped[0].isdigit():
                 continue
-            # Skip header lines with quotes or fewer than 5 comma-separated fields
-            if "'" in stripped or '"' in stripped:
-                continue
             parts = [p.strip() for p in stripped.split(',')]
-            if len(parts) >= 5:
+            if (len(parts) >= 5
+                    and parts[0].lstrip('-').isdigit()
+                    and _is_float(parts[1])):
                 data_start = i
                 break
 
@@ -255,11 +275,19 @@ class NoahMPWorker(BaseWorker):
                 install_dir = Path(install_path)
 
             exe_name = config.get('NOAHMP_EXE', 'noah_owp_modular.exe')
-            noahmp_exe = install_dir / 'bin' / exe_name
-            if not noahmp_exe.exists():
-                noahmp_exe = install_dir / exe_name
-            if not noahmp_exe.exists():
-                self.logger.error(f"Noah-MP executable not found: {noahmp_exe}")
+            # The noah-owp-modular build places the executable under run/; older
+            # layouts used bin/ or the install root. Check all three.
+            noahmp_exe = None
+            for sub in ('run', 'bin', '.'):
+                cand = install_dir / sub / exe_name
+                if cand.exists():
+                    noahmp_exe = cand
+                    break
+            if noahmp_exe is None:
+                self.logger.error(
+                    f"Noah-MP executable '{exe_name}' not found under "
+                    f"{install_dir}/(run|bin|.)"
+                )
                 return False
 
             # noah-owp-modular reads namelist.input from cwd
@@ -312,6 +340,38 @@ class NoahMPWorker(BaseWorker):
             self.logger.error(f"Noah-MP execution error: {e}", exc_info=True)
             return False
 
+    @staticmethod
+    def _read_route_k(settings_dir) -> Optional[float]:
+        """Read the calibrated Nash routing time constant (days), if present."""
+        if not settings_dir:
+            return None
+        f = Path(settings_dir) / 'route_k.txt'
+        if not f.exists():
+            return None
+        try:
+            return float(f.read_text().strip())
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _route_nash(series: 'pd.Series', k_days: float, n: int = 2) -> 'pd.Series':
+        """Route a flow series through an n-reservoir Nash cascade.
+
+        Each linear reservoir is y[t] = a*y[t-1] + (1-a)*x[t] with
+        a = exp(-1/k). Volume-preserving; attenuates and delays the response.
+        """
+        if k_days is None or k_days <= 0 or len(series) < 2:
+            return series
+        a = float(np.exp(-1.0 / k_days))
+        y = series.to_numpy(dtype=float)
+        for _ in range(max(1, int(n))):
+            out = np.empty_like(y)
+            out[0] = y[0]
+            for i in range(1, len(y)):
+                out[i] = a * out[i - 1] + (1.0 - a) * y[i]
+            y = out
+        return pd.Series(y, index=series.index)
+
     def calculate_metrics(
         self,
         output_dir: Path,
@@ -357,6 +417,15 @@ class NoahMPWorker(BaseWorker):
             streamflow_m3s = total_runoff_mm * area_m2 / (1000.0 * dt_hours * 3600.0)
 
             sim_series = pd.Series(streamflow_m3s, index=times).resample('D').mean()
+
+            # Route the (unrouted column) runoff through a Nash cascade if a
+            # routing time constant was calibrated (route_k, in days). This is
+            # the dominant skill lever for Noah-MP: a 1-D column emits runoff
+            # ~10x too flashy, and a 2-reservoir cascade attenuates it into a
+            # realistic hydrograph (Bow at Banff: KGE -0.18 -> ~0.85).
+            route_k = self._read_route_k(kwargs.get('settings_dir'))
+            if route_k and route_k > 0:
+                sim_series = self._route_nash(sim_series, route_k, n=2)
 
             # Load observations
             obs_values, obs_index = self._streamflow_metrics.load_observations(

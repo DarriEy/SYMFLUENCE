@@ -14,9 +14,15 @@ Each entry point must resolve to a subclass of
 :class:`~symfluence.data.preprocessing.attribute_processors.base.BaseAttributeProcessor`
 (constructed with ``(config, logger)`` and exposing ``.process() -> dict``).
 
-Discovered plugins run automatically during the ``acquire_attributes`` step
-unless disabled via config (see
-:func:`symfluence.data.preprocessing.attribute_processor.attributeProcessor._process_plugin_attributes`).
+Discovered plugins run during model-agnostic preprocessing under
+``DATA_ACCESS: community`` — the data manager's
+``_run_community_attribute_pipeline`` invokes
+:func:`symfluence.data.preprocessing.attribute_processor.attributeProcessor._process_plugin_attributes`,
+whose results are written to ``data/attributes/community/`` and ingested by
+the ``AttributesNetCDFBuilder`` as a ``community`` group. They also run inside
+``attributeProcessor.process_attributes()`` for callers that use the full
+in-memory attribute table. Control via ``ATTRIBUTE_PLUGINS_ENABLED`` /
+``ATTRIBUTE_PLUGINS_EXCLUDE``.
 """
 
 from __future__ import annotations

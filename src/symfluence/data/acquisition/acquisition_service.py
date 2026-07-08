@@ -260,39 +260,16 @@ class AcquisitionService(ConfigurableMixin):
         if bbox_str:
             return bbox_str
 
-        definition_method = str(self._get_config_value(
-            lambda: self.config.domain.definition_method, default=''
-        )).lower()
-        pour_point = self._get_config_value(
-            lambda: self.config.domain.pour_point_coords, default=None
-        )
-
-        if definition_method == 'point' and pour_point:
-            try:
-                lat_str, lon_str = str(pour_point).split('/')
-                lat, lon = float(lat_str), float(lon_str)
-            except (ValueError, AttributeError) as exc:
-                raise ValueError(
-                    f"Cannot auto-derive BOUNDING_BOX_COORDS for {purpose}: "
-                    f"POUR_POINT_COORDS='{pour_point}' is not in 'lat/lon' format."
-                ) from exc
-
-            buffer = self._get_config_value(
-                lambda: self.config.domain.delineation.point_buffer_distance,
-                default=None,
-                dict_key='POINT_BUFFER_DISTANCE',
-            )
-            if buffer is None:
-                buffer = 0.01  # ~1 km at the equator
-            buffer = float(buffer)
-
-            derived = f"{lat + buffer}/{lon - buffer}/{lat - buffer}/{lon + buffer}"
+        # Point domains may be configured with only POUR_POINT_COORDS; the shared
+        # helper on ConfigMixin derives the square extent (single source of truth,
+        # also used by the point delineator and acquisition handlers).
+        derived = self._resolve_point_bbox()
+        if derived:
             if not self._auto_bbox_logged:
                 self.logger.info(
-                    f"BOUNDING_BOX_COORDS not set; auto-derived {derived} "
-                    f"from POUR_POINT_COORDS={pour_point} with buffer={buffer}° "
-                    f"(point domain). Override by setting BOUNDING_BOX_COORDS "
-                    f"explicitly or POINT_BUFFER_DISTANCE."
+                    f"BOUNDING_BOX_COORDS not set; auto-derived {derived} from "
+                    f"POUR_POINT_COORDS (point domain). Override by setting "
+                    f"BOUNDING_BOX_COORDS explicitly or POINT_BUFFER_DISTANCE."
                 )
                 self._auto_bbox_logged = True
             return derived
@@ -385,8 +362,12 @@ class AcquisitionService(ConfigurableMixin):
         for dir_path in [dem_dir, soilclass_dir, landclass_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for attributes (DEM_SOURCE: {dem_source})")
+        # COMMUNITY follows the CLOUD pathway for attribute acquisition (see
+        # acquire_forcings): rasters still come from the registry handlers;
+        # the community attribute layer (CAS) plugs in downstream as an
+        # attribute processor, not here.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for attributes (DEM_SOURCE: {dem_source})")
 
             bbox_str = self._resolve_bounding_box("attributes")
 
@@ -723,6 +704,216 @@ class AcquisitionService(ConfigurableMixin):
 
         return actual_times[0] <= expected_times[0] and actual_times[-1] >= expected_times[-1]
 
+    def _forcing_request_facts(self, forcing_dataset: str):
+        """Window/variables for a forcing request, resolved exactly once.
+
+        Returns ``(window, variables)`` where ``window`` is an ISO-string
+        ``(start, end)`` tuple (or ``None``) and ``variables`` a frozenset of
+        requested names (or ``None`` = dataset default).
+        """
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        window = (str(time_start), str(time_end)) if time_start and time_end else None
+
+        dataset_vars_key = f"{forcing_dataset.upper()}_VARS"
+        variables = self._get_config_value(lambda: None, default=None, dict_key=dataset_vars_key)
+        if variables is None:
+            variables = self._get_config_value(
+                lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
+        variables = frozenset(variables) if isinstance(variables, list) and variables else None
+        return window, variables
+
+    def _maybe_select_protocol_backend(self, forcing_dataset: str):
+        """Consult the AcquisitionBackend selector — only once it can matter.
+
+        Returns ``None`` (meaning "use the existing dispatch unchanged")
+        unless BOTH hold: (a) at least one non-native backend is registered
+        under the protocol (e.g. the cfs plugin's CommunityForcingBackend),
+        and (b) the selector resolves the request to that non-native backend.
+        Selection honours ``DATA_ACCESS`` priority, per-dataset
+        ``<DATASET>_BACKEND`` pins, capability variable/window checks, and the
+        parity-gate policy (ungraded datasets refused unless
+        ``ALLOW_UNGATED_BACKENDS``). Without a non-native backend installed,
+        cloud/community/MAF behavior is bit-identical to the legacy dispatch.
+        """
+        from symfluence.core.registries import R
+
+        non_native = [k for k in R.acquisition_backends.keys() if k != 'native']
+        if not non_native:
+            return None
+
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_backend
+
+        window, variables = self._forcing_request_facts(forcing_dataset)
+        try:
+            backend = select_backend(
+                forcing_dataset, self.config,
+                variables=variables, window=window, logger=self.logger,
+            )
+        except AcquisitionError as exc:
+            self.logger.info(
+                f"Acquisition-backend selection declined for {forcing_dataset} ({exc}); "
+                f"using the existing dispatch."
+            )
+            return None
+        if getattr(backend, 'name', 'native') == 'native':
+            return None  # native == the existing dispatch below, untouched
+        return backend
+
+    def _protocol_backend_cache(self):
+        """The raw-forcing cache, configured exactly like the legacy path's."""
+        return RawForcingCache(
+            cache_root=self.data_dir / 'cache' / 'raw_forcing',
+            max_size_gb=self._get_config_value(
+                lambda: self.config.data.forcing_cache_size_gb,
+                default=3.0, dict_key='FORCING_CACHE_SIZE_GB'),
+            ttl_days=self._get_config_value(
+                lambda: self.config.data.forcing_cache_ttl_days,
+                default=30, dict_key='FORCING_CACHE_TTL_DAYS'),
+            enable_checksum=self._get_config_value(
+                lambda: self.config.data.forcing_cache_checksum,
+                default=True, dict_key='FORCING_CACHE_CHECKSUM'),
+        )
+
+    @staticmethod
+    def _declared_schema_for(backend, forcing_dataset: str) -> str:
+        """The schema the backend declares for a dataset (capability lookup)."""
+        wanted = forcing_dataset.lower()
+        try:
+            for cap in backend.capabilities():
+                if cap.dataset_id.lower() == wanted:
+                    return str(cap.schema)
+        except (AttributeError, TypeError, ValueError, KeyError, RuntimeError, ImportError):
+            pass  # capability probing must never break acquisition; key degrades to 'unknown'
+        return 'unknown'
+
+    def _restore_protocol_cache_hit(self, meta: dict, raw_data_dir: Path, cached_file: Path) -> bool:
+        """Restore a protocol-path cache entry: raw file + sidecar manifest.
+
+        Returns False when the entry predates manifest-aware caching (treated
+        as a miss: without the manifest, downstream schema dispatch would
+        silently fall back to the native heuristics path).
+        """
+        import shutil
+
+        from symfluence.data.backends.contract import (
+            MANIFEST_FILENAME,
+            validate_manifest,
+        )
+
+        payload = meta.get('manifest')
+        if not isinstance(payload, dict):
+            return False
+        dest = raw_data_dir / str(meta.get('original_name') or cached_file.name)
+        shutil.copy(cached_file, dest)
+        payload = dict(payload)
+        payload['paths'] = [str(dest)]
+        try:
+            validate_manifest(payload)
+        except ValueError as exc:
+            self.logger.warning(f"Cached acquisition manifest invalid ({exc}); re-acquiring.")
+            dest.unlink(missing_ok=True)
+            return False
+        import json as _json
+        (raw_data_dir / MANIFEST_FILENAME).write_text(
+            _json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding='utf-8')
+        self.logger.info(f"✓ Restored cached protocol-backend forcing to: {dest}")
+        return True
+
+    def _acquire_forcing_via_protocol_backend(self, backend, forcing_dataset: str):
+        """Acquire forcing through a protocol backend (non-native).
+
+        Builds the :class:`AcquisitionRequest` from config exactly as the
+        legacy path resolves bbox/window/variables and lets the backend
+        deliver into ``raw_data/``. The declared-schema result (and its
+        sidecar manifest, written by the backend) drives downstream dispatch.
+
+        Cache: keyed structurally on (dataset, bbox, window, variables,
+        schema, backend) — the schema/backend salt is part of the key, so
+        protocol-path entries never collide with the legacy path's
+        ``DATA_ACCESS``-salted entries. The sidecar manifest is stored in the
+        cache metadata and restored on hit, keeping schema dispatch intact
+        for resumed runs.
+        """
+        import json as _json
+
+        from symfluence.data.backends.contract import (
+            AcquisitionRequest,
+            CredentialContext,
+            build_manifest,
+        )
+
+        bbox_str = self._resolve_bounding_box("forcing")
+        north, west, south, east = (float(part) for part in bbox_str.split('/'))
+
+        raw_data_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'raw_data'
+        raw_data_dir.mkdir(parents=True, exist_ok=True)
+
+        window, variables = self._forcing_request_facts(forcing_dataset)
+        schema = self._declared_schema_for(backend, forcing_dataset)
+
+        cache = self._protocol_backend_cache()
+        cache_key = cache.generate_cache_key(
+            dataset=forcing_dataset,
+            bbox=bbox_str,
+            time_start=window[0] if window else '',
+            time_end=window[1] if window else '',
+            variables=sorted(variables) if variables else None,
+            backend=f"{getattr(backend, 'name', 'backend')}:{schema}",
+        )
+
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD')
+        if not force_download:
+            cached_file = cache.get(cache_key)
+            if cached_file is not None:
+                meta_path = cache.cache_root / f"{cache_key}.meta.json"
+                try:
+                    meta = _json.loads(meta_path.read_text(encoding='utf-8'))
+                except (OSError, _json.JSONDecodeError):
+                    meta = {}
+                if self._restore_protocol_cache_hit(meta, raw_data_dir, cached_file):
+                    return None
+                self.logger.info(
+                    "Cached protocol-backend entry lacks a usable manifest; re-acquiring."
+                )
+
+        request = AcquisitionRequest(
+            dataset_id=forcing_dataset,
+            bbox=(south, west, north, east),
+            window=window,
+            variables=variables,
+            target_dir=raw_data_dir,
+            credentials=CredentialContext(),
+        )
+        result = backend.acquire(request)
+        self.logger.info(
+            f"✓ Forcing data acquired via '{backend.name}' backend "
+            f"(schema={result.schema}, {len(result.paths)} file(s))"
+        )
+        for warning in result.warnings:
+            self.logger.warning(f"Backend '{backend.name}' warning: {warning}")
+
+        # Single-file results are cached with their manifest; multi-file
+        # results (e.g. NEX-GDDP per-scenario sets) skip caching, like the
+        # legacy path skips directory outputs.
+        if len(result.paths) == 1 and str(result.paths[0]).endswith('.nc'):
+            try:
+                cache.put(cache_key, result.paths[0], metadata={
+                    'dataset': forcing_dataset,
+                    'bbox': bbox_str,
+                    'time_start': window[0] if window else '',
+                    'time_end': window[1] if window else '',
+                    'backend': getattr(backend, 'name', 'backend'),
+                    'schema': str(result.schema),
+                    'original_name': Path(result.paths[0]).name,
+                    'manifest': build_manifest(result),
+                })
+            except (OSError, ValueError) as exc:
+                self.logger.warning(f"Failed to cache protocol-backend forcing output: {exc}")
+        return result
+
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
@@ -776,11 +967,32 @@ class AcquisitionService(ConfigurableMixin):
         else:
             self._effective_forcing_time_step = configured_ts or _GENERIC_DEFAULT
 
-        if data_access == 'CLOUD':
-            self.logger.info(f"Cloud data access enabled for {forcing_dataset}")
+        # COMMUNITY consults the AcquisitionBackend selector first (below);
+        # datasets no registered non-native backend claims fall through to the
+        # same registry-handler pathway as CLOUD, so behavior without protocol
+        # backends installed is identical to CLOUD.
+        if data_access in ('CLOUD', 'COMMUNITY'):
+            self.logger.info(f"{data_access.capitalize()} data access enabled for {forcing_dataset}")
+
+            # ── AcquisitionBackend protocol selection ─────────────────────
+            # Consulted only when a NON-native backend has registered under
+            # the protocol (e.g. the cfs plugin's CommunityForcingBackend).
+            # DATA_ACCESS: community routes eligible datasets through the
+            # protocol path; cloud/MAF and <DATASET>_BACKEND: native keep the
+            # legacy dispatch below byte-for-byte.
+            protocol_backend = self._maybe_select_protocol_backend(forcing_dataset)
+            if protocol_backend is not None:
+                self._acquire_forcing_via_protocol_backend(protocol_backend, forcing_dataset)
+                if self._get_config_value(lambda: self.config.forcing.supplement, default=False):
+                    self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
+                    self.acquire_em_earth_forcings()
+                return
 
             if not check_cloud_access_availability(forcing_dataset, self.logger):
-                raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
+                raise ValueError(
+                    f"Dataset '{forcing_dataset}' has no registered acquisition handler "
+                    f"(DATA_ACCESS: {data_access.lower()})."
+                )
 
             bbox = self._resolve_bounding_box("forcing")
 
@@ -813,7 +1025,8 @@ class AcquisitionService(ConfigurableMixin):
                 bbox=bbox,
                 time_start=time_start,
                 time_end=time_end,
-                variables=variables if isinstance(variables, list) else None
+                variables=variables if isinstance(variables, list) else None,
+                backend=data_access,
             )
 
             # Check cache first
@@ -945,6 +1158,261 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
+    def _observation_window(self):
+        """The (start, end) ISO window for observation requests, or None."""
+        time_start = self._get_config_value(lambda: self.config.domain.time_start)
+        time_end = self._get_config_value(lambda: self.config.domain.time_end)
+        return (str(time_start), str(time_end)) if time_start and time_end else None
+
+    def _community_observation_backend(self, provider: str, kind: str):
+        """Return the community ObservationBackend serving (provider, kind), else None.
+
+        The single seam through which BOTH streamflow (CSFS) and non-streamflow
+        kinds (COS: TWS/SWE/ET/...) are routed to the community tier instead of
+        the native ``evaluation.<kind>.download`` handlers. Only under
+        ``DATA_ACCESS: community`` with a backend registered that actually admits
+        the provider for this kind (license/parity gate passes, no native pin);
+        returns None for every other mode, leaving the legacy native path intact.
+        """
+        if not provider:
+            return None
+        data_access = str(self._get_config_value(
+            lambda: self.config.domain.data_access, default='MAF', dict_key='DATA_ACCESS')).lower()
+        if data_access != 'community':
+            return None
+        from symfluence.core.registries import R
+        if not R.observation_backends.keys():
+            return None
+        from symfluence.data.backends.errors import AcquisitionError
+        from symfluence.data.backends.selection import select_observation_backend
+        try:
+            return select_observation_backend(
+                provider, self.config, kind=kind,
+                window=self._observation_window(), logger=self.logger,
+            )
+        except AcquisitionError:
+            return None
+
+    def _community_serves_streamflow(self, provider: str) -> bool:
+        """True if a community ObservationBackend serves *provider*'s streamflow.
+
+        Mirrors ``DataManager._observation_backend_serves``. When True, the native
+        ``<PROVIDER>_STREAMFLOW`` download is skipped here — ObservedDataProcessor's
+        backend tier fetches it instead — so the provider is not double-fetched
+        (native raw + community re-fetch).
+        """
+        return self._community_observation_backend(provider, 'streamflow') is not None
+
+    #: Non-streamflow additional-obs keys that, under DATA_ACCESS: community, are
+    #: served by an ObservationBackend (e.g. COS) instead of the native
+    #: ``evaluation.<kind>.download`` handler. Maps the native key -> a full adapter
+    #: spec ``(cos_provider, kind, output_path_helper, out_column, value_scale)``:
+    #:
+    #:  * ``output_path_helper`` — the name of a ``data.observation.paths`` helper
+    #:    returning the FIRST file the matching evaluator searches, so the canonical
+    #:    write is picked up transparently;
+    #:  * ``out_column`` — the column name that evaluator reads the observed value
+    #:    from;
+    #:  * ``value_scale`` — factor applied to the COS canonical value to match the
+    #:    evaluator's expected magnitude/unit. Identity for kinds whose canonical
+    #:    unit already matches; ``1/25.4`` for SWE because the snow evaluator
+    #:    force-converts inches->mm by magnitude (threshold 250), so COS mm is
+    #:    written as inches to reconstruct the correct mm downstream.
+    #:
+    #: The community backend acquires AND reduces in one call;
+    #: :meth:`_route_community_nonstreamflow_obs` then writes the canonical file and
+    #: the native handler is skipped. Gridded COS connectors (grace, mod16_et,
+    #: modis_sca) reduce a SUPPLIED granule (live-fetch is not wired in COS v0.1.0):
+    #: only GRACE has a pre-staged-mascon convention here, so the other gridded
+    #: providers decline and fall back to native; the point/tower connectors
+    #: (snotel, usgs_gw, fluxnet_et) fetch live.
+    _COMMUNITY_NONSTREAMFLOW_OBS = {
+        'GRACE':      ('grace',      'tws',         'tws_default_observation_path',         'grace_jpl_anomaly', 1.0),
+        'SNOTEL':     ('snotel',     'swe',         'swe_default_observation_path',         'swe',               1.0 / 25.4),
+        'MODIS_SNOW': ('modis_sca',  'snow_cover',  'snow_cover_default_observation_path',  'sca',               1.0),
+        'MODIS_ET':   ('mod16_et',   'et',          'modis_et_default_observation_path',    'et_mm_day',         1.0),
+        'FLUXNET_ET': ('fluxnet_et', 'et',          'fluxnet_et_default_observation_path',  'et_mm_day',         1.0),
+        'USGS_GW':    ('usgs_gw',    'groundwater', 'groundwater_default_observation_path', 'depth',             1.0),
+    }
+
+    def _route_community_nonstreamflow_obs(self, additional_obs) -> set:
+        """Acquire community-served non-streamflow observations via the backend tier.
+
+        For each additional-obs key whose (provider, kind) a community backend
+        serves, acquire through the backend and write the canonical processed
+        file the evaluators read; return the set of keys handled so the caller
+        drops them from the native task list. Best-effort: a community failure
+        logs a warning and leaves the native key in place (graceful fallback).
+        No-op unless ``DATA_ACCESS: community`` with a backend registered.
+        """
+        handled: set = set()
+        for obs_type in list(additional_obs):
+            spec = self._COMMUNITY_NONSTREAMFLOW_OBS.get(str(obs_type).upper())
+            if not spec:
+                continue
+            provider, kind = spec[0], spec[1]
+            backend = self._community_observation_backend(provider, kind)
+            if backend is None:
+                continue
+            try:
+                if self._acquire_observation_via_backend(backend, spec):
+                    handled.add(obs_type)
+                    self.logger.info(
+                        f"Observation '{obs_type}' ({kind}) served by the "
+                        f"'{backend.name}' community backend; skipping native download."
+                    )
+            except Exception as exc:  # noqa: BLE001 — best-effort; fall back to native
+                self.logger.warning(
+                    f"Community acquisition of {obs_type} via '{backend.name}' failed "
+                    f"({exc}); falling back to the native handler."
+                )
+        return handled
+
+    def _acquire_observation_via_backend(self, backend, spec: tuple) -> bool:
+        """Acquire one (provider, kind) via *backend*, write its canonical file.
+
+        *spec* is a :data:`_COMMUNITY_NONSTREAMFLOW_OBS` entry
+        ``(provider, kind, path_helper, out_column, value_scale)``.
+        """
+        from symfluence.data.backends.contract import ObservationRequest
+
+        provider, kind, path_helper, out_column, value_scale = spec
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, default='domain', dict_key='DOMAIN_NAME')
+        raw_dir = resolve_data_subdir(self.project_dir, 'observations') / kind / 'community_raw'
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        # Spatial-reduction context for gridded products (basin-mean needs a bbox).
+        # The backend reads these from request.options; translate the SYMFLUENCE bbox
+        # "lat_max/lon_min/lat_min/lon_max" to the (lat_min, lon_min, lat_max,
+        # lon_max) order COS expects.
+        options: Dict[str, Any] = {'domain_name': domain_name}
+        bbox = self._get_config_value(
+            lambda: self.config.domain.bounding_box_coords, dict_key='BOUNDING_BOX_COORDS')
+        if bbox:
+            try:
+                lat_max, lon_min, lat_min, lon_max = (float(x) for x in str(bbox).split('/'))
+                options['bbox'] = (lat_min, lon_min, lat_max, lon_max)
+            except (ValueError, TypeError):
+                self.logger.debug(f"Could not parse BOUNDING_BOX_COORDS {bbox!r} for community obs reduction")
+        connector_config = self._community_connector_config(provider)
+        if connector_config:
+            options['connector_config'] = connector_config
+        request = ObservationRequest(
+            provider_id=provider, station_ids=self._community_station_ids(provider), kind=kind,
+            window=self._observation_window(), target_dir=raw_dir, options=options,
+        )
+        result = backend.acquire(request)
+        return self._write_community_obs_output(
+            result, domain_name, path_helper=path_helper,
+            out_column=out_column, value_scale=value_scale,
+        )
+
+    def _community_connector_config(self, provider: str) -> Dict[str, Any]:
+        """COS connector config for a community provider (a supplied granule, if any).
+
+        Gridded COS connectors reduce a supplied NetCDF (Earthdata live-fetch is not
+        wired in COS v0.1.0). Only GRACE has a pre-staged-mascon convention here, so
+        the other gridded providers (mod16_et, modis_sca) return ``{}`` and decline
+        -> fall back to native. The point/tower connectors fetch live (no file).
+        """
+        if provider == 'grace':
+            return self._community_grace_connector_config()
+        return {}
+
+    def _community_station_ids(self, provider: str) -> tuple:
+        """Explicit station ids for a point/tower community provider.
+
+        Point networks (SNOTEL, USGS groundwater) and flux towers (FLUXNET) select
+        by station, read from the SAME config the native handler uses — so a domain
+        that already names its station is served by COS without extra config.
+        Gridded providers (grace/tws, mod16_et, modis_sca) select by bbox and get
+        no station ids. A comma-separated config value yields multiple stations.
+        """
+        raw: Any = None
+        if provider == 'snotel':
+            raw = (self._get_config_value(lambda: self.config.evaluation.snotel.station, dict_key='SNOTEL_STATION')
+                   or self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID'))
+        elif provider == 'fluxnet_et':
+            raw = self._get_config_value(lambda: self.config.evaluation.fluxnet.station, dict_key='FLUXNET_STATION')
+        elif provider == 'usgs_gw':
+            raw = (self._get_config_value(lambda: self.config.data.usgs_site_code, dict_key='USGS_SITE_CODE')
+                   or self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID'))
+        if not raw:
+            return ()
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(s).strip() for s in raw if str(s).strip())
+        return tuple(s.strip() for s in str(raw).split(',') if s.strip())
+
+    def _community_grace_connector_config(self) -> Dict[str, Any]:
+        """COS connector config for GRACE: a downloaded mascon NetCDF to reduce.
+
+        COS's GRACE connector reduces a supplied NetCDF (its Earthdata live fetch
+        is not yet implemented in v0.1.0), so we point it at an already-downloaded
+        mascon under ``observations/grace/`` — preferring the JPL RL06 product the
+        config selects. Returns ``{}`` when none is present, in which case COS
+        declines and the routing falls back to the native GRACE handler.
+        """
+        grace_dir = resolve_data_subdir(self.project_dir, 'observations') / 'grace'
+        if not grace_dir.exists():
+            return {}
+        ncs = sorted(grace_dir.glob('*.nc'))
+        if not ncs:
+            return {}
+        preferred = [p for p in ncs if 'JPL' in p.name.upper()] or ncs
+        return {'nc_path': str(preferred[0])}
+
+    def _write_community_obs_output(
+        self, result, domain_name: str, *, path_helper: str, out_column: str, value_scale: float = 1.0,
+    ) -> bool:
+        """Adapt a community observation delivery (OBS_CSV_V1) to its canonical file.
+
+        COS delivers a per-site OBS_CSV_V1 table (``datetime, value, quality_flag``);
+        each evaluator reads a specific file + column. We take the value column,
+        scale it to the evaluator's expected unit (``value_scale``), rename it to
+        ``out_column``, aggregate to one series per ``datetime`` (basin-representative
+        mean across delivered sites), and write the first path the evaluator searches
+        (``path_helper`` in :mod:`symfluence.data.observation.paths`). Returns False
+        when nothing usable was delivered, so the routing falls back to native.
+
+        Unit notes: TWS is correlation-scored (scale-invariant — COS mm vs native cm
+        does not affect it); SWE is written in inches (COS mm * 1/25.4) because the
+        snow evaluator force-converts inches->mm by magnitude; the rest already match
+        the evaluator's expected unit.
+        """
+        import pandas as pd
+
+        from symfluence.data.observation import paths as _obs_paths
+
+        if not result.paths:
+            return False
+        # OBS_CSV_V1 always delivers a 'value' column; the kind-specific names cover
+        # backends that label it (e.g. the GRACE 'tws_anomaly_mm' delivery).
+        value_candidates = (
+            'value', 'tws_anomaly_mm', 'tws_anomaly', 'swe_mm', 'et_mm_day',
+            'sca_fraction', 'sca', 'groundwater_level',
+        )
+        frames = []
+        for path in result.paths:
+            df = pd.read_csv(path)
+            if 'datetime' not in df.columns:
+                continue
+            value_col = next((c for c in value_candidates if c in df.columns), None)
+            if value_col is None:
+                continue
+            frames.append(df[['datetime', value_col]].rename(columns={value_col: out_column}))
+        if not frames:
+            return False
+        out = pd.concat(frames).groupby('datetime', as_index=False)[out_column].mean()
+        if value_scale != 1.0:
+            out[out_column] = out[out_column] * value_scale
+        out_path = getattr(_obs_paths, path_helper)(self.project_dir, domain_name)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(out_path, index=False)
+        self.logger.info(
+            f"Wrote canonical community observations to {out_path} ({len(out)} rows, col '{out_column}')"
+        )
+        return True
+
     def acquire_observations(self):
         """
         Acquire additional observations based on configuration.
@@ -971,7 +1439,18 @@ class AcquisitionService(ConfigurableMixin):
 
         # Auto-detect observation types based on config flags (matching process_observed_data logic)
         streamflow_provider = (self._get_config_value(lambda: self.config.data.streamflow_data_provider) or '').upper()
-        if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
+        # Under DATA_ACCESS: community, when a community backend (e.g. CSFS) serves
+        # this provider, ObservedDataProcessor's backend tier fetches it. Do NOT
+        # also queue the native <PROVIDER>_STREAMFLOW download here — that produced
+        # a redundant double-fetch (native raw downloaded, then re-fetched via the
+        # backend, which is what is actually used). Mirrors the same skip in
+        # DataManager.process_observed_data's additional_obs assembly.
+        if self._community_serves_streamflow(streamflow_provider):
+            self.logger.info(
+                f"Streamflow provider '{streamflow_provider}' is community-served; "
+                "skipping the native observation download (handled by the backend tier)."
+            )
+        elif streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
             additional_obs.append('USGS_STREAMFLOW')
             primary_obs.add('USGS_STREAMFLOW')
         elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
@@ -1035,6 +1514,17 @@ class AcquisitionService(ConfigurableMixin):
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
                 additional_obs.append('MODIS_ET')
 
+        if not additional_obs:
+            return
+
+        # Under DATA_ACCESS: community, route non-streamflow kinds (GRACE TWS, …)
+        # through the ObservationBackend tier (COS) instead of the native
+        # evaluation.<kind>.download handler, mirroring the streamflow routing.
+        # Handled keys are dropped from the native task list below; anything the
+        # community tier declines or fails on falls back to its native handler.
+        community_handled = self._route_community_nonstreamflow_obs(additional_obs)
+        if community_handled:
+            additional_obs = [o for o in additional_obs if o not in community_handled]
         if not additional_obs:
             return
 

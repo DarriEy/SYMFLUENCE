@@ -265,13 +265,25 @@ class StreamflowMetrics:
 
         gdf = gpd.read_file(catchment_file)
 
-        # Priority 1: Use GRU_area column if available (already in m2)
+        # Priority 1: per-HRU area (m2) — sums to the catchment area regardless of
+        # how the catchment is discretised (lumped, elevation bands, land class …).
+        if 'HRU_area' in gdf.columns:
+            area_km2 = gdf['HRU_area'].sum() / 1e6
+            logger.debug(f"Catchment area from HRU_area: {area_km2:.2f} km2")
+            return area_km2
+
+        # Priority 2: GRU_area (m2) is the per-GRU basin area, repeated on every
+        # HRU row when the catchment is HRU-discretised. Summing it across HRU
+        # rows multiplies the basin area by the HRU count, so dedupe by GRU id.
         if 'GRU_area' in gdf.columns:
-            area_km2 = gdf['GRU_area'].sum() / 1e6
+            if 'GRU_ID' in gdf.columns and gdf['GRU_ID'].nunique() < len(gdf):
+                area_km2 = gdf.drop_duplicates('GRU_ID')['GRU_area'].sum() / 1e6
+            else:
+                area_km2 = gdf['GRU_area'].sum() / 1e6
             logger.debug(f"Catchment area from GRU_area: {area_km2:.2f} km2")
             return area_km2
 
-        # Priority 2: Calculate from geometry
+        # Priority 3: Calculate from geometry
         if gdf.crs and not gdf.crs.is_geographic:
             area_m2 = gdf.geometry.area.sum()
         else:

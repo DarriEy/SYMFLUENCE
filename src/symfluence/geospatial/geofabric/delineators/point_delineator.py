@@ -44,7 +44,11 @@ class PointDelineator(BaseGeofabricDelineator):
 
             bbox_coords = self._get_config_value(lambda: self.config.domain.bounding_box_coords, default="", dict_key='BOUNDING_BOX_COORDS')
             if not bbox_coords:
-                self.logger.error("BOUNDING_BOX_COORDS not found in configuration")
+                # A point domain may specify only a pour point; the shared ConfigMixin
+                # helper derives the square extent (same one the acquisition layer uses).
+                bbox_coords = self._resolve_point_bbox()
+            if not bbox_coords:
+                self.logger.error("Point domain requires BOUNDING_BOX_COORDS or POUR_POINT_COORDS (lat/lon)")
                 return None
 
             try:

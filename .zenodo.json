@@ -1,0 +1,115 @@
+{
+  "title": "SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration",
+  "description": "<p>SYMFLUENCE is a computational environmental modeling platform that streamlines the hydrological modeling workflow from domain setup through data acquisition, model execution, calibration, and evaluation. A four-tier layered architecture governed by typed component registries integrates hydrological models spanning multiple programming languages and modeling paradigms, unified through declarative YAML configuration with provenance captured by default.</p><p>Described and evaluated in the three-part paper series &quot;Out-standing in Every Field&quot;, &quot;The Registry as Social Contract&quot;, and &quot;From Configuration to Prediction&quot; (Eythorsson et al., 2026, Water Resources Research).</p>",
+  "upload_type": "software",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "hydrology",
+    "hydrological modeling",
+    "model intercomparison",
+    "calibration",
+    "reproducibility",
+    "workflow",
+    "registry"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/symfluence-org/SYMFLUENCE",
+      "resource_type": "software"
+    }
+  ],
+  "creators": [
+    {
+      "name": "Eythorsson, Darri",
+      "orcid": "0000-0003-3653-3936"
+    },
+    {
+      "name": "Knoben, Wouter J. M.",
+      "orcid": "0000-0001-8301-3787"
+    },
+    {
+      "name": "Van Beusekom, Ashley",
+      "orcid": "0000-0002-6996-978X"
+    },
+    {
+      "name": "Keshavarz, Kasra",
+      "orcid": "0000-0002-7093-3928"
+    },
+    {
+      "name": "Thébault, Cyril",
+      "orcid": "0000-0002-4259-0497"
+    },
+    {
+      "name": "Casson, Dave R.",
+      "orcid": "0000-0003-0452-0284"
+    },
+    {
+      "name": "Moghairib, Mohamed",
+      "orcid": "0000-0003-3423-7041"
+    },
+    {
+      "name": "Vásquez, Nicolás",
+      "orcid": "0000-0002-4651-8935"
+    },
+    {
+      "name": "Woldegiorgis, Befekadu Taddesse",
+      "orcid": "0000-0002-0576-4312"
+    },
+    {
+      "name": "Gautier, Camille"
+    },
+    {
+      "name": "Wagener, Peter",
+      "orcid": "0009-0005-5560-3698"
+    },
+    {
+      "name": "Aguirre, Ignacio",
+      "orcid": "0000-0002-7722-9677"
+    },
+    {
+      "name": "Reece, Katherine Hope",
+      "orcid": "0000-0003-2402-1386"
+    },
+    {
+      "name": "Liu, Hongli",
+      "orcid": "0000-0002-2756-3247"
+    },
+    {
+      "name": "Pietroniro, Alain",
+      "orcid": "0000-0001-5792-9177"
+    },
+    {
+      "name": "Patel, Arpita",
+      "orcid": "0000-0003-1483-1078"
+    },
+    {
+      "name": "Cunningham, Josh",
+      "orcid": "0009-0004-1765-3574"
+    },
+    {
+      "name": "Hut, Rolf",
+      "orcid": "0000-0002-5697-5697"
+    },
+    {
+      "name": "Halgren, James",
+      "orcid": "0009-0005-1884-1638"
+    },
+    {
+      "name": "Spiteri, Raymond J.",
+      "orcid": "0000-0002-3513-6237"
+    },
+    {
+      "name": "Read, Jordan",
+      "orcid": "0000-0002-3888-6631"
+    },
+    {
+      "name": "Tarboton, David G.",
+      "orcid": "0000-0002-1998-3479"
+    },
+    {
+      "name": "Clark, Martyn P.",
+      "orcid": "0000-0002-2186-2625"
+    }
+  ]
+}

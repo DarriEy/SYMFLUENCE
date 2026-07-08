@@ -178,10 +178,11 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(f"No NetCDF files in {forcing_path}")
 
         logger.info(f"Loading forcing ({len(forcing_files)} files)")
-        # Canonical model-ready forcing: pptrate (kg m-2 s-1 == mm s-1) and airtemp
-        # (K) under canonical names, with the real timestep on
-        # ds.attrs['timestep_seconds'] -- integrate precip over the ACTUAL step
-        # (CARRA is 3-hourly) rather than a hardcoded hour.
+        # open_canonical_forcing guarantees the canonical CFIF vocabulary —
+        # air_temperature (K) and precipitation_flux (kg m-2 s-1 == mm s-1),
+        # renaming aliases like pptrate/airtemp — and records the real timestep
+        # on ds.attrs so precip integrates over the ACTUAL step (e.g. 3-hourly
+        # CARRA) rather than a hardcoded hour.
         from symfluence.data.model_ready.forcing_reader import (
             forcing_timestep_seconds,
             open_canonical_forcing,
@@ -189,8 +190,8 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         ds = open_canonical_forcing(forcing_files)
         ds = ds.sel(time=slice(str(start), str(end)))
 
-        airtemp = ds['airtemp'].values.squeeze()   # K
-        pptrate = ds['pptrate'].values.squeeze()   # mm/s
+        airtemp = ds['air_temperature'].values.squeeze()      # K
+        pptrate = ds['precipitation_flux'].values.squeeze()   # mm/s
         dt_seconds = forcing_timestep_seconds(ds)
         times = pd.DatetimeIndex(ds['time'].values)
 
@@ -691,16 +692,25 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
     # 3. Monthly event + forcing files
     def _generate_sdc_file(self) -> None:
         """Snow-cover depletion curve file (.sdc) — one curve per land class.
-        Required by CHARM (rdsdc) whenever snwflg=y. Format: a 3-value header
-        line (curve#, flag, max SWE mm) then a depletion pair (fraction, value)
-        per class. Three classes: conifer, water, impervious."""
+
+        Required by CHARM (rdsdc) whenever snwflg=y. Per class, rdsdc reads a
+        header line ``nsdc idump snocap`` (number of curve points, dump flag,
+        max SWE mm) then ``nsdc`` point lines ``swe_ratio  snow_covered_frac``.
+        A single-point curve (nsdc=1) is degenerate: CHARM cannot interpolate it
+        and divides by a zero range, raising IEEE_INVALID and aborting. Emit a
+        proper monotonic depletion curve from (0,0) to (1,1) — snow-covered area
+        rises quickly then saturates as SWE accumulates."""
+        # (swe/swe_full ratio, snow-covered-area fraction) — concave, monotonic.
+        curve = [(0.00, 0.00), (0.05, 0.30), (0.10, 0.50), (0.20, 0.66),
+                 (0.30, 0.76), (0.50, 0.87), (0.70, 0.94), (1.00, 1.00)]
         out = self.settings_dir / 'basin' / 'bow.sdc'
         with open(out, 'w') as f:
             f.write("Snow Depletion Curves - SYMFLUENCE\n")
             for _ in range(3):  # one per land class (ClassCount = 3)
-                f.write("    1    0      500.\n")
-                f.write("     1.000     1.000\n")
-        logger.info(f"Wrote snow depletion curve: {out}")
+                f.write(f"{len(curve):5d}{0:5d}{500.0:10.1f}\n")
+                for ratio, sca in curve:
+                    f.write(f"{ratio:10.3f}{sca:10.3f}\n")
+        logger.info(f"Wrote snow depletion curve ({len(curve)} pts/class): {out}")
 
     # ------------------------------------------------------------------
     def _generate_monthly_files(self, hourly: pd.DataFrame,
@@ -883,7 +893,11 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f.write("#\n")
             f.write(":basinfilename                basin/bow_shd.r2c\n")
             f.write(":parfilename                  basin/bow.par\n")
-            f.write(":snowcoverdepletioncurve      basin/bow.sdc\n")
+            # CHARM's rdsdc reads the .sdc filename with a list-directed read,
+            # which terminates at the '/' in "basin/bow.sdc" — it then tries to
+            # open "basin" and aborts. The shd/par/sdc are mirrored to the run
+            # cwd (settings root), so reference the .sdc by its bare name.
+            f.write(":snowcoverdepletioncurve      bow.sdc\n")
             f.write("#\n")
             f.write(f":pointprecip                  raing/{datestr}.rag\n")
             f.write(f":griddedrainfile              radcl/{datestr}_met.r2c\n")

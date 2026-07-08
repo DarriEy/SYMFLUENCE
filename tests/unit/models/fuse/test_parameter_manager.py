@@ -334,10 +334,10 @@ class TestFUSEParameterUpdate:
         assert callable(manager.update_model_files)
 
     @patch('xarray.open_dataset')
-    def test_update_parameter_file_validates_params(
+    def test_validate_parameters_accepts_valid_params(
         self, mock_open, fuse_config, test_logger, fuse_project_structure, mock_netcdf_dataset
     ):
-        """Test that update validates parameters."""
+        """Test that validate_parameters accepts a valid parameter set."""
         from symfluence.optimization.parameter_managers import FUSEParameterManager
 
         mock_open.return_value.__enter__ = Mock(return_value=mock_netcdf_dataset)
@@ -416,8 +416,11 @@ class TestFUSEEdgeCases:
 
         manager = FUSEParameterManager(fuse_config, test_logger, settings_dir)
 
-        # Parameter file doesn't exist - verify_and_fix should handle gracefully
-        assert hasattr(manager, 'verify_and_fix_parameter_files')
+        # Parameter file doesn't exist - get_initial_parameters falls back to
+        # default values instead of raising.
+        assert not manager.param_file_path.exists()
+        initial = manager.get_initial_parameters()
+        assert isinstance(initial, dict) and initial
 
     def test_handles_unknown_parameter(self, fuse_config, test_logger, tmp_path):
         """Test handling of unknown parameter in config."""

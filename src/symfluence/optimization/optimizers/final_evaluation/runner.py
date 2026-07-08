@@ -106,14 +106,16 @@ class FinalEvaluationRunner:
             # Update file manager for full period
             self.file_manager_updater.update_for_full_period()
 
-            # Apply best parameters directly
-            if not self._apply_best_parameters(best_params):
-                self.logger.error("Failed to apply best parameters for final evaluation")
-                return None
-
-            # Setup output directory
+            # Setup output directory before applying parameters so model workers
+            # that route their output via apply_parameters (e.g. wflow patches
+            # the TOML dir_output) write into the final-evaluation directory.
             final_output_dir = self.results_dir / 'final_evaluation'
             final_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Apply best parameters directly
+            if not self._apply_best_parameters(best_params, final_output_dir):
+                self.logger.error("Failed to apply best parameters for final evaluation")
+                return None
 
             # Update file manager output path
             self.file_manager_updater.update_output_path(final_output_dir)
@@ -128,6 +130,15 @@ class FinalEvaluationRunner:
                 final_output_dir,
                 calibration_only=False
             )
+
+            # Fallback: the generic calibration target only understands the
+            # standard NetCDF outputs (SUMMA/mizuRoute/FUSE/VIC). Custom-worker
+            # models (wflow, Noah-MP, several coupled LSMs) write formats it
+            # can't read, so it returns nothing. In that case compute the
+            # period metrics with the model's own worker — the same code that
+            # scored every calibration iteration.
+            if not metrics:
+                metrics = self._worker_period_metrics(final_output_dir)
 
             if not metrics:
                 self.logger.error("Failed to calculate final evaluation metrics")
@@ -159,25 +170,81 @@ class FinalEvaluationRunner:
             self.model_decisions_updater.restore_for_optimization()
             self.file_manager_updater.restore_calibration_period()
 
-    def _apply_best_parameters(self, best_params: Dict[str, float]) -> bool:
+    def _apply_best_parameters(
+        self,
+        best_params: Dict[str, float],
+        output_dir: Optional[Path] = None,
+    ) -> bool:
         """
         Apply best parameters for final evaluation.
 
         Args:
             best_params: Best parameters dictionary
+            output_dir: Final-evaluation output directory. Passed through so
+                workers that route their output during parameter application
+                (e.g. wflow's TOML patch) write into the evaluation directory.
 
         Returns:
             True if successful
         """
         try:
+            kwargs: Dict[str, Any] = {}
+            if output_dir is not None:
+                kwargs['output_dir'] = output_dir
+                kwargs['proc_output_dir'] = output_dir
             return self.worker.apply_parameters(
                 best_params,
                 self.settings_dir,
-                config=self.config
+                config=self.config,
+                **kwargs,
             )
         except (ValueError, RuntimeError, IOError) as e:
             self.logger.error(f"Error applying parameters for final evaluation: {e}")
             return False
+
+    def _worker_period_metrics(
+        self, output_dir: Path
+    ) -> Optional[Dict[str, float]]:
+        """Compute calibration & evaluation metrics with the model's worker.
+
+        Fallback used when the generic calibration target cannot read the
+        model's output format. Calls the worker's ``calculate_metrics`` once
+        per period (it filters to ``CALIBRATION_PERIOD`` in the config it is
+        given) and returns a flat ``{Calib_*, Eval_*}`` dict matching what the
+        generic target would have produced.
+        """
+        worker_calc = getattr(self.worker, 'calculate_metrics', None)
+        if not callable(worker_calc):
+            return None
+        periods = {
+            'Calib': self.config.get('CALIBRATION_PERIOD'),
+            'Eval': self.config.get('EVALUATION_PERIOD'),
+        }
+        out: Dict[str, float] = {}
+        for prefix, period in periods.items():
+            if not period:
+                continue
+            cfg = dict(self.config)
+            cfg['CALIBRATION_PERIOD'] = period
+            try:
+                m = worker_calc(output_dir, cfg) or {}
+            except Exception as e:  # noqa: BLE001 — resilience in final eval
+                self.logger.warning(
+                    f"Worker metric fallback ({prefix}) failed: {e}")
+                continue
+            for k, v in m.items():
+                if v is None:
+                    continue
+                try:  # skip penalty sentinels (-999 / -9999)
+                    if float(v) <= -900:
+                        continue
+                except (TypeError, ValueError):
+                    pass
+                out[f"{prefix}_{k}"] = v
+        if out:
+            self.logger.info(
+                f"Final-eval metrics via worker fallback: {out}")
+        return out or None
 
     def save_results(
         self,

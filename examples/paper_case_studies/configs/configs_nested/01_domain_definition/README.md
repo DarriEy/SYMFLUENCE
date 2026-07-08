@@ -1,4 +1,4 @@
-# Experiment 1: Domain Definition Across Scales (Section 2)
+# Experiment 1: Domain Definition Across Scales (Section 2.1)
 
 ## Scientific Question
 How does SYMFLUENCE represent hydrological domains across spatial scales, from
@@ -49,14 +49,21 @@ are available within each scale?
 
 ## Key Configuration Choices
 - **Point scale**: `DOMAIN_DEFINITION_METHOD: point` — single grid cell, no routing
-- **Lumped**: `DOMAIN_DEFINITION_METHOD: lumped` — TauDEM delineation to outlet
-- **Semi-distributed**: `subset_geofabric` — extracts sub-basins from TDX geofabric
-- **Distributed**: `delineate_geofabric` — creates 1 km grid cells from DEM
-- **Elevation bands**: `SUB_GRID_DISCRETIZATION: elevation_bands` (200m intervals)
-- **Land classes**: `SUB_GRID_DISCRETIZATION: land_classes` (IGBP classification)
-- **Aspect**: `ASPECT_CLASS_NUMBER: 8` (cardinal + intercardinal directions)
-- **Coastal**: `DELINEATE_COASTAL_WATERSHEDS: true` adds terminal ocean-draining basins
-- **Hybrid routing**: independent `ROUTING_DELINEATION: distributed` with lumped GRU
+- **Lumped**: `definition_method: lumped` — TauDEM delineation to a single GRU at the outlet
+- **Semi-distributed (Bow)**: `definition_method: semidistributed` — TauDEM sub-basin
+  delineation from the DEM (`stream_threshold` controls sub-basin count). This is the
+  default; it does **not** subset TDX. The 90 m DEM with `stream_threshold: 3400` gives
+  the published 49 GRUs (the 30 m DEM / threshold 5000 give very different counts).
+- **TDX subset (Iceland)**: `subset_from_geofabric: true` + `geofabric_type: TDX` — extracts
+  pre-existing sub-basins from the TDX-Hydro geofabric. Required for the Iceland domains;
+  without `subset_from_geofabric: true` the workflow delineates with TauDEM instead.
+- **Distributed**: `definition_method: distributed` + `grid_cell_size: 1000` — 1 km grid cells
+- **Discretization names** (exact tokens the discretizer accepts): `grus`, `elevation`,
+  `landclass`, `aspect`, `soilclass`, or a comma list such as `elevation,aspect`.
+- **Aspect**: `aspect_class_number: 8` (cardinal + intercardinal directions)
+- **Coastal**: `delineate_coastal_watersheds: true` adds terminal ocean-draining basins
+- **Hybrid routing**: `delineation.routing: river_network` (+ `stream_threshold`) delineates
+  a routing network alongside a single lumped GRU (Figures 1i, 1l)
 
 ## Key Insight (Section 2.4)
 Discretization choices for hydrology and routing are independent in SYMFLUENCE.
@@ -71,5 +78,5 @@ and horizontal complexity (routing network density).
 
 ## Data Requirements
 - Paradise: ERA5 forcing, SNOTEL observations (station 679)
-- Bow: ERA5 forcing, WSC streamflow (station 05BB001), TDX geofabric
-- Iceland: CARRA forcing, IMO streamflow, TDX geofabric
+- Bow: ERA5 forcing, WSC streamflow (station 05BB001), Copernicus 90 m DEM (TauDEM delineation)
+- Iceland: CARRA forcing, IMO streamflow, TDX-Hydro geofabric (subset)

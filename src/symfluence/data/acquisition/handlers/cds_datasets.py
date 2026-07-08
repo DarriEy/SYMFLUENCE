@@ -1028,6 +1028,29 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         """
         return [n, w, s, e]
 
+    def _resolve_grid_resolution(self, default: float) -> float:
+        """Resolution (deg) of the regular lat/lon grid CDS interpolates the
+        native (projected) grid onto.
+
+        A regular grid is required because CDS/MARS cannot crop the native
+        Lambert grid via the 'area' parameter. The resolution MUST be at least
+        as fine as the dataset's native spacing — a coarser/comparable target
+        makes CDS bilinearly under-sample and smooth sharp (e.g. orographic)
+        gradients. Validated for CARRA over Iceland (2026-06): 0.025° (~= native
+        2.5 km) destroyed precip gradients (catchment corr to native CARRA ~0.5);
+        0.01° preserved them (corr 1.00). Override via the ``FORCING_GRID_RESOLUTION``
+        config key; otherwise the dataset-appropriate fine ``default`` is used.
+        """
+        val = self._get_config_value(
+            lambda: None, default=None, dict_key='FORCING_GRID_RESOLUTION'
+        )
+        try:
+            if val in (None, '', 'default'):
+                return float(default)
+            return float(val)
+        except (TypeError, ValueError):
+            return float(default)
+
     def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
         """Return Magnus formula denominator (default: standard formula T + 243.5)."""
         return T_celsius + 243.5
@@ -1105,14 +1128,22 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
     def _get_additional_request_params(self) -> Dict[str, Any]:
         """Return CARRA-specific request parameters.
 
-        Forces grid interpolation to 0.025° (native is 2.5 km ≈ 0.023°) to enable
-        spatial subsetting via the 'area' parameter in CDS requests. Without this,
-        CDS returns the full domain regardless of 'area' specification.
+        Forces grid interpolation to a regular lat/lon grid to enable spatial
+        subsetting via the 'area' parameter (MARS cannot crop CARRA's native
+        Lambert grid). Default resolution is 0.01° (~1.1 km), finer than CARRA's
+        native 2.5 km: a coarser/comparable target (e.g. the previous 0.025°,
+        2.78 km in latitude) under-samples and bilinearly smooths Iceland's steep
+        orographic precip gradients (catchment-precip corr to native CARRA drops
+        to ~0.5; dry interior over-estimated up to 2x, wet coast under ~20%),
+        crippling downstream regionalization. 0.01° preserves the field (corr to
+        native = 1.00). Validated 2026-06-28 vs LAMAH-Ice prec_carra. Tunable via
+        the FORCING_GRID_RESOLUTION config key (see _resolve_grid_resolution).
 
         Returns:
             Dict with 'grid' and 'domain' keys
         """
-        return {"grid": [0.025, 0.025]}  # Force interpolation to allow 'area' cropping
+        res = self._resolve_grid_resolution(default=0.01)
+        return {"grid": [res, res]}
 
     def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
         """Create mask with CARRA longitude handling (0-360 degrees).
@@ -1275,15 +1306,21 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         """Return CERRA-specific request parameters.
 
         CERRA requires 'data_type': 'reanalysis' to distinguish from other
-        European datasets. Also forces grid interpolation to 0.05° to enable
-        spatial subsetting via 'area' parameter (similar to CARRA).
+        European datasets. Also forces grid interpolation to a regular lat/lon
+        grid to enable spatial subsetting via 'area' (CDS cannot crop the native
+        Lambert grid). Default 0.025° (~2.8 km) is finer than CERRA's ~5.5 km
+        native spacing to avoid the bilinear under-sampling that smooths
+        gradients (the previous 0.05° matched native and risked the same
+        smoothing seen for CARRA; see _resolve_grid_resolution). Tunable via the
+        FORCING_GRID_RESOLUTION config key.
 
         Returns:
             Dict with 'data_type' and 'grid' keys
         """
+        res = self._resolve_grid_resolution(default=0.025)
         return {
             "data_type": "reanalysis",
-            "grid": [0.05, 0.05]  # Force interpolation to allow 'area' cropping
+            "grid": [res, res],
         }
 
     def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:

@@ -137,6 +137,42 @@ class ConfigMixin:
 
         return default
 
+    def _resolve_point_bbox(self) -> Optional[str]:
+        """Derive a square bounding box from the pour point for point domains.
+
+        Single source of truth shared by the point delineator and the data
+        acquisition layer: a ``point`` domain may be configured with only
+        ``POUR_POINT_COORDS``, in which case the spatial extent is a small square
+        centred on that point with half-width ``POINT_BUFFER_DISTANCE`` degrees
+        (default 0.01°, ~1 km).
+
+        Returns:
+            A ``"lat_max/lon_min/lat_min/lon_max"`` (north/west/south/east) string,
+            or ``None`` when the domain is not a point domain or no parseable
+            pour point is configured (callers decide whether that is an error).
+        """
+        method = str(self._get_config_value(
+            lambda: self.config.domain.definition_method, default='',
+            dict_key='DOMAIN_DEFINITION_METHOD') or '').lower()
+        if method != 'point':
+            return None
+
+        pour_point = self._get_config_value(
+            lambda: self.config.domain.pour_point_coords, default=None,
+            dict_key='POUR_POINT_COORDS')
+        if not pour_point:
+            return None
+        try:
+            lat, lon = (float(part) for part in str(pour_point).split('/'))
+        except (ValueError, TypeError):
+            return None
+
+        buffer = self._get_config_value(
+            lambda: self.config.domain.delineation.point_buffer_distance, default=None,
+            dict_key='POINT_BUFFER_DISTANCE')
+        buffer = 0.01 if buffer is None else float(buffer)
+        return f"{lat + buffer}/{lon - buffer}/{lat - buffer}/{lon + buffer}"
+
     # =========================================================================
     # Convenience Properties for Common Config Values
     # =========================================================================

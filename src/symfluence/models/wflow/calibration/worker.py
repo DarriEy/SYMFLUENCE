@@ -52,8 +52,13 @@ class WflowWorker(BaseWorker):
             config_file = config.get('WFLOW_CONFIG_FILE', 'wflow_sbm.toml')
             original_toml = original_settings / config_file
             target_toml = settings_dir / config_file
-            if original_toml.exists() and original_toml != target_toml:
-                self._patch_toml(original_toml, target_toml, settings_dir, kwargs.get('output_dir') or kwargs.get('proc_output_dir'))
+            out_dir = kwargs.get('output_dir') or kwargs.get('proc_output_dir')
+            # Patch when running in an isolated process dir (target != source) or
+            # whenever an explicit output dir is given (final evaluation runs in
+            # the main settings dir, so target == source but we still need to
+            # redirect dir_output so the evaluator can find the run).
+            if original_toml.exists() and (original_toml != target_toml or out_dir):
+                self._patch_toml(original_toml, target_toml, settings_dir, out_dir)
 
             from .parameter_manager import WflowParameterManager
             pm = WflowParameterManager(config, self.logger, settings_dir)

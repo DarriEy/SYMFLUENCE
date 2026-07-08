@@ -129,34 +129,95 @@ class FileProcessor(ConfigMixin):
         already_processed = 0
         corrupted_files = 0
 
+        # Explicit force: FORCE_RUN_ALL_STEPS (set directly, or by the
+        # `--force-rerun` workflow flag) reprocesses every file unconditionally.
+        force = bool(self._get_config_value(
+            lambda: self.config.system.force_run_all_steps,
+            default=False, dict_key='FORCE_RUN_ALL_STEPS'))
+
         for file in forcing_files:
             output_file = self.determine_output_filename(file)
 
             if output_file.exists():
                 is_valid = self.validator.validate(output_file)
+                # A structurally-valid output can still be STALE: if the source
+                # forcing now carries variables the cached output was built
+                # without (e.g. the dataset/version changed and added wind or
+                # radiation), the old remap must be regenerated. Reusing it
+                # silently produces a forcing file missing variables the model
+                # requires. See _output_is_current().
+                is_current = (not force and is_valid
+                              and self._output_is_current(file, output_file))
 
-                if is_valid:
+                if is_current:
                     self.logger.debug(f"Skipping already processed file: {file.name}")
                     already_processed += 1
                     continue
                 else:
-                    self.logger.warning(
-                        f"Found corrupted output file {output_file}. Will reprocess."
-                    )
+                    reason = ("forced" if force
+                              else "corrupted" if not is_valid else "stale")
+                    msg = f"Reprocessing {reason} output file {output_file.name}."
+                    if reason == "forced":
+                        self.logger.debug(msg)
+                    else:
+                        self.logger.warning(msg)
                     try:
                         output_file.unlink()
                         corrupted_files += 1
-                    except Exception as e:  # noqa: BLE001 — preprocessing resilience
-                        self.logger.warning(f"Error deleting corrupted file: {e}", exc_info=True)
+                    except OSError as e:
+                        self.logger.warning(
+                            f"Error deleting {reason} file: {e}", exc_info=True)
 
             remaining_files.append(file)
 
         self.logger.debug(f"Found {already_processed} already processed files")
         if corrupted_files > 0:
-            self.logger.info(f"Deleted {corrupted_files} corrupted files to reprocess")
+            self.logger.info(f"Deleted {corrupted_files} stale/corrupted files to reprocess")
         self.logger.debug(f"Found {len(remaining_files)} files that need processing")
 
         return remaining_files
+
+    # Forcing variable names (CFIF + legacy SUMMA-style) that constitute the
+    # remap payload. Used to detect a cached output that is stale relative to a
+    # source whose variable set has since grown.
+    _FORCING_VAR_NAMES = frozenset({
+        'air_temperature', 'precipitation_flux', 'surface_air_pressure',
+        'specific_humidity', 'wind_speed', 'relative_humidity',
+        'surface_downwelling_shortwave_flux', 'surface_downwelling_longwave_flux',
+        'eastward_wind', 'northward_wind',
+        'airtemp', 'pptrate', 'airpres', 'spechum', 'windspd', 'relhum',
+        'SWRadAtm', 'LWRadAtm',
+    })
+
+    def _output_is_current(self, source_file: Path, output_file: Path) -> bool:
+        """Return False if the remapped output is stale w.r.t. its source.
+
+        The output is stale when the source forcing file carries forcing
+        variables that the (already-remapped) output lacks — the signature of a
+        source dataset/version change (e.g. RDRS v2.1 -> CaSR v3.2 adding wind
+        and radiation). Such an output must be deleted and reprocessed, otherwise
+        the model receives a forcing file missing required variables.
+        """
+        import xarray as xr
+        try:
+            with xr.open_dataset(source_file) as src, \
+                    xr.open_dataset(output_file) as out:
+                src_forcing = self._FORCING_VAR_NAMES & set(src.data_vars)
+                out_forcing = self._FORCING_VAR_NAMES & set(out.data_vars)
+        except (OSError, ValueError, KeyError) as e:
+            # If we cannot compare, err on the side of reprocessing.
+            self.logger.warning(
+                "Could not compare %s against its source (%s); will reprocess.",
+                output_file.name, e, exc_info=True)
+            return False
+        missing = src_forcing - out_forcing
+        if missing:
+            self.logger.info(
+                "Remapped output %s is stale: source has forcing variables %s "
+                "absent from the cached output; reprocessing.",
+                output_file.name, sorted(missing))
+            return False
+        return True
 
     def process_serial(
         self,

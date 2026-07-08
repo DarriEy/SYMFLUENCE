@@ -15,9 +15,22 @@ terse usage::
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Type
 
 from symfluence.core.registry import Registry
+
+
+def _model_key(name: str) -> str:
+    """Canonical key for model-name-keyed registries.
+
+    Uppercases and strips word separators (hyphen, whitespace, dot) so config
+    spellings like ``WRF-Hydro``, ``WRF Hydro`` and ``WRFHYDRO`` all resolve to the
+    same entry. Underscores are preserved, since some registered keys use them as
+    intentional compound separators (e.g. ``CFUSE_ROUTED``). Applied symmetrically
+    to add() and get(), so registration and lookup always agree.
+    """
+    return re.sub(r"[-\s.]", "", name.upper())
 
 
 class Registries:
@@ -30,15 +43,15 @@ class Registries:
     # ==================================================================
     # Model execution
     # ==================================================================
-    preprocessors: Registry = Registry("preprocessors", doc="Model preprocessor classes")
-    runners: Registry = Registry("runners", doc="Model runner classes")
-    postprocessors: Registry = Registry("postprocessors", doc="Model postprocessor classes")
-    visualizers: Registry = Registry("visualizers", doc="Model visualizer callables")
+    preprocessors: Registry = Registry("preprocessors", normalize=_model_key, doc="Model preprocessor classes")
+    runners: Registry = Registry("runners", normalize=_model_key, doc="Model runner classes")
+    postprocessors: Registry = Registry("postprocessors", normalize=_model_key, doc="Model postprocessor classes")
+    visualizers: Registry = Registry("visualizers", normalize=_model_key, doc="Model visualizer callables")
 
     # ==================================================================
     # Model configuration
     # ==================================================================
-    config_adapters: Registry = Registry("config_adapters", doc="Config adapter classes")
+    config_adapters: Registry = Registry("config_adapters", normalize=_model_key, doc="Config adapter classes")
     config_schemas: Registry = Registry("config_schemas", doc="Pydantic config schema classes")
     config_defaults: Registry = Registry("config_defaults", doc="Default config dicts")
     config_transformers: Registry = Registry("config_transformers", doc="Flat-to-nested field mappings")
@@ -47,14 +60,14 @@ class Registries:
     # ==================================================================
     # Result extraction
     # ==================================================================
-    result_extractors: Registry = Registry("result_extractors", doc="Result extractor classes")
+    result_extractors: Registry = Registry("result_extractors", normalize=_model_key, doc="Result extractor classes")
 
     # ==================================================================
     # Optimization
     # ==================================================================
-    optimizers: Registry = Registry("optimizers", doc="Model-specific optimizer classes")
-    workers: Registry = Registry("workers", doc="Model-specific worker classes")
-    parameter_managers: Registry = Registry("parameter_managers", doc="Parameter manager classes")
+    optimizers: Registry = Registry("optimizers", normalize=_model_key, doc="Model-specific optimizer classes")
+    workers: Registry = Registry("workers", normalize=_model_key, doc="Model-specific worker classes")
+    parameter_managers: Registry = Registry("parameter_managers", normalize=_model_key, doc="Parameter manager classes")
     calibration_targets: Registry = Registry(
         "calibration_targets", doc="Calibration target classes (composite keys: MODEL_TARGET)"
     )
@@ -66,11 +79,26 @@ class Registries:
     acquisition_handlers: Registry = Registry(
         "acquisition_handlers", normalize=str.lower, doc="Data acquisition handler classes"
     )
+    acquisition_backends: Registry = Registry(
+        "acquisition_backends",
+        normalize=str.lower,
+        doc="AcquisitionBackend protocol implementations (native, community, ...)",
+    )
     dataset_handlers: Registry = Registry(
         "dataset_handlers", normalize=str.lower, doc="Dataset preprocessing handler classes"
     )
     observation_handlers: Registry = Registry(
         "observation_handlers", normalize=str.lower, doc="Observation data handler classes"
+    )
+    observation_backends: Registry = Registry(
+        "observation_backends",
+        normalize=str.lower,
+        doc="ObservationBackend protocol implementations (community, ...)",
+    )
+    attribute_backends: Registry = Registry(
+        "attribute_backends",
+        normalize=str.lower,
+        doc="AttributeBackend protocol implementations (community/CAS, ...)",
     )
 
     # ==================================================================
@@ -85,7 +113,7 @@ class Registries:
     # ==================================================================
     # Visualization
     # ==================================================================
-    plotters: Registry = Registry("plotters", doc="Model-specific plotter classes")
+    plotters: Registry = Registry("plotters", normalize=_model_key, doc="Model-specific plotter classes")
     visualization_funcs: Registry = Registry("visualization_funcs", doc="Visualization function callables")
 
     # ==================================================================
@@ -103,7 +131,7 @@ class Registries:
     # ==================================================================
     # Infrastructure
     # ==================================================================
-    forcing_adapters: Registry = Registry("forcing_adapters", doc="Forcing adapter classes")
+    forcing_adapters: Registry = Registry("forcing_adapters", normalize=_model_key, doc="Forcing adapter classes")
     build_instructions: Registry = Registry(
         "build_instructions", normalize=str.lower, doc="Model build instruction providers"
     )
@@ -197,7 +225,7 @@ class Registries:
                 optional_missing.append(attr)
 
         return {
-            "model_name": name.upper(),
+            "model_name": _model_key(name),
             "valid": len(missing) == 0,
             "registered": registered,
             "missing": missing,
@@ -209,7 +237,7 @@ class Registries:
         cls, model: str, target_type: str = "streamflow"
     ) -> Optional[Type]:
         """Convenience helper for composite-key calibration targets."""
-        key = f"{model.upper()}_{target_type.upper()}"
+        key = f"{_model_key(model)}_{target_type.upper()}"
         return cls.calibration_targets.get(key)
 
 

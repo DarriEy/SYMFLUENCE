@@ -377,11 +377,11 @@ class MultiGaugeConfig(BaseModel):
         default=None, alias='MULTI_GAUGE_OBS_DIR',
         description='Directory containing per-gauge observation files'
     )
-    gauge_ids: Optional[Union[List[str], str]] = Field(
+    gauge_ids: Optional[Union[List[Union[int, str]], int, str]] = Field(
         default=None, alias='MULTI_GAUGE_IDS',
         description='Explicit gauge IDs to calibrate against (default: all found)'
     )
-    exclude_ids: Optional[Union[List[str], str]] = Field(
+    exclude_ids: Optional[Union[List[Union[int, str]], int, str]] = Field(
         default=None, alias='MULTI_GAUGE_EXCLUDE_IDS',
         description='Gauge IDs to exclude from multi-gauge calibration'
     )
@@ -413,9 +413,10 @@ class MultiGaugeConfig(BaseModel):
         default=None, alias='MULTI_GAUGE_KGE_FLOOR',
         description='Floor applied to per-gauge KGE before aggregation'
     )
-    gauge_segment_mapping: Optional[Dict[str, Any]] = Field(
+    gauge_segment_mapping: Optional[Union[str, Dict[str, Any]]] = Field(
         default=None, alias='GAUGE_SEGMENT_MAPPING',
-        description='Explicit gauge-ID to river-segment mapping'
+        description='Gauge-ID to river-segment mapping: a CSV path (auto-generated if absent) '
+                    'or an explicit {gauge_id: segment_id} dict'
     )
 
 

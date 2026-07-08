@@ -109,6 +109,45 @@ def _deduplicate_output_control(output_control_path: Path, logger):
         logger.warning(f"Failed to deduplicate output control: {e}")
 
 
+def _ensure_coupling_output_vars(output_control_path: Path, config, logger) -> None:
+    """Guarantee the groundwater-coupling flux is in SUMMA's output control.
+
+    When SUMMA is coupled to an external groundwater model (GROUNDWATER_MODEL,
+    e.g. MODFLOW), the coupler reads a recharge flux — scalarSoilDrainage by
+    default — from SUMMA's output. A calibration-target rewrite can leave the
+    per-run outputControl with only the streamflow variable, so the coupler then
+    fails with "Variable 'scalarSoilDrainage' not found in SUMMA output". This
+    runs right before each SUMMA execution (every trial and the final
+    evaluation) and re-adds the coupling variables if missing — idempotent.
+    """
+    if not config:
+        return
+    gw_model = str(config.get('GROUNDWATER_MODEL', '') or '').upper()
+    if gw_model in ('', 'NONE'):
+        return
+    if not output_control_path.exists():
+        return
+    recharge_var = (config.get('MODFLOW_RECHARGE_VARIABLE')
+                    or 'scalarSoilDrainage')
+    needed = [v for v in (recharge_var, 'scalarSurfaceRunoff') if v]
+    try:
+        content = output_control_path.read_text(encoding='utf-8')
+        added = []
+        for var in needed:
+            if var not in content:
+                if content and not content.endswith('\n'):
+                    content += '\n'
+                content += f"{var} | 1\n"
+                added.append(var)
+        if added:
+            output_control_path.write_text(content, encoding='utf-8')
+            logger.info(
+                f"Ensured groundwater-coupling output vars in "
+                f"{output_control_path.name}: {added}")
+    except OSError as e:
+        logger.warning(f"Could not ensure coupling output vars: {e}")
+
+
 def _rewrite_mizuroute_control_for_run(
     control_file: Path,
     summa_dir: Path,
@@ -264,7 +303,9 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
                     break
 
             if output_control_name and summa_settings_dir:
-                _deduplicate_output_control(summa_settings_dir / output_control_name, logger)
+                oc_path = summa_settings_dir / output_control_name
+                _deduplicate_output_control(oc_path, logger)
+                _ensure_coupling_output_vars(oc_path, config, logger)
 
             logger.debug(f"Updated file manager output path to: {output_path_str}")
             if settings_path_str is not None:

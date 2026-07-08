@@ -250,11 +250,19 @@ class PIHMConfig(BaseModel):
 
     # Installation
     install_path: str = Field(default='default', alias='PIHM_INSTALL_PATH')
-    exe: str = Field(default='pihm', alias='PIHM_EXE')
+    # Flux-PIHM (Noah-LSM build) is the canonical PIHM SYMFLUENCE targets: the
+    # preprocessor writes the Noah .ic/.lsm format and the installer builds the
+    # flux-pihm binary. A plain 'pihm' build rejects the .ic ("size does not match").
+    exe: str = Field(default='flux-pihm', alias='PIHM_EXE')
 
     # Settings
     settings_path: str = Field(default='default', alias='SETTINGS_PIHM_PATH')
     spatial_mode: SpatialModeType = Field(default='lumped', alias='PIHM_SPATIAL_MODE')
+    # Number of hillslope bands per bank for a semi-distributed mesh (1 = lumped
+    # two-element mesh). >1 discretises each hillslope into a cascade so
+    # subsurface water traverses several elements before reaching the channel,
+    # supplying the slow hillslope storage-routing a lumped element cannot.
+    hillslope_bands: int = Field(default=1, alias='PIHM_HILLSLOPE_BANDS', ge=1)
 
     # Subsurface properties
     k_sat: float = Field(default=1e-5, alias='PIHM_K_SAT', gt=0)

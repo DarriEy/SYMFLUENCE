@@ -52,10 +52,16 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
                 'upstream_default': -9999
             },
             'TDX': {
-                'basin_id_col': 'streamID',
+                # GEOGLOWS V2 schema: catchments parquet carries a lowercase
+                # 'linkno' id; the streams gpkg carries 'LINKNO' with a single
+                # downstream pointer 'DSLINKNO' (terminal == -1). The catchment
+                # 'linkno' and stream 'LINKNO' share one id namespace, so the
+                # standard upstream-trace path keys both on the link id.
+                'basin_id_col': 'linkno',
                 'river_id_col': 'LINKNO',
-                'upstream_cols': ['USLINKNO1', 'USLINKNO2'],
-                'upstream_default': -9999
+                'upstream_cols': ['DSLINKNO'],
+                'upstream_default': -1,
+                'direction': 'downstream',
             },
             'NWS': {
                 'basin_id_col': 'divide_id',
@@ -348,14 +354,17 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         rivers_path = None
 
         if hydrofabric_type == 'TDX':
-            # Look for merged first, then individual parquets
+            # GEOGLOWS V2 layout: catchments as tdx_catchments_*.parquet and the
+            # river network as tdx_streams_*.gpkg. This is the only TDX schema the
+            # subsetter/graph builder understands (linkno / LINKNO / DSLINKNO), so
+            # the obsolete tdx_rivers_*.parquet (USLINKNO1/2) layout is not accepted.
             merged_cat = download_dir / "tdx_catchments_merged.parquet"
-            merged_riv = download_dir / "tdx_rivers_merged.parquet"
-            if merged_cat.exists() and merged_riv.exists():
-                return merged_cat, merged_riv
+            merged_riv_streams = download_dir / "tdx_streams_merged.gpkg"
+            if merged_cat.exists() and merged_riv_streams.exists():
+                return merged_cat, merged_riv_streams
             # Find individual VPU files
             cat_files = sorted(download_dir.glob("tdx_catchments_*.parquet"))
-            riv_files = sorted(download_dir.glob("tdx_rivers_*.parquet"))
+            riv_files = sorted(download_dir.glob("tdx_streams_*.gpkg"))
             if cat_files:
                 basins_path = cat_files[0]
             if riv_files:
@@ -433,11 +442,14 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
             rivers['DSLINKNO'] = rivers['toid']
 
         elif hydrofabric_type == 'TDX':
-            basins['GRU_ID'] = basins['fid']
-            basins['gru_to_seg'] = basins['streamID']
+            # GEOGLOWS V2 catchments carry only 'linkno' + geometry; the link id
+            # is both the GRU identifier and the segment it drains to.
+            basins['GRU_ID'] = basins['linkno']
+            basins['gru_to_seg'] = basins['linkno']
             # Calculate area in metric
             basins_metric = basins.to_crs('epsg:3763')
             basins['GRU_area'] = basins_metric.geometry.area
+            # Rivers already carry canonical LINKNO/DSLINKNO from GEOGLOWS V2.
 
         elif hydrofabric_type in ['Merit', 'MERIT']:
             basins['GRU_ID'] = basins['COMID']
