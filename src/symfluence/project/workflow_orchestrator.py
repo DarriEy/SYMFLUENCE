@@ -355,6 +355,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 func=self.managers['analysis'].run_sensitivity_analysis,
                 check_func=lambda: ('sensitivity' in analyses and
                         (self.project_dir / "reporting" / "sensitivity_analysis" /
+                        self.experiment_id /
                         "all_sensitivity_results.csv").exists()),
                 description="Running parameter sensitivity analysis"
             ),
