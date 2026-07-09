@@ -694,6 +694,54 @@ class TestGradientChainRule:
         assert np.sign(grad_normalized[1]) == np.sign(grad_physical[1])
         assert np.sign(grad_normalized[2]) == np.sign(grad_physical[2])
 
+    def test_gradient_callback_handles_param_without_bounds(self, test_logger):
+        """A parameter in all_param_names but absent from the bounds dict (no
+        calibration range, e.g. SAC-SMA's PXADJ) must not KeyError. It is held
+        fixed: scale factor 0.0 and gradient 0.0, so the optimiser never moves
+        it and the arrays stay aligned with all_param_names."""
+        from unittest.mock import Mock
+
+        from symfluence.optimization.optimizers.base_model_optimizer import (
+            BaseModelOptimizer,
+        )
+
+        class _ConcreteOpt(BaseModelOptimizer):
+            def _get_model_name(self):
+                return 'SACSMA'
+
+            def _get_final_file_manager_path(self, *a, **k):
+                return None
+
+            def _run_model_for_final_evaluation(self, *a, **k):
+                return None
+
+        opt = _ConcreteOpt.__new__(_ConcreteOpt)
+        opt.logger = test_logger
+        opt.target_metric = 'KGE'
+
+        # 'PXADJ' has no bounds; the worker/denormalize therefore never sees it.
+        opt.param_manager = Mock()
+        opt.param_manager.all_param_names = ['p1', 'p2', 'PXADJ']
+        opt.param_manager.get_parameter_bounds.return_value = {
+            'p1': {'min': 0.0, 'max': 1.0},
+            'p2': {'min': 0.0, 'max': 10.0},
+        }
+        opt.param_manager.denormalize_parameters = lambda x: {'p1': x[0], 'p2': x[1]}
+
+        opt.worker = Mock()
+        opt.worker.supports_native_gradients.return_value = True
+        # Worker returns gradients only for the parameters it actually ran.
+        opt.worker.evaluate_with_gradient.return_value = (0.4, {'p1': 0.5, 'p2': -0.3})
+
+        callback = opt._create_gradient_callback()
+        assert callback is not None
+
+        loss, grad = callback(np.array([0.5, 0.5, 0.5]))
+        assert loss == 0.4
+        # p1: 0.5*(1-0)=0.5 ; p2: -0.3*(10-0)=-3.0 ; PXADJ: held fixed at 0.0
+        np.testing.assert_allclose(grad, [0.5, -3.0, 0.0])
+        assert np.all(np.isfinite(grad))
+
 
 # ============================================================================
 # Config option tests
