@@ -34,6 +34,12 @@ NORMALIZATION_ALIASES: Dict[str, str] = {
     # Legacy CONFLUENCE naming (backwards compatibility)
     "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
     "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
+    # The canonical flat keys for these two paths already carry the SYMFLUENCE_
+    # prefix, so _load_env_overrides (which strips one leading SYMFLUENCE_) turns
+    # a natural `SYMFLUENCE_DATA_DIR` env var into a bare DATA_DIR. Alias it back
+    # so the natural env spelling resolves; the doubled form still works too.
+    "DATA_DIR": "SYMFLUENCE_DATA_DIR",
+    "CODE_DIR": "SYMFLUENCE_CODE_DIR",
     # Legacy domain discretization naming
     "DOMAIN_DISCRETIZATION": "SUB_GRID_DISCRETIZATION",
     # Legacy optimization-metric spelling -> canonical OPTIMIZATION_METRIC
