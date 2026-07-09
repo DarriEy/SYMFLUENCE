@@ -868,9 +868,14 @@ class BaseModelOptimizer(
 
         # Compute scale factors for gradient chain rule
         # d(loss)/d(x_norm) = d(loss)/d(x_phys) * d(x_phys)/d(x_norm)
-        # where d(x_phys)/d(x_norm) = (upper - lower) for linear scaling
+        # where d(x_phys)/d(x_norm) = (upper - lower) for linear scaling.
+        # A parameter present in all_param_names but absent from bounds (no
+        # calibration range, e.g. SAC-SMA's PXADJ) is held fixed: denormalize()
+        # already skips it, so its scale factor is 0.0 — the chain rule then
+        # zeroes its normalized gradient and the optimiser never moves it,
+        # matching the gradient-free path that logs "No bounds, skipping".
         scale_factors = np.array([
-            bounds[name]['max'] - bounds[name]['min']
+            (bounds[name]['max'] - bounds[name]['min']) if name in bounds else 0.0
             for name in param_names
         ])
 
@@ -898,8 +903,12 @@ class BaseModelOptimizer(
                     f"Check {self.worker.__class__.__name__}.evaluate_with_gradient() implementation."
                 )
 
-            # Convert gradient dict to array (same order as param_names)
-            grad_physical = np.array([grad_dict[name] for name in param_names])
+            # Convert gradient dict to array (same order as param_names).
+            # Boundless params were skipped by denormalize_parameters, so the
+            # worker never saw them and grad_dict omits them; default to 0.0 so
+            # the array stays aligned with param_names. Their scale factor is
+            # also 0.0, so the normalized gradient is 0 and they stay fixed.
+            grad_physical = np.array([grad_dict.get(name, 0.0) for name in param_names])
 
             # Transform gradient from physical to normalized space via chain rule
             grad_normalized = grad_physical * scale_factors
