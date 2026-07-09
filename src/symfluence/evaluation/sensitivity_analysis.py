@@ -138,6 +138,16 @@ class SensitivityAnalyzer(ConfigMixin):
         self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.output_folder = self.project_dir / "reporting" / "sensitivity_analysis"
+        # Scope the output by experiment so runs that share a domain (e.g. the
+        # calibration-algorithm ensemble: one experiment per algorithm) each
+        # keep their own sensitivity results instead of overwriting a single
+        # domain-level folder. Falls back to the flat folder when no experiment
+        # id is configured, preserving the single-run layout.
+        experiment_id = self._get_config_value(
+            lambda: self.config.domain.experiment_id, default=None, dict_key='EXPERIMENT_ID'
+        )
+        if experiment_id:
+            self.output_folder = self.output_folder / str(experiment_id)
         self.output_folder.mkdir(parents=True, exist_ok=True)
 
     def read_calibration_results(self, file_path):
