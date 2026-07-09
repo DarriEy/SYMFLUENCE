@@ -344,6 +344,10 @@ class LBFGSConfig(BaseModel):
     history_size: int = Field(default=10, alias='LBFGS_HISTORY_SIZE', ge=1)
     c1: float = Field(default=1e-4, alias='LBFGS_C1', gt=0, lt=1.0)
     c2: float = Field(default=0.9, alias='LBFGS_C2', gt=0, lt=1.0)
+    steps: Optional[int] = Field(
+        default=None, alias='LBFGS_STEPS', ge=1,
+        description='Number of L-BFGS optimization steps (falls back to NUMBER_OF_ITERATIONS)'
+    )
 
 
 class EmulationConfig(BaseModel):

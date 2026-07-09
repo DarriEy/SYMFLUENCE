@@ -127,12 +127,21 @@ class AdamAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
             - gradient_method: 'native' or 'finite_difference' (which was used)
         """
-        # Adam hyperparameters from config
-        steps = kwargs.get('steps', self._get_config_value(
-            lambda: self.config.optimization.iterations,
-            default=self.max_iterations,
-            dict_key='NUMBER_OF_ITERATIONS'
-        ))
+        # Adam hyperparameters from config. Step-count precedence:
+        # explicit kwarg > ADAM_STEPS (per-algorithm) > NUMBER_OF_ITERATIONS.
+        steps = kwargs.get('steps')
+        if steps is None:
+            steps = self._get_config_value(
+                lambda: self.config.optimization.adam.steps,
+                default=None,
+                dict_key='ADAM_STEPS'
+            )
+        if steps is None:
+            steps = self._get_config_value(
+                lambda: self.config.optimization.iterations,
+                default=self.max_iterations,
+                dict_key='NUMBER_OF_ITERATIONS'
+            )
         lr = kwargs.get('lr', self._get_config_value(
             lambda: self.config.optimization.adam.lr,
             default=AdamDefaults.LR,

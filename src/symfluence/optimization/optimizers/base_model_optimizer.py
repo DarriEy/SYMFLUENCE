@@ -1225,6 +1225,19 @@ class BaseModelOptimizer(
 
             kwargs['gradient_mode'] = gradient_mode
 
+        # Apply runtime overrides set by the convenience methods (run_adam /
+        # run_lbfgs). These map algorithm-specific keys onto the generic
+        # 'steps'/'lr' kwargs the algorithms consume. Only one gradient
+        # algorithm runs per call, so there is no key collision in practice.
+        override_map = {
+            'ADAM_STEPS': 'steps', 'LBFGS_STEPS': 'steps',
+            'ADAM_LR': 'lr', 'LBFGS_LR': 'lr',
+        }
+        for override_key, kwarg_name in override_map.items():
+            value = self._runtime_overrides.get(override_key)
+            if value is not None:
+                kwargs[kwarg_name] = value
+
         # Run the algorithm
         result = algorithm.optimize(
             n_params=n_params,
@@ -1319,36 +1332,44 @@ class BaseModelOptimizer(
         """Run Approximate Bayesian Computation (ABC-SMC) for likelihood-free inference."""
         return self.run_optimization('abc')
 
-    def run_adam(self, steps: int = 100, lr: float = 0.01) -> Path:
+    def run_adam(self, steps: Optional[int] = None, lr: Optional[float] = None) -> Path:
         """
         Run Adam gradient-based optimization.
 
         Args:
-            steps: Number of optimization steps (passed via config ADAM_STEPS)
-            lr: Learning rate (passed via config ADAM_LR)
+            steps: Number of optimization steps. If None, resolved from config
+                   (ADAM_STEPS, then NUMBER_OF_ITERATIONS).
+            lr: Learning rate. If None, resolved from config (ADAM_LR).
 
         Returns:
             Path to results file
         """
-        # Store parameters in runtime overrides for the algorithm to use
-        self._runtime_overrides['ADAM_STEPS'] = steps
-        self._runtime_overrides['ADAM_LR'] = lr
+        # Only override config when an explicit value is supplied, so config
+        # keys (ADAM_STEPS / NUMBER_OF_ITERATIONS / ADAM_LR) still take effect.
+        if steps is not None:
+            self._runtime_overrides['ADAM_STEPS'] = steps
+        if lr is not None:
+            self._runtime_overrides['ADAM_LR'] = lr
         return self.run_optimization('adam')
 
-    def run_lbfgs(self, steps: int = 50, lr: float = 0.1) -> Path:
+    def run_lbfgs(self, steps: Optional[int] = None, lr: Optional[float] = None) -> Path:
         """
         Run L-BFGS gradient-based optimization.
 
         Args:
-            steps: Maximum number of steps (passed via config LBFGS_STEPS)
-            lr: Initial step size (passed via config LBFGS_LR)
+            steps: Maximum number of steps. If None, resolved from config
+                   (LBFGS_STEPS, then NUMBER_OF_ITERATIONS).
+            lr: Initial step size. If None, resolved from config (LBFGS_LR).
 
         Returns:
             Path to results file
         """
-        # Store parameters in runtime overrides for the algorithm to use
-        self._runtime_overrides['LBFGS_STEPS'] = steps
-        self._runtime_overrides['LBFGS_LR'] = lr
+        # Only override config when an explicit value is supplied, so config
+        # keys (LBFGS_STEPS / NUMBER_OF_ITERATIONS / LBFGS_LR) still take effect.
+        if steps is not None:
+            self._runtime_overrides['LBFGS_STEPS'] = steps
+        if lr is not None:
+            self._runtime_overrides['LBFGS_LR'] = lr
         return self.run_optimization('lbfgs')
 
     # =========================================================================
