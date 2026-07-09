@@ -33,6 +33,7 @@ import pytest
 from symfluence.evaluation.sensitivity_analysis import (
     _NON_PARAM_COLS,
     SensitivityAnalyzer,
+    _constant_parameter_columns,
     _parameter_columns_for_sa,
 )
 
@@ -108,5 +109,53 @@ def test_adam_shaped_results_dont_break_sobol_validation(caplog):
     caplog.set_level(logging.WARNING)
     result = analyzer.perform_sobol_analysis(df, metric='RMSE')
     # Must return a Series indexed by the two real parameters only.
+    assert list(result.index) == ['p1', 'p2'], \
+        f"sobol ran on unexpected columns: {list(result.index)}"
+
+
+def test_non_param_cols_includes_sampler_diagnostics():
+    """DREAM-style sampler diagnostics must be excluded so they are not
+    treated as calibration parameters."""
+    for name in ('acceptance_rate', 'n_chains'):
+        assert name in _NON_PARAM_COLS, f"{name} missing from _NON_PARAM_COLS"
+
+
+def test_parameter_selector_drops_constant_columns():
+    """A zero-variance numeric column (a pinned model parameter, or an
+    optimiser-internal like DREAM's n_chains) must be excluded — it has no
+    sensitivity to attribute and would otherwise make SALib's Sobol sampler
+    raise 'Bounds are not legal'."""
+    df = pd.DataFrame({
+        'p1': [0.1, 0.2, 0.3],
+        'p2': [1.0, 2.0, 3.0],
+        'px_temp': [1.0, 1.0, 1.0],   # real parameter pinned by the optimiser
+        'n_chains': [29, 29, 29],     # sampler-internal, constant
+    })
+    assert set(_parameter_columns_for_sa(df)) == {'p1', 'p2'}
+    # px_temp is named as a dropped-constant; n_chains is in the denylist.
+    assert 'px_temp' in _constant_parameter_columns(df)
+
+
+def test_dream_shaped_results_drop_internals_and_run(caplog):
+    """End-to-end on a DREAM-shaped frame (constant n_chains + varying
+    acceptance_rate + real params): Sobol runs on the real parameters only,
+    with no crash on the constant internal column."""
+    rng = np.random.default_rng(1)
+    n = 40
+    df = pd.DataFrame({
+        'iteration': range(n),
+        'score': rng.uniform(0.7, 0.9, n),
+        'p1': rng.uniform(0.1, 0.9, n),
+        'p2': rng.uniform(1.0, 9.0, n),
+        'RMSE': rng.uniform(0.05, 0.3, n),
+        'acceptance_rate': rng.uniform(0.6, 1.0, n),  # varying internal
+        'n_chains': [29] * n,                          # constant internal
+    })
+    analyzer = SensitivityAnalyzer.__new__(SensitivityAnalyzer)
+    analyzer.config = MagicMock()
+    analyzer.logger = logging.getLogger("test_sa_dream")
+    analyzer.reporting_manager = MagicMock()
+
+    result = analyzer.perform_sobol_analysis(df, metric='RMSE')
     assert list(result.index) == ['p1', 'p2'], \
         f"sobol ran on unexpected columns: {list(result.index)}"
