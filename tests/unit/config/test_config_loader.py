@@ -258,16 +258,26 @@ def _write_nested_config(tmp_path, data_dir="default", code_dir="default"):
 
 def test_nested_default_sentinel_resolves_not_literal_default(tmp_path, monkeypatch):
     """A nested `system.data_dir: default` must resolve to the computed default
-    (sibling SYMFLUENCE_data), never the literal relative path ./default."""
+    (a SYMFLUENCE_data sibling of the code dir), never the literal relative
+    path ./default."""
     from symfluence.core.config.models import SymfluenceConfig
 
-    monkeypatch.delenv("SYMFLUENCE_DATA_DIR", raising=False)
-    monkeypatch.delenv("SYMFLUENCE_CODE_DIR", raising=False)
+    # Clear every env var that feeds default path resolution. SYMFLUENCE_DATA
+    # is the secondary fallback consulted by _resolve_default_data_dir, and CI
+    # (install-validate) sets it to a lowercase `symfluence_data` workspace
+    # path — leaving it set makes the resolver return that path instead of the
+    # computed sibling.
+    for var in ("SYMFLUENCE_DATA_DIR", "SYMFLUENCE_DATA", "SYMFLUENCE_CODE_DIR"):
+        monkeypatch.delenv(var, raising=False)
 
     cfg = SymfluenceConfig.from_file(_write_nested_config(tmp_path))
 
-    assert cfg.system.data_dir.name == "SYMFLUENCE_data"
-    assert cfg.system.data_dir.name != "default"
+    # The literal `default` sentinel must not survive as a relative path, and
+    # the data dir must be the computed SYMFLUENCE_data sibling of the code dir.
+    # Compare the name case-insensitively so a case-preserving-but-insensitive
+    # filesystem (macOS) that canonicalises an existing dir can't flake this.
+    assert cfg.system.data_dir.name.lower() == "symfluence_data"
+    assert cfg.system.data_dir.parent == cfg.system.code_dir.parent
     assert cfg.system.code_dir.name != "default"
 
 
