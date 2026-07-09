@@ -94,6 +94,33 @@ def quadratic_gradient():
     return compute_gradient
 
 
+# Ill-conditioned anisotropic quadratic. Steepest descent / gradient ascent
+# zig-zags badly here, so it only converges quickly if the L-BFGS curvature
+# machinery actually engages. The optimum is at 0.6 in every dimension.
+ILL_COND_CURVATURE = np.array([1.0, 30.0, 1000.0])
+ILL_COND_OPTIMUM = np.array([0.6, 0.6, 0.6])
+
+
+@pytest.fixture
+def ill_conditioned_objective():
+    """Maximization objective f(x) = -Σ c_i (x_i - 0.6)^2 (condition number 1000)."""
+    def evaluate(x: np.ndarray, step_id: int = 0) -> float:
+        return -np.sum(ILL_COND_CURVATURE * (x - ILL_COND_OPTIMUM) ** 2)
+
+    return evaluate
+
+
+@pytest.fixture
+def ill_conditioned_gradient():
+    """Native (minimization) gradient for the ill-conditioned quadratic."""
+    def compute_gradient(x: np.ndarray) -> Tuple[float, np.ndarray]:
+        loss = np.sum(ILL_COND_CURVATURE * (x - ILL_COND_OPTIMUM) ** 2)
+        grad = 2 * ILL_COND_CURVATURE * (x - ILL_COND_OPTIMUM)
+        return loss, grad
+
+    return compute_gradient
+
+
 # ============================================================================
 # BaseWorker gradient support tests
 # ============================================================================
@@ -479,6 +506,147 @@ class TestLBFGSWithGradients:
         # Should converge close to 0.7 (tolerance allows for variation in optimization)
         np.testing.assert_allclose(result['best_solution'], 0.7, atol=0.15)
         assert result['gradient_method'] == 'native'
+
+
+class TestLBFGSQuasiNewton:
+    """Guard that L-BFGS actually behaves as a quasi-Newton method.
+
+    Regression coverage for the maximization sign-convention bug: the algorithm
+    minimizes g = -fitness internally, so the curvature condition y·s > 0 must be
+    satisfiable near a maximum of fitness. Before the fix, the secant history
+    stayed permanently empty on any locally-concave objective and L-BFGS silently
+    degraded to plain gradient ascent — these tests would have caught that.
+    """
+
+    @staticmethod
+    def _run(algo, n_params, objective, compute_gradient, gradient_mode):
+        """Run the algorithm while recording the (s, y) history length seen."""
+        history_lengths = []
+        original_direction = algo._lbfgs_direction
+
+        def spy(gradient, s_history, y_history):
+            history_lengths.append(len(s_history))
+            return original_direction(gradient, s_history, y_history)
+
+        algo._lbfgs_direction = spy
+
+        result = algo.optimize(
+            n_params=n_params,
+            evaluate_solution=objective,
+            evaluate_population=lambda p, i: np.array([objective(x, i) for x in p]),
+            denormalize_params=lambda x: {f'p{i}': v for i, v in enumerate(x)},
+            record_iteration=lambda *args, **kwargs: None,
+            update_best=lambda *args, **kwargs: None,
+            log_progress=lambda *args, **kwargs: None,
+            compute_gradient=compute_gradient,
+            gradient_mode=gradient_mode,
+        )
+        return result, history_lengths
+
+    def test_secant_history_populates_on_concave_objective(
+        self, mock_config, test_logger, ill_conditioned_objective
+    ):
+        """The (s, y) history must accumulate — the core of the sign-bug fix.
+
+        On a locally-concave (for maximization) objective the buggy code kept the
+        history empty forever. Here it must grow above zero.
+        """
+        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+
+        # Set both keys so step count is 40 regardless of resolution precedence.
+        mock_config['LBFGS_STEPS'] = 40
+        mock_config['NUMBER_OF_ITERATIONS'] = 40
+        mock_config['LBFGS_LR'] = 1.0
+        mock_config['GRADIENT_EPSILON'] = 1e-6
+        mock_config['GRADIENT_CLIP_VALUE'] = 0.0  # disable clipping for clean curvature
+        algo = LBFGSAlgorithm(mock_config, test_logger)
+
+        _, history_lengths = self._run(
+            algo, 3, ill_conditioned_objective, None, 'finite_difference'
+        )
+
+        assert max(history_lengths) > 0, (
+            "L-BFGS secant history never populated — algorithm degraded to "
+            "gradient ascent (maximization sign-convention regression)."
+        )
+
+    def test_lbfgs_converges_on_ill_conditioned_quadratic(
+        self, mock_config, test_logger, ill_conditioned_objective
+    ):
+        """Quasi-Newton steps must solve an ill-conditioned quadratic tightly."""
+        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+
+        mock_config['LBFGS_STEPS'] = 60
+        mock_config['NUMBER_OF_ITERATIONS'] = 60
+        mock_config['LBFGS_LR'] = 1.0
+        mock_config['GRADIENT_EPSILON'] = 1e-6
+        mock_config['GRADIENT_CLIP_VALUE'] = 0.0
+        algo = LBFGSAlgorithm(mock_config, test_logger)
+
+        result, _ = self._run(
+            algo, 3, ill_conditioned_objective, None, 'finite_difference'
+        )
+
+        np.testing.assert_allclose(result['best_solution'], ILL_COND_OPTIMUM, atol=1e-2)
+
+    def test_lbfgs_native_populates_history_and_converges(
+        self, mock_config, test_logger, ill_conditioned_objective, ill_conditioned_gradient
+    ):
+        """Native-gradient path must also engage curvature and converge."""
+        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+
+        mock_config['LBFGS_STEPS'] = 60
+        mock_config['NUMBER_OF_ITERATIONS'] = 60
+        mock_config['LBFGS_LR'] = 1.0
+        mock_config['GRADIENT_CLIP_VALUE'] = 0.0
+        algo = LBFGSAlgorithm(mock_config, test_logger)
+
+        result, history_lengths = self._run(
+            algo, 3, ill_conditioned_objective, ill_conditioned_gradient, 'native'
+        )
+
+        assert max(history_lengths) > 0
+        assert result['gradient_method'] == 'native'
+        np.testing.assert_allclose(result['best_solution'], ILL_COND_OPTIMUM, atol=1e-2)
+
+    def test_lbfgs_outperforms_gradient_ascent_under_equal_budget(
+        self, mock_config, test_logger, ill_conditioned_objective
+    ):
+        """With curvature working, L-BFGS must beat first-order Adam on this problem.
+
+        On an ill-conditioned quadratic a genuine quasi-Newton method converges
+        far faster than gradient ascent. If L-BFGS had degraded to gradient ascent
+        (the bug), the two would be comparable and this margin would vanish.
+        """
+        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+
+        steps = 25
+        common = dict(
+            n_params=3,
+            evaluate_solution=ill_conditioned_objective,
+            evaluate_population=lambda p, i: np.array([ill_conditioned_objective(x, i) for x in p]),
+            denormalize_params=lambda x: {f'p{i}': v for i, v in enumerate(x)},
+            record_iteration=lambda *args, **kwargs: None,
+            update_best=lambda *args, **kwargs: None,
+            log_progress=lambda *args, **kwargs: None,
+            compute_gradient=None,
+            gradient_mode='finite_difference',
+        )
+
+        lbfgs_cfg = dict(mock_config)
+        lbfgs_cfg.update({'LBFGS_STEPS': steps, 'NUMBER_OF_ITERATIONS': steps, 'LBFGS_LR': 1.0,
+                          'GRADIENT_EPSILON': 1e-6, 'GRADIENT_CLIP_VALUE': 0.0})
+        lbfgs_result = LBFGSAlgorithm(lbfgs_cfg, test_logger).optimize(**common)
+
+        adam_cfg = dict(mock_config)
+        adam_cfg.update({'ADAM_STEPS': steps, 'NUMBER_OF_ITERATIONS': steps, 'ADAM_LR': 0.05,
+                         'GRADIENT_EPSILON': 1e-6, 'GRADIENT_CLIP_VALUE': 0.0})
+        adam_result = AdamAlgorithm(adam_cfg, test_logger).optimize(**common)
+
+        # L-BFGS should be at least an order of magnitude closer to the optimum
+        # (both scores are <= 0; closer to 0 is better).
+        assert lbfgs_result['best_score'] > 10 * adam_result['best_score']
 
 
 # ============================================================================

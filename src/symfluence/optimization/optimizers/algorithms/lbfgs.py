@@ -57,15 +57,21 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         4. Terminate when gradient norm < 1e-6 (convergence) or max steps reached
         5. Return best solution found
 
-    Two-Loop Recursion:
-        Efficiently computes search direction p = H*g where H is approximate
-        Hessian inverse, using only stored history (s_k, y_k) pairs without
-        explicitly forming Hessian.
+    Maximization convention:
+        The framework maximizes fitness, but L-BFGS is formulated for
+        minimization. The algorithm therefore minimizes g = -fitness internally:
+        secant pairs, the curvature condition and the line search all live in
+        this minimization space, and results are reported back as fitness.
 
-    Line Search (Wolfe Conditions):
+    Two-Loop Recursion:
+        Efficiently computes r = H*∇g where H is the approximate inverse Hessian,
+        using only stored history (s_k, y_k) pairs without explicitly forming the
+        Hessian. The descent direction is -r.
+
+    Line Search (weak Wolfe conditions, minimization space):
         Ensures step size satisfies:
-        1. Sufficient decrease (Armijo): f(x_new) ≥ f(x) + c1*α*⟨∇f,d⟩
-        2. Curvature condition (strong Wolfe): |⟨∇f(x_new),d⟩| ≤ c2*|⟨∇f,d⟩|
+        1. Sufficient decrease (Armijo): g(x_new) ≤ g(x) + c1*α*⟨∇g,d⟩
+        2. Curvature condition (weak Wolfe): ⟨∇g(x_new),d⟩ ≥ c2*⟨∇g,d⟩
 
     Gradient Computation:
         Supports two modes controlled by gradient_mode parameter:
@@ -139,12 +145,21 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
             - gradient_method: 'native' or 'finite_difference' (which was used)
         """
-        # L-BFGS hyperparameters from config
-        steps = kwargs.get('steps', self._get_config_value(
-            lambda: self.config.optimization.iterations,
-            default=self.max_iterations,
-            dict_key='NUMBER_OF_ITERATIONS'
-        ))
+        # L-BFGS hyperparameters from config. Step-count precedence:
+        # explicit kwarg > LBFGS_STEPS (per-algorithm) > NUMBER_OF_ITERATIONS.
+        steps = kwargs.get('steps')
+        if steps is None:
+            steps = self._get_config_value(
+                lambda: self.config.optimization.lbfgs.steps,
+                default=None,
+                dict_key='LBFGS_STEPS'
+            )
+        if steps is None:
+            steps = self._get_config_value(
+                lambda: self.config.optimization.iterations,
+                default=self.max_iterations,
+                dict_key='NUMBER_OF_ITERATIONS'
+            )
         lr = kwargs.get('lr', self._get_config_value(
             lambda: self.config.optimization.lbfgs.lr,
             default=LBFGSDefaults.LR,
@@ -207,19 +222,30 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         # Initialize at midpoint of normalized space
         x = np.full(n_params, 0.5)
 
-        # L-BFGS history
-        s_history: List[np.ndarray] = []  # Position differences
-        y_history: List[np.ndarray] = []  # Gradient differences
+        # L-BFGS theory is stated for MINIMIZATION, but the framework maximizes
+        # fitness. We therefore minimize g = -fitness internally: the secant
+        # pairs, curvature condition and line search all operate in this
+        # minimization space. gradient_func returns (fitness, ascent_grad) where
+        # ascent_grad = ∇fitness; the minimization gradient is grad_g = -ascent_grad.
+        def eval_min(xi: np.ndarray) -> Tuple[float, np.ndarray]:
+            fit, ascent_grad = gradient_func(xi)
+            return -fit, -ascent_grad
 
-        # Track best
+        # L-BFGS history (minimization space)
+        s_history: List[np.ndarray] = []  # Position differences s_k = x_{k+1} - x_k
+        y_history: List[np.ndarray] = []  # Min-space gradient differences y_k
+
+        # Track best (reported in fitness / maximization terms)
         best_x = x.copy()
         best_fitness = float('-inf')
 
-        # Initial gradient using unified gradient function
-        fitness, gradient = gradient_func(x)
-        gradient = self._clip_gradient(gradient, gradient_clip)
+        # Initial minimization-space objective and gradient
+        g, grad = eval_min(x)
+        grad = self._clip_gradient(grad, gradient_clip)
 
         for step in range(steps):
+            fitness = -g
+
             # Update best
             if fitness > best_fitness:
                 best_fitness = fitness
@@ -230,31 +256,32 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             record_iteration(step, best_fitness, params_dict)
             update_best(best_fitness, params_dict, step)
 
-            # Compute search direction using L-BFGS two-loop recursion
-            direction = self._lbfgs_direction(gradient, s_history, y_history)
+            # Two-loop recursion returns r ≈ H·grad, where H approximates the
+            # inverse Hessian of g. The descent direction for g is -r.
+            direction = -self._lbfgs_direction(grad, s_history, y_history)
 
-            # Line search using unified gradient function
-            step_size, new_fitness, new_gradient = self._line_search_with_gradient_func(
-                x, direction, fitness, gradient, gradient_func,
+            # Line search in minimization space (Armijo + weak-Wolfe curvature)
+            step_size, g_new, grad_new = self._line_search_with_gradient_func(
+                x, direction, g, grad, eval_min,
                 lr, c1, c2
             )
 
             if step_size is None:
-                # Line search failed, use gradient descent
-                self.logger.warning(f"L-BFGS line search failed at step {step}, using gradient descent")
+                # Line search failed: fall back to a steepest-descent step on g.
+                self.logger.warning(f"L-BFGS line search failed at step {step}, using steepest descent")
                 step_size = lr / (step + 1)
-                x_new = x + step_size * gradient  # gradient ascent
-                x_new = np.clip(x_new, 0, 1)
-                new_fitness, new_gradient = gradient_func(x_new)
+                x_new = np.clip(x - step_size * grad, 0, 1)  # descent along -grad_g
+                g_new, grad_new = eval_min(x_new)
             else:
-                x_new = x + step_size * direction
-                x_new = np.clip(x_new, 0, 1)
+                x_new = np.clip(x + step_size * direction, 0, 1)
 
-            new_gradient = self._clip_gradient(new_gradient, gradient_clip)
+            grad_new = self._clip_gradient(grad_new, gradient_clip)
 
-            # Update history
+            # Secant pair update. The standard curvature condition y·s > 0 holds
+            # in the region where g is locally convex — i.e. near a maximum of
+            # fitness — so the quasi-Newton history now actually accumulates.
             s = x_new - x
-            y = new_gradient - gradient
+            y = grad_new - grad
 
             if np.dot(y, s) > 1e-10:  # Curvature condition
                 s_history.append(s)
@@ -266,17 +293,23 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
 
             # Update state
             x = x_new
-            fitness = new_fitness
-            gradient = new_gradient
+            g = g_new
+            grad = grad_new
 
             # Log progress
             if step % 10 == 0:
                 log_progress(self.name, step, best_fitness)
 
             # Check convergence
-            if np.linalg.norm(gradient) < 1e-6:
+            if np.linalg.norm(grad) < 1e-6:
                 self.logger.info(f"L-BFGS converged at step {step}")
                 break
+
+        # Final point may be the best one found (loop updates best at the top).
+        fitness = -g
+        if fitness > best_fitness:
+            best_fitness = fitness
+            best_x = x.copy()
 
         return {
             'best_solution': best_x,
@@ -294,15 +327,20 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         y_history: List[np.ndarray]
     ) -> np.ndarray:
         """
-        Compute L-BFGS search direction using two-loop recursion.
+        Compute r = H·gradient via the L-BFGS two-loop recursion.
+
+        H is the implicit approximation to the inverse Hessian built from the
+        stored (s, y) pairs. This routine is sign-agnostic: the caller forms the
+        descent direction as -r (minimization space). With an empty history it
+        returns the (scaled) gradient itself, i.e. plain steepest descent.
 
         Args:
-            gradient: Current gradient
-            s_history: History of position differences
-            y_history: History of gradient differences
+            gradient: Current minimization-space gradient
+            s_history: History of position differences s_k = x_{k+1} - x_k
+            y_history: History of minimization-space gradient differences
 
         Returns:
-            Search direction (for gradient ascent)
+            r = H·gradient (the caller negates this to get the descent direction)
         """
         q = gradient.copy()
         m = len(s_history)
@@ -333,62 +371,67 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             beta_i = rho_i * np.dot(y_history[i], r)
             r = r + (alphas[i] - beta_i) * s_history[i]
 
-        return r  # For maximization, this is the ascent direction
+        return r  # H·gradient; caller negates for the descent direction
 
     def _line_search_with_gradient_func(
         self,
         x: np.ndarray,
         direction: np.ndarray,
-        f_x: float,
+        g_x: float,
         grad_x: np.ndarray,
-        gradient_func: Callable[[np.ndarray], Tuple[float, np.ndarray]],
+        eval_min: Callable[[np.ndarray], Tuple[float, np.ndarray]],
         initial_step: float,
         c1: float,
         c2: float,
         max_iter: int = 20
     ) -> Tuple[Optional[float], float, np.ndarray]:
         """
-        Backtracking line search with Wolfe conditions using unified gradient function.
+        Backtracking line search on the minimization objective g = -fitness.
 
-        This method uses the unified gradient function which may be either native
-        (autodiff) or finite-difference based, depending on configuration.
+        Accepts a step satisfying the (weak) Wolfe conditions for minimization:
+          1. Armijo sufficient decrease:  g(x + α d) ≤ g(x) + c1·α·⟨∇g, d⟩
+          2. Weak-Wolfe curvature:        ⟨∇g(x + α d), d⟩ ≥ c2·⟨∇g, d⟩
+
+        Because backtracking only ever shrinks the step, the curvature condition
+        may occasionally be unmet; pairs that would violate the L-BFGS curvature
+        requirement are additionally screened by the y·s > 0 guard at the call
+        site, so the secant history stays well-conditioned either way.
 
         Args:
             x: Current parameter values (normalized [0,1])
-            direction: Search direction from L-BFGS two-loop recursion
-            f_x: Current fitness value
-            grad_x: Current gradient
-            gradient_func: Unified gradient function: (x) -> (fitness, gradient)
+            direction: Descent direction (-r from the two-loop recursion)
+            g_x: Current minimization objective value g = -fitness
+            grad_x: Current minimization-space gradient ∇g
+            eval_min: Minimization evaluator: (x) -> (g, grad_g)
             initial_step: Initial step size for line search
             c1: Armijo condition parameter (sufficient decrease)
             c2: Wolfe curvature condition parameter
             max_iter: Maximum line search iterations
 
         Returns:
-            Tuple of (step_size, new_fitness, new_gradient)
-            step_size is None if line search failed
+            Tuple of (step_size, g_new, grad_new); step_size is None on failure.
         """
         step_size = initial_step
         directional_deriv = np.dot(grad_x, direction)
 
-        if directional_deriv <= 0:
-            # Not an ascent direction
-            return None, f_x, grad_x
+        if directional_deriv >= 0:
+            # Not a descent direction for g
+            return None, g_x, grad_x
 
         for _ in range(max_iter):
             x_new = np.clip(x + step_size * direction, 0, 1)
-            f_new, grad_new = gradient_func(x_new)
+            g_new, grad_new = eval_min(x_new)
 
-            # Armijo condition (sufficient increase for maximization)
-            if f_new >= f_x + c1 * step_size * directional_deriv:
-                # Curvature condition
+            # Armijo condition (sufficient decrease for minimization)
+            if g_new <= g_x + c1 * step_size * directional_deriv:
+                # Weak-Wolfe curvature condition
                 new_directional_deriv = np.dot(grad_new, direction)
                 if new_directional_deriv >= c2 * directional_deriv:
-                    return step_size, f_new, grad_new
+                    return step_size, g_new, grad_new
 
             step_size *= 0.5
 
             if step_size < 1e-10:
                 break
 
-        return None, f_x, grad_x
+        return None, g_x, grad_x

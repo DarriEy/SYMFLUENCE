@@ -222,10 +222,9 @@ class OptimizationManager(BaseManager):
                 model.hydrological_model: Comma-separated model names
 
             Algorithm-Specific (if applicable):
-                optimization.adam_steps: Number of steps (default: 100)
-                optimization.adam_learning_rate: Learning rate (default: 0.01)
-                optimization.lbfgs_steps: Max steps (default: 50)
-                optimization.lbfgs_learning_rate: Step size (default: 0.1)
+                ADAM_STEPS / LBFGS_STEPS: Step count (falls back to NUMBER_OF_ITERATIONS)
+                ADAM_LR (optimization.adam.lr): Adam learning rate (default: 0.01)
+                LBFGS_LR (optimization.lbfgs.lr): L-BFGS initial step size (default: 0.1)
 
         Returns:
             Optional[Path]: Path to last completed calibration results file
@@ -463,26 +462,11 @@ class OptimizationManager(BaseManager):
                 'SCE-UA': optimizer.run_sce,
                 'DE': optimizer.run_de,
                 'NSGA-II': optimizer.run_nsga2,
-                'ADAM': lambda: optimizer.run_adam(
-                    steps=self._get_config_value(
-                        lambda: self.config.optimization.adam_steps,
-                        100
-                    ),
-                    lr=self._get_config_value(
-                        lambda: self.config.optimization.adam_learning_rate,
-                        0.01
-                    )
-                ),
-                'LBFGS': lambda: optimizer.run_lbfgs(
-                    steps=self._get_config_value(
-                        lambda: self.config.optimization.lbfgs_steps,
-                        50
-                    ),
-                    lr=self._get_config_value(
-                        lambda: self.config.optimization.lbfgs_learning_rate,
-                        0.1
-                    )
-                ),
+                # Step counts and learning rates are resolved from config inside
+                # the algorithms (ADAM_STEPS/LBFGS_STEPS → NUMBER_OF_ITERATIONS,
+                # and ADAM_LR/LBFGS_LR). No arguments needed here.
+                'ADAM': optimizer.run_adam,
+                'LBFGS': optimizer.run_lbfgs,
                 'CMA-ES': optimizer.run_cmaes,
                 'CMAES': optimizer.run_cmaes,
                 'DREAM': optimizer.run_dream,
