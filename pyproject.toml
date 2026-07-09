@@ -174,6 +174,10 @@ test = [
   "pytest-cov>=4.0.0",
   "pytest-timeout>=2.0.0",
   "hypothesis>=6.0.0,<7.0.0",
+  # Independent optimizer implementation used as an external reference in
+  # tests/integration/optimization/test_optimizer_external_reference.py
+  # (SCE-UA cross-check). scipy and torch references ship as core deps.
+  "spotpy>=1.5.0",
   # The test suite imports the JAX plugins, so the full test extra pulls in that
   # optional group (the baseline install does not).
   "symfluence[jax]",
