@@ -56,6 +56,12 @@ _NON_PARAM_COLS = frozenset({
     # Gradient-optimiser internals (ADAM / L-BFGS)
     'grad_norm', 'lr', 'current_params', 'step_size',
     'f_calls', 'n_iter', 'fun', 'gtol', 'ftol', 'xtol',
+    # Sampler / population diagnostics (DREAM, ABC, PSO, GA, ...): these are
+    # optimiser state that some algorithms append to the results CSV, not model
+    # parameters. Constant ones are also caught by the zero-variance filter in
+    # _parameter_columns_for_sa, but the varying ones (e.g. acceptance_rate)
+    # must be named here so they don't pollute the sensitivity output.
+    'acceptance_rate', 'n_chains',
 })
 
 
@@ -76,8 +82,27 @@ def _parameter_columns_for_sa(samples) -> list:
         c for c in samples.columns
         if c not in _NON_PARAM_COLS
         and pd.api.types.is_numeric_dtype(samples[c])
+        and samples[c].nunique(dropna=True) > 1
     ]
     return numeric_cols
+
+
+def _constant_parameter_columns(samples) -> list:
+    """Numeric, non-bookkeeping columns that are constant across all samples.
+
+    These are excluded from sensitivity analysis by
+    ``_parameter_columns_for_sa`` (a constant column has no variance to
+    attribute, and it makes SALib's Sobol sampler raise "Bounds are not
+    legal"). Returned separately so the caller can report *which* parameters
+    were dropped — e.g. an optimiser-internal like DREAM's ``n_chains`` or a
+    genuine model parameter that a run pinned at a bound.
+    """
+    return [
+        c for c in samples.columns
+        if c not in _NON_PARAM_COLS
+        and pd.api.types.is_numeric_dtype(samples[c])
+        and samples[c].nunique(dropna=True) <= 1
+    ]
 
 
 class SensitivityAnalyzer(ConfigMixin):
@@ -434,6 +459,25 @@ class SensitivityAnalyzer(ConfigMixin):
             )
             return None
 
+        # Report and skip constant parameters rather than crashing on them.
+        # Constant columns (a pinned model parameter, or an optimiser-internal
+        # like DREAM's n_chains) carry no sensitivity and make SALib's Sobol
+        # sampler raise. Excluding them lets every algorithm's results be
+        # analysed on the parameters that actually varied.
+        dropped = _constant_parameter_columns(results_preprocessed)
+        if dropped:
+            self.logger.warning(
+                f"Excluding {len(dropped)} constant column(s) from sensitivity "
+                f"analysis (no variance to attribute): {', '.join(dropped)}"
+            )
+        if not _parameter_columns_for_sa(results_preprocessed):
+            self.logger.warning(
+                "No varying calibration parameters remain after excluding "
+                "constant columns; skipping sensitivity analysis. This happens "
+                "when a run pinned every parameter (e.g. a degenerate optimum)."
+            )
+            return None
+
         methods = {
             'pyViscous': self.perform_sensitivity_analysis,
             'Sobol': self.perform_sobol_analysis,
@@ -443,7 +487,15 @@ class SensitivityAnalyzer(ConfigMixin):
 
         all_results = {}
         for name, method in methods.items():
-            sensitivity = method(results_preprocessed, metric=metric_col)
+            # One method failing (e.g. VISCOUS non-convergence on clustered
+            # samples) must not abort the others or the whole workflow step.
+            try:
+                sensitivity = method(results_preprocessed, metric=metric_col)
+            except Exception as e:  # noqa: BLE001 — resilience across SA methods
+                self.logger.error(
+                    f"{name} sensitivity method failed ({e}); skipping it."
+                )
+                continue
             all_results[name] = sensitivity
             sensitivity.to_csv(self.output_folder / f'{name.lower()}_sensitivity.csv')
 
@@ -455,6 +507,12 @@ class SensitivityAnalyzer(ConfigMixin):
                 )
 
             self.logger.info(f"Saved {name} sensitivity results and plot")
+
+        if not all_results:
+            self.logger.warning(
+                "All sensitivity methods failed; no results produced."
+            )
+            return None
 
         comparison_df = pd.DataFrame(all_results)
         comparison_df.to_csv(self.output_folder / 'all_sensitivity_results.csv')

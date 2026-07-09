@@ -13,10 +13,11 @@ was silently swallowed by a surrounding error-handler context with
 
 These tests pin two behaviours:
 
-1. ``SensitivityAnalyzer.perform_sobol_analysis`` validates bounds
-   up front and raises a named, actionable ``ValueError`` (naming the
-   offending parameter and its bogus value) rather than letting
-   SALib's opaque message propagate.
+1. ``SensitivityAnalyzer`` never lets un-analysable columns crash the
+   step: stringified/non-numeric columns and zero-variance (constant)
+   columns are dropped at source by the parameter selector, so Sobol
+   runs on the parameters that actually varied instead of failing the
+   whole analysis.
 2. ``AnalysisManager.run_sensitivity_analysis`` raises
    ``EvaluationError`` when no configured model produces results,
    so the workflow step is marked FAILED instead of silently
@@ -83,22 +84,30 @@ def test_stringified_columns_are_filtered_not_crashed_on():
     )
 
 
-def test_constant_parameter_raises_actionable_value_error():
-    """A parameter column with zero variance (min == max) has no
-    attributable sensitivity; SALib rejects it, but the current
-    silent-swallow made this look like success. Validate here and
-    point the user at the fix."""
+def test_constant_parameter_is_dropped_not_raised():
+    """A parameter column with zero variance (min == max) carries no
+    attributable sensitivity. Rather than failing the whole analysis
+    (which discards the perfectly good indices for every other
+    parameter), the constant column is dropped and Sobol runs on the
+    parameters that actually varied. This keeps a run's results usable
+    even when the optimiser pinned one parameter at a bound — the
+    behaviour the calibration ensemble needs across all 17 algorithms.
+
+    Previously this raised an actionable ValueError; the parameter
+    selector now excludes zero-variance columns at source, so the
+    degenerate-bounds validator is never reached for this case.
+    """
     samples = pd.DataFrame({
         "const_param": [0.5, 0.5, 0.5],
         "other_param": [1.0, 2.0, 3.0],
         "RMSE": [0.1, 0.2, 0.3],
     })
     analyzer = _make_analyzer()
-    with pytest.raises(ValueError) as excinfo:
-        analyzer.perform_sobol_analysis(samples, metric="RMSE")
-    msg = str(excinfo.value)
-    assert "const_param" in msg
-    assert "degenerate" in msg.lower() or "constant" in msg.lower() or "variance" in msg.lower()
+    result = analyzer.perform_sobol_analysis(samples, metric="RMSE")
+    assert list(result.index) == ["other_param"], (
+        f"constant column should be dropped, leaving only the varying "
+        f"parameter; SA saw: {list(result.index)}"
+    )
 
 
 def test_analysis_manager_raises_when_no_model_produces_results(monkeypatch, tmp_path):
