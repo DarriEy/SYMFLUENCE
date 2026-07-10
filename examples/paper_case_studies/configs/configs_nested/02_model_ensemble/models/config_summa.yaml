@@ -5,6 +5,7 @@
 system:
   data_dir: ./data/
   code_dir: ./
+  random_seed: 42   # pin DDS seed to the paper value for reproducibility (Fig 7)
 domain:
   name: Bow_at_Banff_lumped_era5
   pour_point_coords: 51.1722/-115.5717
