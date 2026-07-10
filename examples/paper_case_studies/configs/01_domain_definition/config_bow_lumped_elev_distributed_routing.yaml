@@ -1,5 +1,5 @@
 # Experiment 1: Lumped + elevation & distributed routing - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1i
+# Bow lumped elevation-band HRUs + semi-distributed routing (Section 2.1, Fig. 2f, Table 1)
 # 1 GRU, 12 HRUs (elevation bands), 49 segments
 # Hybrid: elevation-dependent vertical processes + distributed river routing
 # Computationally efficient compromise capturing both vertical and lateral heterogeneity

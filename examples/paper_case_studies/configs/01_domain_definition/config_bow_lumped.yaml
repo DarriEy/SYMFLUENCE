@@ -1,5 +1,5 @@
 # Experiment 1b: Lumped catchment domain - Bow River at Banff, AB
-# Domain Definition (Section 2.1, Figs. 1-3, Table 1)
+# Bow lumped, single GRU (Section 2.1, Fig. 2a, Table 1)
 # Tests: Lumped watershed domain with single HRU
 
 system:

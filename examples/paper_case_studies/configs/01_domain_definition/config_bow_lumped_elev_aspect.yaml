@@ -1,5 +1,5 @@
 # Experiment 1: Lumped + elevation & aspect - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1k
+# Bow lumped + elevation x aspect, 94 HRUs (Section 2.1, Table 1; not shown in Fig. 2)
 # 1 GRU, 94 HRUs (elevation bands x aspect classes), 0 segments
 # Maximum sub-grid complexity without explicit sub-basin delineation
 

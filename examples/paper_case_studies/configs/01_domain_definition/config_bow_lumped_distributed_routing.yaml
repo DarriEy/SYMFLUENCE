@@ -1,5 +1,5 @@
 # Experiment 1: Lumped + distributed routing - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1l
+# Bow lumped GRU + semi-distributed routing network (Section 2.1, Fig. 2i, Table 1)
 # 1 GRU, 1 HRU, 49 segments — hybrid: lumped hydrology, distributed routing
 # Demonstrates decoupling of hydrological response units from routing network
 
