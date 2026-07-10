@@ -149,19 +149,17 @@ def test_load_env_overrides(monkeypatch):
     assert not any(k.startswith("UNRELATED") for k in overrides)
 
 
-def test_load_env_overrides_full_prefix_keys(monkeypatch):
-    """SYMFLUENCE_DATA_DIR / SYMFLUENCE_CODE_DIR keep their full names.
-
-    Stripping the SYMFLUENCE_ prefix would yield DATA_DIR / CODE_DIR, which
-    match no config alias and were previously dropped silently.
-    """
-    monkeypatch.setenv("SYMFLUENCE_DATA_DIR", "/env/data_dir")
-    monkeypatch.setenv("SYMFLUENCE_CODE_DIR", "/env/code_dir")
+def test_load_env_overrides_natural_path_spelling(monkeypatch):
+    """The canonical flat keys for the two paths already carry a SYMFLUENCE_
+    prefix, so the natural env spelling must survive the loader's prefix strip
+    (previously it decayed to an unrecognized bare DATA_DIR / CODE_DIR)."""
+    monkeypatch.setenv("SYMFLUENCE_DATA_DIR", "/env/data")
+    monkeypatch.setenv("SYMFLUENCE_CODE_DIR", "/env/code")
 
     overrides = _load_env_overrides()
 
-    assert overrides["SYMFLUENCE_DATA_DIR"] == "/env/data_dir"
-    assert overrides["SYMFLUENCE_CODE_DIR"] == "/env/code_dir"
+    assert overrides["SYMFLUENCE_DATA_DIR"] == "/env/data"
+    assert overrides["SYMFLUENCE_CODE_DIR"] == "/env/code"
     assert "DATA_DIR" not in overrides
     assert "CODE_DIR" not in overrides
 
@@ -232,3 +230,64 @@ def test_format_validation_error_no_typos_for_known_keys():
     err = _make_validation_error()
     msg = _format_validation_error(err, {"DOMAIN_NAME": "Bow", "FORCING_DATASET": "ERA5"})
     assert "Did you mean" not in msg
+
+
+# ----------------------------------------------------------------------
+# Nested-config path resolution — `default` sentinel and env precedence
+# ----------------------------------------------------------------------
+
+
+def _write_nested_config(tmp_path, data_dir="default", code_dir="default"):
+    cfg = {
+        "system": {"data_dir": data_dir, "code_dir": code_dir},
+        "domain": {
+            "name": "Bow",
+            "time_start": "2015-01-01 00:00",
+            "time_end": "2015-12-31 23:00",
+            "definition_method": "lumped",
+            "discretization": "lumped",
+            "experiment_id": "run1",
+        },
+        "model": {"hydrological_model": "SUMMA"},
+        "forcing": {"dataset": "ERA5"},
+    }
+    path = tmp_path / "nested.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    return path
+
+
+def test_nested_default_sentinel_resolves_not_literal_default(tmp_path, monkeypatch):
+    """A nested `system.data_dir: default` must resolve to the computed default
+    (a SYMFLUENCE_data sibling of the code dir), never the literal relative
+    path ./default."""
+    from symfluence.core.config.models import SymfluenceConfig
+
+    # Clear every env var that feeds default path resolution. SYMFLUENCE_DATA
+    # is the secondary fallback consulted by _resolve_default_data_dir, and CI
+    # (install-validate) sets it to a lowercase `symfluence_data` workspace
+    # path — leaving it set makes the resolver return that path instead of the
+    # computed sibling.
+    for var in ("SYMFLUENCE_DATA_DIR", "SYMFLUENCE_DATA", "SYMFLUENCE_CODE_DIR"):
+        monkeypatch.delenv(var, raising=False)
+
+    cfg = SymfluenceConfig.from_file(_write_nested_config(tmp_path))
+
+    # The literal `default` sentinel must not survive as a relative path, and
+    # the data dir must be the computed SYMFLUENCE_data sibling of the code dir.
+    # Compare the name case-insensitively so a case-preserving-but-insensitive
+    # filesystem (macOS) that canonicalises an existing dir can't flake this.
+    assert cfg.system.data_dir.name.lower() == "symfluence_data"
+    assert cfg.system.data_dir.parent == cfg.system.code_dir.parent
+    assert cfg.system.code_dir.name != "default"
+
+
+def test_nested_env_override_beats_sentinel(tmp_path, monkeypatch):
+    """The natural SYMFLUENCE_DATA_DIR env spelling overrides the file sentinel
+    for nested configs (regression: it was silently dropped)."""
+    from symfluence.core.config.models import SymfluenceConfig
+
+    monkeypatch.setenv("SYMFLUENCE_DATA_DIR", str(tmp_path / "envdata"))
+
+    cfg = SymfluenceConfig.from_file(_write_nested_config(tmp_path))
+
+    assert cfg.system.data_dir == (tmp_path / "envdata").resolve()
