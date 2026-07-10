@@ -1,0 +1,36 @@
+# Data Pipeline - Iceland distributed (Section 2.2, Fig. 4)
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  - process_observed_data
+  - acquire_forcings
+  - model_agnostic_preprocessing
+  - build_model_ready_store
+  data_dir: ./data/
+  code_dir: ./
+domain:
+  name: Iceland_distributed
+  experiment_id: pipeline_iceland
+  time_start: 2000-01-01 03:00
+  time_end: 2008-12-31 21:00
+  definition_method: semidistributed
+  delineation:
+    routing: distributed
+    geofabric_type: TDX
+    stream_threshold: 5000
+  data_access: cloud
+  discretization: GRUs
+forcing:
+  dataset: CARRA
+  time_step_size: 3600
+model:
+  hydrological_model: FUSE
+  routing_model: mizuRoute
+  fuse:
+    spatial_mode: distributed
