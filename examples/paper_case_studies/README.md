@@ -43,11 +43,13 @@ pip install "GDAL==$(gdal-config --version)"   # Python bindings matching your s
 ```
 
 Running the MESH ensemble member (experiment 02 only) additionally needs two
-packages that are not on PyPI, in this order:
+packages that are not on PyPI. Install them exactly like this — the extra pins
+stop meshflow's dependencies from pulling in pandas 3, which SYMFLUENCE does
+not support yet:
 
 ```bash
 pip install git+https://github.com/kasra-keshavarz/hydrant.git
-pip install git+https://github.com/CH-Earth/meshflow.git@main
+pip install git+https://github.com/CH-Earth/meshflow.git@main "pandas>=2.0,<3" "pint-pandas<0.8"
 ```
 
 **Checkpoint** — both commands must succeed:
