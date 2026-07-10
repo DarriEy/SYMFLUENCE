@@ -1,29 +1,45 @@
-# Experiment 5: Benchmarking (Section 4.2.2)
+# Experiment 05 — Streamflow Benchmarking (§4.2.2, Fig 8)
 
-## Scientific Question
-How do calibrated hydrological models compare against simple statistical
-benchmarks (persistence, climatology)?
+A single config runs SYMFLUENCE's HydroBM-based Benchmarker: 12 naive
+reference predictors (mean/median flow, annual/monthly/daily climatologies,
+precipitation-scaled variants, …) computed from observed streamflow and ERA5
+precipitation for Bow River at Banff (WSC 05BB001). The benchmarks are
+model-agnostic — **no hydrological model is run** — and set the performance
+floor against which the experiment 02 ensemble is judged in Fig 8.
 
-## Configs
-Each config calibrates one model on Bow at Banff and evaluates it against
-the persistence / climatology / long-term-mean benchmarks. Run them
-independently to reproduce one point on Figure 8 each.
+## Config
 
-- `config_bow_benchmark.yaml` — SUMMA (reference / paper match)
-- `config_bow_benchmark_fuse.yaml` — FUSE
-- `config_bow_benchmark_hbv.yaml` — HBV
-- `config_bow_benchmark_gr4j.yaml` — GR4J (requires R + rpy2 — see top-level README)
-- `config_bow_benchmark_hype.yaml` — HYPE
+| Config | Description |
+|---|---|
+| `config_bow_benchmark.yaml` | Naive-predictor benchmarks; `workflow_steps` ends at `run_benchmarking`, no model steps |
 
-For other models on Figure 8, copy any of the variants above and replace
-the `model:` block with the corresponding entry from
-`02_model_ensemble/models/config_<model>.yaml`. Keep
-`evaluation.analyses: [benchmarking]` so the benchmarks run.
+The config uses the same domain as experiment 02
+(`Bow_at_Banff_lumped_era5`), same periods (calibration 2004–2007, evaluation
+2008–2009). If experiment 02 has already run, its downloaded/preprocessed
+data is reused via stage markers; run standalone, the config performs its own
+domain definition, observation processing, and ERA5 acquisition first.
 
-## Key Configuration Choices
-- Uses same domain/period as model ensemble (Experiment 2)
-- `evaluation.analyses: [benchmarking]` triggers benchmark computation
-- Benchmarks: persistence (lag-1), daily/monthly climatology, long-term mean
+## Run
 
-## Paper Figures
-- Figure 8: Model ensemble vs. benchmark performance
+```bash
+symfluence workflow run --config \
+    examples/paper_case_studies/configs/05_benchmarking/config_bow_benchmark.yaml
+```
+
+## Outputs
+
+Under `SYMFLUENCE_data/domain_Bow_at_Banff_lumped_era5/`:
+
+- `evaluation/benchmark_scores.csv` — one row per benchmark predictor, with
+  calibration- and evaluation-period scores
+
+## Verify (Fig 8 reference value)
+
+The strongest naive predictor, the **daily-median climatology**, reaches an
+evaluation KGE of **≈ 0.80** — the bar a calibrated model must clear to add
+value at this snowmelt-dominated basin.
+
+## Runtime
+
+~15 min if experiment 02's domain already exists; ~1–2 h standalone (ERA5
+download + preprocessing dominate). No model executables required.

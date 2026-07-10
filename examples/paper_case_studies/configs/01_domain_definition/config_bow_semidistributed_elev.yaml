@@ -1,5 +1,5 @@
 # Experiment 1: Semi-distributed + elevation - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1h
+# Bow semi-distributed + elevation bands, 379 HRUs (Section 2.1, Fig. 2e, Table 1)
 # 49 GRUs, 379 HRUs (~7.7 per GRU), 49 segments
 # Sub-basin GRUs with elevation-band HRU subdivision
 

@@ -1,5 +1,5 @@
 # Experiment 1: Semi-distributed + elevation & aspect - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1k (semi-distributed variant)
+# Bow semi-distributed + elevation x aspect, 2,596 HRUs (Section 2.1, Fig. 2h, Table 1)
 # 49 GRUs, 2596 HRUs (~53 per GRU), 49 segments
 # Maximum HRU complexity: sub-basins x elevation bands x aspect classes
 

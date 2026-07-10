@@ -1,6 +1,6 @@
 # Experiment 1: Semi-distributed - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1e
-# 49 GRUs (sub-basin), 379 HRUs, 49 segments
+# Bow semi-distributed, 49 GRUs + river network (Section 2.1, Fig. 2b, Table 1)
+# 49 GRUs (sub-basin), 49 HRUs, 49 segments
 # Sub-basins delineated from the Copernicus 90 m DEM with TauDEM (not TDX).
 # stream_threshold 3400 on the 90 m DEM yields the published 49 GRUs / 49 segments.
 
@@ -23,8 +23,7 @@ domain:
   delineation:
     routing: distributed
     stream_threshold: 3400
-  discretization: elevation
-  elevation_band_size: 200
+  discretization: GRUs
   time_start: 2002-01-01 01:00
   time_end: 2009-12-31 23:00
   calibration_period: 2004-01-01, 2007-12-31

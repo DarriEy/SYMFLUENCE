@@ -1,4 +1,4 @@
-# Experiment 10a: Streamflow-only calibration (Section 3.9, Figure 13)
+# Experiment 10a: Streamflow-only calibration (Section 4.2.4, Fig. 10)
 # Baseline: calibrate SUMMA using only streamflow KGE
 
 system:

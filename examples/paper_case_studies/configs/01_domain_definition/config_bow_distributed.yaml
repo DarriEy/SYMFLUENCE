@@ -1,5 +1,5 @@
 # Experiment 1: Distributed (gridded) - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1f
+# Bow distributed, 2,335 grid cells (Section 2.1, Fig. 2c, Table 1)
 # 2335 GRUs, 2335 HRUs, 2335 segments — 1 km grid cells
 # Highest spatial resolution: each grid cell is its own GRU, HRU, and segment
 

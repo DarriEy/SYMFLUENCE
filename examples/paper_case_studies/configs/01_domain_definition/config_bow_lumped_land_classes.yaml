@@ -1,5 +1,5 @@
 # Experiment 1: Lumped + land classes - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1j
+# Bow lumped + 9 IGBP land-class HRUs (Section 2.1, Fig. 2g, Table 1)
 # 1 GRU, 9 HRUs (IGBP land cover classes), 0 segments
 # Represents vegetation heterogeneity within a single catchment GRU
 

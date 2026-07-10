@@ -1,128 +1,50 @@
-# Paper 3 — Minimal Portable Configurations (configs_nested/)
+# Paper Experiment Configurations
 
-Portable, documented SYMFLUENCE configuration files for reproducing the experiments
-in **"From Configuration to Prediction"**. These configs use relative paths and
-only include non-default settings.
+Index of the experiment configs behind *"From Configuration to Prediction"*.
+For installation, credentials, data location, and the suggested run order, see
+[`../README.md`](../README.md). Each experiment directory has its own README
+with per-config details and expected results.
 
-## Prerequisites
-
-```bash
-pip install symfluence
-```
-
-SYMFLUENCE requires Python 3.9+ and installs all model backends automatically.
-Some models (SUMMA, mizuRoute, WRF-Hydro) require pre-compiled executables — see
-the [SYMFLUENCE documentation](https://symfluence.readthedocs.io) for installation guides.
-
-## Data Requirements
-
-Each domain requires specific input data. SYMFLUENCE can automatically download
-most datasets when `DATA_ACCESS: cloud` is set.
-
-| Domain | Location | Data Sources | Approx. Size |
-|--------|----------|-------------|-------------|
-| Paradise Creek | WA, USA (46.78°N, 121.75°W) | ERA5, SNOTEL, AORC, NEX-GDDP | ~2 GB |
-| Bow at Banff | AB, Canada (51.17°N, 115.57°W) | ERA5, RDRS, WSC streamflow, GRACE | ~5 GB |
-| Iceland (LamaH-Ice) | Iceland-wide | CARRA, IMO streamflow | ~20 GB |
-
-### Manual data setup
-
-If not using cloud access, create a `data/` directory alongside each config:
-
-```
-data/
-├── domain_[DOMAIN_NAME]/
-│   ├── shapefiles/           # Catchment, river, pour point shapefiles
-│   ├── forcing/              # Meteorological forcing data
-│   ├── observations/         # Streamflow, SWE, GRACE observations
-│   └── parameters/           # Soil, land cover, DEM data
-```
-
-## How to Run
-
-Each experiment can be run with:
+Every experiment is run the same way:
 
 ```bash
-symfluence run <config.yaml>
+symfluence workflow run --config <config.yaml>
 ```
 
-For configs using base config inheritance (prefixed with `_base_`), specify both:
+## Experiments
 
-```bash
-symfluence run --base _base_bow_lumped.yaml models/config_summa.yaml
-```
+| Directory | Paper section | Figure | Configs | Approx. runtime |
+|---|---|---|---|---|
+| [`01_domain_definition/`](01_domain_definition/) | §2.1 | Figs 1–3, Table 1 | 14 | minutes each (Iceland: ~1 h) |
+| [`02_model_ensemble/`](02_model_ensemble/) | §4.2.1 | Fig 7 | 19 | 0.5–8 h per model |
+| [`03_forcing_ensemble/`](03_forcing_ensemble/) | §4.1 | Fig 6 | 4 | 1–2 h each |
+| [`04_calibration_ensemble/`](04_calibration_ensemble/) | §4.2.3 | Fig 9 | 130 | 10 min – 2 h each |
+| [`05_benchmarking/`](05_benchmarking/) | §4.2.2 | Fig 8 | 1 | ~15 min |
+| [`10_multivariate_evaluation/`](10_multivariate_evaluation/) | §4.2.4 | Fig 10 | 4 | 2–4 h each |
+| [`11_data_pipeline/`](11_data_pipeline/) | §2.2 | Fig 4 | 3 | 0.5–2 h each |
+| [`12_parallel_scaling/`](12_parallel_scaling/) | §5 | Fig 11 | 35 | laptop: minutes–hours; 20 configs need an HPC cluster |
 
-### Quick start — run a single model
+Experiments 06–09 were cut from the final manuscript; the directory numbering
+keeps the original gaps.
 
-```bash
-cd configs_nested/02_model_ensemble/
-symfluence run --base _base_bow_lumped.yaml models/config_summa.yaml
-```
+## Config anatomy
 
-### Run an entire ensemble
+Every config is **standalone** — there is no base-config inheritance and no
+override mechanism. What you see in one file is the complete experiment.
 
-```bash
-cd configs_nested/02_model_ensemble/
-for config in models/*.yaml; do
-    symfluence run --base _base_bow_lumped.yaml "$config"
-done
-```
+- **`system.workflow_steps`** — each config lists exactly the pipeline steps it
+  needs, in order. `symfluence workflow run` executes only those steps:
+  domain-definition configs stop after `discretize_domain`; the benchmarking
+  config runs no model steps at all. Completed steps are tracked with stage
+  markers, so configs that share a domain (e.g. all of experiment 02) reuse
+  downloaded and preprocessed data automatically.
+- **`system.data_dir: default` / `code_dir: default`** — inputs and results go
+  to a `SYMFLUENCE_data/` directory created as a sibling of the cloned repo,
+  overridable with the `SYMFLUENCE_DATA_DIR` environment variable. Configs are
+  independent of the current working directory.
+- **`system.random_seed`** — calibration configs pin the seed used for the
+  paper (e.g. `random_seed: 42`), so optimization trajectories are
+  deterministic on a given platform.
 
-## Directory Structure
-
-```
-configs_nested/
-├── 01_domain_definition/          Section 2.1: domain scale configs
-├── 02_model_ensemble/             Section 4.2.1: multi-model ensemble
-│   ├── _base_bow_lumped.yaml      Shared base config
-│   └── models/                    Per-model overrides (27 files)
-├── 03_forcing_ensemble/           Section 4.1: 4 forcing products
-│   ├── _base_paradise_summa.yaml  Shared base config
-│   └── forcings/                  Per-forcing overrides (4 files)
-├── 04_calibration_ensemble/       Section 4.2.3: 17 algorithms × 8 models
-│   ├── _base_bow_calibration.yaml Shared base config
-│   └── algorithms/                Per-model/algorithm configs
-├── 05_benchmarking/               Section 4.2.2: benchmark comparison
-├── 10_multivariate_evaluation/    Section 4.2.4: GRACE TWS calibration
-├── 11_data_pipeline/              Section 2.2: Data processing
-└── 12_parallel_scaling/           Section 5: Parallel execution
-```
-
-Directories retain their original numbering; experiments removed from the final
-manuscript (06–09) have been removed from this archive, hence the gaps.
-
-## Config Inheritance
-
-Experiments 2, 3, and 4 use a **base config + override** pattern:
-
-- `_base_*.yaml` contains shared settings (domain, time period, forcing, etc.)
-- Model/forcing-specific configs override only the settings that differ
-- This reduces duplication and makes the experimental design transparent
-
-## Expected Outputs
-
-| Experiment | Output | Runtime (approx.) |
-|-----------|--------|-------------------|
-| 01 Domain | Delineated shapefiles, forcing, model setup | 10-30 min |
-| 02 Models | 27 configured model runs + evaluation metrics | 2-8 hrs per model |
-| 03 Forcing | 4 calibrated SUMMA runs under different forcings | 1-2 hrs per forcing |
-| 04 Calibration | 130 calibration trajectories (fixed seed) | 30 min - 2 hrs each |
-| 05 Benchmark | Benchmark statistics table | 5 min |
-| 10 Multivariate | 3 calibration strategies + evaluation | 2-4 hrs each |
-| 11 Pipeline | Data downloads + preprocessing | 30 min - 2 hrs |
-| 12 Scaling | Timing benchmarks at various core counts | Varies |
-
-## Differences from Raw Configs
-
-Compared to `../configs_orig/` (raw configs), these minimal configs:
-
-1. **Replace absolute paths** with `./data/` and `./`
-2. **Remove redundant defaults** — only non-default settings included
-3. **Add documentation** — inline comments explain each setting
-4. **Use config inheritance** — base configs reduce duplication
-5. **Include generation scripts** — for large-sample experiment automation
-
-## Paper Reference
-
-Eythorsson, D., et al. (2026). From Configuration to Prediction: Multi-Model,
-Multi-Basin Experiments with SYMFLUENCE. Water Resources Research, submitted.
+Results for a config land under `SYMFLUENCE_data/domain_<name>/` (see
+`../README.md` §3 for the layout).

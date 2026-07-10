@@ -1,5 +1,5 @@
 # Experiment 1: Lumped + elevation bands - Bow River at Banff
-# Paper Section 2.2, Table 2, Figure 1g
+# Bow lumped + 12 elevation-band HRUs (Section 2.1, Fig. 2d, Table 1)
 # 1 GRU, 12 HRUs (elevation bands at 200m intervals), 0 segments
 # Captures orographic precipitation gradients without sub-basin delineation
 

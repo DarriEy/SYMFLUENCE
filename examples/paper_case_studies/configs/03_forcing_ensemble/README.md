@@ -1,35 +1,56 @@
-# Experiment 3: Forcing Ensemble (Section 4.1)
+# Experiment 03 — Forcing Ensemble (§4.1, Fig 6)
 
-## Scientific Question
-How sensitive is model performance to the choice of meteorological forcing data,
-and how does forcing uncertainty compare to model structural uncertainty?
+SUMMA is calibrated at the Paradise SNOTEL station (Mt. Rainier, WA) four
+times, identically except for the meteorological forcing product. Calibration
+targets daily snow water equivalent (SWE, RMSE objective) with DDS and 1,000
+iterations; calibration water years 2016–2018 (2015-10-01 – 2018-09-30),
+evaluation WY2019–2020 (2018-10-01 – 2020-09-30). The experiment isolates how
+much forcing choice alone changes both performance and the calibrated
+parameters (Fig 6).
 
-## Configs
-- `_base_paradise_summa.yaml` — Shared settings (Paradise SNOTEL domain, SUMMA)
-- `forcings/config_[forcing].yaml` — Per-forcing overrides (15 files)
+## Configs (`forcings/`)
 
-## Forcing Products (15)
-Reanalysis: ERA5, RDRS, HRRR, AORC, CONUS404
-GCM (NEX-GDDP-CMIP6): ACCESS-CM2, CanESM5, CNRM-CM6-1, GFDL-ESM4, INM-CM5-0,
-IPSL-CM6A-LR, MPI-ESM1-2-HR, MRI-ESM2-0, NorESM2-LM, UKESM1-0-LL
+| Config | Forcing product |
+|---|---|
+| `config_era5.yaml` | ERA5 global reanalysis (needs CDS credentials) |
+| `config_rdrs.yaml` | RDRS (ECCC regional reanalysis) |
+| `config_aorc.yaml` | AORC (NOAA analysis of record) |
+| `config_conus404.yaml` | CONUS404 (4 km WRF reanalysis) |
 
-## Projection Configs (30)
-- `projections/config_proj_[source]_params_[gcm].yaml` — 30 projection configs
-- 10 GCMs × 3 parameter sources (AORC, ERA5, RDRS calibrated)
-- SSP2-4.5 scenario from 2015-2100
-- Used for Figure 6: SWE projections under climate change
+All four share the point domain `paradise_snotel_wa` and run the full
+pipeline through `calibrate_model`; each acquires its own forcing product
+(RDRS/AORC/CONUS404 are public, ERA5 needs `~/.cdsapirc`).
 
-## Key Configuration Choices
-- Paradise Creek point-scale domain (SNOTEL station 679)
-- SUMMA model calibrated to SWE (RMSE objective)
-- Calibration: Oct 2015 - Sep 2018, Evaluation: Oct 2018 - Sep 2020
+## Run
 
-## Paper Figures
-- Figure 4: Forcing ensemble SWE simulations
-- Figure 5: Combined performance and parameter analysis across forcings
-- Figure 6: SWE projections under SSP2-4.5 (projection configs)
+```bash
+CFG=examples/paper_case_studies/configs/03_forcing_ensemble
 
-## Data Requirements
-- ERA5, RDRS, HRRR, AORC, CONUS404 gridded products
-- 10 NEX-GDDP-CMIP6 GCM outputs (historical + SSP2-4.5)
-- SNOTEL station 679 SWE observations
+# One product:
+symfluence workflow run --config $CFG/forcings/config_aorc.yaml
+
+# All four:
+for f in $CFG/forcings/config_*.yaml; do
+    symfluence workflow run --config "$f"
+done
+```
+
+## Outputs
+
+Under `SYMFLUENCE_data/domain_paradise_snotel_wa/`:
+
+- `simulations/forcing_ensemble_<product>/` — SUMMA output per forcing
+- `optimization/` — DDS iteration history and best parameters per experiment
+- `evaluation/` — SWE metrics against SNOTEL observations
+
+## Verify (Fig 6 reference values)
+
+- Evaluation KGE (daily SWE) spans **0.60 (RDRS)** to **0.86 (AORC)**.
+- Calibrated frozen-precipitation multiplier spans **0.76 (CONUS404)** to
+  **3.89 (RDRS)** — the parameter absorbs each product's snowfall bias
+  (Fig 6c).
+
+## Runtime
+
+1–2 h per config (forcing download + 1,000 SUMMA point runs). SUMMA must be
+installed (`symfluence binary install summa sundials`).
