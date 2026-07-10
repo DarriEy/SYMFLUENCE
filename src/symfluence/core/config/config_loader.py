@@ -289,10 +289,18 @@ def _load_env_overrides() -> Dict[str, Any]:
     env_overrides = {}
     prefix = "SYMFLUENCE_"
 
+    # Config keys whose canonical alias itself starts with the env prefix.
+    # Stripping the prefix from e.g. SYMFLUENCE_DATA_DIR would yield DATA_DIR,
+    # which matches no alias — keep the full name for these.
+    full_name_keys = {"SYMFLUENCE_DATA_DIR", "SYMFLUENCE_CODE_DIR"}
+
     for env_key, env_value in os.environ.items():
         if env_key.startswith(prefix):
-            config_key = env_key[len(prefix):]
-            norm_key = _normalize_key(config_key)
+            if env_key in full_name_keys:
+                norm_key = _normalize_key(env_key)
+            else:
+                config_key = env_key[len(prefix):]
+                norm_key = _normalize_key(config_key)
             env_overrides[norm_key] = _coerce_value(env_value)
 
     return env_overrides

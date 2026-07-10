@@ -190,6 +190,54 @@ NUM_PROCESSES: 1
             config_path.unlink()
 
 
+class TestNestedPathSentinels:
+    """Nested-format configs resolve 'default' path sentinels like flat ones."""
+
+    NESTED_YAML = """
+system:
+  data_dir: {data_dir}
+  code_dir: default
+domain:
+  name: test_basin
+  experiment_id: run_1
+  time_start: "2020-01-01 00:00"
+  time_end: "2020-12-31 23:00"
+  definition_method: lumped
+  discretization: lumped
+  pour_point_coords: 51.0/-115.0
+  bounding_box_coords: 52/-116/50/-114
+model:
+  hydrological_model: SUMMA
+forcing:
+  dataset: ERA5
+"""
+
+    def _write(self, tmp_path: Path, data_dir: str) -> Path:
+        p = tmp_path / 'nested.yaml'
+        p.write_text(self.NESTED_YAML.format(data_dir=data_dir))
+        return p
+
+    def test_nested_default_sentinel_resolves(self, monkeypatch, tmp_path):
+        """data_dir: default must not become a literal ./default directory."""
+        monkeypatch.delenv('SYMFLUENCE_DATA_DIR', raising=False)
+        monkeypatch.delenv('SYMFLUENCE_CODE_DIR', raising=False)
+        config = SymfluenceConfig.from_file(self._write(tmp_path, 'default'))
+        assert config.system.data_dir.name != 'default'
+        assert config.system.data_dir.name == 'SYMFLUENCE_data'
+
+    def test_nested_default_sentinel_env_override(self, monkeypatch, tmp_path):
+        """SYMFLUENCE_DATA_DIR env var wins over the 'default' sentinel."""
+        monkeypatch.setenv('SYMFLUENCE_DATA_DIR', str(tmp_path / 'env_data'))
+        config = SymfluenceConfig.from_file(self._write(tmp_path, 'default'))
+        assert config.system.data_dir == (tmp_path / 'env_data').resolve()
+
+    def test_nested_explicit_path_env_override(self, monkeypatch, tmp_path):
+        """SYMFLUENCE_DATA_DIR env var wins over an explicit nested file value."""
+        monkeypatch.setenv('SYMFLUENCE_DATA_DIR', str(tmp_path / 'env_data'))
+        config = SymfluenceConfig.from_file(self._write(tmp_path, str(tmp_path / 'file_data')))
+        assert config.system.data_dir == (tmp_path / 'env_data').resolve()
+
+
 class TestFromPresetFactory:
     """Test from_preset() factory method"""
 
