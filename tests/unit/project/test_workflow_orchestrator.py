@@ -317,3 +317,68 @@ class TestWorkflowOrchestratorMarkers:
         marker = read_marker(orch.project_dir, "define_domain")
         assert marker is not None
         assert marker.stage == "define_domain"
+
+
+class TestWorkflowStepsScoping:
+    """Tests for config-level WORKFLOW_STEPS run scoping."""
+
+    @staticmethod
+    def _make_orchestrator(tmp_path, **extra_config):
+        managers = {name: MagicMock() for name in
+                    ('project', 'domain', 'data', 'model', 'analysis', 'optimization')}
+        config = SymfluenceConfig.from_minimal(
+            domain_name='scoping_test',
+            model='SUMMA',
+            time_start='2010-01-01 00:00',
+            time_end='2010-12-31 23:00',
+            SYMFLUENCE_DATA_DIR=tmp_path,
+            **extra_config,
+        )
+        return WorkflowOrchestrator(managers, config, MagicMock())
+
+    @staticmethod
+    def _three_steps():
+        return [
+            WorkflowStep("setup_project", "setup_project", MagicMock(), lambda: False, "Setup"),
+            WorkflowStep("define_domain", "define_domain", MagicMock(), lambda: False, "Define"),
+            WorkflowStep("run_models", "run_model", MagicMock(), lambda: False, "Run"),
+        ]
+
+    def test_workflow_steps_scopes_run(self, tmp_path):
+        """Only steps listed in WORKFLOW_STEPS execute; the rest are never invoked."""
+        orch = self._make_orchestrator(
+            tmp_path, WORKFLOW_STEPS=['setup_project', 'define_domain']
+        )
+        steps = self._three_steps()
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        steps[0].func.assert_called_once()
+        steps[1].func.assert_called_once()
+        steps[2].func.assert_not_called()
+
+    def test_workflow_steps_aliases_resolve(self, tmp_path):
+        """Aliases in WORKFLOW_STEPS resolve to canonical CLI names."""
+        orch = self._make_orchestrator(tmp_path, WORKFLOW_STEPS=['setup', 'domain'])
+        steps = self._three_steps()
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        steps[0].func.assert_called_once()
+        steps[1].func.assert_called_once()
+        steps[2].func.assert_not_called()
+
+    def test_workflow_steps_absent_runs_all(self, tmp_path):
+        """Without WORKFLOW_STEPS every step executes (existing behavior)."""
+        orch = self._make_orchestrator(tmp_path)
+        steps = self._three_steps()
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        for step in steps:
+            step.func.assert_called_once()
+
+    def test_workflow_steps_unknown_name_rejected(self, tmp_path):
+        """Unknown step names fail at config parse time with a helpful error."""
+        with pytest.raises(Exception, match="unknown step"):
+            self._make_orchestrator(tmp_path, WORKFLOW_STEPS=['not_a_step'])
