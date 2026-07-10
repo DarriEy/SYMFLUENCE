@@ -159,6 +159,21 @@ def patch_prms_makefile(txt):
     # Fix 1: Remove $(GSFLOWDIR)/xxx.mod file-path prerequisites
     txt = re.sub(r'^(\S+\.mod):\s+\$\(GSFLOWDIR\)/\S+', r'\1:', txt, flags=re.MULTILINE)
 
+    # Fix 5: water_balance.f90 USEs PRMS_SEGMENT_TO_HRU, but upstream's
+    # water_balance.o rule predates that module and the object list compiles
+    # water_balance.o before segment_to_hru.o. Add the prerequisite and a
+    # .mod rule so make builds segment_to_hru first.
+    if 'prms_segment_to_hru.mod' not in txt:
+        txt = txt.replace(
+            'water_balance.o: water_balance.f90',
+            'water_balance.o: water_balance.f90 prms_segment_to_hru.mod'
+        )
+        txt = txt.replace(
+            'segment_to_hru.o: segment_to_hru.f90',
+            'prms_segment_to_hru.mod: segment_to_hru.o\n\n'
+            'segment_to_hru.o: segment_to_hru.f90'
+        )
+
     # Fix 4: Add missing gsfmodflow.mod dependency to nhru_summary.o
     if 'nhru_summary.o:' in txt and 'gsfmodflow.mod' not in txt.split('nhru_summary.o:')[1].split('\n')[0]:
         txt = txt.replace(
