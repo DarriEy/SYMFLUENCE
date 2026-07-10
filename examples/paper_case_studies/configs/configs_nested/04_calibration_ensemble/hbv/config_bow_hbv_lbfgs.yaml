@@ -39,6 +39,7 @@ optimization:
   methods:
   - iteration
   metric: KGE
+  gradient_mode: finite_difference
   algorithm: LBFGS
   iterations: 125
   target_metric: KGE

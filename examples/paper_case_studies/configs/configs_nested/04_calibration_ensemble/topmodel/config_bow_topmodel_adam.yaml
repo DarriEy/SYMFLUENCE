@@ -38,6 +38,7 @@ optimization:
   methods:
   - iteration
   metric: KGE
+  gradient_mode: finite_difference
   algorithm: ADAM
   iterations: 500
   target_metric: KGE
