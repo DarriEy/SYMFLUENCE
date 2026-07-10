@@ -41,6 +41,8 @@ References:
 """
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -141,7 +143,9 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
         Raises:
             IOError: If the downloaded size does not match the Content-Length header.
         """
-        tmp_path = dest_path.with_suffix(dest_path.suffix + ".part")
+        # PID-unique temp name: concurrent workflows may share the cache dir,
+        # and two writers on one .part file would corrupt both downloads.
+        tmp_path = dest_path.with_suffix(dest_path.suffix + f".part.{os.getpid()}")
         with requests.get(url, stream=True, timeout=60) as resp:
             resp.raise_for_status()
             expected_size = resp.headers.get("Content-Length")
@@ -232,7 +236,9 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
             default='default'
         )
         if cache_dir_cfg == 'default':
-            cache_dir = self.domain_dir / "cache" / "modis_landcover"
+            # Data-dir-level cache: the ~130 MB/year Zenodo tiles are global,
+            # so every domain shares one download instead of re-fetching.
+            cache_dir = self.data_dir / "cache" / "modis_landcover"
         else:
             cache_dir = Path(cache_dir_cfg)
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -247,8 +253,13 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
             url = f"{base_url}/{fname}"
             local_tmp = cache_dir / fname
 
-            for attempt in range(2):
+            max_attempts = 3
+            for attempt in range(max_attempts):
                 try:
+                    if attempt:
+                        # Zenodo truncates transfers under concurrent load;
+                        # back off before re-downloading.
+                        time.sleep(15 * attempt)
                     if not local_tmp.exists():
                         self._download_with_size_check(url, local_tmp)
 
@@ -289,15 +300,17 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
                     break
                 except rasterio.errors.RasterioIOError as exc:
                     self.logger.warning(
-                        f"MODIS landcover read failed for {year} (attempt {attempt + 1}/2): {exc}"
+                        f"MODIS landcover read failed for {year} "
+                        f"(attempt {attempt + 1}/{max_attempts}): {exc}"
                     )
                     local_tmp.unlink(missing_ok=True)
                 except Exception as exc:  # noqa: BLE001 — must-not-raise contract
                     self.logger.warning(
-                        f"MODIS landcover download failed for {year} (attempt {attempt + 1}/2): {exc}"
+                        f"MODIS landcover download failed for {year} "
+                        f"(attempt {attempt + 1}/{max_attempts}): {exc}"
                     )
                     local_tmp.unlink(missing_ok=True)
-                    if attempt == 1:
+                    if attempt == max_attempts - 1:
                         raise
 
         if not arrays:
