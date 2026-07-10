@@ -202,6 +202,27 @@ def from_file_factory(
                 normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
                 override_nested = transform_flat_to_nested(normalized_overrides)
                 nested_config = _deep_merge(nested_config, override_nested)
+
+        # Resolve 'default'/missing path sentinels (same semantics as the flat
+        # branch): env var, then repo-relative defaults. Both alias and
+        # field-name spellings are accepted inside the system section.
+        system_section = nested_config.setdefault('system', {})
+
+        def _sentinel_key(alias: str, field: str) -> str:
+            for candidate in (field, alias):
+                if candidate in system_section:
+                    return candidate
+            return field
+
+        code_key = _sentinel_key('SYMFLUENCE_CODE_DIR', 'code_dir')
+        if system_section.get(code_key) in (None, 'default'):
+            system_section[code_key] = _resolve_default_code_dir()
+
+        data_key = _sentinel_key('SYMFLUENCE_DATA_DIR', 'data_dir')
+        if system_section.get(data_key) in (None, 'default'):
+            system_section[data_key] = _resolve_default_data_dir(
+                str(system_section[code_key])
+            )
     else:
         # Handle flat config format — Pydantic Field defaults are the single
         # source of truth; no pre-seeding with a separate defaults dict.

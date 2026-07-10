@@ -149,6 +149,23 @@ def test_load_env_overrides(monkeypatch):
     assert not any(k.startswith("UNRELATED") for k in overrides)
 
 
+def test_load_env_overrides_full_prefix_keys(monkeypatch):
+    """SYMFLUENCE_DATA_DIR / SYMFLUENCE_CODE_DIR keep their full names.
+
+    Stripping the SYMFLUENCE_ prefix would yield DATA_DIR / CODE_DIR, which
+    match no config alias and were previously dropped silently.
+    """
+    monkeypatch.setenv("SYMFLUENCE_DATA_DIR", "/env/data_dir")
+    monkeypatch.setenv("SYMFLUENCE_CODE_DIR", "/env/code_dir")
+
+    overrides = _load_env_overrides()
+
+    assert overrides["SYMFLUENCE_DATA_DIR"] == "/env/data_dir"
+    assert overrides["SYMFLUENCE_CODE_DIR"] == "/env/code_dir"
+    assert "DATA_DIR" not in overrides
+    assert "CODE_DIR" not in overrides
+
+
 # ----------------------------------------------------------------------
 # validate_config — success path returns a typed, dumped config
 # ----------------------------------------------------------------------
