@@ -115,7 +115,7 @@ def test_point_domain_without_pour_point_raises(tmp_path):
 
 
 def test_paradise_point_config_resolves_bbox(tmp_path):
-    """End-to-end: load configs_nested/01_domain_definition/config_paradise_point.yaml
+    """End-to-end: load 01_domain_definition/config_paradise_point.yaml
     (which intentionally omits BOUNDING_BOX_COORDS) and confirm the resolver
     produces a bbox without raising."""
     from pathlib import Path
@@ -125,7 +125,7 @@ def test_paradise_point_config_resolves_bbox(tmp_path):
     repo_root = Path(__file__).resolve().parents[4]
     cfg_path = (
         repo_root
-        / "examples/paper_case_studies/configs/configs_nested"
+        / "examples/paper_case_studies/configs"
         / "01_domain_definition/config_paradise_point.yaml"
     )
     with cfg_path.open() as fh:

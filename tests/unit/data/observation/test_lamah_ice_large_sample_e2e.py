@@ -33,7 +33,7 @@ SAMPLE_CONFIG = (
     / "examples"
     / "paper_case_studies"
     / "configs"
-    / "configs_nested"
+
     / "08_large_sample"
     / "gr4j_v2"
     / "config_lamahice_105_GR_v2.yaml"
