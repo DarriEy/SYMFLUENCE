@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from symfluence.core.config.coercion import ensure_config
 from symfluence.core.exceptions import SYMFLUENCEError
@@ -28,6 +28,7 @@ from symfluence.core.stage_marker import (
     write_marker,
 )
 from symfluence.data.observation.paths import observation_output_candidates_by_family
+from symfluence.workflow_steps import resolve_workflow_step_name
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -131,6 +132,17 @@ class WorkflowOrchestrator(ConfigMixin):
     def _tokens_include(tokens: List[str], *needles: str) -> bool:
         """Return True when any needle is present in any token."""
         return any(any(needle in token for needle in needles) for token in tokens)
+
+    def _get_scoped_step_names(self) -> Optional[set]:
+        """Canonical CLI step names from WORKFLOW_STEPS, or None to run all steps."""
+        configured = self._get_config_value(
+            lambda: self.config.system.workflow_steps,
+            default=None,
+            dict_key='WORKFLOW_STEPS',
+        )
+        if not configured:
+            return None
+        return {resolve_workflow_step_name(str(name)) for name in configured}
 
     def _observation_output_paths(self) -> Dict[str, List[Path]]:
         """Canonical + legacy candidate output paths by observation family."""
@@ -405,8 +417,16 @@ class WorkflowOrchestrator(ConfigMixin):
         self.logger.info(f"Experiment: {self.experiment_id}")
         self.logger.info("=" * 60)
 
-        # Get workflow steps
+        # Get workflow steps, scoped to config WORKFLOW_STEPS when present
         workflow_steps = self.define_workflow_steps()
+        scoped_names = self._get_scoped_step_names()
+        if scoped_names is not None:
+            workflow_steps = [s for s in workflow_steps if s.cli_name in scoped_names]
+            self.logger.info(
+                "WORKFLOW_STEPS scopes this run to %d step(s): %s",
+                len(workflow_steps),
+                ", ".join(s.cli_name for s in workflow_steps),
+            )
         total_steps = len(workflow_steps)
         completed_steps = 0
         skipped_steps = 0

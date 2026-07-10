@@ -1,0 +1,40 @@
+# Data Pipeline - Bow at Banff lumped (Section 2.2, Fig. 4)
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  - process_observed_data
+  - acquire_forcings
+  - model_agnostic_preprocessing
+  - build_model_ready_store
+  data_dir: default
+  code_dir: default
+domain:
+  name: Bow_at_Banff_lumped
+  experiment_id: pipeline_bow
+  time_start: 2002-01-01 01:00
+  time_end: 2009-12-31 23:00
+  pour_point_coords: 51.1722/-115.5717
+  bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  definition_method: lumped
+  delineation:
+    routing: lumped
+    geofabric_type: TDX
+    stream_threshold: 5000
+  data_access: cloud
+  discretization: GRUs
+data:
+  streamflow_data_provider: WSC
+forcing:
+  dataset: ERA5
+model:
+  hydrological_model: SUMMA
+  routing_model: none
+evaluation:
+  streamflow:
+    station_id: 05BB001

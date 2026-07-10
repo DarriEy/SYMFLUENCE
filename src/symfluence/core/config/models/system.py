@@ -9,7 +9,7 @@ Contains SystemConfig for system-level settings: paths, logging, parallelism, de
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -36,6 +36,20 @@ class SystemConfig(BaseModel):
     random_seed: Optional[int] = Field(default=None, alias='RANDOM_SEED')
     stop_on_error: bool = Field(default=True, alias='STOP_ON_ERROR')
     record_provenance: bool = Field(default=True, alias='RECORD_PROVENANCE')
+    # Scope `workflow run` to this subset of steps (canonical names or aliases).
+    # Steps always execute in pipeline order regardless of list order; None runs all.
+    workflow_steps: Optional[List[str]] = Field(default=None, alias='WORKFLOW_STEPS')
+
+    @field_validator('workflow_steps')
+    @classmethod
+    def validate_workflow_steps(cls, v):
+        """Resolve step aliases to canonical names; reject unknown step names."""
+        if v is None:
+            return v
+        # Deferred import: symfluence.workflow_steps is dependency-free metadata,
+        # but importing it at module load would trigger the package __init__.
+        from symfluence.workflow_steps import resolve_workflow_step_name
+        return [resolve_workflow_step_name(str(name)) for name in v]
 
     @field_validator('data_dir', 'code_dir')
     @classmethod

@@ -1,0 +1,39 @@
+# Experiment 1: Distributed (gridded) - Bow River at Banff
+# Bow distributed, 2,335 grid cells (Section 2.1, Fig. 2c, Table 1)
+# 2335 GRUs, 2335 HRUs, 2335 segments — 1 km grid cells
+# Highest spatial resolution: each grid cell is its own GRU, HRU, and segment
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  data_dir: default
+  code_dir: default
+domain:
+  name: Bow_at_Banff_distributed
+  definition_method: distributed
+  pour_point_coords: 51.1722/-115.5717
+  bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  dem_source: copdem90
+  delineation:
+    # Grid is clipped to the TauDEM watershed (90 m DEM); cell count follows
+    # grid_cell_size and the watershed boundary (~2335 cells at 1 km).
+    routing: distributed
+    stream_threshold: 3400
+  grid_cell_size: 1000
+  time_start: 2002-01-01 01:00
+  time_end: 2009-12-31 23:00
+  calibration_period: 2004-01-01, 2007-12-31
+  evaluation_period: 2008-01-01, 2009-12-31
+  spinup_period: 2002-01-01, 2003-12-31
+  discretization: GRUs
+  experiment_id: Bow_at_Banff_distributed
+forcing:
+  dataset: ERA5
+model:
+  hydrological_model: SUMMA
+  routing_model: mizuRoute
