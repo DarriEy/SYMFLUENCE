@@ -220,6 +220,7 @@ forcing:
     def test_nested_default_sentinel_resolves(self, monkeypatch, tmp_path):
         """data_dir: default must not become a literal ./default directory."""
         monkeypatch.delenv('SYMFLUENCE_DATA_DIR', raising=False)
+        monkeypatch.delenv('SYMFLUENCE_DATA', raising=False)
         monkeypatch.delenv('SYMFLUENCE_CODE_DIR', raising=False)
         config = SymfluenceConfig.from_file(self._write(tmp_path, 'default'))
         assert config.system.data_dir.name != 'default'

@@ -130,6 +130,38 @@ def _normalize_nested_config(nested_config: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def _resolve_nested_path_sentinels(nested_config: Dict[str, Any]) -> None:
+    """Resolve ``default`` sentinels (and missing values) for the required
+    system paths in a nested config, mutating ``nested_config`` in place.
+
+    The flat-config branch treats a literal ``default`` for the data/code dir as
+    "use the computed default" and drops it so Pydantic falls back. The nested
+    branch has no such handling, so ``system.data_dir: default`` reaches Pydantic
+    verbatim and resolves as the relative path ``./default``. Mirror the flat
+    behavior here. Code dir is resolved first because the data-dir default is
+    derived from it. Both the field name (``data_dir``) and the flat alias
+    (``SYMFLUENCE_DATA_DIR``) spellings are honored.
+    """
+    system = nested_config.get('system')
+    if not isinstance(system, dict):
+        system = {}
+        nested_config['system'] = system
+
+    def _resolve(name_key: str, alias_key: str, compute) -> str:
+        key = alias_key if alias_key in system else name_key
+        value = system.get(key)
+        if value is None or value == 'default':
+            resolved = compute()
+            # Prefer the field-name spelling so the value is unambiguous.
+            system.pop(alias_key, None)
+            system[name_key] = resolved
+            return resolved
+        return value
+
+    code_dir = _resolve('code_dir', 'SYMFLUENCE_CODE_DIR', _resolve_default_code_dir)
+    _resolve('data_dir', 'SYMFLUENCE_DATA_DIR', lambda: _resolve_default_data_dir(str(code_dir)))
+
+
 def from_file_factory(
     cls: type,
     path: Path,
@@ -185,6 +217,10 @@ def from_file_factory(
         # Handle nested config format - don't transform, just normalize section keys
         nested_config = _normalize_nested_config(file_config)
 
+        # Resolve `default`/missing system paths at the file+defaults layer, so
+        # env/CLI overrides applied below still take precedence.
+        _resolve_nested_path_sentinels(nested_config)
+
         # Apply environment variable overrides (converted to nested format)
         if use_env:
             env_overrides = _load_env_overrides()
@@ -202,27 +238,6 @@ def from_file_factory(
                 normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
                 override_nested = transform_flat_to_nested(normalized_overrides)
                 nested_config = _deep_merge(nested_config, override_nested)
-
-        # Resolve 'default'/missing path sentinels (same semantics as the flat
-        # branch): env var, then repo-relative defaults. Both alias and
-        # field-name spellings are accepted inside the system section.
-        system_section = nested_config.setdefault('system', {})
-
-        def _sentinel_key(alias: str, field: str) -> str:
-            for candidate in (field, alias):
-                if candidate in system_section:
-                    return candidate
-            return field
-
-        code_key = _sentinel_key('SYMFLUENCE_CODE_DIR', 'code_dir')
-        if system_section.get(code_key) in (None, 'default'):
-            system_section[code_key] = _resolve_default_code_dir()
-
-        data_key = _sentinel_key('SYMFLUENCE_DATA_DIR', 'data_dir')
-        if system_section.get(data_key) in (None, 'default'):
-            system_section[data_key] = _resolve_default_data_dir(
-                str(system_section[code_key])
-            )
     else:
         # Handle flat config format — Pydantic Field defaults are the single
         # source of truth; no pre-seeding with a separate defaults dict.

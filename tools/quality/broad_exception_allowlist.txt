@@ -418,6 +418,7 @@ src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.get_diagnostic_data:exc
 src/symfluence/evaluation/koopman_analysis.py:KoopmanAnalyzer.run_koopman_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/likelihood.py:load_fluxnet_uncertainties:except Exception as e:  # noqa: BLE001 — optional feature, must not break evaluation
 src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.perform_sensitivity_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.run_sensitivity_analysis:except Exception as e:  # noqa: BLE001 — resilience across SA methods
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.analyze_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.run_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.visualize_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
