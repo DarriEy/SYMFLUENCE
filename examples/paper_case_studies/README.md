@@ -19,25 +19,45 @@ No script editing, no manual data downloads, no base-config assembly.
 
 ## 1. One-time setup
 
-### 1.1 Install SYMFLUENCE (pinned version)
+### 1.1 System prerequisites
+
+- **Python 3.11 or 3.12**
+- **GDAL** (library + headers; used for domain delineation):
+  `brew install gdal` (macOS) / `apt install gdal-bin libgdal-dev` (Debian/Ubuntu)
+- **Build toolchain** for the compiled models: C/C++/Fortran compilers and CMake
+  (`brew install gcc cmake` / `apt install build-essential gfortran cmake`)
+- **R ≥ 4** with the `airGR` package — only for the GR4J ensemble member
+  (`Rscript -e 'install.packages("airGR")'`)
+
+### 1.2 Install SYMFLUENCE (pinned version)
 
 ```bash
 git clone https://github.com/symfluence-org/SYMFLUENCE.git
 cd SYMFLUENCE
 git checkout develop   # paper-pinned commit: see PINNED_VERSION.txt in this directory
 
-python3 -m venv venv                # Python 3.11 or 3.12
+python3 -m venv venv
 source venv/bin/activate
-pip install -e ".[jax]"             # framework + the 5 JAX-native paper models
+pip install -e ".[jax]"                    # framework + JAX + the 5 JAX-native paper models
+pip install "GDAL==$(gdal-config --version)"   # Python bindings matching your system GDAL
 ```
 
-**Checkpoint** — this must print the workflow steps table:
+Running the MESH ensemble member (experiment 02 only) additionally needs two
+packages that are not on PyPI, in this order:
+
+```bash
+pip install git+https://github.com/kasra-keshavarz/hydrant.git
+pip install git+https://github.com/CH-Earth/meshflow.git@main
+```
+
+**Checkpoint** — both commands must succeed:
 
 ```bash
 symfluence workflow list-steps
+python -c "from osgeo import gdal; import jax; print('GDAL + JAX OK')"
 ```
 
-### 1.2 Install model executables
+### 1.3 Install model executables
 
 The external (compiled) models are installed by SYMFLUENCE itself. Install only
 what the experiments you plan to run require (see the matrix in §2), or
@@ -55,7 +75,7 @@ symfluence binary doctor
 Executables land in `SYMFLUENCE_data/installs/<tool>/bin/` and are found
 automatically — no config editing needed.
 
-### 1.3 Credentials for data providers
+### 1.4 Credentials for data providers
 
 | Provider | Needed for | Setup |
 |---|---|---|
@@ -63,7 +83,7 @@ automatically — no config editing needed.
 | NASA Earthdata | GRACE TWS, MODIS, SMAP (experiment 10) | Register at [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov), add credentials to `~/.netrc` |
 | AORC / RDRS / CONUS404 / SNOTEL / WSC | forcing + observations | Public — no credentials |
 
-### 1.4 Where data goes
+### 1.5 Where data goes
 
 All inputs, model runs, and results are written to a single data directory,
 `SYMFLUENCE_data/`, created **as a sibling of the cloned repo**. To put it
@@ -185,6 +205,8 @@ deterministic on a given platform.
 | `unknown step '<name>'` at startup | Typo in a hand-edited `workflow_steps` list — run `symfluence workflow list-steps` for valid names |
 | CDS download hangs or 403s | `~/.cdsapirc` missing/stale, or dataset licence not yet accepted on the CDS website (one-time click per dataset) |
 | `executable not found` for a model | `symfluence binary install <tool>`, then `symfluence binary doctor` |
+| `GDAL Python bindings (osgeo) are required` | `pip install "GDAL==$(gdal-config --version)"` after installing system GDAL (§1.1) |
+| Warning: h5py and netCDF4 bundle different libhdf5 | Known pip-wheel quirk; SYMFLUENCE disables the conflicting fallback automatically — safe to ignore |
 | A step reruns that you expected to skip | The config section governing that step changed — stage markers hash the config; this is intentional |
 | Want a completely fresh start | Delete `SYMFLUENCE_data/domain_<name>/` (or the whole data dir) and rerun |
 | Diagnosing a failed run | `symfluence workflow diagnose --config <config.yaml>`, logs in `_workLog_<domain>/` |
