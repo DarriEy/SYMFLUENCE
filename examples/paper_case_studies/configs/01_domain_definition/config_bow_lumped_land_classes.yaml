@@ -1,0 +1,35 @@
+# Experiment 1: Lumped + land classes - Bow River at Banff
+# Bow lumped + 9 IGBP land-class HRUs (Section 2.1, Fig. 2g, Table 1)
+# 1 GRU, 9 HRUs (IGBP land cover classes), 0 segments
+# Represents vegetation heterogeneity within a single catchment GRU
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  data_dir: default
+  code_dir: default
+domain:
+  name: Bow_at_Banff_lumped_land_classes
+  definition_method: lumped
+  pour_point_coords: 51.1722/-115.5717
+  bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  dem_source: copdem90
+  delineation:
+    routing: lumped
+  discretization: landclass
+  time_start: 2002-01-01 01:00
+  time_end: 2009-12-31 23:00
+  calibration_period: 2004-01-01, 2007-12-31
+  evaluation_period: 2008-01-01, 2009-12-31
+  spinup_period: 2002-01-01, 2003-12-31
+  experiment_id: Bow_at_Banff_lumped_land_classes
+forcing:
+  dataset: ERA5
+model:
+  hydrological_model: SUMMA
+  routing_model: none

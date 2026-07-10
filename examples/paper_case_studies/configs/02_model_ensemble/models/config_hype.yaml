@@ -1,0 +1,63 @@
+# HYPE - Multi-Model Ensemble (Section 4.2.1, Fig. 7)
+# Hydrological Predictions for the Environment
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  - process_observed_data
+  - acquire_forcings
+  - model_agnostic_preprocessing
+  - build_model_ready_store
+  - model_specific_preprocessing
+  - run_model
+  - calibrate_model
+  data_dir: default
+  code_dir: default
+  random_seed: 42   # pin DDS seed to the paper value for reproducibility (Fig 7)
+domain:
+  name: Bow_at_Banff_lumped_era5
+  pour_point_coords: 51.1722/-115.5717
+  bounding_box_coords: 51.76/-116.55/50.95/-115.5
+  definition_method: lumped
+  delineation:
+    routing: lumped
+    geofabric_type: TDX
+    stream_threshold: 5000
+  time_start: 2002-01-01 01:00
+  time_end: 2009-12-31 23:00
+  calibration_period: 2004-01-01, 2007-12-31
+  evaluation_period: 2008-01-01, 2009-12-31
+  spinup_period: 2002-01-01, 2003-12-31
+  # HYPE is run semi-distributed over elevation bands (Paper 3, Sec. 4.2): the
+  # snowmelt-dominated Bow headwater needs elevation to resolve the freshet
+  # timing, which lifts HYPE to eval KGE ~0.81 (r ~0.91). A lumped (GRUs) single
+  # sub-basin caps near eval 0.57 / r 0.70. Land cover defaults to MODIS and
+  # glacier download defaults off (glacier_fraction is inert without an SLC
+  # class), so the elevation discretization is the only change vs lumped.
+  discretization: elevation
+  elevation_band_size: 200
+  experiment_id: run_1
+data:
+  streamflow_data_provider: WSC
+forcing:
+  dataset: ERA5
+  time_step_size: 3600
+model:
+  hydrological_model: HYPE
+  routing_model: none
+  hype:
+    params_to_calibrate: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp   # paper HYPE is 10-param (Fig 7b, nP=10)
+optimization:
+  methods:
+  - iteration
+  algorithm: DDS
+  iterations: 1000
+  metric: KGE
+evaluation:
+  streamflow:
+    station_id: 05BB001

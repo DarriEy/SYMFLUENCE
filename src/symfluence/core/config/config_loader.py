@@ -292,6 +292,8 @@ def _load_env_overrides() -> Dict[str, Any]:
     for env_key, env_value in os.environ.items():
         if env_key.startswith(prefix):
             config_key = env_key[len(prefix):]
+            # The stripped key normalizes back through NORMALIZATION_ALIASES,
+            # so e.g. SYMFLUENCE_DATA_DIR -> DATA_DIR -> SYMFLUENCE_DATA_DIR.
             norm_key = _normalize_key(config_key)
             env_overrides[norm_key] = _coerce_value(env_value)
 

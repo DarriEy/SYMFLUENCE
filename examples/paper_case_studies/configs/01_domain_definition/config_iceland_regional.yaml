@@ -1,0 +1,35 @@
+# Experiment 1d: Regional distributed domain - Iceland
+# Iceland regional, 6,606 river-basin GRUs (Section 2.1, Fig. 3a, Table 1)
+# Tests: Large-scale distributed domain with CARRA reanalysis forcing
+
+system:
+  # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
+  workflow_steps:
+  - setup_project
+  - create_pour_point
+  - acquire_attributes
+  - define_domain
+  - discretize_domain
+  data_dir: default
+  code_dir: default
+domain:
+  name: Iceland_regional
+  definition_method: semidistributed
+  # Iceland's 6,606 river-basin GRUs are subset from the TDX-Hydro geofabric
+  # (paper Fig 3a), NOT delineated with TauDEM. subset_from_geofabric must be
+  # set or the workflow falls back to a (very large) TauDEM delineation.
+  subset_from_geofabric: true
+  delineation:
+    routing: distributed
+    geofabric_type: TDX
+  time_start: 2000-01-01 01:00
+  time_end: 2008-12-31 23:00
+  discretization: GRUs
+  experiment_id: Iceland_regional
+  bounding_box_coords: 66.6/-24.6/63.2/-13.2
+  pour_point_coords: 63.93/-21.03
+forcing:
+  dataset: CARRA
+model:
+  hydrological_model: FUSE
+  routing_model: mizuRoute

@@ -13,7 +13,7 @@ something the cloud dispatcher could not serve, we surface a specific
 actionable hint in the error so users understand the underlying
 constraint.
 
-The four paper configs in ``configs_orig/11_data_pipeline/`` that
+The four paper configs in ``configs/11_data_pipeline/`` that
 previously said ``DEM_SOURCE: MERIT`` were also updated to
 ``copernicus`` in the same PR; this test only pins the error-message
 contract on the code side.

@@ -72,6 +72,13 @@ MODEL_READY_FORCING_STRATEGY: symlink
 #   Usage:      14
 FORCE_RUN_ALL_STEPS: false
 
+# WORKFLOW_STEPS
+#   Type:        Optional[List[str]]
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+#   Description: Scope `workflow run` to these steps (names or aliases); pipeline order always applies
+WORKFLOW_STEPS: null
+
 # LOG_FORMAT
 #   Type:        str
 #   Default:     detailed

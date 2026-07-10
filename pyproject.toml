@@ -91,6 +91,9 @@ dependencies = [
 # Floors require the *PostProcessor-spelling plugin releases (the old
 # *Postprocessor base-class aliases were removed pre-1.0, RTI item 23).
 jax = [
+  # jax itself: the plugin packages keep it optional (NumPy fallback), but the
+  # differentiable-calibration experiments (ADAM/L-BFGS, autodiff) require it.
+  "jax>=0.4.26",
   "jsnow17>=0.1.0",
   "jsacsma>=0.2.3",
   "jxaj>=0.2.3",
