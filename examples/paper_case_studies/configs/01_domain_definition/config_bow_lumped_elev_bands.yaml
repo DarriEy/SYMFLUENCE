@@ -11,8 +11,8 @@ system:
   - acquire_attributes
   - define_domain
   - discretize_domain
-  data_dir: ./data/
-  code_dir: ./
+  data_dir: default
+  code_dir: default
 domain:
   name: Bow_at_Banff_lumped_elev_bands
   definition_method: lumped

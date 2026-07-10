@@ -15,8 +15,8 @@ system:
   - model_agnostic_preprocessing
   - build_model_ready_store
   - run_benchmarking
-  data_dir: ./data/
-  code_dir: ./
+  data_dir: default
+  code_dir: default
 domain:
   name: Bow_at_Banff_lumped_era5
   experiment_id: benchmark
