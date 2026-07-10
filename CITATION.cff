@@ -1,6 +1,7 @@
 cff-version: 1.2.0
 message: If you use SYMFLUENCE in your research, please cite it using the metadata below, alongside the
   companion papers (Eythorsson et al., 2026a,b,c; Water Resources Research).
+doi: 10.5281/zenodo.21257967
 title: 'SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational
   Exploration'
 type: software
