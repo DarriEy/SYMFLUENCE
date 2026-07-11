@@ -47,7 +47,7 @@ model:
   hydrological_model: HYPE
   routing_model: none
   hype:
-    spinup_days: 730
+    spinup_days: 365
     params_to_calibrate: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp
 optimization:
   methods:
@@ -61,7 +61,7 @@ optimization:
     primary_metric: KGE
     secondary_metric: NSE
     neighbors: 20
-    crossover_rate: 0.9
+    crossover_rate: 1.0
   skip_warm_start: true
 evaluation:
   streamflow:

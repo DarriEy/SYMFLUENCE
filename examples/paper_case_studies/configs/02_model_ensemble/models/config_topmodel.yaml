@@ -43,7 +43,9 @@ model:
   hydrological_model: TOPMODEL
   routing_model: none
   topmodel:
-    params_to_calibrate: szm,t0,td,srmax,srcinit,chv,chn,Qs0,lnTe,m,Sr0,Srmax,InfiltCap
+    params_to_calibrate: m,lnTe,Srmax,Sr0,td,k_route,DDF,T_melt,T_snow,ti_std,S0
+    pet_method: oudin
+    latitude: 51.17
 optimization:
   methods:
   - iteration

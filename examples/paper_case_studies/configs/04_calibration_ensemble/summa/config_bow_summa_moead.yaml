@@ -59,7 +59,7 @@ optimization:
     primary_metric: KGE
     secondary_metric: NSE
     neighbors: 20
-    crossover_rate: 0.9
+    crossover_rate: 1.0
   skip_warm_start: true
 evaluation:
   streamflow:

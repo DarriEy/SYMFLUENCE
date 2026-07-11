@@ -43,7 +43,9 @@ model:
   hydrological_model: MESH
   routing_model: none
   mesh:
-    params_to_calibrate: DRN,SDEP,FARE,DD,XSLP,XDRAINH,MANN_CLASS,KSAT,LAMX,LAMN,CMAS,ROOT
+    params_to_calibrate: KSAT,DRN,SDEP,XSLP,ZSNL,ZPLS,ZPLG,XDRAINH,MANN_CLASS,FRZTH,RSMIN,LAMX,ROOT
+    spatial_mode: lumped
+    spinup_days: 730
 optimization:
   methods:
   - iteration

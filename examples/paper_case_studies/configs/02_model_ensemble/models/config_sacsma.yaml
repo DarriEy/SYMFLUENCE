@@ -48,7 +48,7 @@ optimization:
   methods:
   - iteration
   algorithm: DDS
-  iterations: 1000
+  iterations: 2000
   metric: KGE
 evaluation:
   streamflow:
