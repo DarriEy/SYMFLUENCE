@@ -55,7 +55,6 @@ optimization:
   metric: KGE
   algorithm: BAYESIAN_OPT
   iterations: 50
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

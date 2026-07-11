@@ -29,6 +29,10 @@ domain:
   spinup_period: 2015-01-01, 2015-09-30
   discretization: GRUs
   experiment_id: forcing_ensemble_aorc
+data:
+  # SNOTEL SWE observations drive the SWE calibration (Fig. 6)
+  additional_observations:
+  - SNOTEL
 forcing:
   dataset: AORC
 model:
@@ -43,5 +47,4 @@ optimization:
   target: swe
 evaluation:
   snotel:
-    station_id: '679'
-    station_name: Paradise
+    station: '679'

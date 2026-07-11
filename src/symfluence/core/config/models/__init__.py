@@ -41,6 +41,7 @@ from .evaluation import (
     EvaluationConfig,
     FluxNetConfig,
     GRACEConfig,
+    HubeauConfig,
     ISMNConfig,
     MODISETConfig,
     MODISSnowConfig,
@@ -133,6 +134,7 @@ __all__ = [
     # Evaluation
     "EvaluationConfig",
     "StreamflowConfig",
+    "HubeauConfig",
     "SNOTELConfig",
     "FluxNetConfig",
     "USGSGWConfig",

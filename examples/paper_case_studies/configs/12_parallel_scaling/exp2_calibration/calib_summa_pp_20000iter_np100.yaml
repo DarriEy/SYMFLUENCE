@@ -67,52 +67,52 @@ model:
     local_params_file: localParamInfo.txt
     params_to_calibrate: albedoMax,albedoMinWinter,newSnowDenMin,Fcapil,k_soil,theta_sat,critSoilWilting,theta_res,f_impede
     basin_params_to_calibrate: routingGammaShape,routingGammaScale
-    param_bounds:
-      albedoMax:
-      - 0.7
-      - 0.95
-      albedoMinWinter:
-      - 0.5
-      - 0.8
-      newSnowDenMin:
-      - 50
-      - 150
-      Fcapil:
-      - 0.001
-      - 0.1
-      k_soil:
-      - 1e-8
-      - 1e-4
-      theta_sat:
-      - 0.3
-      - 0.6
-      critSoilWilting:
-      - 0.05
-      - 0.3
-      theta_res:
-      - 0.01
-      - 0.15
-      f_impede:
-      - 0.5
-      - 5.0
-      routingGammaShape:
-      - 1.5
-      - 5.0
-      routingGammaScale:
-      - 100
-      - 10000
-  decision_options:
-    snowIncept:
-    - lightSnow
-    compaction:
-    - anderson
-    snowLayers:
-    - CLM_2010
-    alb_method:
-    - varDecay
-    thCondSnow:
-    - jrdn1991
+    decision_options:
+      snowIncept:
+      - lightSnow
+      compaction:
+      - anderson
+      snowLayers:
+      - CLM_2010
+      alb_method:
+      - varDecay
+      thCondSnow:
+      - jrdn1991
 optimization:
+  parameter_bounds:
+    albedoMax:
+    - 0.7
+    - 0.95
+    albedoMinWinter:
+    - 0.5
+    - 0.8
+    newSnowDenMin:
+    - 50
+    - 150
+    Fcapil:
+    - 0.001
+    - 0.1
+    k_soil:
+    - 1e-8
+    - 1e-4
+    theta_sat:
+    - 0.3
+    - 0.6
+    critSoilWilting:
+    - 0.05
+    - 0.3
+    theta_res:
+    - 0.01
+    - 0.15
+    f_impede:
+    - 0.5
+    - 5.0
+    routingGammaShape:
+    - 1.5
+    - 5.0
+    routingGammaScale:
+    - 100
+    - 10000
   methods:
   - iteration
   metric: KGE
@@ -123,7 +123,6 @@ optimization:
     async_pool_size: 100
     async_batch_size: 100
     max_stagnation_batches: 20
-  target_metric: KGE
 evaluation:
   streamflow:
     station_id: 05BB001

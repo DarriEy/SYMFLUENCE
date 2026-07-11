@@ -47,16 +47,15 @@ model:
   hydrological_model: SUMMA
   routing_model: none
   summa:
-    warmup_days: 730
 optimization:
   methods:
   - iteration
   metric: KGE
   algorithm: SIMULATED_ANNEALING
   iterations: 100
-  target_metric: KGE
   skip_warm_start: true
-  sa_steps_per_temp: 10
+  sa:
+    steps_per_temp: 10
 evaluation:
   streamflow:
     station_id: 05BB001

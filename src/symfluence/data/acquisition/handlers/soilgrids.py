@@ -36,6 +36,7 @@ References:
 """
 from __future__ import annotations
 
+import os
 import zipfile
 from pathlib import Path
 
@@ -225,7 +226,9 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
             lambda: self.config.data.geospatial.soilgrids.hs_cache_dir, default='default'
         )
         if cache_dir_cfg == 'default':
-            cache_dir = out_p.parent / "cache"
+            # Data-dir-level cache: the HydroShare archive is global (~1 GB,
+            # up to an hour to fetch), so every domain shares one download.
+            cache_dir = self.data_dir / "cache" / "soilgrids"
         else:
             cache_dir = Path(cache_dir_cfg)
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +246,8 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         # Download with retry logic using mixin
         if not zip_path.exists() or zip_path.stat().st_size == 0 or self._get_config_value(lambda: self.config.data.force_download, default=False):
-            tmp_path = zip_path.with_suffix(".zip.part")
+            # PID-unique temp: concurrent workflows share this cache dir.
+            tmp_path = zip_path.with_suffix(f".zip.part.{os.getpid()}")
 
             def do_download():
                 self.logger.info("Downloading soil data from HydroShare...")
