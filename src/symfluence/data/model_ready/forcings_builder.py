@@ -119,14 +119,25 @@ class ForcingsStoreBuilder:
                 logger.debug("Pruned stale forcing link %s", existing.name)
         for src_file in nc_files:
             dst = self.target_dir / src_file.name
-            if dst.exists() or dst.is_symlink():
-                dst.unlink()
+            resolved = src_file.resolve()
 
             if self.strategy == 'copy':
-                shutil.copy2(str(src_file), str(dst))
+                # Stage the copy then rename over the destination: concurrent
+                # readers (parallel calibration workers) see old or new,
+                # never a missing file.
+                tmp = dst.with_name(f"{dst.name}.staging.{os.getpid()}")
+                shutil.copy2(str(src_file), str(tmp))
+                os.replace(tmp, dst)
                 logger.debug("Copied %s -> %s", src_file.name, dst)
             else:
-                os.symlink(src_file.resolve(), dst)
+                # Fast path: link already correct — touch nothing, no window.
+                if dst.is_symlink() and os.readlink(str(dst)) == str(resolved):
+                    continue
+                tmp = dst.with_name(f"{dst.name}.staging.{os.getpid()}")
+                if tmp.is_symlink() or tmp.exists():
+                    tmp.unlink()
+                os.symlink(resolved, tmp)
+                os.replace(tmp, dst)
                 logger.debug("Symlinked %s -> %s", src_file.name, dst)
 
     def _forcing_timestep_seconds(self, nc_files: list) -> Optional[float]:
