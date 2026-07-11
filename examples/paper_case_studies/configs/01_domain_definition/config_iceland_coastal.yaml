@@ -31,7 +31,7 @@ domain:
   discretization: GRUs
   experiment_id: Iceland_coastal
 forcing:
-  dataset: CARRA
+  dataset: ERA5
 model:
   hydrological_model: FUSE
   routing_model: mizuRoute

@@ -76,5 +76,5 @@ python -c "import geopandas as g; print(len(g.read_file('<...>/shapefiles/catchm
 ## Runtime
 
 Minutes per Bow/Paradise config once attribute data is cached (the first config per region pays the downloads); the Iceland domains take hours (large DEM + national-scale TauDEM run)
-(geofabric subsetting + attribute acquisition). Requires only CDS credentials
+(delineation + attribute acquisition). Requires no credentials
 for attribute/DEM sources per the top-level README; no model executables.
