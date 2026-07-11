@@ -56,7 +56,6 @@ optimization:
   gradient_mode: finite_difference
   algorithm: LBFGS
   iterations: 125
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

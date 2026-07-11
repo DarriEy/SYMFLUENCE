@@ -104,6 +104,27 @@ _CALIBRATION_CONFIGS = sorted(
     (CONFIGS / "04_calibration_ensemble").glob("*/config_bow_*.yaml")
 )
 
+_ALL_PAPER_CONFIGS = sorted(CONFIGS.rglob("*.yaml")) + sorted(CONFIGS.rglob("*.yml"))
+
+
+@pytest.mark.parametrize(
+    "config_path", _ALL_PAPER_CONFIGS, ids=lambda p: str(p.relative_to(CONFIGS))
+)
+def test_paper_configs_have_no_unknown_nested_keys(config_path: Path):
+    """Every paper config must contain only keys the config models recognize.
+
+    Pydantic's ``extra='allow'`` silently absorbs misspelled nested keys (e.g.
+    ``evaluation.snotel.station_id`` for the ``station`` field), which breaks
+    experiments at runtime without any validation error. This walks each config
+    against the model tree and fails on any unknown dotted path.
+    """
+    from symfluence.core.config.key_validation import find_unknown_nested_keys
+
+    with config_path.open() as fh:
+        data = yaml.safe_load(fh)
+    assert isinstance(data, dict)
+    assert find_unknown_nested_keys(data) == []
+
 
 @pytest.mark.parametrize(
     "config_path", _CALIBRATION_CONFIGS, ids=lambda p: f"{p.parent.name}/{p.name}"

@@ -4157,6 +4157,20 @@ DOWNLOAD_SOIL: true
 #   Usage:      6
 DOWNLOAD_USGS_DATA: false
 
+# DOWNLOAD_HUBEAU_DATA
+#   Type:        bool
+#   Default:     True
+#   Source:      HubeauConfig (evaluation.py)
+#   Usage:      1
+DOWNLOAD_HUBEAU_DATA: true
+
+# HUBEAU_USE_DAILY
+#   Type:        bool
+#   Default:     True
+#   Source:      HubeauConfig (evaluation.py)
+#   Usage:      1
+HUBEAU_USE_DAILY: true
+
 # DOWNLOAD_USGS_GW
 #   Type:        bool
 #   Default:     False

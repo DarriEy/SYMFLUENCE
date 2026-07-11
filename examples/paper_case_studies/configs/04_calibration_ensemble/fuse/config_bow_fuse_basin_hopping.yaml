@@ -112,7 +112,6 @@ model:
       LAPSE:
       - -7.0
       - -4.0
-    warmup_days: 730
     template_path: default
 optimization:
   methods:
@@ -120,9 +119,9 @@ optimization:
   metric: KGE
   algorithm: BASIN-HOPPING
   iterations: 20
-  target_metric: KGE
   skip_warm_start: true
-  bh_local_steps: 50
+  basin_hopping:
+    local_steps: 50
 evaluation:
   streamflow:
     station_id: 05BB001

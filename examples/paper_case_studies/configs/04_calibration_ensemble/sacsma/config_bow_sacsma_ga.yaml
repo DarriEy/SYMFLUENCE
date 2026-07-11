@@ -57,7 +57,6 @@ optimization:
   algorithm: GA
   iterations: 50
   population_size: 20
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

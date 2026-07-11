@@ -108,6 +108,168 @@ def find_unknown_keys(
     return sorted(unknown)
 
 
+def _resolve_basemodel_annotation(annotation: Any) -> Optional[type]:
+    """Return the BaseModel subclass a field annotation resolves to, if any.
+
+    Unwraps ``Optional``/``Union``/``Annotated`` wrappers. Mapping (``Dict``)
+    and sequence (``List``) annotations deliberately resolve to ``None`` — their
+    contents are opaque to nested-key validation.
+    """
+    import types
+    import typing
+
+    from pydantic import BaseModel
+
+    for _ in range(10):  # defensive bound against pathological nesting
+        origin = typing.get_origin(annotation)
+        if origin is None:
+            break
+        args = typing.get_args(annotation)
+        if origin is typing.Annotated:  # Annotated[X, ...] -> X
+            annotation = args[0]
+            continue
+        if origin is typing.Union or origin is types.UnionType:
+            for arg in args:
+                resolved = _resolve_basemodel_annotation(arg)
+                if resolved is not None:
+                    return resolved
+            return None
+        # Dict[...], List[...], and other generics: opaque.
+        return None
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
+def _field_for_key(model: type, key: str) -> Optional[Any]:
+    """Return the FieldInfo that input *key* populates, or None.
+
+    With ``populate_by_name=True`` both spellings are legal input, so a key is
+    known if it matches the field name, the field ``alias``, or any string
+    choice in a ``validation_alias`` (plain string or ``AliasChoices``).
+    """
+    from pydantic import AliasChoices
+
+    for name, field in model.model_fields.items():
+        if key == name or key == field.alias:
+            return field
+        validation_alias = field.validation_alias
+        if isinstance(validation_alias, str) and key == validation_alias:
+            return field
+        if isinstance(validation_alias, AliasChoices) and key in [
+            c for c in validation_alias.choices if isinstance(c, str)
+        ]:
+            return field
+    return None
+
+
+def _known_flat_universe(data: Dict[str, Any]) -> Set[str]:
+    """The recognized flat-key universe (core ∪ plugins ∪ legacy ∪ model transformers).
+
+    Mirrors the allowlist used by the strict shipped-configs guard. The
+    hydrological model (needed for model-specific transformer keys) is looked
+    up in both the flat and nested spellings.
+    """
+    from symfluence.core.config.legacy_aliases import RECOGNIZED_FLAT_KEYS
+    from symfluence.core.config.transformers import build_combined_flat_to_nested_map
+
+    hydrological_model = data.get('HYDROLOGICAL_MODEL')
+    if not hydrological_model:
+        model_section = data.get('model')
+        if isinstance(model_section, dict):
+            hydrological_model = model_section.get('hydrological_model') or model_section.get('HYDROLOGICAL_MODEL')
+    if isinstance(hydrological_model, list):
+        hydrological_model = ','.join(str(m) for m in hydrological_model)
+
+    return (
+        set(build_combined_flat_to_nested_map(hydrological_model))
+        | set(RECOGNIZED_FLAT_KEYS)
+        | set(RESERVED_CONTROL_KEYS)
+    )
+
+
+def _walk_nested_keys(data: Dict[str, Any], model: type, prefix: str, unknown: List[str]) -> None:
+    """Recursively collect unknown keys in *data* against Pydantic *model*."""
+    from symfluence.core.config.models.model_configs import ModelConfig
+
+    for key, value in data.items():
+        if not isinstance(key, str) or key == '_extra':
+            continue
+        field = _field_for_key(model, key)
+        if field is None:
+            if model is ModelConfig:
+                # model.<model_name> subsections are registry-typed, not fields.
+                # Resolve via R.config_schemas; skip unresolvable names (e.g.
+                # external-plugin models absent from this environment) so a
+                # missing plugin never produces a false positive.
+                from symfluence.core.registries import R
+
+                schema_cls = R.config_schemas.get(key.upper())
+                if schema_cls is not None and isinstance(value, dict):
+                    _walk_nested_keys(value, schema_cls, f"{prefix}{key}.", unknown)
+                continue
+            unknown.append(f"{prefix}{key}")
+            continue
+        if isinstance(value, dict):
+            child_model = _resolve_basemodel_annotation(field.annotation)
+            if child_model is not None:
+                _walk_nested_keys(value, child_model, f"{prefix}{key}.", unknown)
+
+
+def find_unknown_nested_keys(data: Dict[str, Any], model: Optional[type] = None) -> List[str]:
+    """Return dotted paths of unknown keys in a *nested* config dict.
+
+    Walks *data* against the Pydantic model tree rooted at *model* (default:
+    :class:`SymfluenceConfig`). At each dict level backed by a ``BaseModel``, a
+    key is known if it matches a field name, a field ``alias``, or any string
+    choice in a ``validation_alias`` ``AliasChoices`` (``populate_by_name=True``
+    makes both spellings legal). Anything else is reported as a dotted path,
+    e.g. ``"evaluation.snotel.station_id"``.
+
+    Descends only into fields whose annotation (after unwrapping
+    ``Optional``/``Union``/``Annotated``) is a ``BaseModel`` subclass; mapping
+    (``Dict[str, X]``) and list fields are opaque. The ``model.<name>``
+    subsections resolve through ``R.config_schemas``; unresolvable subsections
+    (absent plugins, ``Any``-typed) are skipped rather than flagged.
+
+    Top-level UPPERCASE keys are flat-style keys mixed into a nested config and
+    are checked against the recognized flat-key universe instead (same
+    allowlist as strict flat validation), honoring legacy normalization
+    aliases. The reserved ``_extra`` key is always skipped.
+    """
+    if model is None:
+        from symfluence.core.config.models import SymfluenceConfig
+        model = SymfluenceConfig
+
+    unknown: List[str] = []
+    known_flat: Optional[Set[str]] = None
+    section_names = set(model.model_fields)
+    nested: Dict[str, Any] = {}
+
+    for key, value in data.items():
+        if not isinstance(key, str) or key == '_extra':
+            continue
+        # Section keys are matched case-insensitively at the top level
+        # (mirrors factories._normalize_nested_config, which accepts SYSTEM:).
+        if key.lower() in section_names and key not in model.model_fields:
+            nested[key.lower()] = value
+            continue
+        if key == key.upper() and _field_for_key(model, key) is None:
+            # Flat-style uppercase key mixed into a nested config: check it
+            # against the flat universe (with legacy normalization aliases).
+            from symfluence.core.config.legacy_aliases import NORMALIZATION_ALIASES
+
+            if known_flat is None:
+                known_flat = _known_flat_universe(data)
+            if NORMALIZATION_ALIASES.get(key, key) not in known_flat:
+                unknown.append(key)
+            continue
+        nested[key] = value
+
+    _walk_nested_keys(nested, model, "", unknown)
+    return sorted(unknown)
+
+
 def _format_message(unknown: List[str], known_keys: Set[str], source: Optional[str]) -> str:
     """Build a user-facing message with 'did you mean?' suggestions."""
     where = f" in {source}" if source else ""

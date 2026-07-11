@@ -5,8 +5,9 @@
 Evaluation configuration models.
 
 Contains configuration classes for observation data sources:
-StreamflowConfig, SNOTELConfig, FluxNetConfig, USGSGWConfig, SMAPConfig,
-GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent EvaluationConfig.
+StreamflowConfig, HubeauConfig, SNOTELConfig, FluxNetConfig, USGSGWConfig,
+SMAPConfig, GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent
+EvaluationConfig.
 """
 from __future__ import annotations
 
@@ -44,6 +45,22 @@ class SNOTELConfig(BaseModel):
     state: Optional[str] = Field(
         default=None, alias='SNOTEL_STATE',
         description='US state code used to query SNOTEL stations (default WA)'
+    )
+
+
+class HubeauConfig(BaseModel):
+    """Hub'Eau French streamflow observation data settings.
+
+    Consumed by :mod:`symfluence.data.observation.handlers.hubeau`, whose
+    documented config contract is ``evaluation.hubeau.download`` /
+    ``evaluation.hubeau.use_daily``.
+    """
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=True, alias='DOWNLOAD_HUBEAU_DATA')
+    use_daily: bool = Field(
+        default=True, alias='HUBEAU_USE_DAILY',
+        description="Use QC'd daily processed observations instead of real-time data"
     )
 
 
@@ -279,6 +296,7 @@ class EvaluationConfig(BaseModel):
 
     # Observation data sources
     streamflow: Optional[StreamflowConfig] = Field(default_factory=StreamflowConfig)
+    hubeau: Optional[HubeauConfig] = Field(default_factory=HubeauConfig)
     snotel: Optional[SNOTELConfig] = Field(default_factory=SNOTELConfig)
     fluxnet: Optional[FluxNetConfig] = Field(default_factory=FluxNetConfig)
     usgs_gw: Optional[USGSGWConfig] = Field(default_factory=USGSGWConfig)

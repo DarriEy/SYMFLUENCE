@@ -57,11 +57,10 @@ optimization:
   algorithm: DREAM
   iterations: 18
   population_size: 53
-  target_metric: KGE
   skip_warm_start: true
   dream:
-    cr: 0.9
-    pairs: 3
+    crossover_probability: 0.9
+    de_pairs: 3
 evaluation:
   streamflow:
     station_id: 05BB001
