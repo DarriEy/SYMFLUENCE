@@ -47,7 +47,6 @@ model:
   hydrological_model: SUMMA
   routing_model: none
   summa:
-    warmup_days: 730
 optimization:
   methods:
   - iteration
@@ -55,11 +54,10 @@ optimization:
   algorithm: DREAM
   iterations: 32
   population_size: 31
-  target_metric: KGE
   skip_warm_start: true
   dream:
-    cr: 0.9
-    pairs: 3
+    crossover_probability: 0.9
+    de_pairs: 3
 evaluation:
   streamflow:
     station_id: 05BB001

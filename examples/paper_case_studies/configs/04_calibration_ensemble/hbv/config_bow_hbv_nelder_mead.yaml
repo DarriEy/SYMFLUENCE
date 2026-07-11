@@ -56,7 +56,6 @@ optimization:
   metric: KGE
   algorithm: NELDER-MEAD
   iterations: 1000
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

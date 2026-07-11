@@ -18,9 +18,10 @@ This guard runs the *real* strict validation against the configs we ship and,
   backlog stays visible.
 
 Exempt = kitchen-sink doc templates (which document keys for many models and so
-cannot be single-model clean) and the ``examples/paper_case_studies`` research
-archive. Everything else — config_template.yaml, the quickstart/nested
-templates, and the maintained tutorial examples — is enforced.
+cannot be single-model clean) and the ``examples/paper_case_studies``
+``experiment_logs`` frozen run snapshots. Everything else — config_template.yaml,
+the quickstart/nested templates, the maintained tutorial examples, and the
+maintained ``paper_case_studies/configs`` tree — is enforced.
 
 History: an audit (2026-06, issue #191) found the cross-cutting unknown keys had
 **zero** in-tree config consumers; they were features that were removed from the
@@ -47,21 +48,26 @@ TEMPLATES = "src/symfluence/resources/config_templates"
 #
 # EXEMPT covers only (1) kitchen-sink doc templates that intentionally document
 # keys for many models/features and so cannot be single-model clean, and (2) the
-# paper_case_studies research archive, a historical record of original paper
-# configs that may reference external-plugin features. The maintained tutorial
-# examples (examples/01..05, examples/iceland_national_model, etc.) are enforced.
+# paper_case_studies experiment_logs, frozen snapshots of past runs that are
+# never edited retroactively. The maintained tutorial examples (examples/01..05,
+# examples/iceland_national_model, etc.) and paper_case_studies/configs (the
+# maintained paper-reproduction configs; configs_orig was deleted) are enforced.
 EXEMPT: Dict[str, str] = {
     f"{TEMPLATES}/config_template_comprehensive.yaml":
         "kitchen-sink reference: documents keys for many models/features; not a single-model run config",
+    f"{TEMPLATES}/config_template_comprehensive_nested.yaml":
+        "kitchen-sink reference (nested form): documents keys for many models/features; "
+        "not a single-model run config",
     f"{TEMPLATES}/camelsspat_template.yaml":
         "dataset template: documents optional feature keys (gap-filling/emulation) not always wired",
     f"{TEMPLATES}/fluxnet_template.yaml":
         "dataset template: documents optional feature keys (gap-filling/emulation) not always wired",
     f"{TEMPLATES}/norswe_template.yaml":
         "dataset template: documents optional feature keys (gap-filling/emulation) not always wired",
-    "examples/paper_case_studies/**":
-        "research archive: historical record of original paper configs; may reference "
-        "external-plugin (e.g. jFUSE) or non-active-model keys",
+    "examples/paper_case_studies/experiment_logs/**":
+        "frozen run snapshots: verbatim records of past runs, never edited retroactively. "
+        "The maintained configs/ tree next to it is enforced (configs_orig was deleted; "
+        "configs/ is maintained, not an archive).",
 }
 
 
@@ -71,16 +77,23 @@ def _norm(key: str) -> str:
 
 
 def _unknown_keys(path: Path) -> List[str]:
-    """Return the flat keys in *path* that strict validation would reject."""
+    """Return the keys in *path* that strict validation would reject.
+
+    Flat configs are checked against the recognized flat-key universe; nested
+    configs are walked against the Pydantic model tree (dotted paths reported).
+    """
     import yaml
 
-    from symfluence.core.config.key_validation import RESERVED_CONTROL_KEYS
+    from symfluence.core.config.factories import _is_nested_config
+    from symfluence.core.config.key_validation import RESERVED_CONTROL_KEYS, find_unknown_nested_keys
     from symfluence.core.config.legacy_aliases import RECOGNIZED_FLAT_KEYS
     from symfluence.core.config.transformers import build_combined_flat_to_nested_map
 
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
         return []
+    if _is_nested_config(data):
+        return find_unknown_nested_keys(data)
     flat = {k for k in data if isinstance(k, str) and k == k.upper()}
     known = (
         set(build_combined_flat_to_nested_map(data.get("HYDROLOGICAL_MODEL")))
@@ -158,7 +171,7 @@ def main(argv: List[str]) -> int:
     if rc == 0:
         print(
             f"strict-config dogfood OK: {len(enforced)} config(s) enforced strict-clean; "
-            f"{len(reported)} exempt (doc templates + research archive)."
+            f"{len(reported)} exempt (doc templates + frozen run snapshots)."
         )
     return rc
 

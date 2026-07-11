@@ -60,7 +60,6 @@ optimization:
   population_size: 100
   abc:
     n_particles: 100
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

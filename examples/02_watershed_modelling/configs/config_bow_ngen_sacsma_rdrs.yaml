@@ -28,13 +28,13 @@ domain:
   data_access: cloud
   download_dem: true
   download_soil: true
-  download_land_cover: true
+  download_landcover: true
   delineation:
     routing: lumped
     geofabric_type: na
     stream_threshold: 5000
     method: stream_threshold
-    by_pourpoint: true
+    delineate_by_pourpoint: true
 
 forcing:
   dataset: RDRS
@@ -42,7 +42,6 @@ forcing:
 
 data:
   streamflow_data_provider: WSC
-  download_wsc_data: true
 
 model:
   hydrological_model: NGEN

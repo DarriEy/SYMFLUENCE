@@ -47,7 +47,6 @@ model:
   hydrological_model: SUMMA
   routing_model: none
   summa:
-    warmup_days: 730
 optimization:
   methods:
   - iteration
@@ -56,7 +55,6 @@ optimization:
   iterations: 1000
   dds:
     r: 0.2
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

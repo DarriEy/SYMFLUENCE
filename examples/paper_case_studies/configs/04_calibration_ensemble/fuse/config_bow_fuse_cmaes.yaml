@@ -112,7 +112,6 @@ model:
       LAPSE:
       - -7.0
       - -4.0
-    warmup_days: 730
     template_path: default
 optimization:
   methods:
@@ -121,7 +120,6 @@ optimization:
   algorithm: CMA-ES
   iterations: 50
   population_size: 20
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

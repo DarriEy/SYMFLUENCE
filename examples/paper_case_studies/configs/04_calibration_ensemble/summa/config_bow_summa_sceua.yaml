@@ -47,7 +47,6 @@ model:
   hydrological_model: SUMMA
   routing_model: none
   summa:
-    warmup_days: 730
 optimization:
   methods:
   - iteration
@@ -60,7 +59,6 @@ optimization:
     number_of_evolution_steps: 20
     evolution_stagnation: 5
     percent_change_threshold: 0.01
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:
