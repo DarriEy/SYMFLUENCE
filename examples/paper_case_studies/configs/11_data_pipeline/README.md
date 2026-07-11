@@ -13,9 +13,8 @@ the resulting data volumes and remapping workloads.
 |---|---|---|---|
 | `config_paradise.yaml` | `paradise_snotel_wa` — point scale (WA) | ERA5 | SNOTEL |
 | `config_bow.yaml` | `Bow_at_Banff_lumped` — lumped catchment (AB) | ERA5 | WSC |
-| `config_iceland.yaml` | `Iceland_distributed` — distributed, country scale | CARRA | IMO |
 
-ERA5 and CARRA need Copernicus CDS credentials (`~/.cdsapirc`); SNOTEL and
+All data sources are public (ERA5 via the ARCO cloud mirror); SNOTEL and
 WSC are public.
 
 ## Run
@@ -57,5 +56,5 @@ producing **102 EASYMORE catchment–cell intersections** during remapping.
 
 ## Runtime
 
-0.5–2 h per config, dominated by forcing download (Iceland/CARRA is the
+0.5–2 h per config, dominated by forcing download (the
 long end and needs ~5 GB of disk). No model executables required.

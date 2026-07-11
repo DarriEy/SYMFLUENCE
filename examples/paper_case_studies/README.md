@@ -54,9 +54,8 @@ Compiles into `SYMFLUENCE_data/installs/` (~4 GB); found automatically.
 
 | Provider | Needed for | Setup |
 |---|---|---|
-| Copernicus CDS | ERA5, CARRA | API key in `~/.cdsapirc` ([cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)); accept each dataset licence once on the site |
 | NASA Earthdata | GRACE (experiment 10) | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)) |
-| AORC, RDRS, CONUS404, SNOTEL, WSC | forcing + observations | public, no credentials |
+| ERA5 (ARCO), AORC, RDRS, CONUS404, SNOTEL, WSC | forcing + observations | public, no credentials |
 
 ### 1.5 Data location
 
@@ -75,7 +74,7 @@ directory).
 | `configs/04_calibration_ensemble` | §4.2.3 | Fig 9 | 130 |
 | `configs/05_benchmarking` | §4.2.2 | Fig 8 | 1 |
 | `configs/10_multivariate_evaluation` | §4.2.4 | Fig 10 | 4 |
-| `configs/11_data_pipeline` | §2.2 | Fig 4 | 3 |
+| `configs/11_data_pipeline` | §2.2 | Fig 4 | 2 |
 | `configs/12_parallel_scaling` | §5 | Fig 11 | 35 (14 laptop, 20 need a cluster) |
 
 Each directory has a README with its config list and the reference values from
@@ -117,7 +116,6 @@ run logs + provenance manifests in `_workLog_<name>/`.
 | Symptom | Fix |
 |---|---|
 | `GDAL Python bindings (osgeo) are required` | install system GDAL, then `pip install "GDAL==$(gdal-config --version)"` |
-| CDS download stalls or 403s | check `~/.cdsapirc`; accept the dataset licence on the CDS website |
 | `executable not found` | `symfluence binary install <tool>`, then `symfluence binary doctor` |
 | calibration log shows `Best: 9999.0` | the objective never saw valid observations — check the obs step in the log |
 | warning: h5py/netCDF4 bundle different libhdf5 | known pip-wheel quirk, mitigated automatically, ignore |

@@ -1,6 +1,6 @@
 # Experiment 1d: Regional distributed domain - Iceland
 # Iceland regional river-basin GRUs (Section 2.1, Fig. 3a, Table 1)
-# Tests: Large-scale distributed domain with CARRA reanalysis forcing
+# Tests: Large-scale distributed domain definition
 
 system:
   # Steps this experiment runs (self-scoping; see `symfluence workflow list-steps`)
@@ -31,7 +31,7 @@ domain:
   bounding_box_coords: 66.6/-24.6/63.2/-13.2
   pour_point_coords: 63.93/-21.03
 forcing:
-  dataset: CARRA
+  dataset: ERA5
 model:
   hydrological_model: FUSE
   routing_model: mizuRoute

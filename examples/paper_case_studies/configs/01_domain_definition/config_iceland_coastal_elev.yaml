@@ -32,7 +32,7 @@ domain:
   time_end: 2008-12-31 21:00
   experiment_id: Iceland_coastal_elev
 forcing:
-  dataset: CARRA
+  dataset: ERA5
   apply_lapse_rate: true
   lapse_rate: 0.0065
 model:

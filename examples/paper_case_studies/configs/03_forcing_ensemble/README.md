@@ -12,14 +12,14 @@ parameters (Fig 6).
 
 | Config | Forcing product |
 |---|---|
-| `config_era5.yaml` | ERA5 global reanalysis (needs CDS credentials) |
+| `config_era5.yaml` | ERA5 global reanalysis (ARCO cloud mirror, public) |
 | `config_rdrs.yaml` | RDRS (ECCC regional reanalysis) |
 | `config_aorc.yaml` | AORC (NOAA analysis of record) |
 | `config_conus404.yaml` | CONUS404 (4 km WRF reanalysis) |
 
 All four share the point domain `paradise_snotel_wa` and run the full
 pipeline through `calibrate_model`; each acquires its own forcing product
-(RDRS/AORC/CONUS404 are public, ERA5 needs `~/.cdsapirc`).
+(all four products are public; ERA5 is read from the ARCO cloud mirror).
 
 ## Run
 
