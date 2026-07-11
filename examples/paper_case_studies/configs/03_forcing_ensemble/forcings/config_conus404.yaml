@@ -47,4 +47,5 @@ optimization:
   target: swe
 evaluation:
   snotel:
+    download: true
     station: '679'
