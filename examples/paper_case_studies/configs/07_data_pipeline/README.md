@@ -20,7 +20,7 @@ WSC are public.
 ## Run
 
 ```bash
-CFG=examples/paper_case_studies/configs/11_data_pipeline
+CFG=examples/paper_case_studies/configs/07_data_pipeline
 
 # One scale:
 symfluence workflow run --config $CFG/configs/config_bow.yaml
