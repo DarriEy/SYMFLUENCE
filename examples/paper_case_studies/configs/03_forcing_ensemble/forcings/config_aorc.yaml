@@ -47,5 +47,4 @@ optimization:
   target: swe
 evaluation:
   snotel:
-    station_id: '679'
-    station_name: Paradise
+    station: '679'
