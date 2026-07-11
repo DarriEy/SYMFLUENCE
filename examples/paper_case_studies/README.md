@@ -22,9 +22,8 @@ symfluence workflow run --config <config.yaml>
 ### 1.2 Install SYMFLUENCE
 
 ```bash
-git clone https://github.com/symfluence-org/SYMFLUENCE.git
+git clone -b develop https://github.com/symfluence-org/SYMFLUENCE.git
 cd SYMFLUENCE
-git checkout <commit from PINNED_VERSION.txt>
 
 python3 -m venv venv && source venv/bin/activate
 pip install -e ".[jax]"

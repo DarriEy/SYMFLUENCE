@@ -1,7 +1,0 @@
-# Paper-pinned SYMFLUENCE version for reproducing Eythorsson et al. (2026),
-# "From Configuration to Prediction" (Paper 3).
-#
-# PLACEHOLDER — updated automatically at the end of the reproduction campaign.
-# Use the commit below:
-commit: TBD
-branch: develop
