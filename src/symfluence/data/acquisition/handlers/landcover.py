@@ -53,6 +53,7 @@ from rasterio.windows import Window, from_bounds
 from symfluence.core.registries import R
 
 from ..base import BaseAcquisitionHandler
+from ..utils import create_robust_session, download_file_resumable
 
 
 @R.acquisition_handlers.add('MODIS_LANDCOVER')
@@ -145,24 +146,20 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
         """
         # PID-unique temp name: concurrent workflows may share the cache dir,
         # and two writers on one .part file would corrupt both downloads.
+        # download_file_resumable resumes from this partial file across
+        # mid-stream interruptions (Zenodo honours Range requests) instead of
+        # re-fetching the ~130 MB tile from byte zero on every network blip.
         tmp_path = dest_path.with_suffix(dest_path.suffix + f".part.{os.getpid()}")
-        with requests.get(url, stream=True, timeout=60) as resp:
-            resp.raise_for_status()
-            expected_size = resp.headers.get("Content-Length")
-            with open(tmp_path, "wb") as handle:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    handle.write(chunk)
-
-        if expected_size:
-            expected_size = int(expected_size)
-            actual_size = tmp_path.stat().st_size
-            if actual_size != expected_size:
-                tmp_path.unlink(missing_ok=True)
-                raise IOError(
-                    f"Downloaded size mismatch for {url}: "
-                    f"{actual_size} != {expected_size}"
-                )
-        tmp_path.replace(dest_path)
+        session = create_robust_session(max_retries=0)
+        download_file_resumable(
+            url,
+            dest_path,
+            session=session,
+            chunk_size=1024 * 1024,
+            timeout=60,
+            part_path=tmp_path,
+            logger_=self.logger,
+        )
 
     def download(self, output_dir: Path) -> Path:
         """Download MODIS land cover data from a local file or Zenodo archive.
