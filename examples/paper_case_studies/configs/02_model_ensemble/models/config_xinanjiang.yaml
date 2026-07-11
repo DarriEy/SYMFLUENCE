@@ -43,7 +43,10 @@ model:
   hydrological_model: Xinanjiang
   routing_model: none
   xinanjiang:
-    params_to_calibrate: K,WM,WUM,WLM,C,SM,EX,KG,KI,CS,CI,CG
+    params_to_calibrate: K,B,IM,UM,LM,DM,C,SM,EX,KI,KG,CI,CG
+    snow_module: snow17
+    pet_method: hamon
+    latitude: 51.17
 optimization:
   methods:
   - iteration

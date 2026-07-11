@@ -50,6 +50,7 @@ model:
     backend: jax
     timestep_hours: 24
     warmup_days: 730
+    params_to_calibrate: tt,cfmax,sfcf,cfr,cwh,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas
 optimization:
   methods:
   - iteration
@@ -62,7 +63,7 @@ optimization:
     primary_metric: KGE
     secondary_metric: NSE
     neighbors: 20
-    crossover_rate: 0.9
+    crossover_rate: 1.0
   skip_warm_start: true
 evaluation:
   streamflow:

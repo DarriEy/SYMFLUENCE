@@ -29,15 +29,31 @@ domain:
   spinup_period: 2015-01-01, 2015-09-30
   discretization: GRUs
   experiment_id: forcing_ensemble_aorc
+  delineation:
+    multi_scale_thresholds: 10000,5000,2500,1000,500
 data:
   # SNOTEL SWE observations drive the SWE calibration (Fig. 6)
   additional_observations:
   - SNOTEL
+  - ISMN
+  download_ismn: true
 forcing:
   dataset: AORC
 model:
   hydrological_model: SUMMA
-  routing_model: none
+  routing_model: mizuRoute
+  summa:
+    # Snow-process parameter set from the paper runs (Fig. 6c centers on
+    # frozenPrecipMultip, the snowfall-undercatch correction)
+    params_to_calibrate: tempCritRain,tempRangeTimestep,frozenPrecipMultip,albedoMax,albedoMinWinter,albedoDecayRate,constSnowDen,mw_exp,k_snow,z0Snow
+    basin_params_to_calibrate: routingGammaScale
+    decision_options:
+      thCondSnow:
+      - smnv2000
+  mizuroute:
+    routing_dt: 86400
+    routing_units: mm/d
+    routing_var: q_routed
 optimization:
   methods:
   - iteration
@@ -47,4 +63,9 @@ optimization:
   target: swe
 evaluation:
   snotel:
+    download: true
     station: '679'
+  evaluation_data:
+  - streamflow
+  streamflow:
+    station_id: 05BB001

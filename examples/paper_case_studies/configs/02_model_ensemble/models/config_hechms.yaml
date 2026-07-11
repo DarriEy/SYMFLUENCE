@@ -44,6 +44,8 @@ model:
   routing_model: none
   hechms:
     params_to_calibrate: CN2,Ia,Tc,R,Snyder_Cp,Snyder_tp,K,X,baseflow_initial,recession_constant
+    pet_method: oudin
+    latitude: 51.17
 optimization:
   methods:
   - iteration

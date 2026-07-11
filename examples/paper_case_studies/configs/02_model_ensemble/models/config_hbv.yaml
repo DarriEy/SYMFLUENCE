@@ -46,7 +46,7 @@ model:
   hbv:
     backend: jax
     timestep_hours: 24
-    params_to_calibrate: tt,cfmax,sfcf,cfr,cwh,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas
+    params_to_calibrate: tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas
 optimization:
   methods:
   - iteration

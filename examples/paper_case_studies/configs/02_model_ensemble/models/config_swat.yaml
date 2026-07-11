@@ -43,7 +43,9 @@ model:
   hydrological_model: SWAT
   routing_model: none
   swat:
-    params_to_calibrate: CN2,ALPHA_BF,GW_DELAY,GWQMN,GW_REVAP,ESCO,SOL_AWC,SOL_K,SURLAG,SFTMP,SMTMP,SMFMX,SMFMN,TIMP
+    params_to_calibrate: CN2,ALPHA_BF,GW_DELAY,GWQMN,GW_REVAP,ESCO,SOL_AWC,SOL_K,SURLAG,SFTMP,SMTMP,SMFMX,SMFMN,TIMP,CH_K2,RCHRG_DP,EPCO
+    tlaps: -6.5
+    plaps: 100.0
 optimization:
   methods:
   - iteration
