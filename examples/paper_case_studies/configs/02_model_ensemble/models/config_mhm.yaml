@@ -43,12 +43,12 @@ model:
   hydrological_model: mHM
   routing_model: none
   mhm:
-    params_to_calibrate: canopyInterceptionFactor,snowTreshholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient
+    params_to_calibrate: canopyInterceptionFactor,snowTreshholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient,GeoParam(1,:),infiltrationShapeFactor,rootFractionCoefficient_pervious,interflowStorageCapacityFactor,slowInterflowRecession_Ks,muskingumTravelTime_constant,orgMatterContent_forest,minCorrectionFactorPET,maxCorrectionFactorPET,rootFractionCoefficient_forest,fastInterflowRecession_forest,exponentSlowInterflow,imperviousStorageCapacity,rechargeFactor_karstic
 optimization:
   methods:
   - iteration
   algorithm: DDS
-  iterations: 1000
+  iterations: 1500
   metric: KGE
 evaluation:
   streamflow:

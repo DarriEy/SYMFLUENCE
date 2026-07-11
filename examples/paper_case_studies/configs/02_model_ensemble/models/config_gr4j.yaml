@@ -44,7 +44,7 @@ model:
   hydrological_model: GR4J
   routing_model: none
   gr:
-    params_to_calibrate: X1,X2,X3,X4   # paper GR4J is 4-param (Fig 7b, nP=4); CemaNeige snow params excluded
+    params_to_calibrate: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
 optimization:
   methods:
   - iteration

@@ -42,9 +42,20 @@ forcing:
   time_step_size: 3600
 model:
   hydrological_model: SUMMA
-  routing_model: mizuRoute
+  routing_model: none
   summa:
-    params_to_calibrate: albedoMax,albedoMinWinter,albedoMinSpring,albedoMaxVisible,albedoDecayRate,newSnowDenMin,newSnowDenMult,newSnowDenScal,tempCritRain,tempRangeTimestep,k_soil,k_macropore,aquiferBaseflowExp,aquiferBaseflowRate
+    params_to_calibrate: albedoMax,albedoMinWinter,newSnowDenMin,Fcapil,k_soil,theta_sat,critSoilWilting,theta_res,f_impede
+    decision_options:
+      snowIncept:
+      - lightSnow
+      compaction:
+      - anderson
+      snowLayers:
+      - CLM_2010
+      alb_method:
+      - varDecay
+      thCondSnow:
+      - jrdn1991
 optimization:
   methods:
   - iteration

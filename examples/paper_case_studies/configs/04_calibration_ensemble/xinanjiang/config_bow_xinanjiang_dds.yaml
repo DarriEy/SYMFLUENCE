@@ -48,8 +48,8 @@ model:
   routing_model: none
   xinanjiang:
     backend: jax
-    warmup_days: 730
-    snow_module: snow17
+    warmup_days: 365
+    snow_module: none
     latitude: 51.17
 optimization:
   methods:
@@ -64,3 +64,6 @@ evaluation:
   streamflow:
     station_id: 05BB001
     download_wsc: true
+# Flat passthrough key: read via config.get() by the jXAJ parameter manager (no typed nested field).
+_extra:
+  XINANJIANG_INITIAL_PARAMS: K=0.55,B=0.25,IM=0.055,UM=10.0,LM=75.0,DM=90.0,C=0.1,SM=50.5,EX=1.25,KI=0.35,KG=0.35,CS=0.5,L=5.5,CI=0.45,CG=0.989

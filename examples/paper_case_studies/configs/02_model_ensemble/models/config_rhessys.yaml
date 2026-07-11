@@ -43,7 +43,8 @@ model:
   hydrological_model: RHESSys
   routing_model: none
   rhessys:
-    params_to_calibrate: sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,Ksat_0_v,porosity_0,porosity_decay,soil_depth,m_z,active_zone_z,snow_melt_Tcoef,snow_water_capacity,max_snow_temp,min_rain_temp
+    params_to_calibrate: sat_to_gw_coeff,gw_loss_coeff,gw_loss_fast_coeff,gw_loss_fast_threshold,m,Ksat_0,Ksat_0_v,porosity_0,porosity_decay,soil_depth,m_z,active_zone_z,snow_melt_Tcoef,snow_water_capacity,max_snow_temp,min_rain_temp,maximum_snow_energy_deficit,epc.gl_smax,epc.max_lai
+    skip_calibration: false
 optimization:
   methods:
   - iteration

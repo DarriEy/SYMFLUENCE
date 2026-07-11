@@ -42,6 +42,17 @@ model:
   summa:
     params_to_calibrate: albedoMax,albedoMinWinter,newSnowDenMin,Fcapil,k_soil,theta_sat,critSoilWilting,critSoilTranspire,theta_res,f_impede,aquiferBaseflowExp,aquiferBaseflowRate,aquiferScaleFactor,specificStorage,specificYield
     basin_params_to_calibrate: routingGammaShape,routingGammaScale
+    decision_options:
+      snowIncept:
+      - lightSnow
+      compaction:
+      - anderson
+      snowLayers:
+      - CLM_2010
+      alb_method:
+      - varDecay
+      thCondSnow:
+      - jrdn1991
 optimization:
   methods:
   - iteration
@@ -53,7 +64,7 @@ evaluation:
   streamflow:
     station_id: 05BB001
   tws:
-    anomaly_baseline: 2004-01-01, 2009-12-31
+    anomaly_baseline: overlap
   grace:
     download: true
     product: GRACE_JPL_RL06_mascon
