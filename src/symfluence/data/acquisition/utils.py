@@ -15,12 +15,15 @@ from __future__ import annotations
 import logging
 import netrc
 import os
+import time
 from contextlib import contextmanager
+from http.client import IncompleteRead
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.exceptions import ProtocolError
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
@@ -154,6 +157,184 @@ def download_file_streaming(
             except OSError:
                 pass
         raise
+
+
+# Network errors that indicate a transient, mid-stream interruption from which
+# a byte-range resume can recover (as opposed to a hard 4xx/parse error).
+_RESUMABLE_ERRORS = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+    ProtocolError,
+    IncompleteRead,
+    OSError,
+)
+
+
+def download_file_resumable(
+    url: str,
+    target_path: Path,
+    session: requests.Session = None,
+    chunk_size: int = 1024 * 1024,
+    timeout: int = 600,
+    headers: Dict[str, str] = None,
+    auth: Tuple[str, str] = None,
+    max_attempts: int = 6,
+    base_delay: float = 2.0,
+    backoff_factor: float = 2.0,
+    logger_: logging.Logger = None,
+    part_path: Path = None,
+) -> int:
+    """
+    Download a large file with HTTP range-based *resume* across interruptions.
+
+    Unlike :func:`download_file_streaming`, this keeps the partial ``.part``
+    file between attempts and resumes from wherever it stopped using a
+    ``Range: bytes=<offset>-`` request. This makes multi-hundred-MB downloads
+    (e.g. the SoilGrids soil-class archive) robust on slow, flaky, or metered
+    connections, where re-downloading from byte zero on every blip can loop
+    forever and exhaust retries.
+
+    Behaviour:
+    - If ``<target>.part`` already exists, resume from its current size.
+    - ``206 Partial Content`` -> append to the ``.part`` file.
+    - ``200 OK`` (server ignored the Range header) -> restart cleanly.
+    - ``416 Range Not Satisfiable`` -> treat the ``.part`` as already complete.
+    - Transient network errors (connection reset, incomplete read, timeout)
+      do NOT delete the ``.part``; the next attempt resumes from it.
+    - On success the ``.part`` file is atomically renamed to ``target_path``.
+
+    Args:
+        url: URL to download from (redirects are followed; the Range header is
+            preserved through the redirect chain).
+        target_path: Final path for the completed file.
+        session: Optional requests.Session (a robust one is created if omitted).
+        chunk_size: Streaming chunk size in bytes (default: 1 MB).
+        timeout: Per-request timeout in seconds (default: 600).
+        headers: Optional base headers (a Range header is added on resume).
+        auth: Optional (username, password) tuple for basic auth.
+        max_attempts: Maximum number of attempts across the whole download.
+        base_delay: Initial backoff delay in seconds.
+        backoff_factor: Multiplier applied to the delay after each failure.
+        logger_: Optional logger for progress/among-attempt messages.
+        part_path: Optional explicit path for the partial file. Defaults to
+            ``<target_path>.part``. Callers that share a cache directory across
+            concurrent processes can pass a process-unique path (e.g.
+            ``….part.<pid>``) so parallel writers do not corrupt each other,
+            while still resuming across interruptions within the process.
+
+    Returns:
+        Number of bytes in the completed file.
+
+    Raises:
+        The last network/OS error if every attempt fails, or requests.HTTPError
+        for a non-resumable HTTP status.
+    """
+    log = logger_ or logger
+    if session is None:
+        session = create_robust_session(max_retries=0)
+
+    target_path = Path(target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    part_path = (
+        Path(part_path)
+        if part_path is not None
+        else target_path.with_suffix(target_path.suffix + '.part')
+    )
+
+    total_size = 0  # authoritative full length once known
+    attempt = 0
+    last_err: Optional[BaseException] = None
+
+    while attempt < max_attempts:
+        attempt += 1
+        offset = part_path.stat().st_size if part_path.exists() else 0
+
+        req_headers = dict(headers or {})
+        if offset > 0:
+            req_headers['Range'] = f'bytes={offset}-'
+
+        try:
+            with session.get(
+                url, stream=True, timeout=timeout, headers=req_headers, auth=auth
+            ) as response:
+                # Already have the whole file: server says the range is past EOF.
+                if offset > 0 and response.status_code == 416:
+                    log.info("Download already complete (server returned 416).")
+                    part_path.replace(target_path)
+                    return offset
+
+                response.raise_for_status()
+
+                # Decide append vs. fresh write based on whether the server
+                # honoured the Range request.
+                resuming = offset > 0 and response.status_code == 206
+                if offset > 0 and not resuming:
+                    # Server ignored Range (200) -> cannot trust the partial file.
+                    log.info("Server ignored range request; restarting download from scratch.")
+                    offset = 0
+
+                # Determine the authoritative total size.
+                if resuming:
+                    content_range = response.headers.get('Content-Range', '')
+                    if '/' in content_range:
+                        try:
+                            total_size = int(content_range.rsplit('/', 1)[1])
+                        except (ValueError, IndexError):
+                            total_size = 0
+                    if not total_size:
+                        cl = int(response.headers.get('content-length', 0))
+                        total_size = offset + cl if cl else 0
+                else:
+                    total_size = int(response.headers.get('content-length', 0))
+
+                mode = 'ab' if resuming else 'wb'
+                downloaded = offset if resuming else 0
+                if resuming:
+                    log.info(
+                        f"Resuming download at {offset / 1024 / 1024:.1f} MB"
+                        + (f" of {total_size / 1024 / 1024:.1f} MB" if total_size else "")
+                        + f" (attempt {attempt}/{max_attempts})."
+                    )
+                elif attempt > 1:
+                    log.info(f"Restarting download (attempt {attempt}/{max_attempts}).")
+
+                with open(part_path, mode) as handle:
+                    for chunk in response.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            handle.write(chunk)
+                            downloaded += len(chunk)
+
+            if total_size and downloaded < total_size:
+                raise IOError(
+                    f"Incomplete download: {downloaded}/{total_size} bytes"
+                )
+
+            part_path.replace(target_path)
+            log.info(f"✓ Downloaded {downloaded / 1024 / 1024:.1f} MB.")
+            return downloaded
+
+        except requests.exceptions.HTTPError:
+            # A concrete HTTP status (4xx/5xx other than 416) is not something a
+            # range-resume can fix; surface it immediately.
+            raise
+        except _RESUMABLE_ERRORS as err:
+            last_err = err
+            have = part_path.stat().st_size if part_path.exists() else 0
+            if attempt >= max_attempts:
+                break
+            delay = base_delay * (backoff_factor ** (attempt - 1))
+            log.warning(
+                f"Download interrupted at {have / 1024 / 1024:.1f} MB "
+                f"(attempt {attempt}/{max_attempts}): {err}. "
+                f"Resuming in {delay:.0f}s..."
+            )
+            time.sleep(delay)
+
+    # Exhausted all attempts.
+    if last_err is not None:
+        raise last_err
+    raise IOError(f"Failed to download {url} after {max_attempts} attempts")
 
 
 @contextmanager
