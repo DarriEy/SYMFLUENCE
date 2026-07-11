@@ -43,7 +43,7 @@ model:
   hydrological_model: GSFLOW
   routing_model: none
   gsflow:
-    params_to_calibrate: soil_moist_max,ssr2gw_rate,K,SY,slowcoef_lin,carea_max,smidx_coef,jh_coef,tmax_allsnow,rain_adj,snow_adj
+    params_to_calibrate: soil_moist_max,soil_rechr_max,ssr2gw_rate,gwflow_coef,gw_seep_coef,K,SY,slowcoef_lin,carea_max,smidx_coef,jh_coef,tmax_allrain,tmax_allsnow,rain_adj,snow_adj
 optimization:
   methods:
   - iteration

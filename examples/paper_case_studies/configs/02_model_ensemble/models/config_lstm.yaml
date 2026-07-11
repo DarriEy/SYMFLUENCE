@@ -42,17 +42,19 @@ forcing:
 model:
   hydrological_model: LSTM
   routing_model: none
-  flash:
-    network_type: LSTM
-    hidden_size: 128
+  lstm:
+    hidden_size: 96
     num_layers: 2
-    learning_rate: 0.001
-    epochs: 100
-    sequence_length: 365
+    epochs: 500
+    learning_rate: 0.0005
+    learning_patience: 50
+    lookback: 365
+    dropout: 0.15
+    l2_regularization: 1e-05
 optimization:
   methods:
   - iteration
-  algorithm: DDS
+  algorithm: PSO
   iterations: 1000
   metric: KGE
 evaluation:

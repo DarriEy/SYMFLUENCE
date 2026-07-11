@@ -48,7 +48,7 @@ model:
   routing_model: none
   topmodel:
     backend: jax
-    warmup_days: 730
+    warmup_days: 365
 optimization:
   methods:
   - iteration
@@ -66,3 +66,6 @@ evaluation:
   streamflow:
     station_id: 05BB001
     download_wsc: true
+# Flat passthrough key: read via config.get() by the jTOPMODEL parameter manager (no typed nested field).
+_extra:
+  TOPMODEL_INITIAL_PARAMS: m=0.1505,lnTe=1.5,Srmax=0.2525,Sr0=0.05,td=25.05,k_route=100.5,DDF=5.25,T_melt=0.5,T_snow=0.5,ti_std=5.5,S0=1.0

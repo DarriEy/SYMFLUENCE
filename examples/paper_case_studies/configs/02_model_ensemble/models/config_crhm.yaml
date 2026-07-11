@@ -43,7 +43,7 @@ model:
   hydrological_model: CRHM
   routing_model: none
   crhm:
-    params_to_calibrate: Ht,soil_rechr_max,soil_moist_max,soil_gw_K,Sdmax,fetch,gw_K,gw_max,Kstorage,Lag,lapse_rate
+    params_to_calibrate: Ht,inhibit_evap,soil_rechr_max,Sdmax,fetch,soil_gw_K,soil_moist_max,rechr_ssr_K,lower_ssr_K,Kstorage,Lag,tmax_allsnow,tmax_allrain,lapse_rate,gw_K,gw_max
 optimization:
   methods:
   - iteration
