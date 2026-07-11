@@ -56,14 +56,13 @@ optimization:
   gradient_mode: finite_difference
   algorithm: ADAM
   iterations: 500
-  target_metric: KGE
   skip_warm_start: true
   adam:
     lr: 0.01
-    epsilon: 1.0e-08
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-08
 evaluation:
   streamflow:
     station_id: 05BB001
     download_wsc: true
-adam_beta1: 0.9
-adam_beta2: 0.999

@@ -63,7 +63,6 @@ optimization:
     social_param: 1.5
     inertia_weight: 0.7
     inertia_reduction_rate: 0.99
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

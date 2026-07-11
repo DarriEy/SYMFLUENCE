@@ -56,27 +56,16 @@ optimization:
     primary_metric: KGE
     secondary_metric: correlation
     neighbors: 20
-    cr: 1.0
-    f: 0.5
-    mutation: 0.1
+    crossover_rate: 1.0
+    scaling_factor: 0.5
+    mutation_rate: 0.1
     decomposition: tchebycheff
   skip_warm_start: true
 evaluation:
   streamflow:
     station_id: 05BB001
+  tws:
+    anomaly_baseline: 2004-01-01, 2009-12-31
   grace:
     download: true
     product: GRACE_JPL_RL06_mascon
-    tws_variable: lwe_thickness
-    anomaly_baseline: 2004-01-01, 2009-12-31
-  calibration_targets:
-  - variable: streamflow
-    source: WSC
-    station_id: 05BB001
-    metric: KGE
-    weight: 0.5
-  - variable: TWS
-    source: GRACE
-    metric: correlation
-    weight: 0.5
-  multivar_evaluation: true

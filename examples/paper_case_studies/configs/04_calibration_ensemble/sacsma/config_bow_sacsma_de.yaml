@@ -60,7 +60,6 @@ optimization:
   de:
     scaling_factor: 0.7
     crossover_rate: 0.7
-  target_metric: KGE
   skip_warm_start: true
 evaluation:
   streamflow:

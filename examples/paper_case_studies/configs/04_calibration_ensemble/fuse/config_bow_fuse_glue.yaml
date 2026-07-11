@@ -112,7 +112,6 @@ model:
       LAPSE:
       - -7.0
       - -4.0
-    warmup_days: 730
     template_path: default
 optimization:
   methods:
@@ -121,9 +120,9 @@ optimization:
   algorithm: GLUE
   iterations: 10
   population_size: 100
-  target_metric: KGE
   skip_warm_start: true
-  glue_threshold: 0.0
+  glue:
+    threshold: 0.0
 evaluation:
   streamflow:
     station_id: 05BB001

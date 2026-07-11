@@ -112,7 +112,6 @@ model:
       LAPSE:
       - -7.0
       - -4.0
-    warmup_days: 730
     template_path: default
 optimization:
   methods:
@@ -121,11 +120,10 @@ optimization:
   algorithm: DREAM
   iterations: 37
   population_size: 27
-  target_metric: KGE
   skip_warm_start: true
   dream:
-    cr: 0.9
-    pairs: 3
+    crossover_probability: 0.9
+    de_pairs: 3
 evaluation:
   streamflow:
     station_id: 05BB001

@@ -17,6 +17,7 @@ import yaml
 from symfluence.core.config.key_validation import (
     RESERVED_CONTROL_KEYS,
     find_unknown_keys,
+    find_unknown_nested_keys,
     is_strict_config_mode,
     validate_known_flat_keys,
 )
@@ -288,3 +289,64 @@ class TestRecognizedFlatKeysAndLegacySpellings:
             "optimization",
             "metric",
         )
+
+
+class TestFindUnknownNestedKeys:
+    """Unknown-key detection for nested (lowercase-section) configs.
+
+    Motivating bug: ``evaluation: snotel: station_id:`` — SNOTELConfig's field
+    is ``station`` (alias SNOTEL_STATION), so the typo validated fine under
+    ``extra='allow'`` and was silently ignored at runtime.
+    """
+
+    def test_known_nested_key_passes(self):
+        assert find_unknown_nested_keys({"evaluation": {"snotel": {"station": "679"}}}) == []
+
+    def test_unknown_nested_key_flagged_with_dotted_path(self):
+        result = find_unknown_nested_keys({"evaluation": {"snotel": {"station_id": "679"}}})
+        assert result == ["evaluation.snotel.station_id"]
+
+    def test_alias_spelling_inside_section_is_known(self):
+        # Aliases live at the SAME level as the field they populate: with
+        # populate_by_name=True, SNOTEL_STATION is a legal input spelling for
+        # SNOTELConfig.station inside evaluation.snotel.
+        assert find_unknown_nested_keys(
+            {"evaluation": {"snotel": {"SNOTEL_STATION": "679"}}}
+        ) == []
+
+    def test_flat_uppercase_top_level_checked_against_flat_universe(self):
+        data = {
+            "DOMAIN_NAME": "x",  # recognized flat key
+            "HYDROLOGICAL_MDOEL": "SUMMA",  # the classic typo
+            "domain": {"name": "x"},
+        }
+        assert find_unknown_nested_keys(data) == ["HYDROLOGICAL_MDOEL"]
+
+    def test_unregistered_model_subsection_skipped(self):
+        # A model.<name> subsection whose schema is not registered (e.g. an
+        # external plugin absent from this environment) must not raise false
+        # positives — its contents are unknowable here.
+        data = {"model": {"hydrological_model": "SUMMA",
+                          "notarealmodelxyz": {"whatever_key": 1}}}
+        assert find_unknown_nested_keys(data) == []
+
+    def test_registered_model_subsection_validated(self):
+        data = {"model": {"hydrological_model": "SUMMA",
+                          "summa": {"definitely_not_a_summa_field": 1}}}
+        assert find_unknown_nested_keys(data) == ["model.summa.definitely_not_a_summa_field"]
+
+    def test_dict_valued_fields_are_opaque(self):
+        # parameter_bounds is Dict[str, Any]: its contents are user data, not
+        # config keys, and must never be walked.
+        data = {"optimization": {"parameter_bounds": {"albedoMax": [0.7, 0.95]}}}
+        assert find_unknown_nested_keys(data) == []
+
+    def test_reserved_extra_key_skipped(self):
+        assert find_unknown_nested_keys({"_extra": {"anything": 1},
+                                         "domain": {"_extra": 1}}) == []
+
+    def test_explicit_model_root(self):
+        from symfluence.core.config.models.evaluation import SNOTELConfig
+
+        assert find_unknown_nested_keys({"station": "679"}, model=SNOTELConfig) == []
+        assert find_unknown_nested_keys({"station_id": "679"}, model=SNOTELConfig) == ["station_id"]
