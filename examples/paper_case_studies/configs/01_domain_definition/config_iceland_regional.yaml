@@ -15,13 +15,13 @@ system:
 domain:
   name: Iceland_regional
   definition_method: semidistributed
-  # Delineated with TauDEM from the Copernicus 90 m DEM (the actual paper
-  # run: SUBSET_FROM_GEOFABRIC false, DEM_SOURCE copdem90, threshold 5000)
-  dem_source: copdem90
+  # Delineated with TauDEM from the Copernicus 30 m DEM, threshold 15000
+  # (the Iceland_multivar paper-run recipe; maintainer-adjudicated 2026-07-11)
+  dem_source: copernicus
   delineation:
     routing: distributed
     method: stream_threshold
-    stream_threshold: 5000
+    stream_threshold: 15000
     delineate_by_pourpoint: false
     delineate_coastal_watersheds: false
   time_start: 2000-01-01 01:00
