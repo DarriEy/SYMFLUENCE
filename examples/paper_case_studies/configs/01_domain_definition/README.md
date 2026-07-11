@@ -25,7 +25,7 @@ Counts below are the published values (also stated in each config header).
 | `config_bow_semidistributed_elev.yaml` | 49 | 379 | 49 | Sub-basins + elevation bands |
 | `config_bow_semidistributed_elev_aspect.yaml` | 49 | 2,596 | 49 | Sub-basins × elevation × aspect |
 | `config_bow_distributed.yaml` | 2,335 | 2,335 | 2,335 | 1 km grid cells |
-| `config_iceland_regional.yaml` | ~6.2k | ~6.2k | ~6.2k | TauDEM river basins, Copernicus 30 m DEM (Fig 3a) |
+| `config_iceland_regional.yaml` | ~6.2k | ~6.2k | ~6.2k | TauDEM river basins, Copernicus 90 m DEM (Fig 3a) |
 | `config_iceland_coastal.yaml` | ~6.5k | ~6.5k | ~6.2k | + coastal watersheds (Fig 3b) |
 | `config_iceland_coastal_elev.yaml` | ~6.5k | — | ~6.2k | coastal + elevation-band HRUs (Fig 3c) |
 
@@ -36,8 +36,9 @@ Key mechanics (documented in the config comments):
 
 - Bow sub-basins are delineated with TauDEM from the Copernicus 90 m DEM;
   `stream_threshold: 3400` reproduces the published 49 GRUs.
-- The Iceland domains are delineated with TauDEM from the Copernicus 30 m DEM
-  (`stream_threshold: 15000`), with coastal watersheds added via
+- The Iceland domains are delineated with TauDEM from the Copernicus 90 m DEM
+  (`stream_threshold: 1667` cells = 13.5 km2, the same contributing area as
+  the paper-run 30 m recipe), with coastal watersheds added via
   `delineate_coastal_watersheds`.
 - Hydrology and routing discretizations are independent: a lumped GRU can be
   paired with a 49-segment routing network (`delineation.routing:
