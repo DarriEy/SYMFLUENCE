@@ -1,6 +1,6 @@
 # Experiment 1: Iceland + coastal watersheds - semi-distributed
 # Iceland + coastal GRUs (Section 2.1, Fig. 3b, Table 1)
-# 7618 GRUs (6606 river basin + 1012 coastal), 7618 HRUs, 6606 segments
+# River-basin + coastal GRUs (counts regenerated from the pinned recipe)
 # Adds coastal drainage areas for complete spatial coverage of Iceland
 
 system:

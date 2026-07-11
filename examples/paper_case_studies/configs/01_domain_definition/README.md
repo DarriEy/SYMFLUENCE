@@ -21,20 +21,24 @@ Counts below are the published values (also stated in each config header).
 | `config_bow_lumped_elev_aspect.yaml` | 1 | 94 | 0 | Elevation × aspect classes |
 | `config_bow_lumped_distributed_routing.yaml` | 1 | 1 | 49 | Lumped hydrology, distributed routing |
 | `config_bow_lumped_elev_distributed_routing.yaml` | 1 | 12 | 49 | Elevation bands + distributed routing |
-| `config_bow_semidistributed.yaml` | 49 | 379 | 49 | TauDEM sub-basins, elevation-band HRUs |
+| `config_bow_semidistributed.yaml` | 49 | 49 | 49 | TauDEM sub-basin GRUs |
 | `config_bow_semidistributed_elev.yaml` | 49 | 379 | 49 | Sub-basins + elevation bands |
 | `config_bow_semidistributed_elev_aspect.yaml` | 49 | 2,596 | 49 | Sub-basins × elevation × aspect |
 | `config_bow_distributed.yaml` | 2,335 | 2,335 | 2,335 | 1 km grid cells |
-| `config_iceland_regional.yaml` | 6,606 | 6,606 | 6,606 | TDX-Hydro river basins (Fig 3a) |
-| `config_iceland_coastal.yaml` | 7,618 | 7,618 | 6,606 | + 1,012 coastal watersheds |
-| `config_iceland_coastal_elev.yaml` | 7,618 | 21,474 | 6,606 | Coastal + elevation-band HRUs |
+| `config_iceland_regional.yaml` | ~6.2k | ~6.2k | ~6.2k | TauDEM river basins, Copernicus 30 m DEM (Fig 3a) |
+| `config_iceland_coastal.yaml` | ~6.5k | ~6.5k | ~6.2k | + coastal watersheds (Fig 3b) |
+| `config_iceland_coastal_elev.yaml` | ~6.5k | — | ~6.2k | coastal + elevation-band HRUs (Fig 3c) |
+
+(Iceland counts are approximate pending regeneration; the manuscript's
+6,606/7,624/21,474 are being updated to match the pinned recipe.)
 
 Key mechanics (documented in the config comments):
 
 - Bow sub-basins are delineated with TauDEM from the Copernicus 90 m DEM;
   `stream_threshold: 3400` reproduces the published 49 GRUs.
-- The Iceland domains are **subset from the TDX-Hydro geofabric**
-  (`subset_from_geofabric: true`), not delineated with TauDEM.
+- The Iceland domains are delineated with TauDEM from the Copernicus 30 m DEM
+  (`stream_threshold: 15000`), with coastal watersheds added via
+  `delineate_coastal_watersheds`.
 - Hydrology and routing discretizations are independent: a lumped GRU can be
   paired with a 49-segment routing network (`delineation.routing:
   river_network`).
@@ -71,6 +75,6 @@ python -c "import geopandas as g; print(len(g.read_file('<...>/shapefiles/catchm
 
 ## Runtime
 
-Minutes per Bow/Paradise config; the Iceland domains take up to ~1 h
+Minutes per Bow/Paradise config once attribute data is cached (the first config per region pays the downloads); the Iceland domains take hours (large DEM + national-scale TauDEM run)
 (geofabric subsetting + attribute acquisition). Requires only CDS credentials
 for attribute/DEM sources per the top-level README; no model executables.

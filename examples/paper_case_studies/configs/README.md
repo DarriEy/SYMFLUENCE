@@ -15,7 +15,7 @@ symfluence workflow run --config <config.yaml>
 
 | Directory | Paper section | Figure | Configs | Approx. runtime |
 |---|---|---|---|---|
-| [`01_domain_definition/`](01_domain_definition/) | §2.1 | Figs 1–3, Table 1 | 14 | minutes each (Iceland: ~1 h) |
+| [`01_domain_definition/`](01_domain_definition/) | §2.1 | Figs 1–3, Table 1 | 14 | minutes each (Iceland: hours) |
 | [`02_model_ensemble/`](02_model_ensemble/) | §4.2.1 | Fig 7 | 19 | 0.5–8 h per model |
 | [`03_forcing_ensemble/`](03_forcing_ensemble/) | §4.1 | Fig 6 | 4 | 1–2 h each |
 | [`04_calibration_ensemble/`](04_calibration_ensemble/) | §4.2.3 | Fig 9 | 130 | 10 min – 2 h each |
