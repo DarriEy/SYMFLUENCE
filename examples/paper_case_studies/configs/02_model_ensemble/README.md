@@ -29,8 +29,8 @@ published result, not a bug.
 | `config_swat.yaml` | SWAT |
 | `config_topmodel.yaml` | TOPMODEL |
 | `config_xinanjiang.yaml` | Xinanjiang (+ Snow17 snow model) |
-| `config_ngen.yaml` | NGEN — run, excluded from pooled ensemble |
-| `config_vic.yaml` | VIC — run, excluded from pooled ensemble |
+| `config_ngen.yaml` | NGEN — excluded member; optional (`symfluence binary install ngen`) |
+| `config_vic.yaml` | VIC — excluded member; optional (`symfluence binary install vic`) |
 
 All 19 configs share the domain `Bow_at_Banff_lumped_era5` and run the full
 pipeline (domain definition → observations → ERA5 acquisition → preprocessing
