@@ -15,14 +15,13 @@ system:
 domain:
   name: Iceland_regional
   definition_method: semidistributed
-  # Delineated with TauDEM from the Copernicus 90 m DEM. Threshold 1667 cells
-  # = 13.5 km2, the same contributing area as the paper-run recipe (30 m DEM,
-  # 15000 cells); 90 m keeps the national delineation tractable on a laptop.
+  # Delineated with TauDEM from the Copernicus 90 m DEM, threshold 5000 cells
+  # (the Iceland_National run recipe; tractable on a laptop).
   dem_source: copdem90
   delineation:
     routing: distributed
     method: stream_threshold
-    stream_threshold: 1667
+    stream_threshold: 5000
     delineate_by_pourpoint: false
     delineate_coastal_watersheds: false
   time_start: 2000-01-01 01:00
