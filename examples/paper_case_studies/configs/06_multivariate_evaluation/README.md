@@ -29,7 +29,7 @@ the paper's JPL-based values). RDRS and WSC data are public.
 ## Run
 
 ```bash
-CFG=examples/paper_case_studies/configs/10_multivariate_evaluation
+CFG=examples/paper_case_studies/configs/06_multivariate_evaluation
 
 # One strategy:
 symfluence workflow run --config $CFG/config_streamflow_only.yaml
