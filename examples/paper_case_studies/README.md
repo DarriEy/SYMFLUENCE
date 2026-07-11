@@ -44,7 +44,7 @@ Check: `symfluence workflow list-steps` and
 
 ```bash
 symfluence binary install taudem sundials summa mizuroute fuse hype mesh crhm \
-    gsflow mhm prms rhessys swat vic ngen
+    gsflow mhm prms rhessys swat
 symfluence binary doctor
 ```
 
@@ -55,7 +55,7 @@ Compiles into `SYMFLUENCE_data/installs/` (~4 GB); found automatically.
 | Provider | Needed for | Setup |
 |---|---|---|
 | Copernicus CDS | ERA5, CARRA | API key in `~/.cdsapirc` ([cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)); accept each dataset licence once on the site |
-| NASA Earthdata | GRACE, MODIS, SMAP (experiment 10) | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)) |
+| NASA Earthdata | GRACE (experiment 10) | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)) |
 | AORC, RDRS, CONUS404, SNOTEL, WSC | forcing + observations | public, no credentials |
 
 ### 1.5 Data location
