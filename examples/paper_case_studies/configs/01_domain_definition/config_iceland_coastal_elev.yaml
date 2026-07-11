@@ -1,6 +1,6 @@
 # Experiment 1: Iceland + coastal - semi-distributed + elevation bands
 # Iceland + coastal + elevation-band HRUs (Section 2.1, Fig. 3c, Table 1)
-# 7618 GRUs, 21474 HRUs (~2.8 per GRU), 6606 segments
+# Coastal GRUs + elevation-band HRUs (counts regenerated from the pinned recipe)
 # Maximum Iceland configuration: coastal watersheds with elevation-band HRUs
 
 system:
