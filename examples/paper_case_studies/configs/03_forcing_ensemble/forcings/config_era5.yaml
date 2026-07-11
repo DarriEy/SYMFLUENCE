@@ -29,6 +29,10 @@ domain:
   spinup_period: 2015-01-01, 2015-09-30
   discretization: GRUs
   experiment_id: forcing_ensemble_era5
+data:
+  # SNOTEL SWE observations drive the SWE calibration (Fig. 6)
+  additional_observations:
+  - SNOTEL
 forcing:
   dataset: ERA5
 model:
