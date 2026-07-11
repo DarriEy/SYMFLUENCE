@@ -54,7 +54,7 @@ Compiles into `SYMFLUENCE_data/installs/` (~4 GB); found automatically.
 
 | Provider | Needed for | Setup |
 |---|---|---|
-| NASA Earthdata | GRACE (experiment 10) | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)) |
+| NASA Earthdata | experiment 10 only, and only for the JPL GRACE mascons the paper used | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)); to run credential-free, set `evaluation.grace.product` to the public CSR solution |
 | ERA5 (ARCO), AORC, RDRS, CONUS404, SNOTEL, WSC | forcing + observations | public, no credentials |
 
 ### 1.5 Data location
