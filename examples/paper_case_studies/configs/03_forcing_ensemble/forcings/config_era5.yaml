@@ -38,6 +38,11 @@ forcing:
 model:
   hydrological_model: SUMMA
   routing_model: none
+  summa:
+    # Snow-process parameter set from the paper runs (Fig. 6c centers on
+    # frozenPrecipMultip, the snowfall-undercatch correction)
+    params_to_calibrate: tempCritRain,tempRangeTimestep,frozenPrecipMultip,albedoMax,albedoMinWinter,albedoDecayRate,constSnowDen,mw_exp,k_snow,z0Snow
+    basin_params_to_calibrate: routingGammaScale
 optimization:
   methods:
   - iteration
