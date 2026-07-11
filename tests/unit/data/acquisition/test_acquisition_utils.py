@@ -634,3 +634,218 @@ class TestUtilsEdgeCases:
 
         assert target.exists()
         assert bytes_downloaded == len(content)
+
+
+# =============================================================================
+# Resumable Download Tests
+# =============================================================================
+
+
+class _FakeRangeResp:
+    """A minimal streaming response that honours Range and can break mid-stream.
+
+    ``chunks`` are yielded in order by ``iter_content``; if ``raise_at`` is set,
+    the exception ``exc`` is raised *after* yielding that many chunks, simulating
+    a connection dropped part-way through the body.
+    """
+
+    def __init__(self, status_code, headers, chunks, raise_at=None, exc=None):
+        self.status_code = status_code
+        self.headers = headers
+        self._chunks = list(chunks)
+        self._raise_at = raise_at
+        self._exc = exc
+
+    def raise_for_status(self):
+        from requests.exceptions import HTTPError
+        if self.status_code >= 400 and self.status_code != 416:
+            raise HTTPError(f"{self.status_code} Error")
+
+    def iter_content(self, chunk_size=65536):
+        for i, chunk in enumerate(self._chunks):
+            if self._raise_at is not None and i == self._raise_at:
+                raise self._exc
+            yield chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def _range_session(get_fn):
+    """Wrap a get(url, **kwargs) callable into an object with a .get method."""
+    session = MagicMock()
+    session.get.side_effect = get_fn
+    return session
+
+
+@pytest.mark.acquisition
+class TestDownloadFileResumable:
+    """Tests for download_file_resumable (HTTP range-based resume)."""
+
+    def test_resume_after_midstream_break(self, tmp_path):
+        """A dropped connection should resume from the .part offset, not restart."""
+        from requests.exceptions import ChunkedEncodingError
+
+        from symfluence.data.acquisition.utils import download_file_resumable
+
+        full = bytes((i % 256) for i in range(2048))
+        seen_ranges = []
+        state = {"n": 0}
+
+        def get(url, stream=True, timeout=None, headers=None, auth=None):
+            state["n"] += 1
+            seen_ranges.append((headers or {}).get("Range"))
+            if state["n"] == 1:
+                # First attempt: no range, deliver half then drop the connection.
+                return _FakeRangeResp(
+                    200,
+                    {"content-length": str(len(full))},
+                    chunks=[full[:1024], full[1024:]],
+                    raise_at=1,
+                    exc=ChunkedEncodingError("connection broken"),
+                )
+            # Second attempt: honour the range request, deliver the remainder.
+            return _FakeRangeResp(
+                206,
+                {
+                    "content-length": "1024",
+                    "Content-Range": f"bytes 1024-2047/{len(full)}",
+                },
+                chunks=[full[1024:]],
+            )
+
+        target = tmp_path / "soil.zip"
+        n = download_file_resumable(
+            "https://example.com/soil.zip",
+            target,
+            session=_range_session(get),
+            base_delay=0,
+        )
+
+        assert target.read_bytes() == full
+        assert n == len(full)
+        assert state["n"] == 2
+        # First attempt sends no Range; the resume attempt asks for bytes=1024-.
+        assert seen_ranges == [None, "bytes=1024-"]
+        assert not (tmp_path / "soil.zip.part").exists()
+
+    def test_server_ignoring_range_restarts_cleanly(self, tmp_path):
+        """If the server returns 200 to a Range request, restart (no corruption)."""
+        from symfluence.data.acquisition.utils import download_file_resumable
+
+        full = b"COMPLETE-PAYLOAD" * 8
+        # Pre-seed a stale .part so the function sends a Range header.
+        part = tmp_path / "f.bin.part"
+        part.write_bytes(b"GARBAGE-PARTIAL")
+
+        def get(url, stream=True, timeout=None, headers=None, auth=None):
+            # Ignore the Range: reply 200 with the full body.
+            return _FakeRangeResp(
+                200, {"content-length": str(len(full))}, chunks=[full]
+            )
+
+        target = tmp_path / "f.bin"
+        download_file_resumable(
+            "https://example.com/f.bin",
+            target,
+            session=_range_session(get),
+            base_delay=0,
+        )
+
+        # Must equal the full payload, not garbage+payload.
+        assert target.read_bytes() == full
+
+    def test_416_treated_as_complete(self, tmp_path):
+        """A 416 on an already-complete .part should finalise, not error."""
+        from symfluence.data.acquisition.utils import download_file_resumable
+
+        full = b"already-here" * 4
+        part = tmp_path / "d.bin.part"
+        part.write_bytes(full)
+
+        def get(url, stream=True, timeout=None, headers=None, auth=None):
+            return _FakeRangeResp(416, {}, chunks=[])
+
+        target = tmp_path / "d.bin"
+        n = download_file_resumable(
+            "https://example.com/d.bin",
+            target,
+            session=_range_session(get),
+            base_delay=0,
+        )
+        assert target.read_bytes() == full
+        assert n == len(full)
+
+    def test_custom_part_path_is_used_and_resumes(self, tmp_path):
+        """A caller-supplied part_path (e.g. .part.<pid>) resumes and is honoured."""
+        from requests.exceptions import ConnectionError as ReqConnErr
+
+        from symfluence.data.acquisition.utils import download_file_resumable
+
+        full = bytes((i % 251) for i in range(3000))
+        custom_part = tmp_path / "tile.tif.part.9999"
+        seen_ranges = []
+        state = {"n": 0}
+
+        def get(url, stream=True, timeout=None, headers=None, auth=None):
+            state["n"] += 1
+            seen_ranges.append((headers or {}).get("Range"))
+            if state["n"] == 1:
+                return _FakeRangeResp(
+                    200,
+                    {"content-length": str(len(full))},
+                    chunks=[full[:2000], full[2000:]],
+                    raise_at=1,
+                    exc=ReqConnErr("reset"),
+                )
+            return _FakeRangeResp(
+                206,
+                {"content-length": "1000", "Content-Range": f"bytes 2000-2999/{len(full)}"},
+                chunks=[full[2000:]],
+            )
+
+        target = tmp_path / "tile.tif"
+        download_file_resumable(
+            "https://example.com/tile.tif",
+            target,
+            session=_range_session(get),
+            base_delay=0,
+            part_path=custom_part,
+        )
+
+        assert target.read_bytes() == full
+        # The resume used the custom part file, not the default <target>.part.
+        assert seen_ranges == [None, "bytes=2000-"]
+        assert not custom_part.exists()
+        assert not (tmp_path / "tile.tif.part").exists()
+
+    def test_exhausts_attempts_and_retains_part(self, tmp_path):
+        """After max_attempts of persistent failures, raise and keep the .part."""
+        from requests.exceptions import ChunkedEncodingError
+
+        from symfluence.data.acquisition.utils import download_file_resumable
+
+        def get(url, stream=True, timeout=None, headers=None, auth=None):
+            return _FakeRangeResp(
+                200,
+                {"content-length": "4096"},
+                chunks=[b"x" * 512, b"y" * 512],
+                raise_at=1,
+                exc=ChunkedEncodingError("still broken"),
+            )
+
+        target = tmp_path / "e.bin"
+        with pytest.raises((ChunkedEncodingError, OSError)):
+            download_file_resumable(
+                "https://example.com/e.bin",
+                target,
+                session=_range_session(get),
+                max_attempts=3,
+                base_delay=0,
+            )
+        # The partial file is retained for a future resume (not deleted).
+        assert (tmp_path / "e.bin.part").exists()
+        assert not target.exists()
