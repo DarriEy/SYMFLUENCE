@@ -17,6 +17,7 @@ system:
   - run_model
   - calibrate_model
   data_dir: default
+  random_seed: 42   # pin the DDS trajectory; the paper runs were unseeded
   code_dir: default
 domain:
   name: paradise_snotel_wa
