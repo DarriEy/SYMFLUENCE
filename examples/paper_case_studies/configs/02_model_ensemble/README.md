@@ -4,8 +4,7 @@ Nineteen hydrological models are run on the identical experiment: Bow River at
 Banff (lumped domain, WSC station 05BB001), ERA5 forcing 2002–2009, DDS
 calibration with 1,000 iterations against KGE (`random_seed: 42`), calibration
 2004–2007, evaluation 2008–2009, spin-up 2002–2003. Seventeen models form the
-pooled ensemble of Fig 7; NGEN and VIC are run but **excluded from the pooled
-ensemble** — they calibrate poorly under the lumped constraint, which is the
+pooled ensemble of Fig 7.
 published result, not a bug.
 
 ## Configs (`models/`, one per model)
@@ -29,10 +28,8 @@ published result, not a bug.
 | `config_swat.yaml` | SWAT |
 | `config_topmodel.yaml` | TOPMODEL |
 | `config_xinanjiang.yaml` | Xinanjiang (+ Snow17 snow model) |
-| `config_ngen.yaml` | NGEN — excluded member; optional (`symfluence binary install ngen`) |
-| `config_vic.yaml` | VIC — excluded member; optional (`symfluence binary install vic`) |
 
-All 19 configs share the domain `Bow_at_Banff_lumped_era5` and run the full
+All 17 configs share the domain `Bow_at_Banff_lumped_era5` and run the full
 pipeline (domain definition → observations → ERA5 acquisition → preprocessing
 → `run_model` → `calibrate_model`).
 
@@ -44,7 +41,7 @@ CFG=examples/paper_case_studies/configs/02_model_ensemble
 # One model:
 symfluence workflow run --config $CFG/models/config_summa.yaml
 
-# All 19:
+# All 17:
 for f in $CFG/models/config_*.yaml; do
     symfluence workflow run --config "$f"
 done

@@ -69,7 +69,7 @@ directory).
 | Directory | Paper section | Figure | Configs |
 |---|---|---|---|
 | `configs/01_domain_definition` | §2.1 | Figs 1–3, Table 1 | 14 |
-| `configs/02_model_ensemble` | §4.2.1 | Fig 7 | 19 |
+| `configs/02_model_ensemble` | §4.2.1 | Fig 7 | 17 |
 | `configs/03_forcing_ensemble` | §4.1 | Fig 6 | 4 |
 | `configs/04_calibration_ensemble` | §4.2.3 | Fig 9 | 130 |
 | `configs/05_benchmarking` | §4.2.2 | Fig 8 | 1 |
