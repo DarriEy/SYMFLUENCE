@@ -302,8 +302,22 @@ class DomainManager(ConfigurableMixin):
         result, artifacts = self.domain_delineator.define_domain()
         self.delineation_artifacts = artifacts
 
-        if result:
-            self.logger.info(f"Domain definition completed using method: {domain_method}")
+        if not result:
+            # The delineator returned no domain (e.g. TauDEM watershed
+            # delineation produced nothing). Fail loudly here instead of
+            # silently marking define_domain complete and letting the next
+            # step (discretize_domain) die with a confusing "no such file"
+            # for the river-basins shapefile that was never created.
+            raise GeospatialError(
+                f"Domain definition failed for method '{domain_method}': the "
+                f"delineator produced no domain boundary. For watershed, lumped, "
+                f"or semi-distributed domains this usually means TauDEM is not "
+                f"installed or failed to run — install it with "
+                f"'symfluence binary install taudem' (then 'symfluence binary "
+                f"doctor') and review the delineation errors logged above."
+            )
+
+        self.logger.info(f"Domain definition completed using method: {domain_method}")
 
         # Generate diagnostic plots if enabled
         if self.reporting_manager and artifacts.river_basins_path:
