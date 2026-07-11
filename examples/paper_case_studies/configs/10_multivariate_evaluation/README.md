@@ -20,8 +20,11 @@ routing) and run the full pipeline through `calibrate_model`.
 
 ## Credentials
 
-GRACE TWS is fetched from NASA PO.DAAC — requires Earthdata credentials in
-`~/.netrc` (see top-level README §1.3). RDRS and WSC data are public.
+GRACE TWS: the shipped configs use the JPL mascon solution the paper used,
+which needs Earthdata credentials in `~/.netrc` (see top-level README §1.4).
+The CSR and GSFC solutions are public — set `evaluation.grace.product`
+accordingly to run without credentials (results will differ slightly from
+the paper's JPL-based values). RDRS and WSC data are public.
 
 ## Run
 
