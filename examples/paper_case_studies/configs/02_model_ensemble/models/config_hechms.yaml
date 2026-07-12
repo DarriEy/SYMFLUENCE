@@ -43,7 +43,11 @@ model:
   hydrological_model: HECHMS
   routing_model: none
   hechms:
-    params_to_calibrate: CN2,Ia,Tc,R,Snyder_Cp,Snyder_tp,K,X,baseflow_initial,recession_constant
+    # Empty = calibrate all 14 jHECHMS parameters (px_temp, base_temp, ati_*, cn,
+    # initial_abstraction_ratio, tc, r_coeff, gw_storage_coeff, deep_perc_fraction, ...).
+    # Legacy HEC-HMS names (CN2, Ia, Snyder_*, K, X, ...) are not jHECHMS parameters
+    # and are silently skipped, which leaves DDS with nothing to perturb.
+    params_to_calibrate: ''
     pet_method: oudin
     latitude: 51.17
 optimization:
