@@ -40,7 +40,7 @@ forcing:
   dataset: ERA5
   time_step_size: 3600
 model:
-  hydrological_model: SAC-SMA
+  hydrological_model: SACSMA
   routing_model: none
   sacsma:
     params_to_calibrate: UZTWM,UZFWM,UZK,PCTIM,ADIMP,ZPERC,REXP,LZTWM,LZFSM,LZFPM,LZSK,LZPK,PFREE

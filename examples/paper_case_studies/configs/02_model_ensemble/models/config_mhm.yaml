@@ -40,7 +40,7 @@ forcing:
   dataset: ERA5
   time_step_size: 3600
 model:
-  hydrological_model: mHM
+  hydrological_model: MHM
   routing_model: none
   mhm:
     params_to_calibrate: canopyInterceptionFactor,snowTreshholdTemperature,degreeDayFactor_forest,degreeDayFactor_pervious,PTF_Ks_constant,interflowRecession_slope,rechargeCoefficient,GeoParam(1,:),infiltrationShapeFactor,rootFractionCoefficient_pervious,interflowStorageCapacityFactor,slowInterflowRecession_Ks,muskingumTravelTime_constant,orgMatterContent_forest,minCorrectionFactorPET,maxCorrectionFactorPET,rootFractionCoefficient_forest,fastInterflowRecession_forest,exponentSlowInterflow,imperviousStorageCapacity,rechargeFactor_karstic
