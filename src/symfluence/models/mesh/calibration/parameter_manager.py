@@ -868,11 +868,18 @@ class MESHParameterManager(BaseParameterManager):
                     old_val = parts[pos_idx]
                     parts[pos_idx] = new_val_str
 
-                    # Reconstruct line with proper spacing
+                    # Reconstruct line with proper spacing. A token that fills
+                    # its 8-char field (e.g. 1.000E-02) would otherwise glue to
+                    # the previous field, shifting every later column and
+                    # consuming the trailing MID integer — MESH then aborts
+                    # ('Unable to read the file') on every subsequent read.
                     new_line = ""
                     for i, part in enumerate(parts):
                         if i < num_values:
-                            new_line += f"{part:>8}"
+                            field = f"{part:>8}"
+                            if new_line and not field.startswith(" "):
+                                field = " " + field
+                            new_line += field
                         else:
                             new_line += " " + part
                     new_line += "\n"

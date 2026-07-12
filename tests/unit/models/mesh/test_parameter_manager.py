@@ -213,6 +213,39 @@ class TestMESHParameterUpdates:
         assert float(xslp_line[0]) == pytest.approx(0.015, abs=0.001)
         assert float(xslp_line[3]) == pytest.approx(5.5, abs=0.1)
 
+    def test_update_class_file_preserves_delimiters_for_wide_tokens(
+        self, mesh_config, logger, temp_dir, class_ini_content
+    ):
+        """Field-filling tokens (e.g. 1.000E-02) must not glue to neighbours.
+
+        meshflow writes scientific-notation values that occupy the full 8-char
+        field; without an explicit delimiter the rebuilt line shifts every
+        later column and consumes the trailing MID integer, after which MESH
+        aborts with 'Unable to read the file' on every calibration trial.
+        """
+        wide_line = ("   0.030 1.000E-02   0.100 4.200E-03"
+                     "   100 Temp_sub-_gras  13 XSLP/XDRAINH/MANN/KSAT/MID\n")
+        content = class_ini_content.replace(
+            "   0.030   0.350   0.100   0.050"
+            "   100 Temp_sub-_gras  13 XSLP/XDRAINH/MANN/KSAT/MID\n",
+            wide_line,
+        )
+        assert "1.000E-02" in content
+        class_file = temp_dir / 'MESH_parameters_CLASS.ini'
+        class_file.write_text(content)
+
+        config = {**mesh_config, 'MESH_PARAMS_TO_CALIBRATE': 'XSLP'}
+        mgr = MESHParameterManager(config, logger, temp_dir)
+
+        # Apply repeatedly: the file must stay structurally intact each time.
+        for value in (0.015, 0.02, 0.12):
+            assert mgr._update_class_file(class_file, {'XSLP': value}) is True
+            tokens = class_file.read_text().splitlines()[12].split()
+            # 4 values + MID + veg tag + line number + comment = same 8 tokens
+            assert len(tokens) == 8, tokens
+            assert tokens[4] == '100', f"MID consumed: {tokens}"
+            assert float(tokens[0]) == pytest.approx(value, abs=0.001)
+
     def test_update_class_file_returns_false_when_no_updates(
         self, mesh_config, logger, temp_dir
     ):
