@@ -25,12 +25,13 @@ Counts below are the published values (also stated in each config header).
 | `config_bow_semidistributed_elev.yaml` | 49 | 379 | 49 | Sub-basins + elevation bands |
 | `config_bow_semidistributed_elev_aspect.yaml` | 49 | 2,596 | 49 | Sub-basins × elevation × aspect |
 | `config_bow_distributed.yaml` | 2,335 | 2,335 | 2,335 | 1 km grid cells |
-| `config_iceland_regional.yaml` | ~1.9k | ~1.9k | ~1.9k | TauDEM river basins, Copernicus 90 m DEM (Fig 3a) |
-| `config_iceland_coastal.yaml` | ~2.1k | ~2.1k | ~1.9k | + coastal watersheds (Fig 3b) |
-| `config_iceland_coastal_elev.yaml` | ~2.1k | — | ~1.9k | coastal + elevation-band HRUs (Fig 3c) |
+| `config_iceland_regional.yaml` | 1,894 | 1,894 | 1,895 | TauDEM river basins, Copernicus 90 m DEM (Fig 3a) |
+| `config_iceland_coastal.yaml` | 2,284 | 2,284 | 1,895 | + coastal watersheds (Fig 3b) |
+| `config_iceland_coastal_elev.yaml` | 2,284 | 7,185 | 1,895 | coastal + elevation-band HRUs (Fig 3c) |
 
-(Iceland counts are approximate pending regeneration; the manuscript's
-6,606/7,624/21,474 are being updated to match the pinned recipe.)
+(Counts measured from clean-environment runs of the pinned recipe,
+Copernicus 90 m + threshold 5000; the manuscript's Table 1 / Fig 3
+values are being updated to these.)
 
 Key mechanics (documented in the config comments):
 
