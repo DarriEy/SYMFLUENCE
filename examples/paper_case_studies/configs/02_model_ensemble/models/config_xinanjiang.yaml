@@ -40,7 +40,7 @@ forcing:
   dataset: ERA5
   time_step_size: 3600
 model:
-  hydrological_model: Xinanjiang
+  hydrological_model: XINANJIANG
   routing_model: none
   xinanjiang:
     params_to_calibrate: K,B,IM,UM,LM,DM,C,SM,EX,KI,KG,CI,CG

@@ -40,7 +40,7 @@ forcing:
   dataset: ERA5
   time_step_size: 3600
 model:
-  hydrological_model: HEC-HMS
+  hydrological_model: HECHMS
   routing_model: none
   hechms:
     params_to_calibrate: CN2,Ia,Tc,R,Snyder_Cp,Snyder_tp,K,X,baseflow_initial,recession_constant

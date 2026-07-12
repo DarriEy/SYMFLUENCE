@@ -41,7 +41,7 @@ forcing:
   dataset: ERA5
   time_step_size: 3600
 model:
-  hydrological_model: GR4J
+  hydrological_model: GR
   routing_model: none
   gr:
     params_to_calibrate: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
