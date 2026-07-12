@@ -43,6 +43,22 @@ model:
   hydrological_model: MESH
   routing_model: none
   mesh:
+    # Calibration bounds from the frozen June run (defaults let initials
+    # fall outside the searched space)
+    param_bounds:
+      KSAT: [1.0, 50.0]
+      DRN: [0.5, 4.0]
+      SDEP: [0.5, 5.0]
+      XSLP: [0.005, 0.15]
+      XDRAINH: [0.05, 1.0]
+      MANN_CLASS: [0.03, 0.35]
+      ZSNL: [0.005, 0.08]
+      ZPLS: [0.005, 0.12]
+      ZPLG: [0.02, 0.4]
+      FRZTH: [0.1, 2.0]
+      LAMX: [0.5, 6.0]
+      RSMIN: [100.0, 800.0]
+      ROOT: [0.1, 2.0]
     params_to_calibrate: KSAT,DRN,SDEP,XSLP,ZSNL,ZPLS,ZPLG,XDRAINH,MANN_CLASS,FRZTH,RSMIN,LAMX,ROOT
     spatial_mode: lumped
     spinup_days: 730
