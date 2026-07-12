@@ -55,7 +55,7 @@ optimization:
   methods:
   - iteration
   metric: KGE
-  gradient_mode: finite_difference
+  gradient_mode: native
   algorithm: ADAM
   iterations: 500
   skip_warm_start: true
