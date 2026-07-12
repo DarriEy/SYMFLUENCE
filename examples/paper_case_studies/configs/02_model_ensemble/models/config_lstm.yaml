@@ -54,6 +54,8 @@ model:
 optimization:
   methods:
   - iteration
+  # Inert for LSTM (self-training via PyTorch; key only names the output dir).
+  # Kept at the frozen run's value so paths match the curated logs.
   algorithm: PSO
   iterations: 1000
   metric: KGE
