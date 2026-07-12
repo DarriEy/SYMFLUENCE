@@ -11,7 +11,6 @@ the resulting data volumes and remapping workloads.
 
 | Config | Domain | Forcing | Observations |
 |---|---|---|---|
-| `config_paradise.yaml` | `paradise_snotel_wa` — point scale (WA) | ERA5 | SNOTEL |
 | `config_bow.yaml` | `Bow_at_Banff_lumped` — lumped catchment (AB) | ERA5 | WSC |
 
 All data sources are public (ERA5 via the ARCO cloud mirror); SNOTEL and
