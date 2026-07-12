@@ -9,6 +9,7 @@ dataset for the contiguous United States via the HyTEST data catalog.
 """
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -278,7 +279,30 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
             if var:
                 req_vars.append(var)
 
-        ds_raw = _load_with_retry(ds_subset[req_vars], self.logger)
+        # Load year-by-year with a persistent cache: a single whole-period
+        # load means one dropped chunk after hours restarts from zero on a
+        # flaky route, whereas cached yearly files make retries cumulative.
+        import xarray as xr
+
+        cache_dir = output_dir / "conus404_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        yearly_files = []
+        for yr in range(self.start_date.year, self.end_date.year + 1):
+            yf = cache_dir / f"{self.domain_name}_CONUS404_{yr}.nc"
+            yearly_files.append(yf)
+            if yf.exists():
+                self.logger.info(f"CONUS404 {yr}: using cached year file")
+                continue
+            self.logger.info(f"CONUS404 {yr}: extracting")
+            ds_year = ds_subset[req_vars].sel(time=str(yr))
+            ds_raw_year = _load_with_retry(ds_year, self.logger)
+            tmp = yf.with_name(f"{yf.name}.part.{os.getpid()}")
+            ds_raw_year.to_netcdf(tmp)
+            tmp.replace(yf)
+
+        ds_raw = xr.concat(
+            [xr.open_dataset(f) for f in yearly_files], dim="time"
+        )
 
         # Standardize variable names using centralized utility
         standardizer = VariableStandardizer(self.logger)
