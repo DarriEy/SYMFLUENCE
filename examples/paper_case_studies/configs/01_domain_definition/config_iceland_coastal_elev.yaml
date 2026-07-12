@@ -17,6 +17,7 @@ domain:
   name: Iceland_coastal_elev
   definition_method: semidistributed
   bounding_box_coords: 66.6/-24.6/63.2/-13.2
+  pour_point_coords: 63.93/-21.03
   # Delineated with TauDEM from the Copernicus 90 m DEM, threshold 5000 cells
   # (the Iceland_National run recipe; tractable on a laptop).
   dem_source: copdem90
