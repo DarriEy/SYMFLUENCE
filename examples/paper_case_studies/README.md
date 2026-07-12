@@ -74,7 +74,7 @@ directory).
 | `configs/04_calibration_ensemble` | §4.2.3 | Fig 9 | 130 |
 | `configs/05_benchmarking` | §4.2.2 | Fig 8 | 1 |
 | `configs/06_multivariate_evaluation` | §4.2.4 | Fig 10 | 4 |
-| `configs/07_data_pipeline` | §2.2 | Fig 4 | 2 |
+| `configs/07_data_pipeline` | §2.2 | Fig 4 | 1 |
 | `configs/08_parallel_scaling` | §5 | Fig 11 | 14 (laptop row; cluster row = README recipe) |
 
 Each directory has a README with its config list and the reference values from
