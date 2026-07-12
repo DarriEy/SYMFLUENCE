@@ -95,7 +95,7 @@ jax = [
   # differentiable-calibration experiments (ADAM/L-BFGS, autodiff) require it.
   "jax>=0.4.26",
   "jsnow17>=0.1.0",
-  "jsacsma>=0.2.3",
+  "jsacsma>=0.2.4",
   "jxaj>=0.2.3",
   "jhbv>=0.2.4",
   "jhechms>=0.2.3",
