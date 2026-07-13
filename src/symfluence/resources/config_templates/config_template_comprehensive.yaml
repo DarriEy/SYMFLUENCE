@@ -635,6 +635,90 @@ MESH_DAILY_TOLERANCE_DAYS: 1
 #   Description: Mesh Param Bounds
 MESH_PARAM_BOUNDS: null
 
+# MESH_SOIL_SAND
+#   Type:        Optional[List[float]]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override per-layer soil SAND percentage (CLASS line 14) across all GRU blocks.
+MESH_SOIL_SAND: null
+
+# MESH_SOIL_CLAY
+#   Type:        Optional[List[float]]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override per-layer soil CLAY percentage (CLASS line 15).
+MESH_SOIL_CLAY: null
+
+# MESH_SOIL_ORGM
+#   Type:        Optional[List[float]]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override per-layer soil organic matter fraction (CLASS line 16).
+MESH_SOIL_ORGM: null
+
+# MESH_DD
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS drainage density DD (line 12, DRN/SDEP/FARE/DD).
+MESH_DD: null
+
+# MESH_MID
+#   Type:        Optional[int]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS MID soil-layer flag (line 13, XSLP/XDRAINH/MANN/KSAT/MID).
+MESH_MID: null
+
+# MESH_INIT_TBAR
+#   Type:        Optional[List[float]]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override initial soil-layer temperatures TBAR (CLASS line 17).
+MESH_INIT_TBAR: null
+
+# MESH_INIT_THLQ
+#   Type:        Optional[List[float]]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override initial liquid soil-moisture THLQ (CLASS line 18).
+MESH_INIT_THLQ: null
+
+# MESH_VEG_CMAS
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS canopy mass CMAS (line 07, 4xCMAS).
+MESH_VEG_CMAS: null
+
+# MESH_VEG_QA50
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS reference VPD QA50 (line 09, 4xQA50).
+MESH_VEG_QA50: null
+
+# MESH_VEG_VPDA
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS VPD slope VPDA (line 10, 4xVPDA).
+MESH_VEG_VPDA: null
+
+# MESH_VEG_VPDB
+#   Type:        Optional[float]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override CLASS VPD exponent VPDB (line 10, 4xVPDB).
+MESH_VEG_VPDB: null
+
+# MESH_IWF
+#   Type:        Optional[int]
+#   Default:     None
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Description: Override interflow flag IWF in hydrology.ini (0=off, 1=on).
+MESH_IWF: null
+
 
 # 13. Routing Model (mizuRoute)
 # ================================================================================

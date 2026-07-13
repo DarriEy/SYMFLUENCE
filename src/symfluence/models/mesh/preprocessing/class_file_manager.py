@@ -625,6 +625,189 @@ class CLASSFileManager:
         return params[climate][season]
 
     # ------------------------------------------------------------------
+    # Config field overrides
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fmt_value(value: float) -> str:
+        """Format a float using the same width heuristic as the calibrator."""
+        av = abs(value)
+        if av < 0.01:
+            return f"{value:.4f}"
+        if av < 1:
+            return f"{value:.3f}"
+        if av < 100:
+            return f"{value:.2f}"
+        return f"{value:.1f}"
+
+    @staticmethod
+    def _rewrite_line_values(line: str, num_values: int, replacements: dict) -> str:
+        """Rewrite specific positional values on a fixed-format CLASS line.
+
+        Values with index < ``num_values`` are written as right-justified
+        8-char fields (matching the calibrator's formatting); any remaining
+        tokens (comments, veg labels, line numbers) are preserved verbatim.
+
+        Args:
+            line: The raw CLASS line.
+            num_values: Number of leading numeric fields on the line.
+            replacements: Mapping ``{position_index: formatted_string}``.
+
+        Returns:
+            The rewritten line (without trailing newline).
+        """
+        parts = line.split()
+        for pos, val in replacements.items():
+            if 0 <= pos < len(parts):
+                parts[pos] = val
+
+        new_line = ""
+        for i, part in enumerate(parts):
+            if i < num_values:
+                field = f"{part:>8}"
+                if new_line and not field.startswith(" "):
+                    field = " " + field
+                new_line += field
+            else:
+                new_line += " " + part
+        return new_line
+
+    def apply_field_overrides(self, overrides: dict) -> None:
+        """Override meshflow-derived CLASS fields from config.
+
+        meshflow hard-derives regime-determining fields (soil texture, drainage
+        density, initial states, vegetation parameters) from the input data.
+        This applies user-configured overrides to those fields across ALL GRU
+        blocks so the surface-runoff regime is controllable from config alone.
+
+        Only keys present (non-None) in ``overrides`` are applied. Recognised
+        keys: ``sand``/``clay``/``orgm`` (per-layer lists), ``dd`` (float),
+        ``mid`` (int), ``tbar``/``thlq`` (per-layer lists), and the veg scalars
+        ``cmas``/``qa50``/``vpda``/``vpdb``.
+
+        Args:
+            overrides: Dict of override values (see above).
+        """
+        if not self._path.exists():
+            return
+
+        active = {k: v for k, v in overrides.items() if v is not None}
+        if not active:
+            return
+
+        try:
+            with open(self._path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            applied: set = set()
+            for i, line in enumerate(lines):
+                new_line = self._apply_overrides_to_line(line, active, applied)
+                if new_line is not None:
+                    lines[i] = new_line + '\n'
+
+            with open(self._path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+
+            if applied:
+                self.logger.info(
+                    f"Applied CLASS field overrides from config: "
+                    f"{', '.join(sorted(applied))}"
+                )
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.warning(f"Failed to apply CLASS field overrides: {e}", exc_info=True)
+
+    def _apply_overrides_to_line(
+        self, line: str, active: dict, applied: set
+    ) -> Optional[str]:
+        """Return the rewritten line if it matches an override marker, else None."""
+        fmt = self._fmt_value
+
+        def _layer_replacements(values: list, count: int) -> dict:
+            n = min(len(values), count)
+            return {pos: fmt(float(values[pos])) for pos in range(n)}
+
+        # Soil texture / initial-state lines (leading 3x-per-layer values)
+        if '3xSAND' in line and 'sand' in active:
+            vals = active['sand']
+            applied.add('sand')
+            return self._rewrite_line_values(line, len(vals), _layer_replacements(vals, len(vals)))
+        if '3xCLAY' in line and 'clay' in active:
+            vals = active['clay']
+            applied.add('clay')
+            return self._rewrite_line_values(line, len(vals), _layer_replacements(vals, len(vals)))
+        if '3xORGM' in line and 'orgm' in active:
+            vals = active['orgm']
+            applied.add('orgm')
+            return self._rewrite_line_values(line, len(vals), _layer_replacements(vals, len(vals)))
+        if '3xTBAR' in line and 'tbar' in active:
+            vals = active['tbar']
+            applied.add('tbar')
+            return self._rewrite_line_values(line, 6, _layer_replacements(vals, 3))
+        if '3xTHLQ' in line and 'thlq' in active:
+            vals = active['thlq']
+            applied.add('thlq')
+            return self._rewrite_line_values(line, 7, _layer_replacements(vals, 3))
+
+        # DRN/SDEP/FARE/DD — DD at position 3
+        if 'DRN/SDEP' in line and 'dd' in active:
+            applied.add('dd')
+            return self._rewrite_line_values(line, 4, {3: fmt(float(active['dd']))})
+
+        # XSLP/XDRAINH/MANN/KSAT/MID — MID at position 4 (integer)
+        if 'XSLP/XDRAINH' in line and 'mid' in active:
+            applied.add('mid')
+            return self._rewrite_line_values(line, 5, {4: str(int(active['mid']))})
+
+        # Vegetation lines — override only the ACTIVE (currently non-zero)
+        # column(s) in the 4x parameter group, leaving inactive categories at
+        # zero. Writing the scalar into inactive (FCAN=0) columns activates
+        # vegetation physics for categories that are not present and drives
+        # CLASS into a snow-energy-balance crash, so we mirror meshflow's
+        # single-active-column layout.
+        if '5xALVC/4xCMAS' in line and 'cmas' in active:
+            applied.add('cmas')
+            return self._rewrite_line_values(
+                line, 9, self._active_group_replacements(line, 5, 8, fmt(float(active['cmas'])))
+            )
+        if '4xRSMN/4xQA50' in line and 'qa50' in active:
+            applied.add('qa50')
+            return self._rewrite_line_values(
+                line, 8, self._active_group_replacements(line, 4, 7, fmt(float(active['qa50'])))
+            )
+        if '4xVPDA/4xVPDB' in line and ('vpda' in active or 'vpdb' in active):
+            repl = {}
+            if 'vpda' in active:
+                applied.add('vpda')
+                repl.update(self._active_group_replacements(line, 0, 3, fmt(float(active['vpda']))))
+            if 'vpdb' in active:
+                applied.add('vpdb')
+                repl.update(self._active_group_replacements(line, 4, 7, fmt(float(active['vpdb']))))
+            return self._rewrite_line_values(line, 8, repl)
+
+        return None
+
+    @staticmethod
+    def _active_group_replacements(line: str, lo: int, hi: int, value: str) -> dict:
+        """Map the active (non-zero) columns in ``[lo, hi]`` to ``value``.
+
+        The 4x vegetation groups carry one value per canopy category; only the
+        category present in this GRU is non-zero. We override exactly those
+        column(s), falling back to the last column when the group is all-zero.
+        """
+        parts = line.split()
+        active_positions = []
+        for pos in range(lo, hi + 1):
+            if pos < len(parts):
+                try:
+                    if float(parts[pos]) != 0.0:
+                        active_positions.append(pos)
+                except ValueError:
+                    continue
+        if not active_positions:
+            active_positions = [hi]
+        return {pos: value for pos in active_positions}
+
+    # ------------------------------------------------------------------
     # Elevation band blocks
     # ------------------------------------------------------------------
 

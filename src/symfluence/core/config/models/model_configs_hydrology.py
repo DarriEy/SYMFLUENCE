@@ -388,6 +388,27 @@ class MESHConfig(BaseModel):
     daily_tolerance_days: int = Field(default=1, alias='MESH_DAILY_TOLERANCE_DAYS')
     param_bounds: Optional[Dict[str, Any]] = Field(default=None, alias='MESH_PARAM_BOUNDS')
 
+    # ------------------------------------------------------------------
+    # CLASS / hydrology field overrides
+    # ------------------------------------------------------------------
+    # meshflow hard-derives these regime-determining fields from the input
+    # data (soil texture, drainage density, initial states, veg params). When
+    # set, these keys OVERRIDE the meshflow-derived values so the surface-runoff
+    # regime can be controlled from config alone (no shipping of hand-tuned
+    # files). Left as None => keep whatever meshflow produced.
+    soil_sand: Optional[List[float]] = Field(default=None, alias='MESH_SOIL_SAND')
+    soil_clay: Optional[List[float]] = Field(default=None, alias='MESH_SOIL_CLAY')
+    soil_orgm: Optional[List[float]] = Field(default=None, alias='MESH_SOIL_ORGM')
+    drainage_density: Optional[float] = Field(default=None, alias='MESH_DD')
+    mid: Optional[int] = Field(default=None, alias='MESH_MID')
+    init_tbar: Optional[List[float]] = Field(default=None, alias='MESH_INIT_TBAR')
+    init_thlq: Optional[List[float]] = Field(default=None, alias='MESH_INIT_THLQ')
+    veg_cmas: Optional[float] = Field(default=None, alias='MESH_VEG_CMAS')
+    veg_qa50: Optional[float] = Field(default=None, alias='MESH_VEG_QA50')
+    veg_vpda: Optional[float] = Field(default=None, alias='MESH_VEG_VPDA')
+    veg_vpdb: Optional[float] = Field(default=None, alias='MESH_VEG_VPDB')
+    iwf: Optional[int] = Field(default=None, alias='MESH_IWF')
+
 
 
 class RHESSysConfig(BaseModel):

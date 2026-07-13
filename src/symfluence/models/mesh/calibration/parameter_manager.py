@@ -32,19 +32,52 @@ class MESHParameterManager(BaseParameterManager):
 
     # Marker comments used by meshflow to identify parameter lines in CLASS.ini
     # Maps: marker substring -> (expected param names at each position, total_value_count)
-    # Vegetation lines use 9 values: 5xFCAN/LNZ0/ALVC/ALIC + 4xLAMX/LAMN/CMAS/ROOT
     # Only params listed in param_file_map are detected (others are skipped).
+    # NOTE: vegetation params are NOT positioned here — see VEG_PARAM_LAYOUT.
     CLASS_LINE_MARKERS = {
-        'DRN/SDEP': (['DRN', 'SDEP', 'FARE', 'DD'], 4),
+        'DRN/SDEP': (['DRN', 'SDEP', None, 'DD'], 4),
         'XSLP/XDRAINH/MANN/KSAT': (['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT'], 5),
-        'FCAN': ([None, None, None, None, None, 'LAMX', None, None, None], 9),
-        '5xLNZ0/4xLAMN': ([None, None, None, None, None, 'LAMN', None, None, None], 9),
-        '5xALVC/4xCMAS': ([None, None, None, None, None, 'CMAS', None, None, None], 9),
-        'ALIC': ([None, None, None, None, None, 'ROOT', None, None, None], 9),
-        'RSMN': (['RSMIN', None, None, None, 'QA50', None, None, None], 8),
-        '4xVPDA/4xVPDB': (['VPDA', None, None, None, None, None, None, None], 8),
-        '4xPSGA/4xPSGB': (['PSGA', None, None, None, None, None, None, None], 8),
+        'FCAN': ([None] * 9, 9),
+        '5xLNZ0/4xLAMN': ([None] * 9, 9),
+        '5xALVC/4xCMAS': ([None] * 9, 9),
+        'ALIC': ([None] * 9, 9),
+        'RSMN': ([None] * 8, 8),
+        '4xVPDA/4xVPDB': ([None] * 8, 8),
+        '4xPSGA/4xPSGB': ([None] * 8, 8),
     }
+
+    # CLASS carries one value per canopy category (needleleaf, broadleaf, crops,
+    # grass) in each vegetation parameter group. Only the category whose FCAN is
+    # non-zero is active for a GRU; a value written to any other column is inert
+    # (it silently does nothing) and, when it activates an otherwise-absent
+    # category, can drive CLASS into a snow-energy-balance crash.
+    #
+    # The column is therefore NOT fixed: it is ``group_start + active_canopy_index``,
+    # where the active index comes from the block's FCAN line. This mirrors how
+    # CLASSFileManager.apply_field_overrides targets the active column.
+    #
+    # Map: param -> (line marker, group start position, values on line)
+    VEG_PARAM_LAYOUT = {
+        'LAMX':  ('5xFCAN/4xLAMX', 5, 9),
+        'LAMN':  ('5xLNZ0/4xLAMN', 5, 9),
+        'CMAS':  ('5xALVC/4xCMAS', 5, 9),
+        'ROOT':  ('5xALIC/4xROOT', 5, 9),
+        'RSMIN': ('4xRSMN/4xQA50', 0, 8),
+        'QA50':  ('4xRSMN/4xQA50', 4, 8),
+        'VPDA':  ('4xVPDA/4xVPDB', 0, 8),
+        'VPDB':  ('4xVPDA/4xVPDB', 4, 8),
+        'PSGA':  ('4xPSGA/4xPSGB', 0, 8),
+    }
+
+    # Line offsets of each vegetation parameter relative to the block's
+    # DRN/SDEP line (CLASS line 12), used to locate the line in every GRU block.
+    VEG_LINE_OFFSET_FROM_DRN = {
+        'LAMX': -7, 'LAMN': -6, 'CMAS': -5, 'ROOT': -4,
+        'RSMIN': -3, 'QA50': -3, 'VPDA': -2, 'VPDB': -2, 'PSGA': -1,
+    }
+
+    # Number of canopy categories in a CLASS 4x vegetation group.
+    N_CANOPY_CATEGORIES = 4
 
     # Default multipliers for landcover-specific parameter scaling
     # These allow differentiated soil/surface parameters by landcover type
@@ -118,6 +151,7 @@ class MESHParameterManager(BaseParameterManager):
             'KSAT': 'CLASS',      # Saturated hydraulic conductivity (mm/hr) - Line 13, pos 4
             'DRN': 'CLASS',       # Drainage parameter - Line 12, pos 1
             'SDEP': 'CLASS',      # Soil depth (m) - Line 12, pos 2
+            'DD': 'CLASS',        # Drainage density - Line 12, pos 4
             'XSLP': 'CLASS',      # Slope - Line 13, pos 1
             'XDRAINH': 'CLASS',   # Horizontal drainage - Line 13, pos 2
             'MANN_CLASS': 'CLASS', # Manning for overland flow - Line 13, pos 3
@@ -186,18 +220,23 @@ class MESHParameterManager(BaseParameterManager):
         Returns:
             Dict mapping parameter name to (line_index, col_position, n_values).
         """
-        # Standard meshflow defaults (0-indexed lines)
+        # Standard meshflow defaults (0-indexed lines). Vegetation columns default
+        # to the grass slot (canopy index 3), which is what meshflow emits for a
+        # single-GRU lumped domain; the real index is detected from FCAN below.
+        grass = self.N_CANOPY_CATEGORIES - 1
         defaults = {
-            'LAMX': (5, 5, 9),    # Line 05: 5xFCAN + 4xLAMX, LAMX at pos 5
-            'LAMN': (6, 5, 9),    # Line 06: 5xLNZ0 + 4xLAMN, LAMN at pos 5
-            'CMAS': (7, 5, 9),    # Line 07: 5xALVC + 4xCMAS, CMAS at pos 5
-            'ROOT': (8, 5, 9),    # Line 08: 5xALIC + 4xROOT, ROOT at pos 5
-            'RSMIN': (9, 0, 8),   # Line 09: 4xRSMN + 4xQA50, RSMIN at pos 0
-            'QA50': (9, 4, 8),    # Line 09: 4xRSMN + 4xQA50, QA50 at pos 4
-            'VPDA': (10, 0, 8),   # Line 10: 4xVPDA + 4xVPDB, VPDA at pos 0
-            'PSGA': (11, 0, 8),   # Line 11: 4xPSGA + 4xPSGB, PSGA at pos 0
+            'LAMX': (5, 5 + grass, 9),
+            'LAMN': (6, 5 + grass, 9),
+            'CMAS': (7, 5 + grass, 9),
+            'ROOT': (8, 5 + grass, 9),
+            'RSMIN': (9, 0 + grass, 8),
+            'QA50': (9, 4 + grass, 8),
+            'VPDA': (10, 0 + grass, 8),
+            'VPDB': (10, 4 + grass, 8),
+            'PSGA': (11, 0 + grass, 8),
             'DRN': (12, 0, 4),
             'SDEP': (12, 1, 4),
+            'DD': (12, 3, 4),
             'XSLP': (13, 0, 5),
             'XDRAINH': (13, 1, 5),
             'MANN_CLASS': (13, 2, 5),
@@ -216,38 +255,43 @@ class MESHParameterManager(BaseParameterManager):
 
         detected: Dict[str, tuple] = {}
 
+        # --- Non-vegetation (fixed-column) params -------------------------
         for line_idx, raw_line in enumerate(lines):
             for marker, (param_names, n_values) in self.CLASS_LINE_MARKERS.items():
-                if marker in raw_line:
-                    # The marker is in the *comment* portion of the DATA line that
-                    # precedes or is on the same line.  meshflow puts the comment
-                    # on the same line as the values (e.g.
-                    #   "   1.000   2.500   1.000  50.000  12 DRN/SDEP/FARE/DD")
-                    # The parameter DATA is on this same line.
-                    data_line_idx = line_idx
+                if marker not in raw_line:
+                    continue
+                # meshflow puts the comment on the same line as the values, e.g.
+                #   "   1.000   2.500   1.000  50.000  12 DRN/SDEP/FARE/DD"
+                # but some formats place the comment on a header line above.
+                data_line_idx = line_idx
+                numeric_count = 0
+                for tok in raw_line.split():
+                    try:
+                        float(tok)
+                        numeric_count += 1
+                    except ValueError:
+                        break
+                if numeric_count < n_values and line_idx + 1 < len(lines):
+                    data_line_idx = line_idx + 1
 
-                    # Also check the preceding line — some formats place the
-                    # comment on a separate header line above the data.
-                    parts = raw_line.split()
-                    # If all initial tokens are numeric, the data is on this line
-                    numeric_count = 0
-                    for tok in parts:
-                        try:
-                            float(tok)
-                            numeric_count += 1
-                        except ValueError:
-                            break
-                    if numeric_count < n_values and line_idx + 1 < len(lines):
-                        # Marker line is a header/comment; data is on the NEXT line
-                        data_line_idx = line_idx + 1
+                for pos, pname in enumerate(param_names):  # type: ignore[var-annotated]
+                    if pname in self.param_file_map:
+                        detected[pname] = (data_line_idx, pos, n_values)
 
-                    for pos, pname in enumerate(param_names):  # type: ignore[var-annotated]
-                        if pname in self.param_file_map:
-                            detected[pname] = (data_line_idx, pos, n_values)
+        # --- Vegetation params: column depends on the active canopy -------
+        fcan_line = self._find_marker_line(lines, self.VEG_PARAM_LAYOUT['LAMX'][0])
+        active = self._active_veg_index(lines, fcan_line)
+        for pname, (marker, group_start, n_values) in self.VEG_PARAM_LAYOUT.items():
+            if pname not in self.param_file_map:
+                continue
+            line_idx = self._find_marker_line(lines, marker)
+            if line_idx is None:
+                continue
+            detected[pname] = (line_idx, group_start + active, n_values)
 
         if detected:
             self.logger.debug(
-                f"Detected CLASS param positions from markers: "
+                f"Detected CLASS param positions (active canopy index {active}): "
                 f"{', '.join(f'{k}=line{v[0]+1}:pos{v[1]}' for k, v in detected.items())}"
             )
             # Merge with defaults so that any params NOT matched still have
@@ -258,6 +302,42 @@ class MESHParameterManager(BaseParameterManager):
 
         self.logger.debug("No CLASS markers found; using default line positions")
         return defaults
+
+    @staticmethod
+    def _find_marker_line(lines: List[str], marker: str) -> Optional[int]:
+        """Index of the first line carrying ``marker``, or None."""
+        for i, line in enumerate(lines):
+            if marker in line:
+                return i
+        return None
+
+    @classmethod
+    def _active_veg_index(
+        cls, lines: List[str], fcan_line_idx: Optional[int]
+    ) -> int:
+        """Return the active canopy-category index (0-3) for a GRU block.
+
+        CLASS vegetation groups carry one value per canopy category
+        (needleleaf, broadleaf, crops, grass). The active category is the one
+        with a non-zero FCAN on CLASS line 05; writing a calibrated value to
+        any other column is inert. Defaults to grass when FCAN is unreadable
+        or all-zero, matching meshflow's single-GRU lumped output.
+        """
+        grass = cls.N_CANOPY_CATEGORIES - 1
+        if fcan_line_idx is None or not (0 <= fcan_line_idx < len(lines)):
+            return grass
+
+        parts = lines[fcan_line_idx].split()
+        fcan = []
+        for i in range(cls.N_CANOPY_CATEGORIES):
+            try:
+                fcan.append(float(parts[i]))
+            except (IndexError, ValueError):
+                fcan.append(0.0)
+
+        if max(fcan) > 0.0:
+            return max(range(cls.N_CANOPY_CATEGORIES), key=lambda i: fcan[i])
+        return grass
 
     def _detect_all_gru_blocks(self) -> List[Dict[str, Any]]:
         """Detect all GRU/landcover parameter blocks in CLASS.ini.
@@ -828,23 +908,33 @@ class MESHParameterManager(BaseParameterManager):
                         line_idx = drn_line
                         pos_idx = 0 if param_name == 'DRN' else 1
                         num_values = 4
+                    elif param_name == 'DD':
+                        line_idx = drn_line
+                        pos_idx = 3
+                        num_values = 4
                     elif param_name in ['XSLP', 'XDRAINH', 'MANN_CLASS', 'KSAT']:
                         line_idx = xslp_line
                         pos_map = {'XSLP': 0, 'XDRAINH': 1, 'MANN_CLASS': 2, 'KSAT': 3}
                         pos_idx = pos_map[param_name]
                         num_values = 5
+                    elif param_name in self.VEG_PARAM_LAYOUT:
+                        # Vegetation params: the column is the block's ACTIVE canopy
+                        # category, not a fixed slot. Writing to an inactive
+                        # (FCAN=0) column is a silent no-op and can destabilise
+                        # CLASS, so resolve it per block from that block's FCAN line.
+                        _marker, group_start, num_values = self.VEG_PARAM_LAYOUT[param_name]
+                        line_idx = drn_line + self.VEG_LINE_OFFSET_FROM_DRN[param_name]
+                        fcan_line = drn_line + self.VEG_LINE_OFFSET_FROM_DRN['LAMX']
+                        pos_idx = group_start + self._active_veg_index(lines, fcan_line)
                     elif param_name in self.class_param_positions:
-                        # Fallback: use detected positions for vegetation params (LAMX, ROOT, etc.)
                         line_idx_base, pos_idx, num_values = self.class_param_positions[param_name]
-                        if block_idx == 0:
-                            line_idx = line_idx_base
-                        else:
-                            # For multi-GRU, compute offset relative to DRN line
-                            default_drn = self.class_param_positions.get('DRN', (12, 0, 4))[0]
-                            offset = line_idx_base - default_drn
-                            line_idx = drn_line + offset
+                        default_drn = self.class_param_positions.get('DRN', (12, 0, 4))[0]
+                        line_idx = drn_line + (line_idx_base - default_drn)
                     else:
                         continue  # Not a CLASS.ini parameter
+
+                    if line_idx is not None and line_idx < 0:
+                        continue
 
                     if line_idx is None or line_idx >= len(lines):
                         continue

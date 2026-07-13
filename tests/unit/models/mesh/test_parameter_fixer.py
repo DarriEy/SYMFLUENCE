@@ -559,3 +559,230 @@ class TestRemoveSmallGRUs:
         with xr.open_dataset(fixer.ddb_path) as ds_out:
             # Should keep at least one GRU (the largest)
             assert ds_out.sizes["NGRU"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# TestClassFieldOverrides
+# ---------------------------------------------------------------------------
+
+# A realistic single-GRU CLASS.ini block as produced by meshflow + fixes.
+# Values here are the *flashy-regime* meshflow-derived defaults that the
+# config overrides must be able to replace.
+_MESHFLOW_CLASS_INI = """\
+  MESH Model                                                                 01 TITLE
+  MESHFlow                                                                   02 NAME
+  University of Calgary, Canada                                              03 PLACE
+   51.36   -116.00      10.0      2.0       50.0   -1.0    1    1    1       04 DEGLAT/DEGLON/ZRFM/ZRFH/ZBLD/GC/ILW/NL/NM
+
+   0.000   0.000   0.000   1.000   0.000    3.15   0.000   0.000   1.500 05 5xFCAN/4xLAMX
+   0.000   0.000   0.000  -4.605   0.000   0.000   0.000   0.000   1.500     06 5xLNZ0/4xLAMN
+   0.000   0.000   0.000   0.050   0.000   0.000   0.000   0.000   0.200 07 5xALVC/4xCMAS
+   0.000   0.000   0.000   0.290   0.000    1.00   0.000   0.000   0.100 08 5xALIC/4xROOT
+   450.0   0.000   0.000 100.000   0.000   0.000   0.000  30.000 09 4xRSMN/4xQA50
+   0.000   0.000   0.000   0.500   0.000   0.000   0.000   1.000 10 4xVPDA/4xVPDB
+   0.000   0.000   0.000 100.000           0.000   0.000   0.000   5.000     11 4xPSGA/4xPSGB
+    1.00   0.810   1.000   2.960 12 DRN/SDEP/FARE/DD
+   0.155   0.505   0.022   32.20      10 Temp_sub-_gras 13 XSLP/XDRAINH/MANN/KSAT/MID
+  23.000  25.000  33.000                                                     14 3xSAND (or more)
+  11.000  12.000  15.000                                                     15 3xCLAY (or more)
+   1.000   1.000   0.470                                                     16 3xORGM (or more)
+  5.000  5.000  5.000  -5.000  -10.000   0.000  17 3xTBAR (or more)/TCAN/TSNO/TPND
+   0.200   0.200   0.200   0.000   0.000   0.000   0.000                     18 3xTHLQ (or more)/3xTHIC (or more)/ZPND
+   0.000   0.000   100.0   0.75   250.0   1.000  19 RCAN/SCAN/SNO/ALBS/RHOS/GRO
+
+   0       0       0       0                                                 20 (not used, but 4x integer values are required)
+"""
+
+_JUNE_OVERRIDES = {
+    'sand': [50.0, 50.0, 50.0],
+    'clay': [20.0, 20.0, 20.0],
+    'orgm': [0.0, 0.0, 0.0],
+    'dd': 50.0,
+    'mid': 100,
+    'tbar': [4.0, 2.0, 1.0],
+    'thlq': [0.25, 0.15, 0.04],
+    'cmas': 4.5,
+    'qa50': 36.0,
+    'vpda': 0.8,
+    'vpdb': 1.05,
+}
+
+
+class TestClassFieldOverrides:
+    """Test CLASSFileManager.apply_field_overrides (config-driven CLASS fields)."""
+
+    def _mgr(self, path):
+        from symfluence.models.mesh.preprocessing.class_file_manager import (
+            CLASSFileManager,
+        )
+        return CLASSFileManager(path, Mock())
+
+    def test_overrides_all_regime_fields(self, forcing_dir):
+        """All configured fields should replace the meshflow-derived values."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        p.write_text(_MESHFLOW_CLASS_INI)
+        self._mgr(p).apply_field_overrides(dict(_JUNE_OVERRIDES))
+
+        lines = p.read_text().splitlines()
+
+        def line_with(marker):
+            return next(ln for ln in lines if marker in ln)
+
+        sand = line_with('3xSAND').split()
+        assert sand[:3] == ['50.00', '50.00', '50.00']
+        clay = line_with('3xCLAY').split()
+        assert clay[:3] == ['20.00', '20.00', '20.00']
+        # DD is the 4th value on the DRN/SDEP/FARE/DD line
+        dd_line = line_with('DRN/SDEP').split()
+        assert dd_line[3] == '50.00'
+        # MID is the 5th value on the XSLP line; the veg label must be preserved
+        xslp_line = line_with('XSLP/XDRAINH')
+        assert xslp_line.split()[4] == '100'
+        assert 'Temp_sub-_gras' in xslp_line
+        # TBAR first three values, TCAN/TSNO preserved
+        tbar_line = line_with('3xTBAR').split()
+        assert tbar_line[:3] == ['4.00', '2.00', '1.00']
+        assert tbar_line[3] == '-5.000'
+        thlq_line = line_with('3xTHLQ').split()
+        assert thlq_line[:3] == ['0.250', '0.150', '0.040']
+        # Veg scalars applied only to the active (non-zero) column, mirroring
+        # meshflow's single-active-category layout (inactive columns stay 0).
+        cmas_line = line_with('5xALVC/4xCMAS').split()
+        assert cmas_line[5:9] == ['0.000', '0.000', '0.000', '4.50']
+        qa50_line = line_with('4xRSMN/4xQA50').split()
+        assert qa50_line[4:8] == ['0.000', '0.000', '0.000', '36.00']
+        vpd_line = line_with('4xVPDA/4xVPDB').split()
+        assert vpd_line[0:4] == ['0.000', '0.000', '0.000', '0.800']
+        assert vpd_line[4:8] == ['0.000', '0.000', '0.000', '1.05']
+
+    def test_none_values_are_noop(self, forcing_dir):
+        """Unset (None) override keys must not modify the file."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        p.write_text(_MESHFLOW_CLASS_INI)
+        self._mgr(p).apply_field_overrides({'sand': None, 'dd': None})
+        assert p.read_text() == _MESHFLOW_CLASS_INI
+
+    def test_empty_overrides_noop(self, forcing_dir):
+        """An empty override dict must not modify the file."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        p.write_text(_MESHFLOW_CLASS_INI)
+        self._mgr(p).apply_field_overrides({})
+        assert p.read_text() == _MESHFLOW_CLASS_INI
+
+    def test_partial_override_leaves_others(self, forcing_dir):
+        """Only the specified field changes; siblings stay meshflow-derived."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        p.write_text(_MESHFLOW_CLASS_INI)
+        self._mgr(p).apply_field_overrides({'dd': 50.0})
+        lines = p.read_text().splitlines()
+        dd_line = next(ln for ln in lines if 'DRN/SDEP' in ln).split()
+        assert dd_line[3] == '50.00'
+        # SAND untouched -> still the flashy-regime meshflow values
+        sand = next(ln for ln in lines if '3xSAND' in ln).split()
+        assert sand[:3] == ['23.000', '25.000', '33.000']
+
+    def test_missing_file_no_error(self, forcing_dir):
+        """Should silently return if the CLASS file doesn't exist."""
+        self._mgr(forcing_dir / "does_not_exist.ini").apply_field_overrides(
+            dict(_JUNE_OVERRIDES)
+        )
+
+    def test_veg_override_targets_only_active_column(self, forcing_dir):
+        """Inactive (zero) veg columns must stay zero to avoid CLASS crashes."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        p.write_text(_MESHFLOW_CLASS_INI)
+        self._mgr(p).apply_field_overrides({'cmas': 4.5})
+        cmas = next(
+            ln for ln in p.read_text().splitlines() if '5xALVC/4xCMAS' in ln
+        ).split()
+        # Only the active (position 8) column changes; 5-7 remain zero.
+        assert cmas[5:9] == ['0.000', '0.000', '0.000', '4.50']
+
+    def test_veg_override_all_zero_fallback(self, forcing_dir):
+        """When the 4x group is all-zero, override the last column."""
+        p = forcing_dir / "MESH_parameters_CLASS.ini"
+        # CMAS group (positions 5-8) all zero.
+        p.write_text(
+            "   0.000   0.000   0.000   0.050   0.000   0.000   0.000   0.000"
+            "   0.000 07 5xALVC/4xCMAS\n"
+        )
+        self._mgr(p).apply_field_overrides({'cmas': 4.5})
+        cmas = p.read_text().split()
+        assert cmas[5:9] == ['0.000', '0.000', '0.000', '4.50']
+
+    def test_fixer_reads_config_overrides(self, forcing_dir, setup_dir):
+        """MESHParameterFixer.apply_class_field_overrides should honor config."""
+        from symfluence.models.mesh.preprocessing.parameter_fixer import (
+            MESHParameterFixer,
+        )
+        fixer = MESHParameterFixer(
+            forcing_dir=forcing_dir,
+            setup_dir=setup_dir,
+            config={
+                "HYDROLOGICAL_MODEL": "MESH",
+                "MESH_SPINUP_DAYS": 365,
+                "MESH_SOIL_SAND": [50.0, 50.0, 50.0],
+                "MESH_DD": 50.0,
+                "MESH_MID": 100,
+                "MESH_VEG_CMAS": 4.5,
+            },
+        )
+        fixer.class_file_path.write_text(_MESHFLOW_CLASS_INI)
+        fixer.apply_class_field_overrides()
+
+        lines = fixer.class_file_path.read_text().splitlines()
+        sand = next(ln for ln in lines if '3xSAND' in ln).split()
+        assert sand[:3] == ['50.00', '50.00', '50.00']
+        dd_line = next(ln for ln in lines if 'DRN/SDEP' in ln).split()
+        assert dd_line[3] == '50.00'
+
+
+class TestHydrologyIwfOverride:
+    """Test MESHParameterFixer.apply_hydrology_field_overrides (IWF flag)."""
+
+    def _fixer(self, forcing_dir, setup_dir, iwf):
+        from symfluence.models.mesh.preprocessing.parameter_fixer import (
+            MESHParameterFixer,
+        )
+        return MESHParameterFixer(
+            forcing_dir=forcing_dir,
+            setup_dir=setup_dir,
+            config={
+                "HYDROLOGICAL_MODEL": "MESH",
+                "MESH_SPINUP_DAYS": 365,
+                "MESH_IWF": iwf,
+            },
+        )
+
+    def test_sets_iwf_off(self, forcing_dir, setup_dir):
+        """MESH_IWF=0 should turn interflow off in hydrology.ini."""
+        fixer = self._fixer(forcing_dir, setup_dir, 0)
+        fixer.hydro_path.write_text("IWF   1\nRCHARG  0.2\n")
+        fixer.apply_hydrology_field_overrides()
+        content = fixer.hydro_path.read_text()
+        assert "IWF   0" in content
+        assert "RCHARG  0.2" in content
+
+    def test_preserves_comment(self, forcing_dir, setup_dir):
+        """Trailing comments on the IWF line should be preserved."""
+        fixer = self._fixer(forcing_dir, setup_dir, 0)
+        fixer.hydro_path.write_text("IWF   1  # interflow flag\n")
+        fixer.apply_hydrology_field_overrides()
+        content = fixer.hydro_path.read_text()
+        assert "IWF   0" in content
+        assert "# interflow flag" in content
+
+    def test_unset_is_noop(self, forcing_dir, setup_dir):
+        """No MESH_IWF -> hydrology file unchanged."""
+        from symfluence.models.mesh.preprocessing.parameter_fixer import (
+            MESHParameterFixer,
+        )
+        fixer = MESHParameterFixer(
+            forcing_dir=forcing_dir,
+            setup_dir=setup_dir,
+            config={"HYDROLOGICAL_MODEL": "MESH", "MESH_SPINUP_DAYS": 365},
+        )
+        original = "IWF   1\n"
+        fixer.hydro_path.write_text(original)
+        fixer.apply_hydrology_field_overrides()
+        assert fixer.hydro_path.read_text() == original

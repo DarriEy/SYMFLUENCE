@@ -233,6 +233,86 @@ class MESHParameterFixer(ConfigMixin):
             start_month, latitude
         )
 
+    def apply_class_field_overrides(self) -> None:
+        """Override meshflow-derived CLASS fields with configured values.
+
+        meshflow hard-derives regime-determining CLASS fields (soil texture,
+        drainage density, initial states, vegetation params) from the input
+        data. When the corresponding ``MESH_*`` config keys are set they
+        override those fields across all GRU blocks, letting the surface-runoff
+        regime be controlled from config alone.  Left unset => keep meshflow's
+        values (no-op).
+        """
+        overrides = {
+            'sand': self._get_config_value(
+                lambda: self.config.model.mesh.soil_sand, default=None, dict_key='MESH_SOIL_SAND'),
+            'clay': self._get_config_value(
+                lambda: self.config.model.mesh.soil_clay, default=None, dict_key='MESH_SOIL_CLAY'),
+            'orgm': self._get_config_value(
+                lambda: self.config.model.mesh.soil_orgm, default=None, dict_key='MESH_SOIL_ORGM'),
+            'dd': self._get_config_value(
+                lambda: self.config.model.mesh.drainage_density, default=None, dict_key='MESH_DD'),
+            'mid': self._get_config_value(
+                lambda: self.config.model.mesh.mid, default=None, dict_key='MESH_MID'),
+            'tbar': self._get_config_value(
+                lambda: self.config.model.mesh.init_tbar, default=None, dict_key='MESH_INIT_TBAR'),
+            'thlq': self._get_config_value(
+                lambda: self.config.model.mesh.init_thlq, default=None, dict_key='MESH_INIT_THLQ'),
+            'cmas': self._get_config_value(
+                lambda: self.config.model.mesh.veg_cmas, default=None, dict_key='MESH_VEG_CMAS'),
+            'qa50': self._get_config_value(
+                lambda: self.config.model.mesh.veg_qa50, default=None, dict_key='MESH_VEG_QA50'),
+            'vpda': self._get_config_value(
+                lambda: self.config.model.mesh.veg_vpda, default=None, dict_key='MESH_VEG_VPDA'),
+            'vpdb': self._get_config_value(
+                lambda: self.config.model.mesh.veg_vpdb, default=None, dict_key='MESH_VEG_VPDB'),
+        }
+        self._class_mgr.apply_field_overrides(overrides)
+
+    def apply_hydrology_field_overrides(self) -> None:
+        """Override meshflow-derived hydrology.ini fields with configured values.
+
+        Currently supports the IWF interflow flag: when ``MESH_IWF`` is set,
+        the ``IWF`` line's value(s) are replaced (0=off, 1=on). Left unset =>
+        keep meshflow's value (no-op).
+        """
+        iwf = self._get_config_value(
+            lambda: self.config.model.mesh.iwf, default=None, dict_key='MESH_IWF'
+        )
+        if iwf is None or not self.hydro_path.exists():
+            return
+
+        try:
+            with open(self.hydro_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            modified = False
+            for i, line in enumerate(lines):
+                if re.match(r'^\s*IWF\b', line):
+                    # Preserve any trailing comment; replace all numeric tokens
+                    # with the configured value (one per GRU column).
+                    comment = ''
+                    body = line.rstrip('\n')
+                    for marker in ('#', '!'):
+                        if marker in body:
+                            idx = body.index(marker)
+                            comment = ' ' + body[idx:]
+                            body = body[:idx]
+                            break
+                    tokens = body.split()
+                    n_values = max(1, len(tokens) - 1)  # tokens[0] == 'IWF'
+                    values = '    '.join([str(int(iwf))] * n_values)
+                    lines[i] = f"IWF   {values}{comment}\n"
+                    modified = True
+                    break
+
+            if modified:
+                with open(self.hydro_path, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
+                self.logger.info(f"Set hydrology IWF={int(iwf)} from config")
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.warning(f"Failed to apply hydrology IWF override: {e}", exc_info=True)
+
     # ==================================================================
     # Hydrology methods (kept directly — no suitable helper group)
     # ==================================================================
