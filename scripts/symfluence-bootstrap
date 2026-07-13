@@ -1260,6 +1260,9 @@ Wrapper-only options:
   --wrapper-info     Show wrapper and environment information
   --wrapper-debug    Run wrapper in debug mode
   --install          Set up Python environment and install external tools
+  --paper-repro      As --install, but scoped to the Paper 3 case studies:
+                     adds the JAX model plugins and builds only the 13
+                     binaries those experiments use (RHESSys patched)
 
 All other options are passed to the symfluence CLI (see 'symfluence --help').
 EOF
@@ -1416,6 +1419,10 @@ main() {
             return 0
         fi
         [[ "$arg" == "--install" ]] && run_install=true
+        if [[ "$arg" == "--paper-repro" ]]; then
+            run_install=true
+            export SYMFLUENCE_PAPER_REPRO=1
+        fi
     done
 
     # Set sane defaults for SYMFLUENCE_* based on working dir
@@ -1677,6 +1684,15 @@ else:
         print_info "Installing SYMFLUENCE package..."
         # Use --no-deps because we already installed them from requirements.txt
         # This prevents pip from trying to build GDAL from source on Windows
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            print_info "Installing JAX model plugins (paper repro: jHBV/jSACSMA/jXAJ/jHECHMS/jTOPMODEL/jSnow17)..."
+            python -m pip install "jax>=0.4.26" "jsnow17>=0.1.0" "jsacsma>=0.2.4" "jxaj>=0.2.3" \
+                "jhbv>=0.2.4" "jhechms>=0.2.3" "jtopmodel>=0.2.3" || {
+                print_error "JAX plugin installation failed"
+                exit 1
+            }
+        fi
+
         python -m pip install -e . --no-deps || {
             print_error "SYMFLUENCE package installation failed"
             exit 1
@@ -1787,11 +1803,19 @@ else:
             _lock_hpc_compilers
         fi
 
-        print_info "Installing external tools..."
-        "$venv_cli" binary install || {
-            print_error "External tools installation failed"
-            exit 1
-        }
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            print_info "Installing the Paper 3 binaries (13 tools, RHESSys patched)..."
+            "$venv_cli" binary install --paper-repro || {
+                print_error "External tools installation failed"
+                exit 1
+            }
+        else
+            print_info "Installing external tools..."
+            "$venv_cli" binary install || {
+                print_error "External tools installation failed"
+                exit 1
+            }
+        fi
         print_info "Validating installation..."
         "$venv_cli" binary validate || {
             print_error "Binary validation failed"
