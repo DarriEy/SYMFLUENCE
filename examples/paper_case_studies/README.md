@@ -19,10 +19,13 @@ cd SYMFLUENCE
 ./scripts/symfluence-bootstrap --paper-repro
 ```
 
-That one command creates the Python environment, installs SYMFLUENCE with the
-JAX model plugins, sets up GDAL/R/NetCDF, and compiles exactly the 13 model
-binaries these experiments use (RHESSys with the paper's subsurface-GW patch).
-Expect 30–60 minutes, mostly compilation.
+That one command creates the Python environment, installs SYMFLUENCE and all
+its models (including the JAX-native ones), sets up GDAL/R/NetCDF, and compiles
+exactly the 13 model binaries these experiments use — RHESSys with the paper's
+subsurface-GW patch. Expect 30–60 minutes, mostly compilation.
+
+(`--paper-repro` differs from a plain `--install` only in which binaries get
+built: 13 instead of all 26.)
 
 Prerequisites: Python 3.11/3.12, a C/C++/Fortran toolchain and CMake
 (`brew install gcc cmake` / `apt install build-essential gfortran cmake`), and

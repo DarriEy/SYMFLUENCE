@@ -1684,15 +1684,6 @@ else:
         print_info "Installing SYMFLUENCE package..."
         # Use --no-deps because we already installed them from requirements.txt
         # This prevents pip from trying to build GDAL from source on Windows
-        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
-            print_info "Installing JAX model plugins (paper repro: jHBV/jSACSMA/jXAJ/jHECHMS/jTOPMODEL/jSnow17)..."
-            python -m pip install "jax>=0.4.26" "jsnow17>=0.1.0" "jsacsma>=0.2.4" "jxaj>=0.2.3" \
-                "jhbv>=0.2.4" "jhechms>=0.2.3" "jtopmodel>=0.2.3" || {
-                print_error "JAX plugin installation failed"
-                exit 1
-            }
-        fi
-
         python -m pip install -e . --no-deps || {
             print_error "SYMFLUENCE package installation failed"
             exit 1
