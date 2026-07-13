@@ -17,7 +17,8 @@ symfluence workflow run --config <config.yaml>
 - GDAL library + headers: `brew install gdal` / `apt install gdal-bin libgdal-dev`
 - C/C++/Fortran compilers and CMake for the compiled models:
   `brew install gcc cmake` / `apt install build-essential gfortran cmake`
-- R ≥ 4 with `airGR` (GR4J member only): `Rscript -e 'install.packages("airGR")'`
+- R ≥ 4 with `airGR` (GR4J member only): `Rscript -e 'install.packages("airGR")'`,
+  plus `pip install rpy2` in the venv (or `pip install -e ".[r]"`)
 
 ### 1.2 Install SYMFLUENCE
 
