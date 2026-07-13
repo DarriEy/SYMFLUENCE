@@ -43,7 +43,10 @@ model:
   hydrological_model: SACSMA
   routing_model: none
   sacsma:
-    params_to_calibrate: UZTWM,UZFWM,UZK,PCTIM,ADIMP,ZPERC,REXP,LZTWM,LZFSM,LZFPM,LZSK,LZPK,PFREE
+    # 'all' = 13 SAC-SMA soil params + Snow-17 params; the Bow at Banff is
+    # snowmelt-dominated, so Snow-17 must be in the calibration vector.
+    params_to_calibrate: all
+    latitude: 51.17
 optimization:
   methods:
   - iteration
