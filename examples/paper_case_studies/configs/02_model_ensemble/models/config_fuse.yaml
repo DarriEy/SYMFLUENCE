@@ -47,6 +47,25 @@ model:
     spatial_mode: lumped
     run_internal_calibration: false   # calibrate externally via DDS only; disable FUSE-native SCE (code default is true)
     params_to_calibrate: MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE
+    # Frozen-run search space (FUSE_PARAM_BOUNDS): FUSE-native constraint-file bounds.
+    # The registry defaults exclude the Fig. 7 optimum on 8 of 13 parameters
+    # (BASERTE 521 vs cap 1, PERCRTE 497 vs cap 100, LAPSE -5.7 vs [3,10], PXTEMP 3.9
+    # vs [-2,2]; MBASE/MFMAX/MFMIN shadowed by Snow-17 entries), capping DDS at
+    # KGE ~0.68. These wide bounds are part of the experiment definition.
+    param_bounds:
+      MAXWATR_1: [25.0, 1000.0]
+      MAXWATR_2: [50.0, 5000.0]
+      BASERTE: [0.001, 1000.0]
+      QB_POWR: [1.0, 10.0]
+      TIMEDELAY: [0.01, 5.0]
+      PERCRTE: [0.1, 1000.0]
+      FRACTEN: [0.05, 0.95]
+      RTFRAC1: [0.05, 0.95]
+      MBASE: [0.0, 3.0]
+      MFMAX: [2.0, 8.0]
+      MFMIN: [0.4, 6.0]
+      PXTEMP: [-1.0, 5.0]
+      LAPSE: [-7.0, -4.0]
 optimization:
   methods:
   - iteration
