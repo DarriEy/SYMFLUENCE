@@ -261,6 +261,10 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
         self.parameter_fixer.fix_class_vegetation_parameters()
+        # Config-driven overrides of regime-determining CLASS/hydrology fields
+        # (applied last so they win over meshflow-derived defaults).
+        self.parameter_fixer.apply_class_field_overrides()
+        self.parameter_fixer.apply_hydrology_field_overrides()
         self.parameter_fixer.fix_reservoir_file()
         self.parameter_fixer.configure_lumped_outputs()
         self.parameter_fixer.create_safe_forcing()
@@ -524,6 +528,10 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
         self.parameter_fixer.fix_class_vegetation_parameters()
+        # Config-driven overrides of regime-determining CLASS/hydrology fields
+        # (applied last so they win over meshflow-derived defaults).
+        self.parameter_fixer.apply_class_field_overrides()
+        self.parameter_fixer.apply_hydrology_field_overrides()
         # Fix reservoir file after drainage database is finalized
         self.parameter_fixer.fix_reservoir_file()
         # Configure output for lumped mode calibration

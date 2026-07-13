@@ -335,6 +335,7 @@ class ParameterBoundsRegistry:
         'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
         'DRN': ParameterInfo(0.5, 10.0, '-', 'Drainage parameter', 'soil'),
         'SDEP': ParameterInfo(0.5, 1.5, 'm', 'Soil depth', 'soil'),
+        'DD': ParameterInfo(1.0, 100.0, '-', 'CLASS drainage density (line 12)', 'soil'),
         'XSLP': ParameterInfo(0.01, 0.3, '-', 'Slope for overland flow', 'surface'),
         'XDRAINH': ParameterInfo(0.01, 1.0, '-', 'Horizontal drainage coefficient', 'soil'),
         'MANN_CLASS': ParameterInfo(0.01, 0.5, '-', 'Manning coefficient for overland flow', 'surface'),
@@ -945,7 +946,7 @@ def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
     """
     mesh_params = [
         # CLASS.ini parameters (runoff generation)
-        'KSAT', 'DRN', 'SDEP', 'XSLP', 'XDRAINH', 'MANN_CLASS',
+        'KSAT', 'DRN', 'SDEP', 'DD', 'XSLP', 'XDRAINH', 'MANN_CLASS',
         # CLASS.ini vegetation parameters (ET control)
         'LAMX', 'LAMN', 'ROOT', 'CMAS', 'RSMIN',
         'QA50', 'VPDA', 'PSGA',

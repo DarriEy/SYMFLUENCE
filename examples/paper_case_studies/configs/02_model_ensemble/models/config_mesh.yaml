@@ -43,6 +43,23 @@ model:
   hydrological_model: MESH
   routing_model: none
   mesh:
+    # Override the regime-determining CLASS/hydrology fields that meshflow
+    # hard-derives from the input data. Without these, meshflow locks in a
+    # flashy surface-runoff regime (soils SAND 23/25/33, DD 2.96, MID 10,
+    # interflow ON) that calibration cannot escape (best KGE ~0.05). These
+    # restore the framework-default regime the June Fig 7b run used (KGE ~0.6).
+    soil_sand: [50.0, 50.0, 50.0]
+    soil_clay: [20.0, 20.0, 20.0]
+    soil_orgm: [0.0, 0.0, 0.0]
+    drainage_density: 50.0     # DD (CLASS line 12)
+    mid: 100                   # MID (CLASS line 13)
+    init_tbar: [4.0, 2.0, 1.0]
+    init_thlq: [0.25, 0.15, 0.04]
+    veg_cmas: 4.5
+    veg_qa50: 36.0
+    veg_vpda: 0.8
+    veg_vpdb: 1.05
+    iwf: 0                     # interflow OFF (June had no IWF line)
     # Calibration bounds from the frozen June run (defaults let initials
     # fall outside the searched space)
     param_bounds:

@@ -373,3 +373,105 @@ class TestMESHClassPositionDetection:
         mgr = MESHParameterManager(config, logger, temp_dir)
         # Should use default positions without error
         assert mgr.class_param_positions['KSAT'] == (13, 3, 5)
+
+
+# ---------------------------------------------------------------------------
+# Vegetation column targeting (regression)
+# ---------------------------------------------------------------------------
+
+# Single-GRU CLASS block. FCAN = 0,0,0,1.000,0 -> the active canopy category is
+# GRASS (index 3), so every 4x vegetation group's live slot is group_start + 3:
+#   LAMX/LAMN/CMAS/ROOT -> position 8;  RSMIN -> position 3;  QA50 -> position 7.
+_GRASS_CLASS_INI = """\
+  MESH Model                                                                 01 TITLE
+   51.36   -116.00      10.0      2.0       50.0   -1.0    1    1    1       04 DEGLAT/DEGLON/ZRFM/ZRFH/ZBLD/GC/ILW/NL/NM
+
+   0.000   0.000   0.000   1.000   0.000   0.000   0.000   0.000   1.450     05 5xFCAN/4xLAMX
+   0.000   0.000   0.000  -2.500   0.000   0.000   0.000   0.000   1.200     06 5xLNZ0/4xLAMN
+   0.000   0.000   0.000   0.045   0.000   0.000   0.000   0.000   4.500     07 5xALVC/4xCMAS
+   0.000   0.000   0.000   0.160   0.000   0.000   0.000   0.000   1.090     08 5xALIC/4xROOT
+   0.000   0.000   0.000 200.000           0.000   0.000   0.000  36.000     09 4xRSMN/4xQA50
+   0.000   0.000   0.000   0.800           0.000   0.000   0.000   1.050     10 4xVPDA/4xVPDB
+   0.000   0.000   0.000 100.000           0.000   0.000   0.000   5.000     11 4xPSGA/4xPSGB
+   1.000   2.500   1.000  50.000                                             12 DRN/SDEP/FARE/DD
+   0.030   0.350   0.100   0.050   100 Temp_sub-_gras                        13 XSLP/XDRAINH/MANN/KSAT/MID
+  50.000  50.000  50.000                                                     14 3xSAND (or more)
+"""
+
+
+class TestVegetationColumnTargeting:
+    """Calibrated veg params must land on the ACTIVE canopy column.
+
+    Regression: the manager used to write LAMX/ROOT/CMAS to position 5 and
+    RSMIN to position 0 — the *needleleaf* slot. For a grass GRU (FCAN[3]=1)
+    those columns are inert (FCAN=0), so the calibrated value silently did
+    nothing, while activating an absent canopy category can crash CLASS.
+    """
+
+    def _manager(self, temp_dir, logger, params):
+        (temp_dir / 'MESH_parameters_CLASS.ini').write_text(_GRASS_CLASS_INI)
+        return MESHParameterManager(
+            {
+                'DOMAIN_NAME': 'test_domain',
+                'MESH_PARAMS_TO_CALIBRATE': params,
+                'MESH_USE_LANDCOVER_MULTIPLIERS': False,
+            },
+            logger,
+            temp_dir,
+        )
+
+    def test_detects_grass_as_active_canopy(self, temp_dir, logger):
+        """FCAN[3]=1 -> grass; veg positions shift to the grass slot."""
+        pm = self._manager(temp_dir, logger, 'LAMX,ROOT,RSMIN,QA50,CMAS')
+        assert pm.class_param_positions['LAMX'][1] == 8
+        assert pm.class_param_positions['ROOT'][1] == 8
+        assert pm.class_param_positions['CMAS'][1] == 8
+        assert pm.class_param_positions['RSMIN'][1] == 3
+        assert pm.class_param_positions['QA50'][1] == 7
+
+    def test_writes_to_active_column_not_needleleaf(self, temp_dir, logger):
+        """Values land on the grass slot; the inactive columns stay zero."""
+        pm = self._manager(temp_dir, logger, 'LAMX,ROOT,RSMIN')
+        assert pm.update_model_files({'LAMX': 5.5, 'ROOT': 1.3, 'RSMIN': 121.3})
+
+        lines = (temp_dir / 'MESH_parameters_CLASS.ini').read_text().splitlines()
+
+        def vals(marker):
+            return next(ln for ln in lines if marker in ln).split()
+
+        lamx = vals('5xFCAN/4xLAMX')
+        assert lamx[8] == '5.50'                       # grass slot updated
+        assert lamx[5:8] == ['0.000', '0.000', '0.000']  # needleleaf/broadleaf/crops inert
+
+        root = vals('5xALIC/4xROOT')
+        assert root[8] == '1.30'
+        assert root[5:8] == ['0.000', '0.000', '0.000']
+
+        rsmn = vals('4xRSMN/4xQA50')
+        assert rsmn[3] == '121.3'                      # grass RSMN slot
+        assert rsmn[0:3] == ['0.000', '0.000', '0.000']
+
+    def test_reads_initial_value_from_active_column(self, temp_dir, logger):
+        """Initial values are read from the grass slot, not the needleleaf one."""
+        pm = self._manager(temp_dir, logger, 'CMAS')
+        # Grass CMAS is 4.500 (position 8); position 5 is 0.000.
+        assert pm._read_param_from_file('CMAS') == pytest.approx(4.5)
+
+    def test_needleleaf_gru_targets_first_column(self, temp_dir, logger):
+        """A needleleaf GRU (FCAN[0]=1) resolves to the first column."""
+        needleleaf = _GRASS_CLASS_INI.replace(
+            "   0.000   0.000   0.000   1.000   0.000   0.000   0.000   0.000   1.450     05 5xFCAN/4xLAMX",
+            "   1.000   0.000   0.000   0.000   0.000   1.450   0.000   0.000   0.000     05 5xFCAN/4xLAMX",
+        )
+        (temp_dir / 'MESH_parameters_CLASS.ini').write_text(needleleaf)
+        pm = MESHParameterManager(
+            {
+                'DOMAIN_NAME': 'test_domain',
+                'MESH_PARAMS_TO_CALIBRATE': 'LAMX,RSMIN',
+                'MESH_USE_LANDCOVER_MULTIPLIERS': False,
+            },
+            logger,
+            temp_dir,
+        )
+        assert pm.class_param_positions['LAMX'][1] == 5   # group_start(5) + index 0
+        assert pm.class_param_positions['RSMIN'][1] == 0  # group_start(0) + index 0
