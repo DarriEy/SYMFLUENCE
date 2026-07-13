@@ -74,28 +74,46 @@ class RDRSHandler(BaseDatasetHandler):
                 targets_seen.add(new)
         ds = ds.rename(rename_dict)
 
-        # Apply unit conversions (must happen before attribute setting)
+        def source_units(var: str) -> str:
+            return str(ds[var].attrs.get('units', '')).strip().lower()
+
+        # Apply unit conversions (must happen before attribute setting).
+        # The units attribute decides when present (ECCC raw archives carry
+        # 'deg_c'/'mb'/'m'/'kts'); value-range heuristics remain as fallback
+        # for sources without units metadata.
         if 'surface_air_pressure' in ds:
-            # RDRS v2.1 uses mb, but v3.1 might use Pa
-            if ds['surface_air_pressure'].max() < 2000: # Probably mb
+            units = source_units('surface_air_pressure')
+            if units in ('mb', 'millibar', 'hpa'):
+                ds['surface_air_pressure'] = ds['surface_air_pressure'] * 100
+            elif units in ('pa', 'pascal'):
+                pass
+            elif ds['surface_air_pressure'].max() < 2000:  # Probably mb
                 ds['surface_air_pressure'] = ds['surface_air_pressure'] * 100
 
         if 'air_temperature' in ds:
-            # RDRS v2.1 uses Celsius, but v3.1 might use Kelvin
-            if ds['air_temperature'].max() < 100: # Probably Celsius
+            units = source_units('air_temperature')
+            if units in ('deg_c', 'degc', 'c', 'celsius') or (not units.startswith('k') and ds['air_temperature'].max() < 100):
                 ds['air_temperature'] = ds['air_temperature'] + PhysicalConstants.KELVIN_OFFSET
 
         if 'precipitation_flux' in ds:
-            # RDRS v2.1 uses mm/hr, but v3.1 might use kg/m2/s (which is mm/s)
-            # Check if it's already small enough to be mm/s
-            if ds['precipitation_flux'].max() > 0.1: # Probably mm/hr
+            units = source_units('precipitation_flux')
+            if units in ('m', 'meter', 'metre', 'm/hr', 'm hr-1'):
+                # ECCC raw archive: quantity of precipitation in metres over the
+                # hour -> kg m-2 s-1 (mm/s)
+                ds['precipitation_flux'] = ds['precipitation_flux'] * (1000.0 / UnitConversion.SECONDS_PER_HOUR)
+            elif units in ('mm', 'mm/hr', 'mm hr-1', 'mm h-1') or (not units and ds['precipitation_flux'].max() > 0.1):
                 ds['precipitation_flux'] = ds['precipitation_flux'] / UnitConversion.SECONDS_PER_HOUR
 
         if 'wind_speed' in ds:
-            # RDRS v2.1 uses knots, but v3.1 uses m/s
-            if 'UVC' in rename_dict: # v3.1 names
+            units = source_units('wind_speed')
+            if units in ('kts', 'kt', 'knots', 'knts'):
+                ds['wind_speed'] = ds['wind_speed'] * 0.514444
+            elif units.startswith('m'):  # m/s, m s-1
+                pass
+            elif 'UVC' in rename_dict:  # v3.1 names, already m/s
                 pass
             else:
+                # Legacy fallback: RDRS v2.1 wind modulus without units is knots
                 ds['wind_speed'] = ds['wind_speed'] * 0.514444
 
         # Apply standard CF-compliant attributes (uses centralized definitions)

@@ -164,6 +164,7 @@ src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer._create_
 src/symfluence/data/acquisition/handlers/pelletier.py:PelletierAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/polaris.py:POLARISAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/rdrs.py:RDRSAcquirer._download_http:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/acquisition/handlers/rdrs.py:RDRSAcquirer._download_http_daily:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/rdrs.py:RDRSAcquirer.download:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/sentinel1_sm.py:Sentinel1SMAcquirer._download_product:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/sentinel1_sm.py:Sentinel1SMAcquirer._get_access_token:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -798,6 +799,7 @@ src/symfluence/models/mesh/calibration/worker.py:MESHWorker._get_basin_area:exce
 src/symfluence/models/mesh/calibration/worker.py:MESHWorker.calculate_metrics:except Exception:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/mesh/extractor.py:MESHResultExtractor.extract_variable:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/mesh/postprocessor.py:MESHPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/preprocessing/class_file_manager.py:CLASSFileManager.apply_field_overrides:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/class_file_manager.py:CLASSFileManager.create_elevation_band_blocks:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/class_file_manager.py:CLASSFileManager.fix_initial_conditions:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/class_file_manager.py:CLASSFileManager.fix_nm:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -839,6 +841,7 @@ src/symfluence/models/mesh/preprocessing/forcing_processor.py:MESHForcingProcess
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:<module>:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:MESHFlowManager.run:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:_patch_meshflow_network_bug:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.apply_hydrology_field_overrides:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.configure_lumped_outputs:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.create_safe_forcing:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.fix_hydrology_wf_r2:except Exception as e:  # noqa: BLE001 — model execution resilience

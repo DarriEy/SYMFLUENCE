@@ -303,6 +303,7 @@ class VariableStandardizer:
             'PR0': 'precipitation_flux',
         },
         'CASR_v3.2': {
+            # PAVICS THREDDS ncml exposes CF-converted names/units
             'tas': 'air_temperature',
             'ta': 'air_temperature',
             'ps': 'surface_air_pressure',
@@ -314,6 +315,18 @@ class VariableStandardizer:
             'rlds': 'surface_downwelling_longwave_flux',
             'rsds': 'surface_downwelling_shortwave_flux',
             'pr': 'precipitation_flux',
+            # ECCC GPSC-C raw archive (daily + tiled files) keeps native names
+            'CaSR_v3.2_A_PR0_SFC': 'precipitation_flux',
+            'CaSR_v3.2_P_PR0_SFC': 'precipitation_flux',
+            'CaSR_v3.2_A_TT_1.5m': 'air_temperature',
+            'CaSR_v3.2_P_TT_1.5m': 'air_temperature',
+            'CaSR_v3.2_P_HU_1.5m': 'specific_humidity',
+            'CaSR_v3.2_P_UVC_10m': 'wind_speed',
+            'CaSR_v3.2_P_UUC_10m': 'eastward_wind',
+            'CaSR_v3.2_P_VVC_10m': 'northward_wind',
+            'CaSR_v3.2_P_P0_SFC': 'surface_air_pressure',
+            'CaSR_v3.2_P_FB_SFC': 'surface_downwelling_shortwave_flux',
+            'CaSR_v3.2_P_FI_SFC': 'surface_downwelling_longwave_flux',
         },
         'DayMet': {
             'prcp': 'precipitation_flux',

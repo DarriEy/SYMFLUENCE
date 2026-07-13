@@ -6,19 +6,25 @@ Acquisition handler for RDRS/CaSR (Canadian Surface Reanalysis) datasets.
 
 Provides cloud-based acquisition for CaSR v3.2 (successor to RDRS v3.1) and
 RDRS v2.1 via PAVICS THREDDS OPeNDAP for efficient remote subsetting, with
-HTTP fallback to ECCC's GPSC-C server for daily NetCDF files.
+HTTP fallback to ECCC's GPSC-C server.
 
 Data sources:
-  - Primary: PAVICS THREDDS OPeNDAP (CaSR v3.2, 1980-2024, hourly)
-  - Fallback: ECCC GPSC-C daily NetCDF files (CaSR v3.2)
+  - Primary:  PAVICS THREDDS OPeNDAP (CaSR v3.2, 1980-2024, hourly)
+  - Fallback: ECCC GPSC-C tiled per-variable NetCDF files (CaSR v3.2,
+              35x35-cell spatial tiles, 4-year time blocks) — only the tiles
+              and variables covering the domain are fetched
+  - Last resort: ECCC GPSC-C full-domain daily NetCDF files (CaSR v3.2,
+              ~700 MB per day; all variables, all of North America)
   - Legacy:   PAVICS THREDDS OPeNDAP (RDRS v2.1, 1980-2018, hourly)
 """
 from __future__ import annotations
 
 import concurrent.futures
+import re
+import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -40,9 +46,40 @@ PAVICS_OPENDAP_RDRS_V21 = (
     "datasets/reanalyses/1hr_RDRSv2.1_NAM.ncml"
 )
 
-# ECCC GPSC-C HTTP endpoint for CaSR v3.2 daily NetCDF files
+# ECCC GPSC-C HTTP endpoints for CaSR v3.2
 GPSCC_CASR_V32_BASE_URL = (
     "https://hpfx.collab.science.gc.ca/~scar700/rcas-casr/data/CaSRv3.2/netcdf"
+)
+GPSCC_CASR_V32_TILE_BASE_URL = (
+    "https://hpfx.collab.science.gc.ca/~scar700/rcas-casr/data/CaSRv3.2/netcdf_tile"
+)
+
+# CaSR v3.2 rotated-pole grid geometry (fixed property of the dataset; read
+# from the dataset files themselves). Used only to decide which 35x35-cell
+# tiles to download — final cell selection always uses the 2-D lat/lon
+# coordinate arrays shipped inside each tile file, so a small drift here is
+# absorbed by the tile-selection buffer.
+CASR_V32_GRID = {
+    'pole_lat': 31.758312454493154,   # rotated_pole:grid_north_pole_latitude
+    'pole_lon': 87.59703130293302,    # rotated_pole:grid_north_pole_longitude
+    'rlat0': -44.100002288818359,     # rlat of global index 0
+    'rlon0': -35.397216796875,        # rlon of global index 0
+    'step': 0.09,                     # grid spacing in rotated degrees
+    'nlat': 778,
+    'nlon': 706,
+    'tile': 35,                       # tile edge length in cells
+}
+
+# Forcing variables required by SYMFLUENCE (CaSR v3.2 raw archive names,
+# without the 'CaSR_v3.2_' prefix). A_* = analysis, P_* = forecast.
+DEFAULT_CASR_V32_VARIABLES = (
+    'A_PR0_SFC',    # precipitation accumulation over the hour (m)
+    'P_TT_1.5m',    # air temperature at 1.5 m (deg C)
+    'P_HU_1.5m',    # specific humidity at 1.5 m (kg/kg)
+    'P_UVC_10m',    # wind modulus at 10 m (knots)
+    'P_P0_SFC',     # surface pressure (mb)
+    'P_FB_SFC',     # downward solar flux (W m-2)
+    'P_FI_SFC',     # surface incoming infrared flux (W m-2)
 )
 
 
@@ -55,7 +92,9 @@ class RDRSAcquirer(BaseAcquisitionHandler):
     RDRS has been renamed to CaSR (Canadian Surface Reanalysis) by ECCC.
     This handler acquires CaSR v3.2 by default (successor to v3.1), falling
     back to RDRS v2.1 if configured. The primary pathway uses PAVICS THREDDS
-    OPeNDAP for efficient server-side spatial and temporal subsetting.
+    OPeNDAP for efficient server-side spatial and temporal subsetting; when
+    PAVICS is unreachable it falls back to ECCC's GPSC-C tiled archive,
+    downloading only the tiles/variables/period covering the domain.
     """
 
     def download(self, output_dir: Path) -> Path:
@@ -72,6 +111,68 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.warning(f"OPeNDAP pathway failed: {e}. Falling back to HTTP.", exc_info=True)
             return self._download_http(output_dir, final_file)
+
+    # ------------------------------------------------------------------
+    # Shared spatial subsetting
+    # ------------------------------------------------------------------
+
+    def _subset_bbox(self, ds: xr.Dataset) -> xr.Dataset:
+        """
+        Spatially subset a CaSR/RDRS dataset (rotated-pole grid with 2-D
+        lat/lon auxiliary coordinates) to the configured bounding box.
+
+        Longitudes are normalized to [-180, 180) before masking — the GPSC-C
+        archive stores them in [0, 360), which would otherwise never match a
+        western-hemisphere bbox. Falls back to the nearest grid cell for
+        bounding boxes smaller than the grid resolution (point-scale domains).
+        """
+        if not self.bbox:
+            return ds
+
+        lat_vals = np.asarray(ds.lat.values)
+        lon_vals = ((np.asarray(ds.lon.values) + 180.0) % 360.0) - 180.0
+
+        mask = (
+            (lat_vals >= self.bbox['lat_min']) & (lat_vals <= self.bbox['lat_max']) &
+            (lon_vals >= self.bbox['lon_min']) & (lon_vals <= self.bbox['lon_max'])
+        )
+        y_indices, x_indices = np.where(mask)
+
+        if len(y_indices) > 0 and len(x_indices) > 0:
+            y_min, y_max = y_indices.min(), y_indices.max()
+            x_min, x_max = x_indices.min(), x_indices.max()
+        else:
+            # Bounding box smaller than grid resolution (e.g. point-scale domain).
+            # Fall back to nearest grid cell.
+            center_lat = (self.bbox['lat_min'] + self.bbox['lat_max']) / 2
+            center_lon = (self.bbox['lon_min'] + self.bbox['lon_max']) / 2
+            dist = np.sqrt((lat_vals - center_lat)**2 + (lon_vals - center_lon)**2)
+            y_near, x_near = np.unravel_index(dist.argmin(), dist.shape)
+            self.logger.info(
+                f"Bounding box smaller than grid resolution, using nearest grid cell "
+                f"at ({lat_vals[y_near, x_near]:.4f}, {lon_vals[y_near, x_near]:.4f})"
+            )
+            y_min = y_max = y_near
+            x_min = x_max = x_near
+
+        # Add buffer for safety
+        y_min = max(0, y_min - 2)
+        y_max = min(ds.sizes['rlat'] - 1, y_max + 2)
+        x_min = max(0, x_min - 2)
+        x_max = min(ds.sizes['rlon'] - 1, x_max + 2)
+
+        ds = ds.isel(rlat=slice(y_min, y_max + 1), rlon=slice(x_min, x_max + 1))
+
+        # Persist the normalized longitudes so downstream consumers (grid
+        # shapefile creation, remapping) see standard [-180, 180) coordinates.
+        ds = ds.assign_coords(lon=(ds.lon.dims, ((ds.lon.values + 180.0) % 360.0) - 180.0, ds.lon.attrs))
+
+        self.logger.info(f"Spatially subsetted to {ds.sizes['rlat']}x{ds.sizes['rlon']} grid")
+        return ds
+
+    # ------------------------------------------------------------------
+    # OPeNDAP pathway (PAVICS)
+    # ------------------------------------------------------------------
 
     def _download_opendap(self, final_file: Path) -> Path:
         """Download CaSR/RDRS data via PAVICS THREDDS OPeNDAP."""
@@ -93,41 +194,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         # Spatial subsetting using lat/lon coordinates on rotated pole grid
         if self.bbox:
             self.logger.info("Computing spatial mask from OPeNDAP coordinates...")
-            lat_vals = ds.lat.values
-            lon_vals = ds.lon.values
-
-            mask = (
-                (lat_vals >= self.bbox['lat_min']) & (lat_vals <= self.bbox['lat_max']) &
-                (lon_vals >= self.bbox['lon_min']) & (lon_vals <= self.bbox['lon_max'])
-            )
-
-            y_indices, x_indices = np.where(mask)
-
-            if len(y_indices) > 0 and len(x_indices) > 0:
-                y_min, y_max = y_indices.min(), y_indices.max()
-                x_min, x_max = x_indices.min(), x_indices.max()
-            else:
-                # Bounding box smaller than grid resolution (e.g. point-scale domain).
-                # Fall back to nearest grid cell.
-                center_lat = (self.bbox['lat_min'] + self.bbox['lat_max']) / 2
-                center_lon = (self.bbox['lon_min'] + self.bbox['lon_max']) / 2
-                dist = np.sqrt((lat_vals - center_lat)**2 + (lon_vals - center_lon)**2)
-                y_near, x_near = np.unravel_index(dist.argmin(), dist.shape)
-                self.logger.info(
-                    f"Bounding box smaller than grid resolution, using nearest grid cell "
-                    f"at ({lat_vals[y_near, x_near]:.4f}, {lon_vals[y_near, x_near]:.4f})"
-                )
-                y_min = y_max = y_near
-                x_min = x_max = x_near
-
-            # Add buffer for safety
-            y_min = max(0, y_min - 2)
-            y_max = min(ds.sizes['rlat'] - 1, y_max + 2)
-            x_min = max(0, x_min - 2)
-            x_max = min(ds.sizes['rlon'] - 1, x_max + 2)
-
-            ds = ds.isel(rlat=slice(y_min, y_max + 1), rlon=slice(x_min, x_max + 1))
-            self.logger.info(f"Spatially subsetted to {ds.sizes['rlat']}x{ds.sizes['rlon']} grid")
+            ds = self._subset_bbox(ds)
 
         # Temporal subsetting
         ds = ds.sel(time=slice(self.start_date, self.end_date))
@@ -152,8 +219,265 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         self.logger.info(f"Successfully saved data to {final_file.name}")
         return final_file
 
+    # ------------------------------------------------------------------
+    # HTTP fallback (ECCC GPSC-C)
+    # ------------------------------------------------------------------
+
     def _download_http(self, output_dir: Path, final_file: Path) -> Path:
-        """Fallback HTTP download from ECCC GPSC-C daily NetCDF files."""
+        """
+        HTTP fallback from ECCC GPSC-C.
+
+        Prefers the tiled per-variable archive (only the tiles/variables
+        covering the domain are fetched); falls back to full-domain daily
+        files (~700 MB/day) only if the tiled pathway fails.
+        """
+        try:
+            return self._download_http_tiled(output_dir, final_file)
+        except Exception as e:  # noqa: BLE001 — preprocessing resilience
+            self.logger.warning(
+                f"Tiled CaSR pathway failed: {e}. Falling back to full-domain "
+                "daily files (very slow: ~700 MB per simulated day).",
+                exc_info=True,
+            )
+            return self._download_http_daily(output_dir, final_file)
+
+    # -- Tiled per-variable archive ------------------------------------
+
+    @staticmethod
+    def _geo_to_rotated(lat: float, lon: float, pole_lat: float, pole_lon: float) -> Tuple[float, float]:
+        """Convert geographic coordinates to CF rotated-pole coordinates (degrees)."""
+        lat_r = np.radians(lat)
+        plat = np.radians(pole_lat)
+        dlon = np.radians(lon - pole_lon)
+        s = np.sin(lat_r) * np.sin(plat) + np.cos(lat_r) * np.cos(plat) * np.cos(dlon)
+        rlat = np.degrees(np.arcsin(np.clip(s, -1.0, 1.0)))
+        y = -np.cos(lat_r) * np.sin(dlon)
+        x = -np.cos(lat_r) * np.sin(plat) * np.cos(dlon) + np.sin(lat_r) * np.cos(plat)
+        rlon = np.degrees(np.arctan2(y, x))
+        return float(rlat), float(rlon)
+
+    def _casr_index_window(self) -> Tuple[int, int, int, int]:
+        """
+        Global (0-based) rlat/rlon index window covering the bbox, with a
+        2-cell buffer. Transforms the bbox corners and edge midpoints since
+        the rotated rectangle is not axis-aligned in geographic space.
+        """
+        g = CASR_V32_GRID
+        lat_min, lat_max = self.bbox['lat_min'], self.bbox['lat_max']
+        lon_min, lon_max = self.bbox['lon_min'], self.bbox['lon_max']
+        lat_mid = (lat_min + lat_max) / 2
+        lon_mid = (lon_min + lon_max) / 2
+
+        points = [
+            (lat_min, lon_min), (lat_min, lon_mid), (lat_min, lon_max),
+            (lat_mid, lon_min), (lat_mid, lon_max),
+            (lat_max, lon_min), (lat_max, lon_mid), (lat_max, lon_max),
+        ]
+        rlats, rlons = zip(*(self._geo_to_rotated(la, lo, g['pole_lat'], g['pole_lon']) for la, lo in points))
+
+        y_min = int(np.floor((min(rlats) - g['rlat0']) / g['step'])) - 2
+        y_max = int(np.ceil((max(rlats) - g['rlat0']) / g['step'])) + 2
+        x_min = int(np.floor((min(rlons) - g['rlon0']) / g['step'])) - 2
+        x_max = int(np.ceil((max(rlons) - g['rlon0']) / g['step'])) + 2
+
+        y_min = max(0, min(y_min, g['nlat'] - 1))
+        y_max = max(0, min(y_max, g['nlat'] - 1))
+        x_min = max(0, min(x_min, g['nlon'] - 1))
+        x_max = max(0, min(x_max, g['nlon'] - 1))
+
+        if y_max < y_min or x_max < x_min:
+            raise ValueError(f"Bounding box {self.bbox} is outside the CaSR v3.2 grid")
+        return y_min, y_max, x_min, x_max
+
+    @staticmethod
+    def _casr_tile_dirs(y_min: int, y_max: int, x_min: int, x_max: int) -> List[str]:
+        """Tile directory names (e.g. 'rlon141-175_rlat386-420') covering an index window."""
+        g = CASR_V32_GRID
+        t = int(g['tile'])
+        n_lat = int(g['nlat'])
+        n_lon = int(g['nlon'])
+        dirs = []
+        for ty in range(y_min // t, y_max // t + 1):
+            rlat_lo = ty * t + 1
+            rlat_hi = min((ty + 1) * t, n_lat)
+            for tx in range(x_min // t, x_max // t + 1):
+                rlon_lo = tx * t + 1
+                rlon_hi = min((tx + 1) * t, n_lon)
+                dirs.append(f"rlon{rlon_lo:03d}-{rlon_hi:03d}_rlat{rlat_lo:03d}-{rlat_hi:03d}")
+        return dirs
+
+    def _casr_variables(self) -> List[str]:
+        """Full CaSR v3.2 variable names to acquire (config-overridable)."""
+        raw = self._get_config_value(lambda: None, default=None, dict_key='RDRS_CASR_VARIABLES')
+        if raw:
+            names = [v.strip() for v in raw.split(',')] if isinstance(raw, str) else list(raw)
+        else:
+            names = list(DEFAULT_CASR_V32_VARIABLES)
+        return [n if n.startswith('CaSR_') else f"CaSR_v3.2_{n}" for n in names]
+
+    def _download_http_tiled(self, output_dir: Path, final_file: Path) -> Path:
+        """
+        Download CaSR v3.2 from the GPSC-C tiled per-variable archive.
+
+        The archive splits the domain into 35x35-cell tiles and each variable
+        into 4-year files (~60-100 MB each), so a small domain needs only
+        `n_tiles x n_variables x n_periods` small files instead of ~700 MB
+        per simulated day.
+        """
+        if not self.bbox:
+            raise ValueError("Tiled CaSR download requires a bounding box")
+
+        tile_base = self._get_config_value(
+            lambda: None, default=GPSCC_CASR_V32_TILE_BASE_URL, dict_key='RDRS_TILE_BASE_URL')
+        var_names = self._casr_variables()
+
+        y_min, y_max, x_min, x_max = self._casr_index_window()
+        tile_dirs = self._casr_tile_dirs(y_min, y_max, x_min, x_max)
+        self.logger.info(
+            f"Tiled CaSR v3.2 download: grid window rlat[{y_min}:{y_max}] rlon[{x_min}:{x_max}] "
+            f"-> {len(tile_dirs)} tile(s), {len(var_names)} variable(s)"
+        )
+
+        session = create_robust_session(max_retries=3, backoff_factor=1.0)
+
+        # Collect the files to fetch by parsing each tile directory listing
+        # (year-block boundaries are read from the server, not assumed).
+        # A block labelled Y0-Y1 spans (Y0-1)-12-31T13:00Z .. Y1-12-31T12:00Z.
+        tasks: List[Tuple[str, str]] = []  # (tile_dir, file_name)
+        for tile_dir in tile_dirs:
+            listing = self._list_casr_tile_files(session, tile_base, tile_dir)
+            for var in var_names:
+                blocks = []
+                for fname, (year0, year1) in listing:
+                    if not fname.startswith(f"{var}_"):
+                        continue
+                    block_start = pd.Timestamp(year0 - 1, 12, 31, 13)
+                    block_end = pd.Timestamp(year1, 12, 31, 12)
+                    if self.start_date <= block_end and self.end_date >= block_start:
+                        blocks.append(fname)
+                if not blocks:
+                    raise RuntimeError(
+                        f"No {var} files covering {self.start_date:%Y-%m-%d}..{self.end_date:%Y-%m-%d} "
+                        f"in tile {tile_dir} — check {tile_base}/{tile_dir}/"
+                    )
+                tasks.extend((tile_dir, fname) for fname in blocks)
+
+        total = len(tasks)
+        max_workers = int(self._get_config_value(
+            lambda: None, default=min(total, 12), dict_key='RDRS_MAX_PARALLEL_DOWNLOADS'))
+        max_workers = max(1, min(max_workers, total))
+        self.logger.info(f"Downloading {total} CaSR tile files ({max_workers} parallel connections)")
+
+        thread_state = threading.local()
+
+        def get_session() -> requests.Session:
+            if not hasattr(thread_state, 'session'):
+                thread_state.session = create_robust_session(max_retries=3, backoff_factor=1.0)
+            return thread_state.session
+
+        def fetch(task: Tuple[str, str]) -> Path:
+            tile_dir, fname = task
+            url = f"{tile_base.rstrip('/')}/{tile_dir}/{fname}"
+            dest = output_dir / f"temp_casr_tile_{fname}"
+            return self._download_casr_tile_file(url, dest, get_session())
+
+        downloaded: List[Path] = []
+        completed = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fetch, task): task for task in tasks}
+            for future in concurrent.futures.as_completed(futures):
+                tile_dir, fname = futures[future]
+                f = future.result()  # raises on failure -> caller falls back
+                downloaded.append(f)
+                completed += 1
+                self.logger.info(f"Tile download progress: {completed}/{total} ({fname})")
+
+        self.logger.info(f"Assembling {len(downloaded)} CaSR tile files...")
+        per_var = []
+        for var in var_names:
+            var_files = sorted(f for f in downloaded if f.name.startswith(f"temp_casr_tile_{var}_"))
+            per_var.append(xr.open_mfdataset(
+                var_files, combine='by_coords', chunks={'time': 24 * 31},
+                data_vars='minimal', coords='minimal', compat='override'))
+
+        ds = xr.merge(per_var, compat='override')
+        ds = self._subset_bbox(ds)
+        ds = ds.sel(time=slice(self.start_date, self.end_date))
+        if ds.time.size == 0:
+            raise ValueError(f"No data found for time range {self.start_date} to {self.end_date}")
+
+        self.logger.info(f"Saving {ds.time.size} time steps to {final_file.name}...")
+        ds_loaded = ds.load()
+        for name in ds_loaded.variables:
+            # Source chunk sizes (full 35x35 tiles) can exceed the subset dims
+            for key in ('chunksizes', 'preferred_chunks', 'original_shape'):
+                ds_loaded[name].encoding.pop(key, None)
+        ds_loaded.to_netcdf(final_file)
+        for src in per_var:
+            src.close()
+
+        self.logger.info("Cleaning up temporary tile files...")
+        for f in downloaded:
+            f.unlink(missing_ok=True)
+        return final_file
+
+    def _list_casr_tile_files(
+        self, session: requests.Session, tile_base: str, tile_dir: str
+    ) -> List[Tuple[str, Tuple[int, int]]]:
+        """List (file_name, (start_year, end_year)) entries in a tile directory."""
+        url = f"{tile_base.rstrip('/')}/{tile_dir}/"
+        response = session.get(url, timeout=120)
+        response.raise_for_status()
+        pattern = re.compile(r'href="((?:CaSR|RDRS)[^"]*_(\d{4})-(\d{4})\.nc)"')
+        entries = [
+            (m.group(1), (int(m.group(2)), int(m.group(3))))
+            for m in pattern.finditer(response.text)
+        ]
+        if not entries:
+            raise RuntimeError(f"No CaSR files found in tile listing {url}")
+        return entries
+
+    def _download_casr_tile_file(
+        self, url: str, dest: Path, session: requests.Session, timeout: int = 900
+    ) -> Path:
+        """Download one tile file with resume support (Range requests on .part files)."""
+        part = dest.with_suffix(dest.suffix + '.part')
+
+        if dest.exists():
+            try:
+                remote_size = int(session.head(url, timeout=60).headers.get('Content-Length', -1))
+            except requests.exceptions.RequestException:
+                remote_size = -1
+            if remote_size in (-1, dest.stat().st_size):
+                return dest
+            dest.unlink()
+
+        headers = {}
+        mode = 'wb'
+        if part.exists() and part.stat().st_size > 0:
+            headers['Range'] = f"bytes={part.stat().st_size}-"
+            mode = 'ab'
+
+        response = session.get(url, headers=headers, timeout=timeout, stream=True)
+        if response.status_code == 200 and mode == 'ab':
+            # Server ignored the Range header — restart from scratch
+            mode = 'wb'
+        elif response.status_code == 416:
+            # Range not satisfiable: the .part file is already complete
+            part.rename(dest)
+            return dest
+        response.raise_for_status()
+
+        with open(part, mode) as f:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
+        part.rename(dest)
+        return dest
+
+    # -- Full-domain daily files (last resort) --------------------------
+
+    def _download_http_daily(self, output_dir: Path, final_file: Path) -> Path:
+        """Last-resort HTTP download of full-domain daily CaSR NetCDF files."""
         # CaSR v3.2 daily files from GPSC-C (format: YYYYMMDD12.nc)
         base_url = self._get_config_value(lambda: None, default=GPSCC_CASR_V32_BASE_URL, dict_key='RDRS_BASE_URL')
         self.logger.info(f"Downloading CaSR daily files from {base_url}")
@@ -224,31 +548,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         with xr.open_mfdataset(downloaded_files, combine='by_coords', chunks={'time': 24}, data_vars='minimal', coords='minimal', compat='override') as ds:
             if self.bbox:
                 self.logger.info("Computing spatial mask for HTTP-downloaded files...")
-                lat_vals = ds.lat.compute()
-                lon_vals = ds.lon.compute()
-
-                mask = (lat_vals >= self.bbox['lat_min']) & (lat_vals <= self.bbox['lat_max']) & \
-                       (lon_vals >= self.bbox['lon_min']) & (lon_vals <= self.bbox['lon_max'])
-                y_idx, x_idx = np.where(mask.values)
-
-                if len(y_idx) > 0:
-                    y_min, y_max = y_idx.min(), y_idx.max()
-                    x_min, x_max = x_idx.min(), x_idx.max()
-                else:
-                    # Nearest grid cell fallback for point-scale domains
-                    center_lat = (self.bbox['lat_min'] + self.bbox['lat_max']) / 2
-                    center_lon = (self.bbox['lon_min'] + self.bbox['lon_max']) / 2
-                    dist = np.sqrt((lat_vals.values - center_lat)**2 + (lon_vals.values - center_lon)**2)
-                    y_near, x_near = np.unravel_index(dist.argmin(), dist.shape)
-                    self.logger.info(
-                        f"Bounding box smaller than grid resolution, using nearest grid cell "
-                        f"at ({lat_vals.values[y_near, x_near]:.4f}, {lon_vals.values[y_near, x_near]:.4f})"
-                    )
-                    y_min = y_max = y_near
-                    x_min = x_max = x_near
-
-                self.logger.info("Subsetting spatial domain")
-                ds = ds.isel(rlat=slice(y_min, y_max+1), rlon=slice(x_min, x_max+1))
+                ds = self._subset_bbox(ds)
 
             self.logger.info(f"Saving merged data to {final_file.name}...")
             ds.to_netcdf(final_file)
