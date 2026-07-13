@@ -11,56 +11,48 @@ symfluence workflow run --config <config.yaml>
 
 ## 1. Setup
 
-### 1.1 System prerequisites
-
-- Python 3.11 or 3.12
-- GDAL library + headers: `brew install gdal` / `apt install gdal-bin libgdal-dev`
-- C/C++/Fortran compilers and CMake for the compiled models:
-  `brew install gcc cmake` / `apt install build-essential gfortran cmake`
-- R ≥ 4 with `airGR` (GR4J member only): `Rscript -e 'install.packages("airGR")'`,
-  plus `pip install rpy2` in the venv (or `pip install -e ".[r]"`)
-
-### 1.2 Install SYMFLUENCE
+### 1.1 Install everything
 
 ```bash
 git clone -b develop https://github.com/symfluence-org/SYMFLUENCE.git
 cd SYMFLUENCE
-
-python3 -m venv venv && source venv/bin/activate
-pip install -e ".[jax]"
-pip install "GDAL==$(gdal-config --version)"
+./scripts/symfluence-bootstrap --paper-repro
 ```
 
-MESH member only (not on PyPI; the pins prevent a pandas-3 conflict):
+That one command creates the Python environment, installs SYMFLUENCE with the
+JAX model plugins, sets up GDAL/R/NetCDF, and compiles exactly the 13 model
+binaries these experiments use (RHESSys with the paper's subsurface-GW patch).
+Expect 30–60 minutes, mostly compilation.
+
+Prerequisites: Python 3.11/3.12, a C/C++/Fortran toolchain and CMake
+(`brew install gcc cmake` / `apt install build-essential gfortran cmake`), and
+— for the GR4J member only — R ≥ 4 with `airGR`
+(`Rscript -e 'install.packages("airGR")'`).
+
+Running the MESH member additionally needs two packages that are not on PyPI
+(the extra pins keep meshflow from pulling pandas 3):
 
 ```bash
 pip install git+https://github.com/kasra-keshavarz/hydrant.git
 pip install git+https://github.com/CH-Earth/meshflow.git@main "pandas>=2.0,<3" "pint-pandas<0.8"
 ```
 
-Check: `symfluence workflow list-steps` and
-`python -c "from osgeo import gdal; import jax"` must both succeed.
-
-### 1.3 Model executables
+**Check** — all three must succeed:
 
 ```bash
-symfluence binary install taudem sundials summa mizuroute fuse hype mesh crhm \
-    gsflow mhm prms swat
-symfluence binary install rhessys --patched   # paper runs use the SYMFLUENCE
-                                              # subsurface-GW physics patch
+symfluence workflow list-steps
 symfluence binary doctor
+python -c "from osgeo import gdal; import jax; import jsacsma"
 ```
 
-Compiles into `SYMFLUENCE_data/installs/` (~4 GB); found automatically.
-
-### 1.4 Credentials
+### 1.2 Credentials
 
 | Provider | Needed for | Setup |
 |---|---|---|
-| NASA Earthdata | experiment 10 only, and only for the JPL GRACE mascons the paper used | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)); to run credential-free, set `evaluation.grace.product` to the public CSR solution |
+| NASA Earthdata | experiment 06 only, and only for the JPL GRACE mascons the paper used | credentials in `~/.netrc` ([urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov)); to run credential-free, set `evaluation.grace.product` to the public CSR solution |
 | ERA5 (ARCO), AORC, RDRS, CONUS404, SNOTEL, WSC | forcing + observations | public, no credentials |
 
-### 1.5 Data location
+### 1.3 Data location
 
 Everything is written to `SYMFLUENCE_data/`, created as a sibling of the cloned
 repo; override with `export SYMFLUENCE_DATA_DIR=/path`. Budget several tens of
@@ -117,8 +109,9 @@ run logs + provenance manifests in `_workLog_<name>/`.
 
 | Symptom | Fix |
 |---|---|
-| `GDAL Python bindings (osgeo) are required` | install system GDAL, then `pip install "GDAL==$(gdal-config --version)"` |
-| `executable not found` | `symfluence binary install <tool>`, then `symfluence binary doctor` |
+| `GDAL Python bindings (osgeo) are required` | rerun `./scripts/symfluence-bootstrap --paper-repro` (it provisions GDAL), or install system GDAL + `pip install "GDAL==$(gdal-config --version)"` |
+| `executable not found` | `symfluence binary install --paper-repro --force`, then `symfluence binary doctor` |
+| RHESSys calibration stuck near KGE 0.15 | binary built without the SYMFLUENCE patch — `symfluence binary install rhessys --patched --force` |
 | calibration log shows `Best: 9999.0` | the objective never saw valid observations — check the obs step in the log |
 | warning: h5py/netCDF4 bundle different libhdf5 | known pip-wheel quirk, mitigated automatically, ignore |
 | fresh start for one experiment | delete `SYMFLUENCE_data/domain_<name>/` and rerun |

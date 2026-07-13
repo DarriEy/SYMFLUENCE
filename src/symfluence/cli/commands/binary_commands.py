@@ -42,6 +42,18 @@ class BinaryCommands(BaseCommand):
         tools = args.tools if args.tools else None  # None means install all
         force = args.force
         patched = getattr(args, 'patched', False)
+
+        if getattr(args, 'paper_repro', False):
+            from symfluence.cli.argument_parser import PAPER_REPRO_TOOLS
+            if tools:
+                BaseCommand._console.error(
+                    "--paper-repro installs a fixed tool set; do not also name tools."
+                )
+                return 1
+            tools = list(PAPER_REPRO_TOOLS)
+            # The paper's RHESSys runs use the SYMFLUENCE subsurface-GW patch;
+            # an unpatched binary silently caps calibration.
+            patched = True
         branch_override = getattr(args, 'branch', None)
         git_hash = getattr(args, 'git_hash', None)
 

@@ -91,6 +91,17 @@ EXPERIMENTAL_TOOLS = [
     'openfews', 'wmfire', 'cfuse', 'droute', 'ignacio',
     'modflow', 'enzyme',
 ]
+# Exactly the binaries the Paper 3 case studies need (examples/
+# paper_case_studies): TauDEM+SUNDIALS for domains, mizuRoute for
+# routing, and the compiled members of the Fig 7 ensemble. RHESSys is
+# always built --patched here: the paper's runs use the SYMFLUENCE
+# subsurface-GW physics, and an unpatched binary silently caps its
+# calibration (KGE ~0.15 vs 0.85).
+PAPER_REPRO_TOOLS = [
+    'sundials', 'taudem', 'mizuroute',
+    'crhm', 'fuse', 'gsflow', 'hype', 'mesh', 'mhm',
+    'prms', 'rhessys', 'summa', 'swat',
+]
 EXTERNAL_TOOLS = DEFAULT_TOOLS + EXPERIMENTAL_TOOLS
 
 # Hydrological models
@@ -430,6 +441,13 @@ For more help on a specific command:
         )
         install_parser.add_argument('tools', nargs='*', metavar='TOOL',
                                   help=_tools_help)
+        install_parser.add_argument('--paper-repro', action='store_true',
+                                  help=(
+                                      'Install exactly the binaries the Paper 3 case studies need '
+                                      f'({len(PAPER_REPRO_TOOLS)} tools: {", ".join(PAPER_REPRO_TOOLS)}). '
+                                      'Implies --patched (the paper runs RHESSys with the '
+                                      'SYMFLUENCE subsurface-GW physics).'
+                                  ))
         install_parser.add_argument('--force', action='store_true',
                                   help='Force reinstall even if already installed')
         install_parser.add_argument('--patched', action='store_true',
