@@ -664,6 +664,19 @@ for candidate in rhessys.exe rhessys rhessys7*.exe rhessys7* rhessys/rhessys.exe
 done
 
 if [ -n "$RHESSYS_BIN" ]; then
+    # A --patched build MUST contain the SYMFLUENCE patches: if any patch
+    # no-ops against a drifted upstream source, the sed/perl substitutions
+    # succeed with 0 changes and a reduced-physics binary would ship
+    # silently (the P3 campaign shipped one; calibration ceilinged at
+    # KGE ~0.15 while the patched binary reaches 0.85).
+    if [ "${SYMFLUENCE_PATCHED:-}" = "1" ]; then
+        if ! strings "$RHESSYS_BIN" | grep -q "subsurfacegw"; then
+            echo "ERROR: --patched build does not contain -subsurfacegw;"
+            echo "the SYMFLUENCE patch failed to apply to this RHESSys source."
+            exit 1
+        fi
+        echo "Verified: -subsurfacegw present in patched binary"
+    fi
     cp -f "$RHESSYS_BIN" ../bin/rhessys
     echo "Staged: $RHESSYS_BIN -> ../bin/rhessys"
 else

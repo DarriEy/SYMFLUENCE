@@ -45,7 +45,9 @@ Check: `symfluence workflow list-steps` and
 
 ```bash
 symfluence binary install taudem sundials summa mizuroute fuse hype mesh crhm \
-    gsflow mhm prms rhessys swat
+    gsflow mhm prms swat
+symfluence binary install rhessys --patched   # paper runs use the SYMFLUENCE
+                                              # subsurface-GW physics patch
 symfluence binary doctor
 ```
 
