@@ -11,6 +11,7 @@ from __future__ import annotations
 import gc
 import logging
 import shutil
+import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -241,7 +242,13 @@ class RemappingWeightGenerator(ConfigMixin):
 
         self.logger.debug("Creating remapping weights...")
 
-        temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'temp_easymore_weights'
+        # Per-invocation scratch dir. A fixed name is shared by concurrent
+        # workflows on the same domain, and the ``finally`` below rmtree's it —
+        # one workflow would delete another's working files mid-run.
+        temp_dir = (
+            resolve_data_subdir(self.project_dir, 'forcing')
+            / f'temp_easymore_weights_{uuid.uuid4().hex[:8]}'
+        )
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:

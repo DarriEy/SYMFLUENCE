@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +27,15 @@ from .cf_conventions import (
 from .source_metadata import SourceMetadata
 
 logger = logging.getLogger(__name__)
+
+
+def _staging_suffix() -> str:
+    """Suffix for a private staging path.
+
+    Unique per writer — process *and* thread — so that two builders publishing
+    the same shared artefact never share a staging path.
+    """
+    return f".staging.{os.getpid()}.{uuid.uuid4().hex[:8]}"
 
 
 class ForcingsStoreBuilder:
@@ -92,8 +102,10 @@ class ForcingsStoreBuilder:
 
         self.target_dir.mkdir(parents=True, exist_ok=True)
 
-        self._create_links(nc_files)
+        # Enrich before linking so that a 'copy' strategy store carries the
+        # metadata contract too.
         self._enrich_metadata(nc_files)
+        self._create_links(nc_files)
 
         logger.info(
             "Forcings store built: %d files in %s", len(nc_files), self.target_dir
@@ -114,9 +126,17 @@ class ForcingsStoreBuilder:
         """
         current = {src.name for src in nc_files}
         for existing in self.target_dir.glob('*.nc'):
-            if existing.name not in current:
-                existing.unlink()
-                logger.debug("Pruned stale forcing link %s", existing.name)
+            if existing.name in current:
+                continue
+            # Re-check against the live source dir before unlinking: another
+            # process on this domain may have published a new remapped file
+            # after our snapshot was taken. Pruning on the stale snapshot alone
+            # would delete a link that is both valid and in use.
+            if (self.source_dir / existing.name).exists():
+                logger.debug("Keeping forcing link %s (present in source)", existing.name)
+                continue
+            existing.unlink(missing_ok=True)
+            logger.debug("Pruned stale forcing link %s", existing.name)
         for src_file in nc_files:
             dst = self.target_dir / src_file.name
             resolved = src_file.resolve()
@@ -125,7 +145,7 @@ class ForcingsStoreBuilder:
                 # Stage the copy then rename over the destination: concurrent
                 # readers (parallel calibration workers) see old or new,
                 # never a missing file.
-                tmp = dst.with_name(f"{dst.name}.staging.{os.getpid()}")
+                tmp = dst.with_name(f"{dst.name}{_staging_suffix()}")
                 shutil.copy2(str(src_file), str(tmp))
                 os.replace(tmp, dst)
                 logger.debug("Copied %s -> %s", src_file.name, dst)
@@ -133,7 +153,7 @@ class ForcingsStoreBuilder:
                 # Fast path: link already correct — touch nothing, no window.
                 if dst.is_symlink() and os.readlink(str(dst)) == str(resolved):
                     continue
-                tmp = dst.with_name(f"{dst.name}.staging.{os.getpid()}")
+                tmp = dst.with_name(f"{dst.name}{_staging_suffix()}")
                 if tmp.is_symlink() or tmp.exists():
                     tmp.unlink()
                 os.symlink(resolved, tmp)
@@ -154,11 +174,39 @@ class ForcingsStoreBuilder:
             logger.warning("Could not determine forcing timestep: %s", e, exc_info=True)
         return None
 
+    @staticmethod
+    def _needs_enrichment(src_file: Path, dt_seconds: Optional[float]) -> bool:
+        """Report whether *src_file* still lacks the store's metadata contract.
+
+        Enrichment writes into the basin-averaged files, which are a
+        domain-shared product that other processes may be reading.  A rebuild
+        must therefore leave already-enriched files untouched — not reopen them
+        in append mode — so the shared forcing is immutable in steady state.
+        """
+        import netCDF4  # noqa: N813
+
+        try:
+            with netCDF4.Dataset(str(src_file), 'r') as ds:
+                attrs = set(ds.ncattrs())
+                if 'Conventions' not in attrs:
+                    return True
+                vocabulary = ds.getncattr('forcing_vocabulary') if 'forcing_vocabulary' in attrs else None
+                if vocabulary != 'SYMFLUENCE-canonical':
+                    return True
+                return dt_seconds is not None and 'timestep_seconds' not in attrs
+        except (OSError, RuntimeError, AttributeError, KeyError) as e:
+            # An unreadable/incomplete file (e.g. a concurrent writer mid-swap)
+            # is treated as needing enrichment: the caller then works on a copy
+            # and republishes atomically, never mutating the shared original.
+            logger.debug("Could not inspect metadata for %s: %s", src_file.name, e)
+            return True
+
     def _enrich_metadata(self, nc_files: list) -> None:
         """Add CF-1.8 global attrs and per-variable source attrs.
 
         Operates on the *original* files so that metadata is visible
-        through symlinks and persists across rebuilds.
+        through symlinks and persists across rebuilds.  Files that already
+        carry the contract are skipped entirely (see ``_needs_enrichment``).
         """
         try:
             import netCDF4  # noqa: N813
@@ -186,8 +234,17 @@ class ForcingsStoreBuilder:
         var_attrs = source_meta.to_netcdf_attrs()
 
         for src_file in nc_files:
+            if not self._needs_enrichment(src_file, dt_seconds):
+                logger.debug("Forcing %s already enriched; leaving untouched", src_file.name)
+                continue
+            # Enrich a private copy and publish it with an atomic rename. The
+            # basin-averaged forcing is shared across every model in the domain;
+            # mutating it in place would expose concurrent readers to a
+            # half-updated NetCDF (out-of-range values, truncated variables).
+            staged = src_file.with_name(f"{src_file.name}.enrich.{os.getpid()}")
             try:
-                with netCDF4.Dataset(str(src_file), 'a') as ds:
+                shutil.copy2(str(src_file), str(staged))
+                with netCDF4.Dataset(str(staged), 'a') as ds:
                     # Global attributes — refresh canonical contract markers.
                     if 'Conventions' not in ds.ncattrs():
                         ds.setncatts({k: v for k, v in global_attrs.items()
@@ -214,5 +271,11 @@ class ForcingsStoreBuilder:
                                 if ak not in var.ncattrs():
                                     var.setncattr(ak, av)
 
+                os.replace(str(staged), str(src_file))
+                logger.debug("Enriched forcing metadata for %s", src_file.name)
+
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
                 logger.warning("Could not enrich metadata for %s: %s", src_file.name, e, exc_info=True)
+            finally:
+                if staged.exists():
+                    staged.unlink()

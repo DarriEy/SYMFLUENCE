@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import shutil
 import time
 import uuid
@@ -85,7 +86,8 @@ class RemappingWeightApplier(ConfigMixin):
         file: Path,
         remap_file: Path,
         output_file: Path,
-        worker_id: Optional[int] = None
+        worker_id: Optional[int] = None,
+        overwrite: bool = False,
     ) -> bool:
         """
         Apply pre-computed remapping weights to a forcing file.
@@ -95,6 +97,10 @@ class RemappingWeightApplier(ConfigMixin):
             remap_file: Path to pre-computed remapping weights CSV
             output_file: Path for output file
             worker_id: Optional worker ID for logging
+            overwrite: Republish *output_file* even when it already exists.
+                Callers that have already judged the existing output stale
+                (``FileProcessor.filter_processed_files``) set this; the
+                existing file is replaced by an atomic rename, never unlinked.
 
         Returns:
             bool: True if successful, False otherwise
@@ -104,7 +110,7 @@ class RemappingWeightApplier(ConfigMixin):
 
         try:
             # Check if output already exists
-            if output_file.exists():
+            if output_file.exists() and not overwrite:
                 file_size = output_file.stat().st_size
                 if file_size > 1000:
                     self.logger.debug(f"{worker_str}Output already exists: {file.name}")
@@ -405,9 +411,19 @@ class RemappingWeightApplier(ConfigMixin):
             # Ensure output directory exists
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Move to final location
-            shutil.move(str(temp_output), str(output_file))
-            self.logger.debug(f"{worker_str}Moved {temp_output.name} to {output_file.name}")
+            # Publish atomically. The remapped forcing is shared by every model
+            # on this domain, so a reader must see either the complete previous
+            # file or the complete new one — never a partial write and never a
+            # gap. os.replace is atomic within a filesystem; the fallback stages
+            # the copy *inside the destination directory* before renaming, so it
+            # is atomic across filesystems too.
+            try:
+                os.replace(str(temp_output), str(output_file))
+            except OSError:
+                staged = output_file.with_name(f"{output_file.name}.staging.{os.getpid()}")
+                shutil.copy2(str(temp_output), str(staged))
+                os.replace(str(staged), str(output_file))
+            self.logger.debug(f"{worker_str}Published {temp_output.name} as {output_file.name}")
             return True
 
         elif output_file.exists():

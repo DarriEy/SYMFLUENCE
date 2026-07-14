@@ -161,18 +161,21 @@ class FileProcessor(ConfigMixin):
                         self.logger.debug(msg)
                     else:
                         self.logger.warning(msg)
-                    try:
-                        output_file.unlink()
-                        corrupted_files += 1
-                    except OSError as e:
-                        self.logger.warning(
-                            f"Error deleting {reason} file: {e}", exc_info=True)
+                    # The remapped forcing is a domain-shared, model-agnostic
+                    # product: other workflows on this domain read it (directly
+                    # and through data/model_ready/forcings). It must never be
+                    # unlinked ahead of a rebuild — that leaves a window in
+                    # which readers get FileNotFoundError or a half-written
+                    # file. The applier republishes it with an atomic rename, so
+                    # the old file stays complete and readable until the new one
+                    # is in place.
+                    corrupted_files += 1
 
             remaining_files.append(file)
 
         self.logger.debug(f"Found {already_processed} already processed files")
         if corrupted_files > 0:
-            self.logger.info(f"Deleted {corrupted_files} stale/corrupted files to reprocess")
+            self.logger.info(f"Queued {corrupted_files} stale/corrupted files for atomic reprocessing")
         self.logger.debug(f"Found {len(remaining_files)} files that need processing")
 
         return remaining_files
@@ -195,8 +198,9 @@ class FileProcessor(ConfigMixin):
         The output is stale when the source forcing file carries forcing
         variables that the (already-remapped) output lacks — the signature of a
         source dataset/version change (e.g. RDRS v2.1 -> CaSR v3.2 adding wind
-        and radiation). Such an output must be deleted and reprocessed, otherwise
-        the model receives a forcing file missing required variables.
+        and radiation). Such an output must be reprocessed (republished in place
+        by an atomic rename), otherwise the model receives a forcing file
+        missing required variables.
         """
         import xarray as xr
         try:

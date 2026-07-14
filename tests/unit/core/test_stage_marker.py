@@ -10,10 +10,12 @@ from unittest.mock import patch
 import pytest
 
 from symfluence.core.stage_marker import (
+    DOMAIN_SHARED_STAGES,
     STAGE_CONFIG_SECTIONS,
     StageMarker,
     clear_markers,
     compute_config_hash,
+    compute_stage_hash,
     is_stage_current,
     read_marker,
     write_marker,
@@ -201,3 +203,85 @@ class TestStageConfigSectionsCoverage:
         for sections in STAGE_CONFIG_SECTIONS.values():
             assert "system" not in sections
             assert "paths" not in sections
+
+
+# ---------------------------------------------------------------------------
+# Shared-domain concurrency: markers for domain-shared stages must agree
+# across models/experiments running on the same domain.
+# ---------------------------------------------------------------------------
+
+
+def _shared_domain_config(*, experiment_id: str, model: str) -> _FakeConfig:
+    """Two workflows on one domain differing only in experiment_id + model."""
+    return _FakeConfig(
+        domain={"name": "bow", "discretization": "lumped", "experiment_id": experiment_id},
+        data={"data_access": "MAF"},
+        forcing={"dataset": "RDRS", "time_step_size": 3600},
+        model={"hydrological_model": model, "params_to_calibrate": f"{model}_params"},
+        evaluation={"metric": "KGE"},
+        optimization={"algorithm": "DDS"},
+    )
+
+
+class TestDomainSharedStageHashes:
+    """Regression: SYMFLUENCE#P3-16 — concurrent workflows in one domain.
+
+    The model-agnostic products (basin-averaged forcing, model-ready store)
+    are shared by every model/experiment in a domain. If a per-model or
+    per-experiment config field feeds their stage hash, each concurrent
+    workflow judges the shared product stale and rebuilds it underneath the
+    others — deleting/rewriting files the others are reading.
+    """
+
+    def test_build_model_ready_store_does_not_hash_model_section(self):
+        assert "model" not in STAGE_CONFIG_SECTIONS["build_model_ready_store"]
+
+    @pytest.mark.parametrize("stage", sorted(DOMAIN_SHARED_STAGES))
+    def test_shared_stage_hash_is_model_and_experiment_invariant(self, stage):
+        hbv = _shared_domain_config(experiment_id="cal_ensemble_hbv_abc", model="HBV")
+        fuse = _shared_domain_config(experiment_id="cal_ensemble_fuse_dds", model="FUSE")
+        assert compute_stage_hash(hbv, stage) == compute_stage_hash(fuse, stage)
+
+    def test_model_only_change_does_not_invalidate_store_marker(self, tmp_path):
+        hbv = _shared_domain_config(experiment_id="exp", model="HBV")
+        fuse = _shared_domain_config(experiment_id="exp", model="FUSE")
+
+        write_marker(
+            tmp_path,
+            "build_model_ready_store",
+            compute_stage_hash(hbv, "build_model_ready_store"),
+        )
+
+        assert is_stage_current(
+            tmp_path,
+            "build_model_ready_store",
+            compute_stage_hash(fuse, "build_model_ready_store"),
+        )
+
+    def test_experiment_only_change_does_not_invalidate_forcing_marker(self, tmp_path):
+        a = _shared_domain_config(experiment_id="exp_a", model="HBV")
+        b = _shared_domain_config(experiment_id="exp_b", model="HBV")
+
+        stage = "run_model_agnostic_preprocessing"
+        write_marker(tmp_path, stage, compute_stage_hash(a, stage))
+
+        assert is_stage_current(tmp_path, stage, compute_stage_hash(b, stage))
+
+    def test_experiment_scoped_stages_still_invalidate(self):
+        """Experiment-scoped stages must keep re-running per experiment."""
+        a = _shared_domain_config(experiment_id="exp_a", model="HBV")
+        b = _shared_domain_config(experiment_id="exp_b", model="HBV")
+        assert compute_stage_hash(a, "run_models") != compute_stage_hash(b, "run_models")
+        assert compute_stage_hash(a, "calibrate_model") != compute_stage_hash(b, "calibrate_model")
+
+    def test_forcing_change_still_invalidates_shared_stage(self):
+        """The exclusion is narrow: real model-agnostic changes still rebuild."""
+        a = _shared_domain_config(experiment_id="exp", model="HBV")
+        b = _shared_domain_config(experiment_id="exp", model="HBV")
+        b.forcing = _Section({"dataset": "ERA5", "time_step_size": 3600})
+        stage = "run_model_agnostic_preprocessing"
+        assert compute_stage_hash(a, stage) != compute_stage_hash(b, stage)
+
+    def test_unknown_stage_hashes_to_empty(self):
+        cfg = _shared_domain_config(experiment_id="exp", model="HBV")
+        assert compute_stage_hash(cfg, "not_a_stage") == ""
