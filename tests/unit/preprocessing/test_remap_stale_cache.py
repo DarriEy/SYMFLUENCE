@@ -74,7 +74,9 @@ def test_filter_reprocesses_stale_output(fp, tmp_path):
     remaining = fp.filter_processed_files([src])
 
     assert remaining == [src]       # flagged for reprocessing
-    assert not out.exists()         # stale output deleted
+    # The stale output is NOT unlinked: another workflow in this domain may be
+    # reading it. Reprocessing republishes it with an atomic swap instead.
+    assert out.exists()
 
 
 def test_filter_skips_current_output(fp, tmp_path):
@@ -107,4 +109,7 @@ def test_force_run_all_steps_reprocesses_even_when_current(tmp_path):
     remaining = fp.filter_processed_files([src])
 
     assert remaining == [src]       # forced -> reprocess anyway
-    assert not out.exists()
+    # Even under FORCE_RUN_ALL_STEPS the existing file stays put until the
+    # rebuilt one atomically replaces it (concurrent readers must never see a
+    # missing file — this is what corrupted parallel runs before).
+    assert out.exists()
