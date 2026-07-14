@@ -16,6 +16,7 @@ from __future__ import annotations
 import gc
 import logging
 import multiprocessing as mp
+import os
 import re
 import shutil
 import time
@@ -128,7 +129,13 @@ class RemappingWeightGenerator(ConfigMixin):
 
         self.logger.info("Creating remapping weights (this is done only once)...")
 
-        temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / 'temp_easymore_weights'
+        # Per-invocation scratch dir. A fixed name would be shared by concurrent
+        # workflows on the same domain, and the ``finally`` below rmtree's it —
+        # one workflow would delete another's working files mid-run.
+        temp_dir = (
+            resolve_data_subdir(self.project_dir, 'forcing')
+            / f'temp_easymore_weights_{uuid.uuid4().hex[:8]}'
+        )
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -391,10 +398,17 @@ class RemappingWeightApplier(ConfigMixin):
                 self.logger.debug(f"{worker_str}Output already exists: {forcing_file.name}")
                 return True
 
-            # Create unique temp directory
+            # Create unique temp directory. EASYMORE writes the remapped file
+            # into ``stage_dir``, never straight into the shared basin-averaged
+            # directory: the remapped forcing is a domain-shared product that
+            # other processes (other models on the same domain) may be reading.
+            # Publishing by atomic rename means a reader sees the complete old
+            # file or the complete new one — never a half-written NetCDF.
             unique_id = str(uuid.uuid4())[:8]
             temp_dir = resolve_data_subdir(self.project_dir, 'forcing') / f'temp_apply_{unique_id}'
-            temp_dir.mkdir(parents=True, exist_ok=True)
+            stage_dir = temp_dir / 'out'
+            stage_dir.mkdir(parents=True, exist_ok=True)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
             try:
                 esmr = _create_easymore_instance()
@@ -411,7 +425,7 @@ class RemappingWeightApplier(ConfigMixin):
                 esmr.var_time = 'time'
 
                 esmr.temp_dir = str(temp_dir) + '/'
-                esmr.output_dir = str(self.output_dir) + '/'
+                esmr.output_dir = str(stage_dir) + '/'
 
                 esmr.remapped_dim_id = 'hru'
                 esmr.remapped_var_id = 'hruId'
@@ -424,6 +438,8 @@ class RemappingWeightApplier(ConfigMixin):
 
                 self.logger.debug(f"{worker_str}Applying remapping weights to {forcing_file.name}")
                 esmr.nc_remapper()
+
+                self._publish_remapped(stage_dir, worker_str)
 
             finally:
                 if temp_dir.exists():
@@ -443,6 +459,22 @@ class RemappingWeightApplier(ConfigMixin):
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             self.logger.error(f"{worker_str}Error processing {forcing_file.name}: {str(e)}", exc_info=True)
             return False
+
+    def _publish_remapped(self, stage_dir: Path, worker_str: str = "") -> List[Path]:
+        """Atomically move staged remapped files into the shared output directory.
+
+        The basin-averaged forcing is a domain-shared, model-agnostic product.
+        Publishing with ``os.replace`` (same filesystem — the staging dir lives
+        under ``data/forcing/``) guarantees concurrent readers never observe a
+        partially written NetCDF, and never a missing file during a rebuild.
+        """
+        published: List[Path] = []
+        for staged in sorted(stage_dir.glob('*.nc')):
+            dst = self.output_dir / staged.name
+            os.replace(str(staged), str(dst))
+            published.append(dst)
+            self.logger.debug(f"{worker_str}Published remapped forcing {dst.name}")
+        return published
 
     def _get_variables(self, forcing_file: Path) -> List[str]:
         """Get variables to use, either pre-detected or from file."""

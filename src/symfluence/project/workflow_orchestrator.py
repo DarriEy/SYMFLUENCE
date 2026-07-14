@@ -23,7 +23,7 @@ from symfluence.core.provenance import record_executable, record_step
 from symfluence.core.stage_marker import (
     STAGE_CONFIG_SECTIONS,
     clear_markers,
-    compute_config_hash,
+    compute_stage_hash,
     is_stage_current,
     write_marker,
 )
@@ -453,7 +453,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 output_exists = step.check_func()
                 sections = STAGE_CONFIG_SECTIONS.get(step_name, [])
                 if sections:
-                    current_hash = compute_config_hash(self._config, sections)
+                    current_hash = compute_stage_hash(self._config, step_name)
                     marker_current = is_stage_current(
                         self.project_dir, step_name, current_hash
                     )
@@ -648,7 +648,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 # Write marker after successful execution
                 sections = STAGE_CONFIG_SECTIONS.get(step.name, [])
                 if sections:
-                    current_hash = compute_config_hash(self._config, sections)
+                    current_hash = compute_stage_hash(self._config, step.name)
                     write_marker(self.project_dir, step.name, current_hash)
 
                 if self.logging_manager:
@@ -722,7 +722,7 @@ class WorkflowOrchestrator(ConfigMixin):
 
             sections = STAGE_CONFIG_SECTIONS.get(step_name, [])
             if sections:
-                current_hash = compute_config_hash(self._config, sections)
+                current_hash = compute_stage_hash(self._config, step_name)
                 marker_valid = is_stage_current(
                     self.project_dir, step_name, current_hash
                 )

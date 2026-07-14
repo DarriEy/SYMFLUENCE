@@ -236,10 +236,11 @@ class TestWorkflowOrchestratorMarkers:
             )
             mock_define.return_value = [step]
 
-            # Pre-write a marker with the correct hash
-            from symfluence.core.stage_marker import STAGE_CONFIG_SECTIONS, compute_config_hash
-            sections = STAGE_CONFIG_SECTIONS["setup_project"]
-            current_hash = compute_config_hash(orch._config, sections)
+            # Pre-write a marker with the correct hash. compute_stage_hash is the
+            # canonical keying for a stage: it applies the stage's section list
+            # *and* its experiment-scoped exclusions.
+            from symfluence.core.stage_marker import compute_stage_hash
+            current_hash = compute_stage_hash(orch._config, "setup_project")
             write_marker(orch.project_dir, "setup_project", current_hash)
 
             orch.run_workflow()
