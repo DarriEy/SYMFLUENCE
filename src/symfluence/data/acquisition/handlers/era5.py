@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -27,6 +28,29 @@ from ..base import BaseAcquisitionHandler
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
 
+# Number of concurrent Zarr chunk reads used when materialising an ARCO
+# time-chunk.  The ARCO-ERA5 store is chunked (1 hour, 721 lat, 1440 lon), so a
+# request for a small domain is dominated by network latency on thousands of
+# independent object GETs, not by CPU.  Oversubscribing threads relative to
+# cores is therefore the correct trade-off here.  Override with
+# SYMFLUENCE_ERA5_ARCO_THREADS.
+_ARCO_READ_THREADS_DEFAULT = 32
+
+# ARCO serves one global field per (hour, variable) chunk, so its transfer cost
+# is independent of domain size. Below this many 0.25-deg cells, CDS's
+# server-side subsetting wins by orders of magnitude even with its queue.
+ARCO_CELL_BREAKEVEN = 200
+
+
+def _arco_read_threads() -> int:
+    """Concurrency for ARCO Zarr chunk reads (network-latency bound)."""
+    try:
+        n = int(os.environ.get("SYMFLUENCE_ERA5_ARCO_THREADS", _ARCO_READ_THREADS_DEFAULT))
+    except ValueError:
+        n = _ARCO_READ_THREADS_DEFAULT
+    return max(1, n)
+
+
 # Patterns indicating HDF5/netCDF engine issues on parallel filesystems
 _HDF_ERROR_PATTERNS = (
     "HDF error",
@@ -36,6 +60,13 @@ _HDF_ERROR_PATTERNS = (
     "Resource temporarily",
     "unable to synchronously",
 )
+
+
+# The HDF5 C library underneath netCDF4/h5netcdf is only thread-safe when it was
+# compiled that way, which the wheels are not.  Chunk writes from the parallel
+# acquisition path must therefore be serialised, even though they target
+# different files.
+_NETCDF_WRITE_LOCK = threading.Lock()
 
 
 def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
@@ -53,6 +84,9 @@ def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
     filesystems (Lustre / GPFS / BeeGFS) even when the HDF5 C library was
     compiled with forced locking or loaded before HDF5_USE_FILE_LOCKING was
     set.
+
+    Callers may invoke this concurrently from threads; the HDF5 write itself is
+    serialised (see ``_NETCDF_WRITE_LOCK``).
     """
     # Belt-and-suspenders: re-enforce locking env var in case the HDF5 C
     # library hasn't been loaded yet (it reads the var at dlopen time).
@@ -60,6 +94,14 @@ def _safe_to_netcdf(ds: xr.Dataset, path: Path, encoding: dict = None,
 
     # Materialise into memory so the write is a pure local operation
     ds = ds.load()
+
+    with _NETCDF_WRITE_LOCK:
+        _write_netcdf_with_fallbacks(ds, path, encoding, logger)
+
+
+def _write_netcdf_with_fallbacks(ds: xr.Dataset, path: Path, encoding: dict = None,
+                                 logger: logging.Logger = None) -> None:
+    """Engine-fallback ladder for a NetCDF write. Must hold ``_NETCDF_WRITE_LOCK``."""
 
     # Clear cloud-store (Zarr) encoding that can confuse NetCDF writers
     for var in ds.data_vars:
@@ -281,6 +323,16 @@ class ERA5Acquirer(BaseAcquisitionHandler):
     Both pathways produce equivalent SUMMA-compatible forcing files with proper
     unit conversions and variable standardization.
     """
+    def _arco_cell_count(self) -> int:
+        """Approximate number of 0.25-deg ERA5 cells the domain bbox covers."""
+        if not self.bbox:
+            return ARCO_CELL_BREAKEVEN + 1  # unknown extent: don't force CDS
+        lat_span = abs(self.bbox['lat_max'] - self.bbox['lat_min'])
+        lon_span = abs(self.bbox['lon_max'] - self.bbox['lon_min'])
+        n_lat = max(1, int(lat_span / 0.25) + 1)
+        n_lon = max(1, int(lon_span / 0.25) + 1)
+        return n_lat * n_lon
+
     def download(self, output_dir: Path) -> Path:
         """
         Download ERA5 data using automatically selected pathway.
@@ -323,11 +375,32 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         self.logger.info(f"ERA5_USE_CDS config value: {use_cds} (type: {type(use_cds)})")
 
         if use_cds is None:
-            # Auto-detect preference: ARCO (faster) > CDS
-            # Both pathways now have the longwave radiation fix, so prefer ARCO for speed
+            # Auto-detect. ARCO has no queue, but the store chunks each variable
+            # as one *global* field per hour, so a request pulls whole-globe
+            # chunks however small the domain is: transfer scales with
+            # hours x variables, not with area. For a handful of cells that is
+            # ~14 GB per month to keep a few KB, and CDS — which subsets
+            # server-side — is faster by orders of magnitude despite its queue.
             from importlib.util import find_spec
-            if find_spec("gcsfs") and find_spec("xarray"):
-                self.logger.info("Auto-detecting ERA5 pathway: ARCO (Google Cloud) - faster, no queue")
+
+            small_domain = self._arco_cell_count() <= ARCO_CELL_BREAKEVEN
+            if small_domain and has_cds_credentials():
+                self.logger.info(
+                    "Auto-detecting ERA5 pathway: CDS — the domain covers ~%d grid "
+                    "cell(s); ARCO would stream whole-globe chunks for them",
+                    self._arco_cell_count(),
+                )
+                self.logger.info("  To force ARCO instead, set ERA5_USE_CDS=false")
+                use_cds = True
+            elif find_spec("gcsfs") and find_spec("xarray"):
+                if small_domain:
+                    self.logger.warning(
+                        "Small domain (~%d cells) on the ARCO pathway: expect whole-globe "
+                        "chunk transfers. Add CDS credentials (~/.cdsapirc) for a "
+                        "server-side subset.",
+                        self._arco_cell_count(),
+                    )
+                self.logger.info("Auto-detecting ERA5 pathway: ARCO (Google Cloud) - no queue")
                 self.logger.info("  To use CDS instead, set ERA5_USE_CDS=true in config or environment")
                 use_cds = False
             else:
@@ -543,6 +616,42 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 "Hydrological model may produce incomplete results."
             )
 
+        # --- Narrow the lazy view ONCE, before any time slicing --------------
+        # The ARCO store holds 273 variables (including 37-level fields), each
+        # chunked (1 hour, 721 lat, 1440 lon).  Two consequences drive this
+        # ordering:
+        #   * Slicing the whole 273-variable dataset rebuilds a dask graph over
+        #     every array on every monthly chunk.  Selecting the requested
+        #     variables first makes that graph ~40x cheaper to build.
+        #   * The spatial subset is time-invariant, so it belongs outside the
+        #     chunk loop.  Applying it here means each chunk's dask graph
+        #     already carries the tiny selection and the per-chunk work is a
+        #     pure time slice.
+        ds_sp = _subset_era5_bbox(
+            ds[available_vars],
+            lat_min_raw,
+            lat_max_raw,
+            lon_min,
+            lon_max,
+            wrap_longitude,
+            lat_descending,
+            (lon_min_value, lon_max_value),
+        )
+        if (
+            "latitude" not in ds_sp.dims
+            or "longitude" not in ds_sp.dims
+            or ds_sp.sizes.get("latitude", 0) == 0
+            or ds_sp.sizes.get("longitude", 0) == 0
+        ):
+            self.logger.warning(
+                "Empty spatial dimensions after bounding box selection. "
+                f"Verify BOUNDING_BOX_COORDS covers at least one ERA5 cell "
+                f"(~{lat_res:.2f}° lat x {lon_res:.2f}° lon)."
+            )
+            return output_dir
+
+        _warn_arco_transfer_volume(ds, ds_sp, available_vars, era5_start, era5_end, self.logger)
+
         output_dir.mkdir(parents=True, exist_ok=True)
         chunk_files = []
 
@@ -552,11 +661,12 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         )
 
         # Default to parallel processing if not specified
-        n_workers_cfg = self._get_config_value(lambda: self.config.system.num_processes)
+        n_workers_cfg = self._get_config_value(
+            lambda: self.config.system.num_processes, dict_key='NUM_PROCESSES'
+        )
         if n_workers_cfg is not None:
             n_workers = int(n_workers_cfg)
         else:
-            import os
             # Use available CPUs but cap at 8 to avoid overwhelming I/O
             n_workers = min(8, os.cpu_count() or 1)
 
@@ -580,34 +690,9 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
                 self.logger.info(f"Processing ERA5 chunk {i}/{len(chunks)}: {chunk_start.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}")
                 time_start = chunk_start if i == 1 else chunk_start - pd.Timedelta(hours=step)
-                ds_t = ds.sel(time=slice(time_start, chunk_end))
-                if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: continue
-                ds_ts = _subset_era5_bbox(
-                    ds_t,
-                    lat_min_raw,
-                    lat_max_raw,
-                    lon_min,
-                    lon_max,
-                    wrap_longitude,
-                    lat_descending,
-                    (lon_min_value, lon_max_value),
-                )
-
-                # Check for empty spatial dimensions (bounding box too small for grid resolution)
-                if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
-                    self.logger.warning(f"Chunk {i}: Missing spatial dimensions after bounding box selection")
-                    continue
-                if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
-                    self.logger.warning(
-                        f"Chunk {i}: Empty spatial dimensions after bounding box selection. "
-                        f"Verify BOUNDING_BOX_COORDS covers at least one ERA5 cell "
-                        f"(~{lat_res:.2f}° lat x {lon_res:.2f}° lon)."
-                    )
-                    continue
-
-                if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
-                if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: continue
-                ds_chunk = era5_to_summa_schema(ds_ts[[v for v in available_vars if v in ds_ts.data_vars]], source='arco', logger=self.logger)
+                ds_ts = _materialize_era5_chunk(ds_sp, time_start, chunk_end, step)
+                if ds_ts is None: continue
+                ds_chunk = era5_to_summa_schema(ds_ts, source='arco', logger=self.logger)
                 if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1: continue
                 # chunk_file already defined at start of loop
                 encoding = {var: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for var in ds_chunk.data_vars}
@@ -644,17 +729,8 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                     return _process_era5_chunk_threadsafe(
                         i,
                         (chunk_start, chunk_end),
-                        ds,
-                        available_vars,
+                        ds_sp,
                         step,
-                        lat_min_raw,
-                        lat_max_raw,
-                        lon_min,
-                        lon_max,
-                        wrap_longitude,
-                        lat_descending,
-                        lon_min_value,
-                        lon_max_value,
                         output_dir,
                         domain_name,
                         len(chunks),
@@ -669,20 +745,86 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         return output_dir if len(chunk_files) > 1 else (chunk_files[0] if chunk_files else output_dir)
 
 
+def _materialize_era5_chunk(
+    ds_sp: xr.Dataset,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    step: int,
+) -> Optional[xr.Dataset]:
+    """Materialise one time-chunk of an already variable- and space-subset ARCO view.
+
+    ``ds_sp`` must already carry only the requested variables and the requested
+    grid cells: on the ARCO store the Zarr chunk is (1 hour, 721 lat, 1440 lon),
+    so every fetched chunk is a full global field and the only thing that bounds
+    the transfer is how few (variable, hour) pairs the graph touches.
+
+    The subset is materialised exactly once here.  De-accumulation, the longwave
+    sanity check and the NetCDF write then all operate on numpy, so no Zarr chunk
+    is ever fetched twice.
+
+    Returns ``None`` when the slice holds fewer than two timesteps (ARCO
+    de-accumulation needs a preceding step).
+    """
+    ds_t = ds_sp.sel(time=slice(start, end))
+    if "time" not in ds_t.dims or ds_t.sizes["time"] < 2:
+        return None
+    if step > 1:
+        ds_t = ds_t.isel(time=slice(0, None, step))
+    if ds_t.sizes["time"] < 2:
+        return None
+
+    try:
+        import dask
+    except ImportError:
+        return ds_t.load()
+
+    # Reads are network-latency bound (thousands of independent object GETs),
+    # so thread count is deliberately decoupled from core count.
+    with dask.config.set(scheduler="threads", num_workers=_arco_read_threads()):
+        return ds_t.load()
+
+
+def _warn_arco_transfer_volume(
+    ds: xr.Dataset,
+    ds_sp: xr.Dataset,
+    available_vars: List[str],
+    era5_start: pd.Timestamp,
+    era5_end: pd.Timestamp,
+    logger: logging.Logger,
+) -> None:
+    """Warn when the ARCO chunking makes this request pathologically wasteful.
+
+    ARCO-ERA5 stores one global field per Zarr chunk, so the transfer scales with
+    (hours x variables), not with domain size.  A single-cell domain still pulls
+    the whole globe for every hour of every variable.  Surface the ratio so the
+    user can choose the CDS pathway (server-side subsetting) instead of silently
+    waiting on hundreds of GB.
+    """
+    try:
+        globe_cells = ds.sizes["latitude"] * ds.sizes["longitude"]
+        kept_cells = ds_sp.sizes["latitude"] * ds_sp.sizes["longitude"]
+        n_hours = int((era5_end - era5_start) / pd.Timedelta(hours=1)) + 1
+        chunk_mb = globe_cells * 4 / 1e6  # float32, uncompressed
+        est_gb = n_hours * len(available_vars) * chunk_mb / 1000.0
+    except (KeyError, ZeroDivisionError, TypeError):
+        return
+
+    if est_gb < 20:
+        return
+    logger.warning(
+        "ARCO-ERA5 stores one global field per Zarr chunk, so this request must "
+        f"stream roughly {est_gb:.0f} GB to keep {kept_cells} grid cell(s) "
+        f"({globe_cells // max(kept_cells, 1)}x waste). For small domains the CDS "
+        "pathway subsets server-side and is far cheaper: set ERA5_USE_CDS: true "
+        "with ~/.cdsapirc credentials."
+    )
+
+
 def _process_era5_chunk_threadsafe(
     idx,
     times,
-    ds,
-    vars,
+    ds_sp,
     step,
-    lat_min,
-    lat_max,
-    lon_min,
-    lon_max,
-    wrap_lon,
-    lat_descending,
-    lon_min_value,
-    lon_max_value,
     out_dir,
     dom,
     total,
@@ -691,24 +833,12 @@ def _process_era5_chunk_threadsafe(
     """
     Process a single ERA5 time chunk in a thread-safe manner for parallel execution.
 
-    This function handles one monthly chunk of ERA5 data within a parallel processing
-    workflow. It performs temporal and spatial subsetting, optional temporal resampling,
-    and conversion to SUMMA-compatible format.
-
     Args:
         idx: Chunk index number (1-based) for tracking progress
         times: Tuple of (start_time, end_time) for this chunk
-        ds: Xarray dataset containing full ERA5 data
-        vars: List of ERA5 variables to extract
+        ds_sp: Lazy ARCO view already narrowed to the requested variables and the
+            requested grid cells (see ``_materialize_era5_chunk``)
         step: Temporal step for resampling (e.g., 3 for every 3 hours)
-        lat_min: Minimum latitude for spatial subsetting
-        lat_max: Maximum latitude for spatial subsetting
-        lon_min: Minimum longitude for spatial subsetting (normalized to 0-360)
-        lon_max: Maximum longitude for spatial subsetting (normalized to 0-360)
-        wrap_lon: Whether longitude wraps across antimeridian
-        lat_descending: Whether latitude coordinates are descending
-        lon_min_value: Minimum longitude value in dataset
-        lon_max_value: Maximum longitude value in dataset
         out_dir: Output directory for processed chunk
         dom: Domain name for output filename
         total: Total number of chunks (for logging)
@@ -723,38 +853,21 @@ def _process_era5_chunk_threadsafe(
     Note:
         - Adds one extra timestep before chunk_start (except for first chunk) to ensure continuity
         - Skips chunks with insufficient time dimension (<2 timesteps)
-        - Checks for empty spatial dimensions after bbox selection
         - Applies zlib compression with complevel=1 for faster writing
         - Thread-safe: Each invocation operates on independent data slices
     """
     start, end = times
     try:
         ts = start if idx == 1 else start - pd.Timedelta(hours=step)
-        ds_t = ds.sel(time=slice(ts, end))
-        if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: return idx, None, "skipped"
-        ds_ts = _subset_era5_bbox(
-            ds_t,
-            lat_min,
-            lat_max,
-            lon_min,
-            lon_max,
-            wrap_lon,
-            lat_descending,
-            (lon_min_value, lon_max_value),
-        )
-
-        # Check for empty spatial dimensions
-        if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
-            return idx, None, "skipped: missing spatial dimensions"
-        if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
-            return idx, None, "skipped: empty spatial dimensions after bbox selection"
-
-        if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
-        if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: return idx, None, "skipped"
-        ds_chunk = era5_to_summa_schema(ds_ts[[v for v in vars if v in ds_ts.data_vars]], source='arco', logger=logger)
+        ds_ts = _materialize_era5_chunk(ds_sp, ts, end, step)
+        if ds_ts is None:
+            return idx, None, "skipped"
+        ds_chunk = era5_to_summa_schema(ds_ts, source='arco', logger=logger)
         cf = out_dir / f"domain_{dom}_ERA5_merged_{start.year}{start.month:02d}.nc"
         encoding = {v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars}
         _safe_to_netcdf(ds_chunk, cf, encoding=encoding, logger=logger)
+        if logger:
+            logger.info(f"✓ Successfully saved ERA5 chunk {idx}/{total} to {cf.name}")
         return idx, cf, "success"
     except KeyError as e:
         return idx, None, f"missing variable or dimension: {e}"

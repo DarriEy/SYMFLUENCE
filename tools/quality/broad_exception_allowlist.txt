@@ -89,7 +89,7 @@ src/symfluence/data/acquisition/handlers/cnes_grgs_tws.py:CNESGRGSAcquirer.downl
 src/symfluence/data/acquisition/handlers/daymet.py:DaymetAcquirer._download_opendap_subset:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/daymet.py:DaymetAcquirer._download_single_pixel:except Exception as e:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/daymet.py:DaymetAcquirer._merge_year_files:except Exception as e:  # noqa: BLE001 — merge is best-effort
-src/symfluence/data/acquisition/handlers/era5.py:_safe_to_netcdf:except Exception:
+src/symfluence/data/acquisition/handlers/era5.py:_write_netcdf_with_fallbacks:except Exception:
 src/symfluence/data/acquisition/handlers/esa_cci_sm.py:ESACCISMAcquirer.download:except Exception as exc:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/fluxcom_et.py:FLUXCOMETAcquirer._download_from_icos:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/acquisition/handlers/fluxcom_et.py:FLUXCOMETAcquirer._download_from_icos:except Exception as e:  # noqa: BLE001 — preprocessing resilience
