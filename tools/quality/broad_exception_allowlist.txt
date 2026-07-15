@@ -347,6 +347,8 @@ src/symfluence/data/preprocessing/resampling/file_processor.py:FileProcessor.pro
 src/symfluence/data/preprocessing/resampling/file_validator.py:FileValidator.validate:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/geometry_validator.py:GeometryValidator.validate_and_repair.repair_geometry:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/point_scale_extractor.py:PointScaleForcingExtractor._get_forcing_elevation_from_dem:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/data/preprocessing/resampling/point_scale_extractor.py:PointScaleForcingExtractor._standardize_if_raw:except Exception as e:  # noqa: BLE001 — defensive guard, don't kill extraction
+src/symfluence/data/preprocessing/resampling/point_scale_extractor.py:PointScaleForcingExtractor._standardize_if_raw:except Exception as e:  # noqa: BLE001 — defensive guard, don't kill extraction
 src/symfluence/data/preprocessing/resampling/point_scale_extractor.py:PointScaleForcingExtractor.should_use_point_scale:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/shapefile_processor.py:ShapefileProcessor.ensure_unique_hru_ids:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/resampling/shapefile_processor.py:ShapefileProcessor.ensure_unique_hru_ids:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
