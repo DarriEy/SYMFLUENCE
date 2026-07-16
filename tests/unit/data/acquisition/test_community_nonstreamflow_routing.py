@@ -194,6 +194,8 @@ class _FakeObsBackend:
         ("MODIS_ET", "mod16_et", "et", "modis_et_default_observation_path", "et_mm_day", 1.0),
         ("FLUXNET_ET", "fluxnet_et", "et", "fluxnet_et_default_observation_path", "et_mm_day", 1.0),
         ("USGS_GW", "usgs_gw", "groundwater", "groundwater_default_observation_path", "depth", 1.0),
+        ("SMAP", "smap_sm", "soil_moisture", "smap_default_observation_path", "soil_moisture", 1.0),
+        ("CHIRPS", "chirps_precip", "precipitation", "chirps_default_observation_path", "precipitation_mm", 1.0),
     ],
 )
 def test_each_kind_routes_and_writes_canonical(
@@ -237,6 +239,19 @@ def test_station_ids_resolved_from_native_config(tmp_path):
     # comma-separated -> multiple stations
     svc2 = _service(tmp_path, SNOTEL_STATION="679:WA:SNTL, 999:OR:SNTL")
     assert svc2._community_station_ids("snotel") == ("679:WA:SNTL", "999:OR:SNTL")
+
+
+@pytest.mark.parametrize(
+    "provider,family,subdir",
+    [("smap_sm", "soil_moisture", "smap"), ("chirps_precip", "precipitation", "chirps")],
+)
+def test_gridded_route_uses_staged_netcdf(tmp_path, provider, family, subdir):
+    svc = _service(tmp_path)
+    staged = svc.project_dir / "data" / "observations" / family / subdir
+    staged.mkdir(parents=True, exist_ok=True)
+    nc = staged / "source.nc"
+    nc.write_bytes(b"fixture")
+    assert svc._community_connector_config(provider) == {"nc_path": str(nc)}
 
 
 @pytest.mark.live
