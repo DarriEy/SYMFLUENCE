@@ -256,6 +256,16 @@ def groundwater_default_observation_path(project_dir: Path, domain_name: str) ->
     return resolve_data_subdir(project_dir, 'observations') / "groundwater" / "depth" / "processed" / f"{domain_name}_gw_processed.csv"
 
 
+def smap_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default SMAP path (first sm_smap candidate consumed by the evaluator)."""
+    return resolve_data_subdir(project_dir, 'observations') / "soil_moisture" / "smap" / "processed" / f"{domain_name}_smap_processed.csv"
+
+
+def chirps_default_observation_path(project_dir: Path, domain_name: str) -> Path:
+    """Default CHIRPS path written by the native precipitation handler."""
+    return resolve_data_subdir(project_dir, 'observations') / "precipitation" / "preprocessed" / f"{domain_name}_chirps_processed.csv"
+
+
 def observation_output_candidates_by_family(project_dir: Path, domain_name: str) -> Dict[str, List[Path]]:
     """Canonical + legacy candidate observation output paths by family."""
 

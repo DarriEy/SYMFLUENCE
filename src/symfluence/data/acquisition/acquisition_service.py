@@ -1233,6 +1233,8 @@ class AcquisitionService(ConfigurableMixin):
         'MODIS_ET':   ('mod16_et',   'et',          'modis_et_default_observation_path',    'et_mm_day',         1.0),
         'FLUXNET_ET': ('fluxnet_et', 'et',          'fluxnet_et_default_observation_path',  'et_mm_day',         1.0),
         'USGS_GW':    ('usgs_gw',    'groundwater', 'groundwater_default_observation_path', 'depth',             1.0),
+        'SMAP':       ('smap_sm',    'soil_moisture', 'smap_default_observation_path',        'soil_moisture',     1.0),
+        'CHIRPS':     ('chirps_precip', 'precipitation', 'chirps_default_observation_path',    'precipitation_mm',   1.0),
     }
 
     def _route_community_nonstreamflow_obs(self, additional_obs) -> set:
@@ -1317,6 +1319,22 @@ class AcquisitionService(ConfigurableMixin):
         """
         if provider == 'grace':
             return self._community_grace_connector_config()
+        if provider == 'smap_sm':
+            return self._community_staged_connector_config('soil_moisture', ('smap', 'raw_data'))
+        if provider == 'chirps_precip':
+            return self._community_staged_connector_config('precipitation', ('chirps', 'raw_data'))
+        return {}
+
+    def _community_staged_connector_config(self, family: str, subdirs: tuple) -> Dict[str, Any]:
+        """Return a staged NetCDF for a COS gridded connector, if one exists."""
+        root = resolve_data_subdir(self.project_dir, 'observations') / family
+        candidates = [root]
+        candidates.extend(root / part for part in subdirs)
+        for directory in candidates:
+            if directory.exists():
+                files = sorted(directory.glob('*.nc'))
+                if files:
+                    return {'nc_path': str(files[0])}
         return {}
 
     def _community_station_ids(self, provider: str) -> tuple:
