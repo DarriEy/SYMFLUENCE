@@ -227,10 +227,31 @@ class PointScaleForcingExtractor(ConfigMixin):
 
             # Sample DEM at the forcing grid centre
             with rasterio.open(dem_path) as src:
+                # A coarse forcing grid (ERA5, CONUS404, RDRS) centred outside a
+                # small domain DEM must NOT be sampled: rasterio returns the fill
+                # value for out-of-bounds points, and when the DEM has no nodata
+                # set that fill is 0.0, which would masquerade as a sea-level
+                # forcing elevation and drive a spurious ~lapse_rate*S_1 cold
+                # correction. Reject out-of-bounds centres so the caller falls
+                # back to the catchment elevation (zero lapse correction).
+                bounds = src.bounds
+                if not (
+                    bounds.left <= lon_center <= bounds.right
+                    and bounds.bottom <= lat_center <= bounds.top
+                ):
+                    self.logger.warning(
+                        f"Forcing grid centre ({lat_center:.4f}, {lon_center:.4f}) "
+                        f"is outside the domain DEM extent; falling back to the "
+                        f"catchment elevation (no lapse-rate correction)."
+                    )
+                    return None
+
                 # rasterio.sample expects (x, y) = (lon, lat) for geographic CRS
                 samples = list(src.sample([(lon_center, lat_center)]))
-                if samples and samples[0][0] != src.nodata and samples[0][0] != -9999:
-                    return float(samples[0][0])
+                if samples:
+                    value = float(samples[0][0])
+                    if np.isfinite(value) and value != src.nodata and value != -9999:
+                        return value
 
                 self.logger.warning(
                     f"DEM returned nodata at forcing grid centre "
