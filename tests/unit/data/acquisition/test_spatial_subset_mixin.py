@@ -420,6 +420,48 @@ class TestBboxConversions:
 
         assert cds_area == [20, -10, 10, 10]
 
+    def test_bbox_to_cds_area_snaps_subcell_domain_to_grid(self, spatial_mixin):
+        """A point/sub-cell bbox must be snapped outward to the native grid.
+
+        MARS rejects a crop whose rectangle contains no grid node
+        ("non-empty area crop/mask (to at least one point)"), which is what a
+        raw pour-point bbox (~0.002 deg) does against ERA5's 0.25 deg grid.
+        """
+        point_bbox = {
+            "lat_min": 46.779, "lat_max": 46.781,
+            "lon_min": -121.751, "lon_max": -121.749,
+        }
+
+        north, west, south, east = spatial_mixin.bbox_to_cds_area(
+            bbox=point_bbox, snap_resolution=0.25
+        )
+
+        # Edges land on the 0.25-deg grid and enclose the raw bbox.
+        for edge in (north, west, south, east):
+            assert edge % 0.25 == pytest.approx(0.0, abs=1e-9)
+        assert south <= point_bbox["lat_min"] and north >= point_bbox["lat_max"]
+        assert west <= point_bbox["lon_min"] and east >= point_bbox["lon_max"]
+        # Both axes span at least one full cell, so >=1 node is always inside.
+        assert north - south >= 0.25
+        assert east - west >= 0.25
+
+    def test_bbox_to_cds_area_snaps_on_grid_point_without_collapsing(self, spatial_mixin):
+        """A pour point sitting exactly on a grid line must not collapse an axis."""
+        on_grid = {"lat_min": 46.75, "lat_max": 46.75, "lon_min": -121.75, "lon_max": -121.75}
+
+        north, west, south, east = spatial_mixin.bbox_to_cds_area(
+            bbox=on_grid, snap_resolution=0.25
+        )
+
+        assert north > south
+        assert east > west
+
+    def test_bbox_to_cds_area_no_snap_is_unchanged(self, spatial_mixin):
+        """Without snap_resolution the raw bbox is reflected (back-compat)."""
+        custom_bbox = {"lat_min": 10, "lat_max": 20, "lon_min": -10, "lon_max": 10}
+
+        assert spatial_mixin.bbox_to_cds_area(bbox=custom_bbox) == [20, -10, 10, 10]
+
     def test_bbox_to_wcs_params(self, spatial_mixin, standard_bbox):
         """Should convert to WCS SUBSET parameters."""
         wcs_params = spatial_mixin.bbox_to_wcs_params()

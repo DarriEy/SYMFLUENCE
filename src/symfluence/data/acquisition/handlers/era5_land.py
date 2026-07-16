@@ -29,6 +29,10 @@ import xarray as xr
 from symfluence.core.registries import R
 
 from ..base import BaseAcquisitionHandler
+from ..mixins import SpatialSubsetMixin
+
+# ERA5-Land is served on a 0.1-deg regular lat/lon grid.
+ERA5_LAND_GRID_RESOLUTION_DEG = 0.1
 
 # Variable mapping for ERA5-Land
 ERA5_LAND_VARIABLES = {
@@ -70,7 +74,7 @@ ALL_ERA5_LAND_VARIABLES = [
 
 @R.acquisition_handlers.add('ERA5_LAND')
 @R.acquisition_handlers.add('ERA5-LAND')
-class ERA5LandAcquirer(BaseAcquisitionHandler):
+class ERA5LandAcquirer(BaseAcquisitionHandler, SpatialSubsetMixin):
     """
     Handles ERA5-Land data acquisition from Copernicus CDS.
 
@@ -185,15 +189,14 @@ class ERA5LandAcquirer(BaseAcquisitionHandler):
             # CDS will provide instantaneous values at these times
             request['time'] = ['00:00', '06:00', '12:00', '18:00']
 
-        # Add spatial subsetting if bbox available
+        # Add spatial subsetting if bbox available. Snap to ERA5-Land's
+        # 0.1-deg grid so a point/sub-cell domain still encloses at least one
+        # node — a raw sub-cell rectangle makes MARS reject the crop with
+        # "non-empty area crop/mask (to at least one point)".
         if self.bbox:
-            # CDS uses [north, west, south, east] format
-            request['area'] = [
-                self.bbox['lat_max'],
-                self.bbox['lon_min'],
-                self.bbox['lat_min'],
-                self.bbox['lon_max'],
-            ]
+            request['area'] = self.bbox_to_cds_area(
+                snap_resolution=ERA5_LAND_GRID_RESOLUTION_DEG
+            )
 
         return request
 

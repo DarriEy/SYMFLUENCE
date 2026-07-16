@@ -359,12 +359,22 @@ class SpatialSubsetMixin:
             }]
         }
 
-    def bbox_to_cds_area(self, bbox: Dict[str, float] = None) -> List[float]:
+    def bbox_to_cds_area(
+        self,
+        bbox: Dict[str, float] = None,
+        snap_resolution: Optional[float] = None,
+    ) -> List[float]:
         """
         Convert bounding box to CDS area format [North, West, South, East].
 
         Args:
             bbox: Bounding box dict (uses self.bbox if not provided)
+            snap_resolution: Native grid spacing (degrees) of the target
+                dataset. When given, the area is snapped outward to the
+                enclosing grid so it always contains at least one full cell.
+                Point/sub-cell domains otherwise reflect a rectangle narrower
+                than the grid, and the CDS/MARS server rejects the crop with
+                "non-empty area crop/mask (to at least one point)".
 
         Returns:
             List in CDS format: [lat_max, lon_min, lat_min, lon_max]
@@ -372,12 +382,27 @@ class SpatialSubsetMixin:
         if bbox is None:
             bbox = getattr(self, 'bbox', None)
 
-        return [
-            max(bbox['lat_min'], bbox['lat_max']),  # North
-            min(bbox['lon_min'], bbox['lon_max']),  # West
-            min(bbox['lat_min'], bbox['lat_max']),  # South
-            max(bbox['lon_min'], bbox['lon_max']),  # East
-        ]
+        north = max(bbox['lat_min'], bbox['lat_max'])
+        west = min(bbox['lon_min'], bbox['lon_max'])
+        south = min(bbox['lat_min'], bbox['lat_max'])
+        east = max(bbox['lon_min'], bbox['lon_max'])
+
+        if snap_resolution:
+            res = snap_resolution
+            south = float(np.floor(south / res) * res)
+            north = float(np.ceil(north / res) * res)
+            west = float(np.floor(west / res) * res)
+            east = float(np.ceil(east / res) * res)
+            # A pour point sitting exactly on a grid line collapses one axis;
+            # widen it by a cell so the crop still spans at least one node.
+            if np.isclose(north, south):
+                south -= res
+                north += res
+            if np.isclose(east, west):
+                west -= res
+                east += res
+
+        return [north, west, south, east]
 
     def bbox_to_wcs_params(
         self,

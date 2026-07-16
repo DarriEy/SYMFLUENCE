@@ -29,6 +29,9 @@ from ..base import BaseAcquisitionHandler
 from ..mixins import ChunkedDownloadMixin, RetryMixin, SpatialSubsetMixin
 from .era5_processing import era5_to_summa_schema
 
+# ERA5 reanalysis single-levels are served on a 0.25-deg regular lat/lon grid.
+ERA5_GRID_RESOLUTION_DEG = 0.25
+
 
 @R.acquisition_handlers.add('ERA5_CDS')
 class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, SpatialSubsetMixin):
@@ -114,8 +117,10 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
         days = sorted(list(set([f"{d.day:02d}" for d in dates])))
         times = sorted(list(set([f"{d.hour:02d}:00" for d in dates])))
 
-        # Bounding box for CDS using mixin method
-        area = self.bbox_to_cds_area()
+        # Bounding box for CDS using mixin method. Snap to ERA5's 0.25-deg
+        # grid so point/sub-cell domains still enclose at least one node —
+        # a raw sub-cell rectangle makes MARS reject the crop.
+        area = self.bbox_to_cds_area(snap_resolution=ERA5_GRID_RESOLUTION_DEG)
 
         # Temp files for this month (analysis + forecast, like CARRA/CERRA)
         analysis_file = output_dir / f"{self.domain_name}_era5_analysis_{year}{month:02d}_temp.nc"
