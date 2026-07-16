@@ -381,8 +381,33 @@ class SummaForcingProcessor(BaseForcingProcessor):
             catchment_elev = 'S_1_elev_mean'
 
         self.logger.info(f"Pre-calculating lapse rate corrections (Rate: {lapse_rate_km:.2f} K/km)...")
+
+        # Guard the forcing-grid elevation before it enters the lapse term. A forcing
+        # cell whose elevation failed to populate lands as 0.0 (unset attribute) or
+        # -9999 (elevation-calculator nodata) in the intersection. Trusting it would
+        # apply lapse_rate * (0 - S_1_elev) of spurious cooling -- roughly -9 K for a
+        # 1400 m site -- freezing the forcing and corrupting snow/SWE. Fall back to the
+        # catchment elevation (zero lapse) for such cells so the correction is a no-op
+        # rather than a large fabricated bias.
+        fe = topo_data[forcing_elev]
+        ce = topo_data[catchment_elev]
+        invalid_forcing_elev = (
+            ~np.isfinite(fe)
+            | (fe == 0.0)
+            | (fe <= -100.0)
+            | ((fe - ce).abs() > 4000.0)
+        )
+        n_invalid = int(invalid_forcing_elev.sum())
+        if n_invalid:
+            self.logger.warning(
+                f"{n_invalid}/{len(topo_data)} forcing cell(s) have an invalid "
+                f"elevation (0, nodata, or implausible vs the catchment); applying "
+                f"zero lapse correction for those cells instead of a spurious bias."
+            )
+            fe = fe.where(~invalid_forcing_elev, ce)
+
         topo_data['lapse_values'] = (
-            topo_data[weights] * lapse_rate * (topo_data[forcing_elev] - topo_data[catchment_elev])
+            topo_data[weights] * lapse_rate * (fe - ce)
         )
 
         if gru_id == hru_id:
