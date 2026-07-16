@@ -18,20 +18,26 @@ Counts below are the published values (also stated in each config header).
 | `config_bow_lumped.yaml` | 1 | 1 | 0 | Single catchment GRU |
 | `config_bow_lumped_elev_bands.yaml` | 1 | 12 | 0 | 200 m elevation bands |
 | `config_bow_lumped_land_classes.yaml` | 1 | 9 | 0 | IGBP land-cover classes |
-| `config_bow_lumped_elev_aspect.yaml` | 1 | 94 | 0 | Elevation × aspect classes |
+| `config_bow_lumped_elev_aspect.yaml` | 1 | 88 | 0 | Elevation × aspect classes (paper 94) |
 | `config_bow_lumped_distributed_routing.yaml` | 1 | 1 | 49 | Lumped hydrology, distributed routing |
 | `config_bow_lumped_elev_distributed_routing.yaml` | 1 | 12 | 49 | Elevation bands + distributed routing |
 | `config_bow_semidistributed.yaml` | 49 | 49 | 49 | TauDEM sub-basin GRUs |
-| `config_bow_semidistributed_elev.yaml` | 49 | 379 | 49 | Sub-basins + elevation bands |
-| `config_bow_semidistributed_elev_aspect.yaml` | 49 | 2,596 | 49 | Sub-basins × elevation × aspect |
-| `config_bow_distributed.yaml` | 2,335 | 2,335 | 2,335 | 1 km grid cells |
+| `config_bow_semidistributed_elev.yaml` | 49 | 363 | 49 | Sub-basins + elevation bands (paper 379) |
+| `config_bow_semidistributed_elev_aspect.yaml` | 49 | 2,409 | 49 | Sub-basins × elevation × aspect (paper 2,596) |
+| `config_bow_distributed.yaml` | 2,332 | 2,332 | 2,332 | 1 km grid cells (paper 2,335) |
 | `config_iceland_regional.yaml` | 1,894 | 1,894 | 1,895 | TauDEM river basins, Copernicus 90 m DEM (Fig 3a) |
 | `config_iceland_coastal.yaml` | 2,284 | 2,284 | 1,895 | + coastal watersheds (Fig 3b) |
 | `config_iceland_coastal_elev.yaml` | 2,284 | 7,185 | 1,895 | coastal + elevation-band HRUs (Fig 3c) |
 
-(Counts measured from clean-environment runs of the pinned recipe,
-Copernicus 90 m + threshold 5000; the manuscript's Table 1 / Fig 3
-values are being updated to these.)
+Counts are from clean-environment reproduction runs. The lumped, elevation-band,
+land-class, semi-distributed and routing variants match the paper's Table 1
+exactly. The **aspect- and elevation-subdivided HRU counts run a few percent
+below** the published values (e.g. 88 vs 94, 2,409 vs 2,596) — HRU delineation
+is sensitive to the DEM, and the reproduction uses the public Copernicus 90 m
+DEM. The Iceland trio was regenerated from the pinned recipe (Copernicus 90 m,
+threshold 5000) and differs more substantially from the manuscript's Table 1 /
+Fig 3 numbers; those should be updated to the reproduced values (see the
+Iceland rows above).
 
 Key mechanics (documented in the config comments):
 
