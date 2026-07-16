@@ -100,8 +100,15 @@ class ElevationCalculator:
                             continue
 
                         out_image, out_transform = mask(src, [geom], crop=True, nodata=-9999)
-                        data = out_image[0]
-                        valid_data = data[data != -9999]
+                        data = out_image[0].astype('float64')
+                        # Exclude both our crop fill (-9999) and the DEM's own nodata.
+                        # A DEM that declares no nodata often stores 0.0 as fill; left
+                        # in, those zeros drag a coarse forcing cell's mean elevation
+                        # toward sea level and fabricate a large lapse-rate cooling.
+                        invalid = (data == -9999) | ~np.isfinite(data)
+                        if src.nodata is not None:
+                            invalid |= (data == src.nodata)
+                        valid_data = data[~invalid]
 
                         if valid_data.size > 0:
                             elevations[idx] = float(np.mean(valid_data))
