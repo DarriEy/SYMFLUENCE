@@ -111,6 +111,35 @@ def test_pick_experiment_unknown_id(domain_tree):
         inspection.calibration_status(domain_tree, experiment_id='exp999')
 
 
+def test_get_plot_paths(domain_tree):
+    run_dir = inspection.resolve_domain(domain_tree)[1] / 'optimization' / 'DDS_exp1'
+    plots_dir = run_dir / 'plots'
+    plots_dir.mkdir()
+    (plots_dir / 'convergence.png').write_bytes(b'png')
+    (run_dir / 'final_evaluation' / 'hydrograph.pdf').write_bytes(b'pdf')
+
+    result = inspection.get_plot_paths(domain_tree)
+    names = [p.rsplit('/', 1)[-1] for p in result['plots']]
+    assert 'convergence.png' in names
+    assert 'hydrograph.pdf' in names
+
+
+def test_compare_experiments(domain_tree):
+    run2 = inspection.resolve_domain(domain_tree)[1] / 'optimization' / 'PSO_exp2'
+    run2.mkdir()
+    (run2 / 'optimization_history.csv').write_text(
+        'generation,best_score\n1,0.61\n2,0.70\n', encoding='utf-8')
+    # No metadata: exp2 is still in progress.
+
+    result = inspection.compare_experiments(domain_tree)
+    rows = result['experiments']
+    assert [r['run_name'] for r in rows] == ['PSO_exp2', 'DDS_exp1']  # 0.70 > 0.55
+    assert rows[0]['in_progress'] is True
+    assert rows[0]['best_score'] == pytest.approx(0.70)
+    assert rows[1]['algorithm'] == 'DDS'
+    assert rows[1]['in_progress'] is False
+
+
 class _AcceptAll:
     @staticmethod
     def from_file(path):

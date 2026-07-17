@@ -217,12 +217,19 @@ class HeadlessClaudeDriver:
         launcher: AgentLauncher,
         workdir: Path,
         mode: AgentMode = AgentMode.MODELLING,
+        interactive_approvals: bool = False,
     ):
         if not launcher.supports_headless:
             raise ValueError(f"'{launcher.name}' cannot be driven headlessly")
         self.launcher = launcher
         self.workdir = workdir
         self.mode = mode
+        # Only set this when a UI is actually watching the approvals directory
+        # (the chat screen): with it, off-allowlist tools ask the human via
+        # the approve_action bridge instead of being denied outright — so
+        # disallowed_tools is not passed, letting e.g. a config edit prompt
+        # for consent rather than hard-fail.
+        self.interactive_approvals = interactive_approvals
         self.session_id: str | None = load_session_id(workdir, mode)
         self._process: asyncio.subprocess.Process | None = None
 
@@ -241,7 +248,10 @@ class HeadlessClaudeDriver:
         profile = get_profile(self.mode)
         if profile.allowed_tools:
             argv += ['--allowedTools', ','.join(profile.allowed_tools)]
-        if profile.disallowed_tools:
+        if self.interactive_approvals:
+            argv += ['--permission-prompt-tool',
+                     'mcp__symfluence__approve_action']
+        elif profile.disallowed_tools:
             argv += ['--disallowedTools', ','.join(profile.disallowed_tools)]
         return argv
 
