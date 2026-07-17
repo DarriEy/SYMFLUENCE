@@ -29,7 +29,7 @@ class TestSymfluenceTUI:
         """App can be constructed without errors."""
         app = SymfluenceTUI()
         assert app.TITLE == "SYMFLUENCE"
-        assert len(app.MODES) == 6
+        assert len(app.MODES) == 7
         assert len(app.BINDINGS) >= 9
 
     def test_app_with_config_path(self):
@@ -125,7 +125,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-domains", Static)
-                assert "2" in stat.content
+                assert "2" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -137,7 +137,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-runs", Static)
-                assert "2" in stat.content
+                assert "2" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -149,7 +149,7 @@ class TestDashboardScreen:
             async with app.run_test(size=(120, 40)) as pilot:
                 from textual.widgets import Static
                 stat = app.screen.query_one("#stat-slurm", Static)
-                assert "N/A" in stat.content
+                assert "N/A" in str(stat.renderable)
 
         asyncio.run(_test())
 
@@ -196,7 +196,7 @@ class TestDashboardScreen:
                 from textual.widgets import Static
                 onboarding = app.screen.query_one("#onboarding-panel", Static)
                 assert onboarding.display is not False
-                assert "First run setup" in onboarding.content
+                assert "First run setup" in str(onboarding.renderable)
 
         asyncio.run(_test())
 
@@ -433,8 +433,8 @@ class TestSlurmMonitorScreen:
                 from textual.widgets import Static
                 status = app.screen.query_one("#slurm-status", Static)
                 # On non-HPC, should show "not available"
-                assert "not available" in status.content.lower() or \
-                       "0 job" in status.content.lower()
+                assert "not available" in str(status.renderable).lower() or \
+                       "0 job" in str(status.renderable).lower()
 
         asyncio.run(_test())
 

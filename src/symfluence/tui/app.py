@@ -15,6 +15,7 @@ from typing import Optional
 from textual.app import App
 from textual.binding import Binding
 
+from .screens.agent_center import AgentCommandCenterScreen
 from .screens.calibration import CalibrationScreen
 from .screens.command_palette import CommandPaletteScreen
 from .screens.dashboard import DashboardScreen
@@ -44,6 +45,7 @@ class SymfluenceTUI(App):
         Binding("4", "switch_mode('calibration')", "Calibration", priority=True),
         Binding("5", "switch_mode('slurm')", "SLURM", show=False, priority=True),
         Binding("6", "switch_mode('compare')", "Compare", priority=True),
+        Binding("7", "switch_mode('agent')", "Agent", priority=True),
         Binding("ctrl+p", "command_palette", "Commands", priority=True),
         Binding("?", "show_help", "Help", priority=True),
         Binding("q", "quit", "Quit"),
@@ -56,17 +58,22 @@ class SymfluenceTUI(App):
         "calibration": CalibrationScreen,
         "slurm": SlurmMonitorScreen,
         "compare": ResultsCompareScreen,
+        "agent": AgentCommandCenterScreen,
     }
 
     def __init__(
         self,
         config_path: Optional[str] = None,
         demo: Optional[str] = None,
+        initial_mode: Optional[str] = None,
+        agent_defaults: Optional[dict] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._config_path = config_path
         self._demo = demo
+        self._initial_mode = initial_mode if initial_mode in self.MODES else None
+        self.agent_defaults = dict(agent_defaults or {})
         self.data_dir_service = DataDirService()
         self.slurm_service = SlurmService()
         self._is_hpc = False
@@ -111,8 +118,8 @@ class SymfluenceTUI(App):
         if self._demo and not self._config_path:
             self._config_path = self._resolve_demo_config(self._demo)
 
-        # Start on dashboard
-        self.switch_mode("dashboard")
+        # Start on the requested mode (dashboard by default)
+        self.switch_mode(self._initial_mode or "dashboard")
 
     def action_show_help(self) -> None:
         """Open in-app help with keybindings and workflows."""
@@ -171,6 +178,7 @@ class SymfluenceTUI(App):
             ("mode:workflow", "Go to Workflow Launcher", "workflow run steps"),
             ("mode:calibration", "Go to Calibration Monitor", "calibration metrics"),
             ("mode:compare", "Go to Results Comparison", "compare metrics experiments"),
+            ("mode:agent", "Go to Agent Command Center", "agent ai assistant launch claude codex gemini"),
             ("app:load_demo_bow", "Load Demo: Bow at Banff", "demo sample onboarding"),
             ("app:set_data_dir", "Set Data Directory", "data dir path configure"),
             ("app:open_help", "Open Help", "help docs keybindings"),

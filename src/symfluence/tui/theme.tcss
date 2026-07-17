@@ -228,3 +228,38 @@ DataTable > .datatable--header {
 #help-content {
     text-style: none;
 }
+
+/* Agent Command Center */
+#agent-grid {
+    height: 1fr;
+}
+
+#agent-left, #agent-right {
+    width: 1fr;
+    padding: 0 1;
+}
+
+.agent-panel {
+    border: round #287f95;
+    background: $panel;
+    padding: 1 2;
+    margin: 0 0 1 0;
+}
+
+#agent-runtime-list {
+    height: auto;
+    max-height: 14;
+}
+
+#agent-preflight {
+    height: 1fr;
+}
+
+#agent-context {
+    height: auto;
+    max-height: 16;
+}
+
+#agent-capabilities {
+    height: 1fr;
+}

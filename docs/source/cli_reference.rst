@@ -487,30 +487,86 @@ List available example notebooks.
 Agent Commands
 ==============
 
-Hand off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed
-with the SYMFLUENCE skills. SYMFLUENCE does not ship its own language model — it
-detects an installed agent CLI, exposes the SYMFLUENCE skills to it, and replaces
-itself with that agent. See :doc:`agent_guide` for the full walkthrough.
+Launch an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed as
+the *SYMFLUENCE agent*: packaged skills, an identity block with live project
+context, the SYMFLUENCE MCP server, and specialist subagents. SYMFLUENCE does not
+ship its own language model — it detects an installed agent CLI, primes it, and
+replaces itself with that agent. See :doc:`agent_guide` for the full walkthrough.
 
 agent launch
 ------------
 
-Launch the agent. With no prompt it starts an interactive session; with a prompt
-it runs once and exits (handy in scripts).
+Open the **Agent Command Center** — a dedicated screen in the SYMFLUENCE TUI
+for reviewing runtimes, project context, capabilities, and preflight checks
+before handing off to the agent CLI. The handoff itself (``l`` to launch,
+``p`` for a one-shot prompt) always happens after the TUI exits and restores
+the terminal.
+
+The direct handoff (immediate exec, no TUI) is used when a one-shot ``PROMPT``
+is given, ``--direct`` is passed, the session has no TTY, or the TUI extra
+(``textual``) is not installed.
 
 .. code-block:: bash
 
-   # Interactive session (run from your project directory)
+   # Open the Agent Command Center (run from your project directory)
    symfluence agent launch
 
-   # One-shot prompt
+   # Hand off to the agent CLI immediately (today's classic behavior)
+   symfluence agent launch --direct
+
+   # One-shot prompt (always direct — handy in scripts)
    symfluence agent launch "add an MSWEP forcing data handler"
+
+   # Pick a specific CLI, or launch it bare (no SYMFLUENCE priming)
+   symfluence agent launch --cli codex
+   symfluence agent launch --no-skills
 
    # Forward extra flags to the underlying CLI after --
    symfluence agent launch -- --model claude-sonnet-4-6
 
-CLI selection and skill exposure are controlled by environment variables
+CLI selection and priming can also be controlled by environment variables
 (``SYMFLUENCE_AGENT_CLI``, ``SYMFLUENCE_NO_SKILLS``); see :doc:`agent_guide`.
+The Agent screen is also available inside ``symfluence tui launch`` (key ``7``).
+
+agent list
+----------
+
+Show the registered agent CLIs, which are installed, and which one
+``agent launch`` would pick.
+
+.. code-block:: bash
+
+   symfluence agent list
+
+agent skills
+------------
+
+List the packaged SYMFLUENCE skills exposed to the agent at launch.
+
+.. code-block:: bash
+
+   symfluence agent skills
+
+agent doctor
+------------
+
+Diagnose the agent setup: CLI detection, API keys, packaged skills and
+subagents, cache directory, MCP server, and detected project context.
+
+.. code-block:: bash
+
+   symfluence agent doctor
+
+agent mcp
+---------
+
+Serve the SYMFLUENCE MCP server on stdio. ``agent launch`` wires this into the
+host CLI automatically where supported; it can also be registered manually in
+any MCP-capable tool.
+
+.. code-block:: bash
+
+   symfluence agent mcp
 
 Deprecated aliases
 ~~~~~~~~~~~~~~~~~~~

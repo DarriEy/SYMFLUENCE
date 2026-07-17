@@ -115,3 +115,41 @@ def test_extra_args_forwarded(monkeypatch):
     launcher.launch_agent(extra_args=['--model', 'sonnet'])
     _, argv = calls[0]
     assert argv[-2:] == ['--model', 'sonnet']
+
+
+def test_cli_param_overrides_detection(monkeypatch):
+    monkeypatch.setattr(launcher.shutil, 'which', _fake_which(['claude', 'gemini']))
+    calls = _capture_execvp(monkeypatch)
+    launcher.launch_agent(cli='gemini')
+    assert calls[0][1][0] == 'gemini'
+
+
+def test_cli_param_wins_over_env_override(monkeypatch):
+    monkeypatch.setenv('SYMFLUENCE_AGENT_CLI', 'claude')
+    monkeypatch.setattr(launcher.shutil, 'which', _fake_which(['claude', 'codex']))
+    calls = _capture_execvp(monkeypatch)
+    launcher.launch_agent(cli='codex')
+    assert calls[0][1][0] == 'codex'
+
+
+def test_no_skills_param_launches_bare_cli(monkeypatch):
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    monkeypatch.setattr(launcher.shutil, 'which', _fake_which(['claude']))
+    calls = _capture_execvp(monkeypatch)
+    launcher.launch_agent(no_skills=True)
+    assert calls[0][1] == ['claude']
+
+
+def test_primed_claude_launch_wires_full_context(monkeypatch, tmp_path):
+    """With priming enabled, the exec argv carries all four context layers."""
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    monkeypatch.setattr('tempfile.gettempdir', lambda: str(tmp_path / 'cache'))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(launcher.shutil, 'which', _fake_which(['claude']))
+    calls = _capture_execvp(monkeypatch)
+
+    launcher.launch_agent()
+
+    _, argv = calls[0]
+    for flag in ('--add-dir', '--append-system-prompt', '--mcp-config', '--agents'):
+        assert flag in argv, f"missing {flag} in primed argv"

@@ -127,12 +127,12 @@ class Console:
         if not self._config.quiet:
             self._console.print(f"[dim][DEBUG] {message}[/dim]")
 
-    def print(self, message: str, style: Optional[str] = None) -> None:
+    def print(self, message: Any, style: Optional[str] = None) -> None:
         """
         Print message with optional rich styling.
 
         Args:
-            message: Message to print
+            message: Message or Rich renderable to print
             style: Optional rich style string
         """
         if not self._config.quiet:

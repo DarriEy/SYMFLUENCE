@@ -276,9 +276,50 @@ def get_skills_dir() -> Path:
         ) from e
 
 
-def _render_agents_md(skills_dir: Path) -> str:
+def get_agents_dir() -> Path:
+    """
+    Get path to the packaged subagent-definition directory.
+
+    Each ``*.md`` file (YAML frontmatter + prompt body) describes one
+    specialized subagent that ``symfluence agent launch`` exposes to host CLIs
+    that support custom agents.
+
+    Returns:
+        Path to the ``symfluence.resources.agents`` directory.
+
+    Raises:
+        FileNotFoundError: If the packaged agents directory is missing.
+    """
+    try:
+        agents_root = files('symfluence.resources') / 'agents'
+
+        if hasattr(agents_root, '__fspath__'):
+            path = Path(agents_root)
+        else:
+            path = Path(str(agents_root))
+
+        if not path.is_dir():
+            raise FileNotFoundError(f"Packaged agents directory not found at: {path}")
+
+        return path
+
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
+        raise FileNotFoundError(
+            "Packaged subagent definitions (symfluence.resources.agents) not found."
+        ) from e
+
+
+def agent_cache_root() -> Path:
+    """The scratch directory where launch-time agent context is materialized."""
+    return Path(tempfile.gettempdir()) / 'symfluence-agent-skills'
+
+
+def _render_agents_md(skills_dir: Path, preamble: str | None = None) -> str:
     """Render the packaged skills into a single neutral ``AGENTS.md`` document."""
-    lines = [
+    lines = []
+    if preamble:
+        lines.extend([preamble, "", "---", ""])
+    lines += [
         "# SYMFLUENCE agent skills",
         "",
         "These are SYMFLUENCE domain guides. Read the relevant skill before acting "
@@ -297,7 +338,9 @@ def _render_agents_md(skills_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def prepare_agent_context(skills_mode: str, workdir: Path) -> tuple[list[str], list[str]]:
+def prepare_agent_context(
+    skills_mode: str, workdir: Path, preamble: str | None = None,
+) -> tuple[list[str], list[str]]:
     """
     Materialize the packaged skills for an external coding-agent CLI.
 
@@ -310,6 +353,9 @@ def prepare_agent_context(skills_mode: str, workdir: Path) -> tuple[list[str], l
             convention honoured by Codex/Gemini and other tools), but only if one
             is not already present.
         workdir: The directory the agent CLI is launched from.
+        preamble: Optional block (agent identity / project context) prepended to
+            the generated ``AGENTS.md``. Ignored in ``claude_native`` mode, where
+            identity travels via the CLI's own system-prompt flag.
 
     Returns:
         ``(extra_argv, messages)`` — extra arguments to pass to the CLI, and
@@ -322,7 +368,7 @@ def prepare_agent_context(skills_mode: str, workdir: Path) -> tuple[list[str], l
     skills_dir = get_skills_dir()
 
     if skills_mode == 'claude_native':
-        cache_root = Path(tempfile.gettempdir()) / 'symfluence-agent-skills'
+        cache_root = agent_cache_root()
         target = cache_root / '.claude' / 'skills'
         if target.exists():
             shutil.rmtree(target)
@@ -345,7 +391,7 @@ def prepare_agent_context(skills_mode: str, workdir: Path) -> tuple[list[str], l
         agents_md = workdir / 'AGENTS.md'
         if agents_md.exists():
             return [], [f"AGENTS.md already present in {workdir}; left unchanged."]
-        agents_md.write_text(_render_agents_md(skills_dir), encoding='utf-8')
+        agents_md.write_text(_render_agents_md(skills_dir, preamble), encoding='utf-8')
         return [], [f"Wrote SYMFLUENCE skills to {agents_md}."]
 
     return [], []

@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 from .manager import (
+    agent_cache_root,
     copy_base_settings_to_project,
     copy_config_template_to_project,
+    get_agents_dir,
     get_base_settings_dir,
     get_config_template,
     get_skills_dir,
@@ -16,6 +18,8 @@ from .manager import (
 )
 
 __all__ = [
+    'agent_cache_root',
+    'get_agents_dir',
     'get_base_settings_dir',
     'get_config_template',
     'get_skills_dir',
