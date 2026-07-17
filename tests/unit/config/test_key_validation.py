@@ -189,30 +189,34 @@ class TestFromFileIntegration:
 
 
 class TestShippedTemplatesClean:
-    """Strict-in-CI anchor: shipped example tutorials carry no unrecognized keys.
+    """Strict-in-CI anchor: shipped flat-style templates carry no unrecognized keys.
 
     Validates the *key layer* only (not full Pydantic value validation), so it
     isolates the unrecognized-key contract (RTI review item 21) from unrelated
     field-value issues. Guards against new typos / cruft re-entering templates.
     """
 
-    def _example_templates(self):
-        import glob
+    # Flat UPPERCASE-key templates; the *_nested.yaml variants use the nested
+    # schema and are covered by full-config validation tests instead.
+    FLAT_TEMPLATES = ["config_template.yaml", "config_template_comprehensive.yaml"]
+
+    def _shipped_templates(self):
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[3]
-        pattern = str(root / "src/symfluence/resources/config_templates/examples/*.yaml")
-        paths = sorted(glob.glob(pattern))
-        assert paths, f"no example templates found at {pattern}"
-        return paths
+        templates_dir = root / "src/symfluence/resources/config_templates"
+        paths = [templates_dir / name for name in self.FLAT_TEMPLATES]
+        missing = [str(p) for p in paths if not p.exists()]
+        assert not missing, f"shipped templates not found: {missing}"
+        return [str(p) for p in paths]
 
-    def test_no_unrecognized_keys_in_example_templates(self):
+    def test_no_unrecognized_keys_in_shipped_templates(self):
         from symfluence.core.config.config_loader import _normalize_key
         from symfluence.core.config.key_validation import find_unknown_keys
         from symfluence.core.config.transformers import build_combined_flat_to_nested_map
 
         offenders = {}
-        for path in self._example_templates():
+        for path in self._shipped_templates():
             raw = yaml.safe_load(open(path)) or {}
             flat = {_normalize_key(k): v for k, v in raw.items()}
             known = build_combined_flat_to_nested_map(flat.get("HYDROLOGICAL_MODEL"))

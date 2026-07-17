@@ -330,46 +330,14 @@ class TestQuickstartTemplates:
     """Tests for minimal quickstart templates."""
 
     @pytest.fixture
-    def quickstart_minimal_path(self):
-        """Path to flat-style quickstart template."""
-        return CONFIG_TEMPLATES_DIR / 'config_quickstart_minimal.yaml'
-
-    @pytest.fixture
     def quickstart_nested_path(self):
         """Path to nested-style quickstart template."""
         return CONFIG_TEMPLATES_DIR / 'config_quickstart_minimal_nested.yaml'
-
-    def test_quickstart_minimal_exists(self, quickstart_minimal_path):
-        """Test that flat-style quickstart template exists."""
-        assert quickstart_minimal_path.exists(), \
-            f"Quickstart minimal template not found at {quickstart_minimal_path}"
 
     def test_quickstart_nested_exists(self, quickstart_nested_path):
         """Test that nested-style quickstart template exists."""
         assert quickstart_nested_path.exists(), \
             f"Quickstart nested template not found at {quickstart_nested_path}"
-
-    def test_quickstart_minimal_has_required_fields(self, quickstart_minimal_path):
-        """Test that flat-style quickstart has all 10 required fields."""
-        with open(quickstart_minimal_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        required = [
-            'SYMFLUENCE_DATA_DIR',
-            'SYMFLUENCE_CODE_DIR',
-            'DOMAIN_NAME',
-            'EXPERIMENT_ID',
-            'EXPERIMENT_TIME_START',
-            'EXPERIMENT_TIME_END',
-            'DOMAIN_DEFINITION_METHOD',
-            'SUB_GRID_DISCRETIZATION',
-            'FORCING_DATASET',
-            'HYDROLOGICAL_MODEL',
-        ]
-
-        for field in required:
-            assert field in content, \
-                f"Required field {field} not found in flat-style quickstart template"
 
     def test_quickstart_nested_has_required_fields(self, quickstart_nested_path):
         """Test that nested-style quickstart has all 10 required fields."""
@@ -393,20 +361,17 @@ class TestQuickstartTemplates:
             assert field in content, \
                 f"Required field {field} not found in nested-style quickstart template"
 
-    def test_quickstart_templates_are_valid_yaml(self,
-                                                quickstart_minimal_path,
-                                                quickstart_nested_path):
-        """Test that both quickstart templates are valid YAML."""
-        for template_path in [quickstart_minimal_path, quickstart_nested_path]:
-            try:
-                with open(template_path, 'r', encoding='utf-8') as f:
-                    yaml.safe_load(f)
-            except yaml.YAMLError as e:
-                pytest.fail(f"Quickstart template {template_path.name} is not valid YAML: {e}")
+    def test_quickstart_templates_are_valid_yaml(self, quickstart_nested_path):
+        """Test that the quickstart template is valid YAML."""
+        try:
+            with open(quickstart_nested_path, 'r', encoding='utf-8') as f:
+                yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            pytest.fail(f"Quickstart template {quickstart_nested_path.name} is not valid YAML: {e}")
 
-    def test_quickstart_has_documentation(self, quickstart_minimal_path):
+    def test_quickstart_has_documentation(self, quickstart_nested_path):
         """Test that quickstart template includes helpful documentation."""
-        with open(quickstart_minimal_path, 'r', encoding='utf-8') as f:
+        with open(quickstart_nested_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Should have comments explaining each required field

@@ -189,7 +189,7 @@ your project directory and that ``SYMFLUENCE_NO_SKILLS`` is not set. For Codex/G
 check that an ``AGENTS.md`` was written (or already exists) in the working directory.
 
 **The agent doesn't see my config.** Project context is detected from YAML files
-in the working directory and ``0_config_files/`` that contain SYMFLUENCE keys
+in the working directory that contain SYMFLUENCE keys
 (``DOMAIN_NAME`` or ``HYDROLOGICAL_MODEL``). Launch from the project root, or
 point ``SYMFLUENCE_DEFAULT_CONFIG`` at your config file.
 
