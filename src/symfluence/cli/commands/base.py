@@ -10,7 +10,6 @@ providing common utilities and interfaces.
 from __future__ import annotations
 
 import functools
-import os
 from abc import ABC
 from argparse import Namespace
 from contextlib import contextmanager
@@ -26,14 +25,9 @@ from symfluence.core.exceptions import (
 
 from ..console import Console
 from ..console import console as global_console
+from ..defaults import DEFAULT_CONFIG_PATH
 from ..exit_codes import ExitCode
 from ..validators import validate_config_exists
-
-# Default config path - can be overridden via SYMFLUENCE_DEFAULT_CONFIG environment variable
-DEFAULT_CONFIG_PATH = os.environ.get(
-    'SYMFLUENCE_DEFAULT_CONFIG',
-    './0_config_files/config_template.yaml'
-)
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

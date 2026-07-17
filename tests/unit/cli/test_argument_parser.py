@@ -45,6 +45,30 @@ class TestGlobalOptions:
         args = parser.parse_args(['--dry-run', 'workflow', 'run'])
         assert args.dry_run is True
 
+    @pytest.mark.parametrize('argv', [
+        ['--debug', 'workflow', 'run'],
+        ['workflow', '--debug', 'run'],
+        ['workflow', 'run', '--debug'],
+    ])
+    def test_global_flag_is_position_independent(self, argv):
+        args = CLIParser().parse_args(argv)
+        assert args.debug is True
+
+    def test_global_value_option_after_action(self):
+        args = CLIParser().parse_args(['project', 'init', '--config', 'test.yaml'])
+        assert args.config == 'test.yaml'
+
+    def test_global_option_normalization_applies_to_sys_argv(self, monkeypatch):
+        monkeypatch.setattr(
+            'sys.argv', ['symfluence', 'doctor', '--debug']
+        )
+        args = CLIParser().parse_args()
+        assert args.debug is True
+
+    def test_double_dash_preserves_forwarded_global_looking_options(self):
+        args = CLIParser().parse_args(['agent', 'launch', 'prompt', '--', '--debug'])
+        assert args.extra == ['--debug']
+
 
 class TestWorkflowCommands:
     """Test workflow category commands."""
