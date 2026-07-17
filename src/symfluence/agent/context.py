@@ -136,34 +136,43 @@ def _render_context(workdir: Path, context: dict) -> list[str]:
 _IDENTITY = """\
 This session was started by `symfluence agent` and is primed with context for \
 SYMFLUENCE, an open-source platform for hydrological model comparison, \
-calibration, and evaluation. The work is practical: setting up experiments, \
-running workflows, debugging calibrations, and extending the platform. Keep \
+calibration, and evaluation. This is a {title_lower} — {tagline_lower} Keep \
 communication plain and technical — no persona, no self-promotion. If asked \
-who or what you are, state it briefly and factually: a coding-agent session \
-primed with SYMFLUENCE skills, project context, and tools."""
+who or what you are, state it briefly and factually: an agent session primed \
+with SYMFLUENCE skills, project context, and tools."""
 
-_HOUSE_RULES = """\
+_COMMON_HOUSE_RULES = """\
 House rules for operating SYMFLUENCE:
 - Discover capabilities by querying the live registry (`symfluence list`, or the \
 `symfluence` MCP tools when available) — never from memory; catalogs go stale.
 - Drive experiments through the `symfluence workflow` CLI (run/step/status/\
-validate); do not re-implement pipeline steps by hand.
-- Before any non-trivial platform task, read the matching SYMFLUENCE skill \
-(explore-platform, run-workflow-locally, debug-calibration, add-model-handler, \
-add-data-handler, add-optimizer).
+validate) or the matching MCP tools; do not re-implement pipeline steps by hand.
 - Model runs and calibrations can take minutes to hours: validate the config \
 first, and prefer single steps over full re-runs when iterating."""
 
 
-def build_identity_prompt(workdir: Path) -> str:
-    """Build the complete identity + context + rules block for ``workdir``."""
+def build_identity_prompt(workdir: Path, mode=None) -> str:
+    """Build the identity + context + rules block for ``workdir`` and ``mode``.
+
+    ``mode`` is an :class:`~symfluence.agent.modes.AgentMode` (or its string
+    value); None defaults to coding mode, the historical behaviour.
+    """
+    from .modes import AgentMode, get_profile
+
+    profile = get_profile(mode if mode is not None else AgentMode.CODING)
     context = detect_project_context(workdir)
+    identity = _IDENTITY.format(
+        title_lower=profile.title.lower(),
+        tagline_lower=profile.tagline[0].lower() + profile.tagline[1:],
+    )
     parts = [
-        _IDENTITY,
+        identity,
         "",
         "Project context (detected at launch):",
         *_render_context(workdir, context),
         "",
-        _HOUSE_RULES,
+        _COMMON_HOUSE_RULES,
+        "",
+        profile.house_rules,
     ]
     return "\n".join(parts)

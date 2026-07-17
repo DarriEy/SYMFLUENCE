@@ -17,6 +17,7 @@ from pathlib import Path
 
 from ..cli.exit_codes import ExitCode
 from . import registry
+from .modes import AgentMode
 
 
 def _no_cli_message() -> str:
@@ -66,11 +67,44 @@ def resolve_active(cli: str | None = None) -> registry.AgentLauncher | None:
     return _resolve(_Quiet(), cli)
 
 
+def build_launch_argv(
+    launcher: registry.AgentLauncher,
+    workdir: Path,
+    prompt: str | None = None,
+    extra_args: list[str] | None = None,
+    no_skills: bool = False,
+    mode: AgentMode = AgentMode.CODING,
+):
+    """Build the full primed argv for ``launcher`` without launching anything.
+
+    The single argv assembly shared by every launch path — the ``execvp``
+    handoff below, the TUI's suspend round-trip, and (later) the headless
+    driver — so they can never disagree about what a primed session looks like.
+
+    Returns:
+        ``(argv, report)`` — the complete argv and the
+        :class:`~symfluence.agent.priming.PrimingReport` describing what
+        priming accomplished.
+    """
+    from .priming import prime_launch
+
+    extra_args = list(extra_args or [])
+    report = prime_launch(launcher, workdir, no_skills=no_skills, mode=mode)
+
+    if prompt:
+        base = launcher.oneshot_argv(prompt)
+        argv = [base[0], *report.argv, *base[1:], *extra_args]
+    else:
+        argv = [*launcher.interactive_argv(), *report.argv, *extra_args]
+    return argv, report
+
+
 def launch_agent(
     prompt: str | None = None,
     extra_args: list[str] | None = None,
     cli: str | None = None,
     no_skills: bool = False,
+    mode: AgentMode = AgentMode.CODING,
 ) -> int:
     """Launch the resolved agent CLI, replacing the current process on success.
 
@@ -80,14 +114,13 @@ def launch_agent(
         extra_args: Extra arguments forwarded verbatim to the CLI.
         cli: Launch this CLI instead of the auto-detected one (``--cli``).
         no_skills: Skip all SYMFLUENCE priming and launch the bare CLI.
+        mode: Agent mode whose priming profile shapes the session.
 
     Returns:
         An exit code. On success this never actually returns — ``os.execvp``
         replaces the process — so a return only happens on failure.
     """
     from symfluence.cli.console import console
-
-    extra_args = list(extra_args or [])
 
     launcher = _resolve(console, cli)
     if launcher is None:
@@ -100,19 +133,15 @@ def launch_agent(
         )
 
     # Prime the CLI as the SYMFLUENCE agent (skills, identity, MCP, subagents).
-    from .priming import prime_launch
     workdir = Path.cwd()
-    report = prime_launch(launcher, workdir, no_skills=no_skills)
+    argv, report = build_launch_argv(
+        launcher, workdir, prompt=prompt, extra_args=extra_args,
+        no_skills=no_skills, mode=mode,
+    )
     for note in report.notes:
         console.debug(note)
     for warning in report.warnings:
         console.warning(warning)
-
-    if prompt:
-        base = launcher.oneshot_argv(prompt)
-        argv = [base[0], *report.argv, *base[1:], *extra_args]
-    else:
-        argv = [*launcher.interactive_argv(), *report.argv, *extra_args]
 
     from .presentation import launch_card
     console.print(launch_card(

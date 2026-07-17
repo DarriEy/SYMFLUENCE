@@ -85,6 +85,53 @@ def test_symfluence_generated_agents_md_is_refreshed(tmp_path, monkeypatch):
     assert 'OLD PREAMBLE' not in text
 
 
+def test_claude_native_skill_filter_and_cache_scope(tmp_path, monkeypatch):
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    monkeypatch.setattr('tempfile.gettempdir', lambda: str(tmp_path / 'cache'))
+    subset = ('explore-platform', 'debug-calibration')
+
+    extra_args, _, delivered = prepare_agent_context(
+        'claude_native', tmp_path, skills=subset, cache_scope='model')
+
+    assert delivered is True
+    cache_root = Path(extra_args[1])
+    assert cache_root.name == 'model'
+    names = sorted(p.name for p in (cache_root / '.claude' / 'skills').iterdir())
+    assert names == sorted(subset)
+
+
+def test_claude_native_copies_whole_skill_dir(tmp_path, monkeypatch):
+    """Reference/asset files next to SKILL.md must survive materialization."""
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    monkeypatch.setattr('tempfile.gettempdir', lambda: str(tmp_path / 'cache'))
+
+    skills_src = tmp_path / 'skills-src'
+    skill = skills_src / 'with-assets'
+    skill.mkdir(parents=True)
+    (skill / 'SKILL.md').write_text('---\nname: with-assets\n---\nbody',
+                                    encoding='utf-8')
+    (skill / 'reference.md').write_text('extra material', encoding='utf-8')
+    import symfluence.resources.manager as manager
+    monkeypatch.setattr(manager, 'get_skills_dir', lambda: skills_src)
+
+    extra_args, _, delivered = prepare_agent_context('claude_native', tmp_path)
+
+    assert delivered is True
+    materialized = Path(extra_args[1]) / '.claude' / 'skills' / 'with-assets'
+    assert (materialized / 'SKILL.md').is_file()
+    assert (materialized / 'reference.md').is_file()
+
+
+def test_agents_md_skill_filter(tmp_path, monkeypatch):
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    _, _, delivered = prepare_agent_context(
+        'agents_md', tmp_path, skills=('explore-platform',))
+    assert delivered is True
+    text = (tmp_path / 'AGENTS.md').read_text(encoding='utf-8')
+    assert '## explore-platform' in text
+    assert '## add-model-handler' not in text
+
+
 def test_parse_frontmatter_contract(tmp_path):
     from symfluence.resources import parse_frontmatter
 

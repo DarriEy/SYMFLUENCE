@@ -68,3 +68,21 @@ def test_identity_prompt_contains_identity_context_and_rules(tmp_path):
 def test_identity_prompt_without_config_suggests_templates(tmp_path):
     prompt = context.build_identity_prompt(tmp_path)
     assert 'No SYMFLUENCE config file detected' in prompt
+
+
+def test_identity_prompt_is_mode_aware(tmp_path):
+    from symfluence.agent.modes import AgentMode
+
+    modelling = context.build_identity_prompt(tmp_path, AgentMode.MODELLING)
+    coding = context.build_identity_prompt(tmp_path, AgentMode.CODING)
+
+    assert 'modelling session' in modelling
+    assert 'Never modify SYMFLUENCE platform source' in modelling
+    assert 'symfluence agent code' in modelling
+
+    assert 'coding session' in coding
+    assert 'Never modify SYMFLUENCE platform source' not in coding
+    assert 'add-model-handler' in coding
+
+    # Default stays the historical coding behaviour.
+    assert context.build_identity_prompt(tmp_path) == coding

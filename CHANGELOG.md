@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Native modelling chat**: `symfluence agent model` in the TUI now opens a
+  SYMFLUENCE-native chat screen driving headless Claude Code over its
+  stream-JSON protocol — one bounded subprocess per turn, resumed via Claude
+  Code's own session store (`agent/headless.py`: tolerant NDJSON parser →
+  typed events; session ids persisted per project+mode in the agent cache).
+  Assistant prose streams into the conversation; tool invocations render as
+  compact expandable cards (never raw JSON); a run sidebar polls the domain
+  tree and background-job records independently of the agent
+  (`tui/services/run_monitor.py`), so an hours-long calibration keeps ticking
+  on screen while the turn runs. `esc` interrupts a turn (kills its
+  subprocess) or backs out when idle; headless turns run under the modelling
+  profile's tool allowlist (no file Write/Edit — config changes go through
+  the guarded `update_config` tool). Codex/Gemini (or a failed stream) fall
+  back to the suspend round-trip with modelling priming. Stdlib-only driver;
+  no new dependencies.
+- **Agent home screen with a suspend round-trip**: the TUI's four-panel Agent
+  Command Center becomes a minimal Agent home (`AgentHomeScreen`) — two mode
+  cards (Model / Code) over two dim context lines (detected config with a
+  cycle key, runtime readiness); diagnostics moved behind a `d` details
+  modal. Starting a session now round-trips instead of exiting: the TUI
+  suspends, the primed coding-agent CLI runs full-screen in the same
+  terminal, and the home screen returns (with a session-ended notice) when
+  it exits. Terminals that cannot suspend keep the classic `AgentHandoff`
+  exec fallback.
+- **MCP background jobs and platform-inspection tools**: the agent MCP server
+  grows from 4 to 13 tools. `start_workflow_job` / `get_job_status` /
+  `cancel_job` / `list_jobs` run workflow executions as detached background
+  jobs (a stdlib wrapper records the exit code durably; records and logs live
+  in the agent cache; cancellation signals the process group), so a chat
+  session can start an hours-long calibration without blocking the MCP
+  connection. `read_run_log`, `list_domains`, `calibration_status`, and
+  `get_results_summary` answer the modelling questions (log tails, domain
+  inventory, iteration/best-score progress, headline KGE/NSE metrics) by
+  reading the `domain_*` tree directly with stdlib CSV parsing.
+  `update_config` is the one writer: a line-preserving edit of the user's
+  experiment YAML that must pass typed `SymfluenceConfig` validation and
+  backs the original up first (`agent/jobs.py`, `agent/inspection.py`).
+- **Agent modes** (`symfluence agent model` / `symfluence agent code`): the
+  agent surface now has two first-class session modes, each a frozen
+  `ModeProfile` (`agent/modes.py`) that shapes priming end to end. *Modelling*
+  primes the operational skills (`explore-platform`, `run-workflow-locally`,
+  `debug-calibration`), both subagents, modelling house rules (never edit
+  platform source; drive everything through the workflow/MCP tools; report in
+  hydrological terms), and a headless tool allowlist for the planned native
+  chat. *Coding* keeps the full skill set and the host CLI's own permissions.
+  Bare `symfluence agent` opens the TUI agent screen; `agent doctor` absorbs
+  the former `list`/`skills` verbs (plus `--json`); `agent mcp --mode` serves
+  one mode's tool profile; `AgentLauncher` gains `supports_headless`;
+  `build_launch_argv()` is the single argv assembly shared by every launch
+  path. Skills now materialize per-mode (separate cache scopes) and copy the
+  whole skill directory, so reference files beside `SKILL.md` survive.
+
+### Changed
+- **Agent verb consolidation**: `agent launch` is deprecated (alias for
+  `agent code`); the already-deprecated `agent start`/`agent run` and the
+  `agent list`/`agent skills` verbs are removed.
+
 ### Fixed
 - **Review follow-ups to the agent interface and CLI option handling** (#300,
   #299): `--dry-run binary <tool>` now previews instead of executing; global
