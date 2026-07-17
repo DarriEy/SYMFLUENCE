@@ -19,6 +19,7 @@ from symfluence.cli.services import (
     get_hdf5_detection,
     get_netcdf_detection,
     get_netcdf_lib_detection,
+    get_safe_build_path,
 )
 from symfluence.core.registries import R
 
@@ -38,6 +39,7 @@ def get_fuse_build_instructions():
     netcdf_detect = get_netcdf_detection()
     hdf5_detect = get_hdf5_detection()
     netcdf_lib_detect = get_netcdf_lib_detection()
+    safe_build_path = get_safe_build_path()
 
     return {
         'description': 'Framework for Understanding Structural Errors',
@@ -56,6 +58,10 @@ def get_fuse_build_instructions():
             netcdf_detect,
             hdf5_detect,
             netcdf_lib_detect,
+            # Relocate onto a Make/shell-safe path (spaces / '@' in the install
+            # path, e.g. Google Drive) before deriving F_MASTER / the wrapper
+            # dir from $(pwd).
+            safe_build_path,
             r'''
 # Map to FUSE Makefile variable names
 export NCDF_PATH="$NETCDF_FORTRAN"
@@ -301,7 +307,7 @@ make clean 2>/dev/null || true
 # as a safety net with explicit flags.
 echo "Pre-compiling sce_16plus.f (fixed-form Fortran)..."
 FFLAGS_FIXED="-O2 -c -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error"
-${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || echo "Warning: sce_16plus.f pre-compilation issue"
+"${FC}" ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || echo "Warning: sce_16plus.f pre-compilation issue"
 
 # IMPORTANT: Do NOT pass FC="<wrapper-path>" on the make command line.
 # The Makefile uses `ifeq "$(FC)" "gfortran"` to set FLAGS_FIXED, FLAGS_NORMA,
