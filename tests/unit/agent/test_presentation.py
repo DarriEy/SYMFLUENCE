@@ -18,7 +18,7 @@ def _render(**overrides) -> str:
         'launcher_name': 'Codex',
         'workdir': Path('/work/Bow_at_Banff'),
         'interactive': True,
-        'primed': True,
+        'layers': ['skills', 'identity', 'mcp', 'subagents'],
     }
     values.update(overrides)
     console.print(launch_card(**values))
@@ -31,10 +31,17 @@ def test_launch_card_identifies_route_and_context():
     assert 'Codex' in rendered
     assert 'interactive session' in rendered
     assert 'Bow_at_Banff' in rendered
-    assert 'Skills  ·  Project  ·  MCP' in rendered
+    assert 'Skills  ·  Project  ·  MCP  ·  Subagents' in rendered
 
 
 def test_launch_card_distinguishes_bare_one_shot_mode():
-    rendered = _render(interactive=False, primed=False)
+    rendered = _render(interactive=False, layers=[])
     assert 'one-shot task' in rendered
     assert 'Disabled' in rendered
+
+
+def test_launch_card_reports_partial_priming_honestly():
+    rendered = _render(layers=['identity', 'mcp'])
+    assert 'Project  ·  MCP' in rendered
+    assert '(partial)' in rendered
+    assert 'Skills' not in rendered  # never claims a layer that failed

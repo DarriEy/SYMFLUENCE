@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .context import build_identity_prompt
@@ -33,17 +34,16 @@ def _fill(template: tuple[str, ...], **values: str) -> list[str]:
 
 def _parse_agent_file(path: Path) -> tuple[str, dict] | None:
     """Parse one packaged agent definition (frontmatter + prompt body)."""
-    try:
-        text = path.read_text(encoding='utf-8')
-        _, frontmatter, body = text.split('---', 2)
-        import yaml
-        meta = yaml.safe_load(frontmatter)
-    except Exception:  # noqa: BLE001 — malformed definition: skip it, don't break the launch
+    from symfluence.resources import parse_frontmatter
+
+    parsed = parse_frontmatter(path)
+    if parsed is None:
         return None
-    if not isinstance(meta, dict) or 'description' not in meta:
+    meta, body = parsed
+    if 'description' not in meta:
         return None
     name = meta.get('name', path.stem)
-    return name, {'description': str(meta['description']).strip(), 'prompt': body.strip()}
+    return name, {'description': str(meta['description']).strip(), 'prompt': body}
 
 
 def build_agents_json() -> str | None:
@@ -63,12 +63,23 @@ def build_agents_json() -> str | None:
     return json.dumps(agents) if agents else None
 
 
-def mcp_server_command() -> tuple[str, list[str]]:
-    """The (command, args) that start the SYMFLUENCE MCP server on stdio."""
+def symfluence_invocation() -> list[str]:
+    """argv prefix that reaches the symfluence CLI from this environment.
+
+    Single source for every place that shells out to (or registers) the
+    symfluence CLI, so the MCP registration and any subprocess it later runs
+    resolve to the same installation.
+    """
     binary = shutil.which('symfluence')
     if binary:
-        return binary, ['agent', 'mcp']
-    return sys.executable, ['-m', 'symfluence', 'agent', 'mcp']
+        return [binary]
+    return [sys.executable, '-m', 'symfluence']
+
+
+def mcp_server_command() -> tuple[str, list[str]]:
+    """The (command, args) that start the SYMFLUENCE MCP server on stdio."""
+    command, *rest = symfluence_invocation()
+    return command, [*rest, 'agent', 'mcp']
 
 
 def write_mcp_config(cache_root: Path) -> Path:
@@ -81,7 +92,29 @@ def write_mcp_config(cache_root: Path) -> Path:
     return path
 
 
-def prime_launch(launcher, workdir: Path, no_skills: bool = False) -> tuple[list[str], list[str]]:
+@dataclass
+class PrimingReport:
+    """What priming actually accomplished — the launcher renders this honestly.
+
+    Attributes:
+        argv: Extra argv inserted after the CLI binary.
+        notes: Informational lines (debug-level).
+        warnings: Degradations the user should see (warning-level).
+        layers: Which priming layers are genuinely active for this launch
+            (``skills`` / ``identity`` / ``mcp`` / ``subagents``).
+    """
+
+    argv: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    layers: dict[str, bool] = field(
+        default_factory=lambda: {
+            'skills': False, 'identity': False, 'mcp': False, 'subagents': False,
+        }
+    )
+
+
+def prime_launch(launcher, workdir: Path, no_skills: bool = False) -> PrimingReport:
     """Build the extra argv that primes ``launcher`` as the SYMFLUENCE agent.
 
     Args:
@@ -90,34 +123,40 @@ def prime_launch(launcher, workdir: Path, no_skills: bool = False) -> tuple[list
         no_skills: Skip all priming (also honoured via ``SYMFLUENCE_NO_SKILLS``).
 
     Returns:
-        ``(extra_argv, messages)`` — argv inserted after the CLI binary, and
-        info lines for the caller to log.
+        A :class:`PrimingReport`; every degradation is recorded in
+        ``warnings``/``layers`` rather than silently swallowed.
     """
+    report = PrimingReport()
     if no_skills or os.environ.get('SYMFLUENCE_NO_SKILLS'):
-        return [], ["Agent priming disabled (SYMFLUENCE_NO_SKILLS / --no-skills)."]
-
-    argv: list[str] = []
-    messages: list[str] = []
+        report.notes.append("Agent priming disabled (SYMFLUENCE_NO_SKILLS / --no-skills).")
+        return report
 
     identity = build_identity_prompt(workdir)
+    identity_in_agents_md = not launcher.system_prompt_args
 
     # 1. Skills. For CLIs without a system-prompt flag the identity block rides
-    #    along as the AGENTS.md preamble.
+    #    along as the AGENTS.md preamble. Any filesystem failure (missing
+    #    package data, unwritable shared cache, read-only workdir) degrades to
+    #    a warning — it must never abort the launch.
     try:
         from symfluence.resources import prepare_agent_context
-        preamble = None if launcher.system_prompt_args else identity
-        skills_argv, skills_messages = prepare_agent_context(
+        preamble = identity if identity_in_agents_md else None
+        skills_argv, skills_messages, delivered = prepare_agent_context(
             launcher.skills_mode, workdir, preamble=preamble,
         )
-        argv += skills_argv
-        messages += skills_messages
-    except FileNotFoundError as e:
-        messages.append(f"Continuing without SYMFLUENCE skills: {e}")
+        report.argv += skills_argv
+        report.layers['skills'] = delivered
+        if identity_in_agents_md:
+            report.layers['identity'] = delivered
+        (report.notes if delivered else report.warnings).extend(skills_messages)
+    except OSError as e:
+        report.warnings.append(f"Continuing without SYMFLUENCE skills: {e}")
 
     # 2. Identity via the CLI's own system-prompt flag.
     if launcher.system_prompt_args:
-        argv += _fill(launcher.system_prompt_args, prompt=identity)
-        messages.append("Injected SYMFLUENCE agent identity and project context.")
+        report.argv += _fill(launcher.system_prompt_args, prompt=identity)
+        report.layers['identity'] = True
+        report.notes.append("Injected SYMFLUENCE agent identity and project context.")
 
     # 3. The SYMFLUENCE MCP server. json.dumps doubles as TOML string/array
     #    quoting for CLIs that take dotted config overrides.
@@ -126,18 +165,20 @@ def prime_launch(launcher, workdir: Path, no_skills: bool = False) -> tuple[list
             from symfluence.resources import agent_cache_root
             mcp_path = write_mcp_config(agent_cache_root())
             command, args = mcp_server_command()
-            argv += _fill(
+            report.argv += _fill(
                 launcher.mcp_config_args,
                 path=str(mcp_path),
                 command_toml=json.dumps(command),
                 args_toml=json.dumps(args),
             )
-            messages.append("Wired in the SYMFLUENCE MCP server (registry/workflow tools).")
+            report.layers['mcp'] = True
+            report.notes.append(
+                "Wired in the SYMFLUENCE MCP server (registry/workflow tools).")
         except OSError as e:
-            messages.append(f"Continuing without the SYMFLUENCE MCP server: {e}")
+            report.warnings.append(f"Continuing without the SYMFLUENCE MCP server: {e}")
     else:
         command, args = mcp_server_command()
-        messages.append(
+        report.notes.append(
             f"'{launcher.name}' cannot load MCP servers per-launch; to register "
             f"the SYMFLUENCE MCP tools once, add an MCP server named 'symfluence' "
             f"running: {command} {' '.join(args)}"
@@ -147,8 +188,9 @@ def prime_launch(launcher, workdir: Path, no_skills: bool = False) -> tuple[list
     if launcher.agents_args:
         agents_json = build_agents_json()
         if agents_json:
-            argv += _fill(launcher.agents_args, json=agents_json)
+            report.argv += _fill(launcher.agents_args, json=agents_json)
+            report.layers['subagents'] = True
             names = ', '.join(sorted(json.loads(agents_json)))
-            messages.append(f"Registered SYMFLUENCE subagents: {names}.")
+            report.notes.append(f"Registered SYMFLUENCE subagents: {names}.")
 
-    return argv, messages
+    return report

@@ -24,19 +24,21 @@ GEMINI = registry.get('gemini')
 
 
 def test_no_skills_flag_skips_all_priming(tmp_path):
-    argv, messages = priming.prime_launch(CLAUDE, tmp_path, no_skills=True)
-    assert argv == []
-    assert any('disabled' in m for m in messages)
+    report = priming.prime_launch(CLAUDE, tmp_path, no_skills=True)
+    assert report.argv == []
+    assert not any(report.layers.values())
+    assert any('disabled' in m for m in report.notes)
 
 
 def test_no_skills_env_skips_all_priming(monkeypatch, tmp_path):
     monkeypatch.setenv('SYMFLUENCE_NO_SKILLS', '1')
-    argv, _ = priming.prime_launch(CLAUDE, tmp_path)
-    assert argv == []
+    assert priming.prime_launch(CLAUDE, tmp_path).argv == []
 
 
 def test_claude_priming_wires_all_four_layers(tmp_path):
-    argv, messages = priming.prime_launch(CLAUDE, tmp_path)
+    report = priming.prime_launch(CLAUDE, tmp_path)
+    argv = report.argv
+    assert all(report.layers.values())
 
     assert '--add-dir' in argv                  # skills
     assert '--append-system-prompt' in argv     # identity
@@ -58,17 +60,19 @@ def test_claude_priming_wires_all_four_layers(tmp_path):
 
 
 def test_agents_md_cli_gets_identity_preamble(tmp_path):
-    argv, _ = priming.prime_launch(CODEX, tmp_path)
+    report = priming.prime_launch(CODEX, tmp_path)
+    argv = report.argv
 
     # Identity rides in AGENTS.md, not in flags this CLI doesn't have.
     assert '--append-system-prompt' not in argv
+    assert report.layers['skills'] and report.layers['identity']
     text = (tmp_path / 'AGENTS.md').read_text(encoding='utf-8')
     assert text.startswith('This session was started by `symfluence agent`')
     assert '# SYMFLUENCE agent skills' in text
 
 
 def test_codex_mcp_wired_via_config_overrides(tmp_path):
-    argv, _ = priming.prime_launch(CODEX, tmp_path)
+    argv = priming.prime_launch(CODEX, tmp_path).argv
 
     overrides = [argv[i + 1] for i, part in enumerate(argv) if part == '-c']
     assert any(o.startswith('mcp_servers.symfluence.command=') for o in overrides)
@@ -79,16 +83,35 @@ def test_codex_mcp_wired_via_config_overrides(tmp_path):
 
 
 def test_cli_without_mcp_flags_gets_manual_hint(tmp_path):
-    argv, messages = priming.prime_launch(GEMINI, tmp_path)
+    report = priming.prime_launch(GEMINI, tmp_path)
 
-    assert argv == []  # nothing this CLI can't consume is forced on it
-    assert any('agent mcp' in m for m in messages)
+    assert report.argv == []  # nothing this CLI can't consume is forced on it
+    assert report.layers['mcp'] is False
+    assert any('agent mcp' in m for m in report.notes)
 
 
 def test_agents_md_left_alone_if_present(tmp_path):
     (tmp_path / 'AGENTS.md').write_text('mine', encoding='utf-8')
-    priming.prime_launch(CODEX, tmp_path)
+    report = priming.prime_launch(CODEX, tmp_path)
     assert (tmp_path / 'AGENTS.md').read_text(encoding='utf-8') == 'mine'
+    # ...and the gap is reported honestly, not silently swallowed.
+    assert report.layers['skills'] is False
+    assert report.layers['identity'] is False
+    assert any('NOT injected' in w for w in report.warnings)
+
+
+def test_priming_filesystem_failure_degrades_not_aborts(tmp_path, monkeypatch):
+    """A PermissionError during skill materialization must not abort the launch."""
+    def boom(*args, **kwargs):
+        raise PermissionError('shared temp dir owned by another user')
+
+    import symfluence.resources
+    monkeypatch.setattr(symfluence.resources, 'prepare_agent_context', boom)
+
+    report = priming.prime_launch(CLAUDE, tmp_path)
+    assert report.layers['skills'] is False
+    assert report.layers['identity'] is True   # system-prompt flag still works
+    assert any('without SYMFLUENCE skills' in w for w in report.warnings)
 
 
 def test_build_agents_json_parses_packaged_definitions():

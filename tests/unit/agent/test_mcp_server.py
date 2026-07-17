@@ -74,3 +74,35 @@ def test_serve_speaks_newline_delimited_jsonrpc():
     assert responses[0]['result']['serverInfo']['name'] == 'symfluence'
     assert responses[1]['result'] == {}
     assert responses[2]['error']['code'] == -32700
+
+
+def test_non_object_json_gets_error_not_crash():
+    """A JSON array/scalar on stdin must be answered in-band, never crash serve."""
+    for payload in ([], [_request('ping')], 5, 'x'):
+        response = mcp_server.handle_message(payload)
+        assert response['error']['code'] == -32600
+
+    stdin = io.StringIO('[]\n5\n' + json.dumps(_request('ping', msg_id=9)) + '\n')
+    stdout = io.StringIO()
+    mcp_server.serve(stdin=stdin, stdout=stdout)
+    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert len(responses) == 3  # server survived the junk and answered the ping
+    assert responses[2]['result'] == {}
+
+
+def test_run_workflow_step_output_is_bounded(tmp_path, monkeypatch):
+    """Step output is spooled to disk and only the tail is returned."""
+    config = tmp_path / 'c.yaml'
+    config.write_text('DOMAIN_NAME: x\n', encoding='utf-8')
+
+    import sys
+    monkeypatch.setattr(
+        mcp_server, '_symfluence_argv',
+        lambda: [sys.executable, '-c',
+                 "print('x' * 100000); print('TAIL-MARKER')"],
+    )
+    result = mcp_server._tool_run_workflow_step(
+        {'config_path': str(config), 'step': 'noop'})
+    assert result['ok'] is True
+    assert len(result['output']) <= mcp_server._MAX_OUTPUT_CHARS + 1
+    assert 'TAIL-MARKER' in result['output']
