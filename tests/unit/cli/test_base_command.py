@@ -26,7 +26,7 @@ class TestDefaultConfigPath:
         """Test default config path value when env var not set."""
         # If SYMFLUENCE_DEFAULT_CONFIG is not set, should use default
         if 'SYMFLUENCE_DEFAULT_CONFIG' not in os.environ:
-            assert DEFAULT_CONFIG_PATH == './0_config_files/config_template.yaml'
+            assert DEFAULT_CONFIG_PATH == './config.yaml'
 
 
 class TestGetConfigPath:

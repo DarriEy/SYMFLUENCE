@@ -29,10 +29,11 @@ from ..console import console as global_console
 from ..exit_codes import ExitCode
 from ..validators import validate_config_exists
 
-# Default config path - can be overridden via SYMFLUENCE_DEFAULT_CONFIG environment variable
+# Default config path - can be overridden via SYMFLUENCE_DEFAULT_CONFIG environment variable.
+# Reference templates ship with the package under symfluence/resources/config_templates/.
 DEFAULT_CONFIG_PATH = os.environ.get(
     'SYMFLUENCE_DEFAULT_CONFIG',
-    './0_config_files/config_template.yaml'
+    './config.yaml'
 )
 
 if TYPE_CHECKING:

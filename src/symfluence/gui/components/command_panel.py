@@ -11,7 +11,6 @@ Domain definition (delineation/discretization) lives in DomainPanel.
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 from pathlib import Path
 
@@ -272,13 +271,9 @@ class CommandPanel(param.Parameterized):
 
             from symfluence.core.config.models import SymfluenceConfig
 
-            # Save config YAML to project root
-            code_dir = os.environ.get('SYMFLUENCE_CODE_DIR')
-            if not code_dir:
-                code_dir = str(Path(__file__).resolve().parents[4])
-
-            config_dir = Path(code_dir) / '0_config_files'
-            config_dir.mkdir(parents=True, exist_ok=True)
+            # Save config YAML to the directory the GUI was launched from,
+            # matching the `symfluence project init` default of './'
+            config_dir = Path.cwd()
             config_path = config_dir / f"config_{domain_name}.yaml"
 
             # If config already exists, merge GUI overrides into it

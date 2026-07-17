@@ -428,7 +428,7 @@ def _format_validation_error(error: ValidationError, config: Dict[str, Any]) -> 
     error_lines.append("For configuration help:")
     error_lines.append("  • List templates: symfluence config list")
     error_lines.append(
-        "  • Example configs: src/symfluence/resources/config_templates/examples/*_tutorial.yaml"
+        "  • Templates: src/symfluence/resources/config_templates/ (or 'symfluence project init')"
     )
     error_lines.append("  • Docs: https://github.com/CH-Earth/SUMMA")
     error_lines.append("=" * 70)
