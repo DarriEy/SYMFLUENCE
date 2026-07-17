@@ -695,6 +695,56 @@ class MESHDrainageDatabase(ConfigMixin):
 
         return ds, modified
 
+    def _correct_gridarea_scale(self, ds: xr.Dataset) -> None:
+        """Rescale a uniformly mis-projected GridArea to the true catchment area.
+
+        meshflow occasionally emits subbasin areas off by a constant factor (a
+        projection/units mismatch). When the total departs from the authoritative
+        catchment area — the sum of ``GRU_area`` in the riverBasins shapefile
+        meshflow consumed — by more than 5%, and the per-cell error is uniform,
+        every cell is rescaled by the single correcting factor so ``GridArea``
+        sums to the true area while preserving relative subbasin proportions.
+        Mutates ``ds['GridArea']`` in place; no-op when already correct or when
+        the reference area cannot be read.
+        """
+        import glob
+
+        try:
+            grid_area = np.asarray(ds['GridArea'].values, dtype=float)
+            current_total = float(np.nansum(grid_area))
+            if current_total <= 0:
+                return
+
+            candidates = glob.glob(str(self.forcing_dir / '*riverBasins*.shp'))
+            if not candidates:
+                return
+            import geopandas as gpd
+            gdf = gpd.read_file(candidates[0])
+            if 'GRU_area' in gdf.columns:
+                true_total = float(np.nansum(gdf['GRU_area'].values))
+            else:
+                # Fall back to an equal-area geometric measure.
+                true_total = float(gdf.to_crs('EPSG:6933').geometry.area.sum())
+            if true_total <= 0:
+                return
+
+            ratio = true_total / current_total
+            if abs(ratio - 1.0) <= 0.05:
+                return  # already consistent
+
+            ds['GridArea'] = xr.DataArray(
+                grid_area * ratio,
+                dims=ds['GridArea'].dims,
+                attrs=dict(ds['GridArea'].attrs),
+            )
+            self.logger.info(
+                f"Corrected GridArea scale by x{ratio:.3f}: "
+                f"{current_total / 1e6:.1f} km2 -> {true_total / 1e6:.1f} km2 "
+                f"(matched to riverBasins shapefile area)"
+            )
+        except Exception as e:  # noqa: BLE001 — model execution resilience
+            self.logger.warning(f"Could not correct GridArea scale: {e}", exc_info=True)
+
     def _ensure_required_mesh_variables(
         self,
         ds: xr.Dataset,
@@ -742,6 +792,16 @@ class MESHDrainageDatabase(ConfigMixin):
             )
             modified = True
             self.logger.info("Fixed IAK encoding (removed problematic _FillValue)")
+
+        # Correct GridArea if meshflow computed subbasin areas in the wrong
+        # projection. meshflow's areas can come out uniformly scaled (observed
+        # ~5.2x too small on a UTM/degree mismatch), which leaves the basin-average
+        # water-balance DEPTHS correct (the scaling cancels in the area weights) but
+        # makes every mm->m3/s conversion — routed streamflow AND the calibration
+        # worker's discharge — wrong by that factor. Rescale to the authoritative
+        # catchment area from the riverBasins shapefile meshflow itself consumed.
+        if 'GridArea' in ds:
+            self._correct_gridarea_scale(ds)
 
         if 'AL' not in ds and 'GridArea' in ds:
             grid_area = ds['GridArea'].values
@@ -1243,8 +1303,19 @@ class MESHDrainageDatabase(ConfigMixin):
             for i in range(n_bands):
                 gru_data[i, i] = 1.0  # Each subbasin has exactly one active GRU
 
-            # Spatial arrays
-            grid_area = orig_total_area * band_fractions
+            # Spatial arrays. Use the catchment area from the HRU shapefile, not
+            # the single-subbasin DDB's GridArea: meshflow can compute the latter
+            # in the wrong projection (observed ~5x too small), which would make
+            # every band area — and thus all downstream mm->m3/s discharge — wrong.
+            # total_area_from_shp * band_fractions == the shapefile HRU areas.
+            if total_area_from_shp > 0 and abs(orig_total_area - total_area_from_shp) / total_area_from_shp > 0.05:
+                self.logger.info(
+                    f"Band GridArea from HRU shapefile area {total_area_from_shp/1e6:.1f} km² "
+                    f"(single-subbasin DDB GridArea was {orig_total_area/1e6:.1f} km² — "
+                    f"meshflow projection mismatch, corrected)"
+                )
+            area_basis = total_area_from_shp if total_area_from_shp > 0 else orig_total_area
+            grid_area = area_basis * band_fractions
             lat_arr = np.full(n_bands, orig_lat, dtype=np.float64)
             lon_arr = np.full(n_bands, orig_lon, dtype=np.float64)
 

@@ -1154,8 +1154,14 @@ class BaseModelOptimizer(
         # Build callbacks and kwargs for the algorithm
         callbacks, kwargs = self._build_algorithm_callbacks(algorithm.name)
 
-        # Seed optimization using INITIAL_GUESS, previous best parameters, then defaults
-        skip_warm_start = self._get_config_value(lambda: None, default=False, dict_key='SKIP_WARM_START')
+        # Seed optimization using INITIAL_GUESS, previous best parameters, then defaults.
+        # Warm-starting from previous runs is opt-in (SKIP_WARM_START defaults to true):
+        # it seeds the search from whatever experiments happen to exist in the domain's
+        # optimization directory, which makes results depend on machine history.
+        skip_warm_start = self._get_config_value(
+            lambda: self.config.optimization.skip_warm_start,
+            default=True, dict_key='SKIP_WARM_START'
+        )
         initial_params_dict = self._get_config_initial_guess()
         try:
             if initial_params_dict:
@@ -1164,8 +1170,8 @@ class BaseModelOptimizer(
                 )
             elif skip_warm_start:
                 self.logger.info(
-                    "SKIP_WARM_START is set — skipping warm-start from previous runs. "
-                    "Optimization will start from model default initial parameters."
+                    "Warm-start disabled (default) — starting from model default initial "
+                    "parameters. Set SKIP_WARM_START: false to seed from previous runs."
                 )
                 initial_params_dict = self.param_manager.get_initial_parameters()
             else:

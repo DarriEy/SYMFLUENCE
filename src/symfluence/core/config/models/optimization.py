@@ -449,7 +449,9 @@ class OptimizationConfig(BaseModel):
     skip_warm_start: Optional[bool] = Field(
         default=None,
         alias='SKIP_WARM_START',
-        description='Skip warm-starting from previous best parameters'
+        description='Skip warm-starting from previous best parameters. Unset defaults to '
+                    'true (no warm start), so calibrations are reproducible regardless of '
+                    'what previous runs exist on the machine; set false to opt in.'
     )
     parameter_bounds: Optional[Dict[str, Any]] = Field(
         default=None,

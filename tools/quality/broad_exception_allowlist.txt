@@ -835,6 +835,7 @@ src/symfluence/models/mesh/preprocessing/ddb_file_manager.py:DDBFileManager.reno
 src/symfluence/models/mesh/preprocessing/ddb_file_manager.py:DDBFileManager.trim_empty_gru_columns:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/ddb_file_manager.py:DDBFileManager.trim_empty_gru_columns:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/ddb_file_manager.py:DDBFileManager.trim_to_active_grus:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/preprocessing/drainage_database.py:MESHDrainageDatabase._correct_gridarea_scale:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/drainage_database.py:MESHDrainageDatabase._ensure_completeness_impl:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/drainage_database.py:MESHDrainageDatabase._get_landcover_class_ids:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/drainage_database.py:MESHDrainageDatabase.convert_to_elevation_band_grus:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -852,6 +853,7 @@ src/symfluence/models/mesh/preprocessing/meshflow_manager.py:_patch_meshflow_net
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.apply_hydrology_field_overrides:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.configure_lumped_outputs:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.create_safe_forcing:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.fix_gru_dependent_hydrology_params:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.fix_hydrology_wf_r2:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.fix_hydrology_wf_r2:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.fix_missing_hydrology_params:except Exception as e:  # noqa: BLE001 — model execution resilience
