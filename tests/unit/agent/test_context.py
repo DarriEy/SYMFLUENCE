@@ -45,10 +45,8 @@ def test_rejects_non_symfluence_yaml(tmp_path):
     assert detected['configs'] == []
 
 
-def test_prefers_0_config_files_dir(tmp_path):
-    config_dir = tmp_path / '0_config_files'
-    config_dir.mkdir()
-    _write_config(config_dir / 'config_a.yaml', DOMAIN_NAME='primary')
+def test_detects_workdir_configs_in_sorted_order(tmp_path):
+    _write_config(tmp_path / 'config_a.yaml', DOMAIN_NAME='primary')
     _write_config(tmp_path / 'z_other.yaml', DOMAIN_NAME='secondary')
 
     detected = context.detect_project_context(tmp_path)
