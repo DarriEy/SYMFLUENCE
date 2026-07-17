@@ -69,7 +69,7 @@ MODEL_SPEC = {
         "units": "m_per_s",
     },
     "FUSE": {
-        "file": OPT_DIR / "FUSE/dds_run_1/fuse_dds_best_clean.nc",
+        "file": OPT_DIR / "FUSE/dds_run_1/final_evaluation/Bow_at_Banff_lumped_era5_run_1_runs_def.nc",
         "fmt": "netcdf",
         "var": "q_instnt",
         "units": "mm_per_d",
@@ -87,7 +87,7 @@ MODEL_SPEC = {
         "units": "cms",
     },
     "HYPE": {
-        "file": OPT_DIR / "HYPE/dds_hype_seed42_cold/final_evaluation/timeCOUT.txt",
+        "file": OPT_DIR / "HYPE/dds_run_1/final_evaluation/timeCOUT.txt",
         "fmt": "tsv",
         "var": "1",
         "units": "cms",
@@ -171,7 +171,7 @@ MODEL_SPEC = {
         "units": "cms",
     },
     "PRMS": {
-        "file": OPT_DIR / "PRMS/dds_prms_calibration_dds/final_evaluation",
+        "file": OPT_DIR / "PRMS/dds_run_1/final_evaluation",
         "fmt": "prms_statvar",
         "var": "basin_cfs",
         "units": "cfs",
@@ -238,7 +238,7 @@ METRIC_FILES = {
     "FUSE":    OPT_DIR / "FUSE/dds_run_1/run_1_dds_final_evaluation.json",
     "GR4J":    OPT_DIR / "GR/dds_run_1/run_1_dds_final_evaluation.json",
     "HBV":     OPT_DIR / "HBV/dds_run_1/run_1_dds_final_evaluation.json",
-    "HYPE":    OPT_DIR / "HYPE/dds_hype_seed42_cold/hype_seed42_cold_dds_final_evaluation.json",
+    "HYPE":    OPT_DIR / "HYPE/dds_run_1/run_1_dds_final_evaluation.json",
     "VIC":     OPT_DIR / "VIC/dds_run_1/run_1_dds_final_evaluation.json",
     "LSTM":    OPT_DIR / "LSTM/pso_run_1/run_1_pso_final_evaluation.json",
     "RHESSys": OPT_DIR / "RHESSys/dds_run_1/run_1_dds_final_evaluation.json",
@@ -252,7 +252,7 @@ METRIC_FILES = {
     "MHM":     OPT_DIR / "MHM/dds_run_1/run_1_dds_final_evaluation.json",
     "CRHM":    OPT_DIR / "CRHM/dds_run_1/run_1_dds_final_evaluation.json",
     "WRFHYDRO": OPT_DIR / "WRFHYDRO/dds_wrfhydro_calibration_dds/wrfhydro_calibration_dds_dds_final_evaluation.json",
-    "PRMS":    OPT_DIR / "PRMS/dds_prms_calibration_dds/prms_calibration_dds_dds_final_evaluation.json",
+    "PRMS":    OPT_DIR / "PRMS/dds_run_1/run_1_dds_final_evaluation.json",
     "ParFlow+Snow17": OPT_DIR / "PARFLOW/dds_run_1/run_1_dds_final_evaluation.json",
     "PIHM":    OPT_DIR / "PIHM/dds_pihm_calibration_dds_v2/pihm_calibration_dds_v2_dds_final_evaluation.json",
     "HECHMS":  OPT_DIR / "HECHMS/dds_run_1/run_1_dds_final_evaluation.json",
@@ -270,7 +270,7 @@ CRASH_CSV_FILES = {
     "FUSE":    OPT_DIR / "FUSE/dds_run_1/run_1_parallel_iteration_results.csv",
     "GR4J":    OPT_DIR / "GR/dds_run_1/run_1_parallel_iteration_results.csv",
     "HBV":     OPT_DIR / "HBV/dds_run_1/run_1_parallel_iteration_results.csv",
-    "HYPE":    OPT_DIR / "HYPE/dds_hype_seed42_cold/hype_seed42_cold_parallel_iteration_results.csv",
+    "HYPE":    OPT_DIR / "HYPE/dds_run_1/run_1_parallel_iteration_results.csv",
     "VIC":     OPT_DIR / "VIC/dds_run_1/run_1_parallel_iteration_results.csv",
     "RHESSys": OPT_DIR / "RHESSys/dds_run_1/run_1_parallel_iteration_results.csv",
     "NGEN":    OPT_DIR / "NGEN/dds_run_1/run_1_parallel_iteration_results.csv",
@@ -283,7 +283,7 @@ CRASH_CSV_FILES = {
     "MHM":     OPT_DIR / "MHM/dds_run_1/run_1_parallel_iteration_results.csv",
     "CRHM":    OPT_DIR / "CRHM/dds_run_1/run_1_parallel_iteration_results.csv",
     "WRFHYDRO": OPT_DIR / "WRFHYDRO/dds_wrfhydro_calibration_dds/wrfhydro_calibration_dds_parallel_iteration_results.csv",
-    "PRMS":    OPT_DIR / "PRMS/dds_prms_calibration_dds/prms_calibration_dds_parallel_iteration_results.csv",
+    "PRMS":    OPT_DIR / "PRMS/dds_run_1/run_1_parallel_iteration_results.csv",
     "ParFlow+Snow17": OPT_DIR / "PARFLOW/dds_run_1/run_1_parallel_iteration_results.csv",
     "PIHM":    OPT_DIR / "PIHM/dds_pihm_calibration_dds_v2/pihm_calibration_dds_v2_parallel_iteration_results.csv",
     "HECHMS":  OPT_DIR / "HECHMS/dds_run_1/run_1_parallel_iteration_results.csv",
@@ -1665,9 +1665,9 @@ def main():
     ax_fdc.set_ylim(bottom=1)
     ax_fdc.legend(loc="upper right", fontsize=7.5, framealpha=0.95)
 
-    fig.savefig(FIG_DIR / "fig_ensemble_hydrograph.png", dpi=200)
+    fig.savefig(FIG_DIR / "figure_07_model_ensemble.png", dpi=200)
     plt.close(fig)
-    print(f"  Saved: {FIG_DIR / 'fig_ensemble_hydrograph.png'}")
+    print(f"  Saved: {FIG_DIR / 'figure_07_model_ensemble.png'}")
 
     # ==================================================================
     # FIGURE B: KGE Decomposition (Improved - slope graph with ensemble)
