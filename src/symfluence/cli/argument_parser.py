@@ -21,6 +21,7 @@ Categories:
 from __future__ import annotations
 
 import argparse
+import sys
 from typing import List, Optional
 
 from symfluence.workflow_steps import (
@@ -29,6 +30,8 @@ from symfluence.workflow_steps import (
     WORKFLOW_STEP_NAMES,
     resolve_workflow_step_name,
 )
+
+from .defaults import DEFAULT_CONFIG_PATH
 
 try:
     from symfluence.symfluence_version import __version__
@@ -133,21 +136,21 @@ class CLIParser:
 
         # Global options available to all commands
         parser.add_argument('--config', type=str,
-                          help='Path to configuration file (default: ./config.yaml)')
+                          help=f'Path to configuration file (default: {DEFAULT_CONFIG_PATH})')
         parser.add_argument('--debug', action='store_true',
                           help='Enable debug output')
         parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
-                          help='Enable visualization during execution')
+                          help='Enable visualization during workflow execution')
         parser.add_argument('--diagnostic', action='store_true',
                           help='Enable diagnostic plots for workflow validation')
         parser.add_argument('--dry-run', action='store_true', dest='dry_run',
-                          help='Show what would be executed without running')
+                          help='Preview supported operations without making changes')
         parser.add_argument('--profile', action='store_true', dest='profile',
-                          help='Enable I/O profiling to diagnose IOPS bottlenecks')
+                          help='Enable I/O profiling for workflow execution')
         parser.add_argument('--profile-output', type=str, dest='profile_output',
-                          help='Path for profiling report output (default: profile_report.json)')
+                          help='Workflow profiling report path (default: profile_report.json)')
         parser.add_argument('--profile-stacks', action='store_true', dest='profile_stacks',
-                          help='Capture stack traces in profiling (expensive, for debugging)')
+                          help='Capture workflow profiling stacks (expensive)')
         return parser
 
     def _create_parser(self) -> argparse.ArgumentParser:
@@ -941,4 +944,40 @@ For more help on a specific command:
         Returns:
             Parsed arguments namespace
         """
-        return self.parser.parse_args(args)
+        raw_args = list(sys.argv[1:] if args is None else args)
+        return self.parser.parse_args(self._normalize_global_options(raw_args))
+
+    @staticmethod
+    def _normalize_global_options(args: List[str]) -> List[str]:
+        """Allow global options before the category or after an action.
+
+        ``argparse`` parent parsers normally make option placement depend on
+        which leaf parser inherited the parent.  Move known global options to
+        the front before parsing, but leave everything after ``--`` untouched
+        so pass-through/remainder arguments retain their original meaning.
+        """
+        value_options = {'--config', '--profile-output'}
+        flag_options = {
+            '--debug', '--visualise', '--visualize', '--diagnostic',
+            '--dry-run', '--profile', '--profile-stacks',
+        }
+        global_args: List[str] = []
+        remaining: List[str] = []
+        index = 0
+        while index < len(args):
+            token = args[index]
+            if token == '--':
+                remaining.extend(args[index:])
+                break
+            option, separator, _ = token.partition('=')
+            if option in value_options:
+                global_args.append(token)
+                if not separator and index + 1 < len(args):
+                    index += 1
+                    global_args.append(args[index])
+            elif token in flag_options:
+                global_args.append(token)
+            else:
+                remaining.append(token)
+            index += 1
+        return global_args + remaining
