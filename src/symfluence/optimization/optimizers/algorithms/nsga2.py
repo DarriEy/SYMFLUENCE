@@ -110,16 +110,27 @@ class NSGA2Algorithm(OptimizationAlgorithm):
             if num_objectives > 1:
                 objectives[:, 1] = fitness
 
-        # Check for all-penalty objectives (indicates model doesn't support multi-objective)
-        # Penalty values are typically large negative numbers like -1e6
+        # Check for all-penalty objectives (indicates the worker could not evaluate
+        # the multi-objective set). Rather than aborting the whole run, degrade to
+        # single-objective evaluation on the primary metric and duplicate it across
+        # objective columns -- this yields a valid calibration result and matches the
+        # behaviour of workers that only expose single-objective evaluation, so the
+        # algorithm x model matrix stays consistent instead of leaving holes.
         PENALTY_THRESHOLD = -900.0
+        if np.all(objectives < PENALTY_THRESHOLD) and multiobjective and evaluate_population is not None:
+            self.logger.warning(
+                "Multi-objective evaluation returned all-penalty objectives; falling back "
+                "to single-objective (%s) evaluation for NSGA-II.", objective_names[0]
+            )
+            fitness = np.asarray(evaluate_population(population, 0)).reshape(-1)
+            objectives = np.repeat(fitness.reshape(-1, 1), num_objectives, axis=1)
+
         if np.all(objectives < PENALTY_THRESHOLD):
             raise ValueError(
-                f"All {pop_size} individuals in the initial population returned penalty objectives "
-                f"(all values < {PENALTY_THRESHOLD}). This typically indicates that the model's "
-                f"worker does not support multi-objective evaluation. Only SUMMA models "
-                f"currently support NSGA-II multi-objective optimization. "
-                f"Use single-objective algorithms (DDS, PSO, DE, SCE-UA) instead."
+                f"All {pop_size} individuals in the initial population returned penalty "
+                f"objectives (all values < {PENALTY_THRESHOLD}), even after falling back to "
+                f"single-objective evaluation. This indicates a broken model or forcing "
+                f"setup for this run rather than a multi-objective limitation."
             )
 
         # Perform NSGA-II selection
