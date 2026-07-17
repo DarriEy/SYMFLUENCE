@@ -76,17 +76,31 @@ def test_code_key_hands_off_with_coding_mode():
     assert result.prompt is None
 
 
-def test_model_key_hands_off_with_modelling_mode():
-    result = _run(_press_and_return(SymfluenceTUI(initial_mode='agent'), 'm'))
-    assert isinstance(result, AgentHandoff)
-    assert result.mode is AgentMode.MODELLING
+def test_model_key_opens_native_chat():
+    # claude (fake-installed) supports headless driving → modelling opens the
+    # native chat screen instead of leaving the app.
+    async def _test():
+        app = SymfluenceTUI(initial_mode='agent')
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press('m')
+            await pilot.pause()
+            return type(app.screen).__name__
+
+    assert _run(_test()) == 'AgentChatScreen'
 
 
 def test_enter_selects_highlighted_mode_card():
-    # First card is Model.
-    result = _run(_press_and_return(SymfluenceTUI(initial_mode='agent'), 'enter'))
-    assert isinstance(result, AgentHandoff)
-    assert result.mode is AgentMode.MODELLING
+    # First card is Model → native chat opens.
+    async def _test():
+        app = SymfluenceTUI(initial_mode='agent')
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press('enter')
+            await pilot.pause()
+            return type(app.screen).__name__
+
+    assert _run(_test()) == 'AgentChatScreen'
 
 
 def test_agent_defaults_flow_into_handoff():

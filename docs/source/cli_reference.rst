@@ -502,7 +502,10 @@ agent model
 Start a **modelling session**: configs, runs, calibrations, and results, driven
 conversationally through the workflow tools. Primed with the operational skills
 (``explore-platform``, ``run-workflow-locally``, ``debug-calibration``) and the
-MCP tools; its house rules forbid editing platform source code.
+MCP tools; its house rules forbid editing platform source code. Inside the TUI
+this opens the native chat screen when Claude Code is the runtime (headless
+stream-JSON driving); other runtimes get the suspend round-trip with modelling
+priming.
 
 .. code-block:: bash
 

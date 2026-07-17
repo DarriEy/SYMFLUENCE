@@ -266,3 +266,59 @@ DataTable > .datatable--header {
     background: $panel;
     padding: 1 2;
 }
+
+/* Modelling chat */
+#chat-body {
+    height: 1fr;
+}
+
+#chat-log {
+    width: 3fr;
+    padding: 1 2;
+}
+
+#agent-run-status {
+    width: 1fr;
+    min-width: 24;
+    border-left: solid #287f95;
+    padding: 1 2;
+}
+
+#chat-input {
+    dock: bottom;
+    margin: 0 1 1 1;
+}
+
+ChatMessage {
+    margin: 0 0 1 0;
+}
+
+.chat-msg-user {
+    color: $text;
+}
+
+.chat-msg-agent {
+    color: $text;
+}
+
+.chat-msg-system {
+    color: $text-muted;
+}
+
+.tool-card {
+    margin: 0 0 1 2;
+    padding: 0 1;
+    border-left: solid #287f95;
+}
+
+.tool-card.-running {
+    border-left: solid $warning;
+}
+
+.tool-card.-ok {
+    border-left: solid #43d6b5;
+}
+
+.tool-card.-err {
+    border-left: solid $error;
+}

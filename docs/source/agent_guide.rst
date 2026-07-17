@@ -64,12 +64,21 @@ Start a session from your project directory::
 
 The TUI agent screen (mode ``7`` inside ``symfluence tui launch``) is a
 minimal home: two mode cards, the detected config, and runtime readiness;
-``d`` opens the diagnostics detail. Starting a session from it **round-trips**
-— the TUI suspends, the real coding-agent CLI runs full-screen in the same
-terminal, and the home screen returns when the session ends. Terminals that
-cannot suspend fall back to the classic exec handoff after the TUI exits.
-Modelling sessions currently use the same round-trip, primed with the
-modelling profile; an embedded native chat screen is planned.
+``d`` opens the diagnostics detail. Starting a **coding** session from it
+round-trips — the TUI suspends, the real coding-agent CLI runs full-screen in
+the same terminal, and the home screen returns when the session ends.
+Terminals that cannot suspend fall back to the classic exec handoff after the
+TUI exits.
+
+Starting a **modelling** session opens the native chat screen (Claude Code
+only — it is driven headlessly over its stream-JSON protocol): assistant prose
+streams into the conversation, tool invocations render as compact expandable
+cards, and a run sidebar ticks independently (config, calibration progress,
+background jobs, last log line) so long steps never make the screen feel
+dead. ``esc`` interrupts a running turn or backs out when idle; sessions
+resume automatically per project and mode. With Codex/Gemini (or if the
+stream fails) modelling falls back to the suspend round-trip with modelling
+priming.
 
 One-shot prompts (run once and exit — useful in scripts)::
 

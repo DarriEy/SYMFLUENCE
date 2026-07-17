@@ -1245,6 +1245,7 @@ src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnos
 src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnosticPlotter.plot_domain_definition_diagnostic:except Exception as e:  # noqa: BLE001 — reporting resilience
 src/symfluence/resources/manager.py:parse_frontmatter:except Exception:  # noqa: BLE001 — malformed frontmatter is "no frontmatter"
 src/symfluence/tui/screens/workflow_launcher.py:WorkflowLauncherScreen._run_mode:except Exception as exc:  # noqa: BLE001 — UI resilience
+src/symfluence/tui/services/agent_session.py:AgentChatSession.send:except Exception as e:  # noqa: BLE001 — the UI must get an event, not a traceback
 src/symfluence/tui/services/workflow_service.py:WorkflowService.get_domain_name:except Exception:  # noqa: BLE001 — UI resilience
 src/symfluence/tui/services/workflow_service.py:WorkflowService.get_experiment_id:except Exception:  # noqa: BLE001 — UI resilience
 src/symfluence/tui/services/workflow_service.py:WorkflowService.get_status:except Exception as exc:  # noqa: BLE001 — UI resilience

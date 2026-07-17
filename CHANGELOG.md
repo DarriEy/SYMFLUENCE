@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Native modelling chat**: `symfluence agent model` in the TUI now opens a
+  SYMFLUENCE-native chat screen driving headless Claude Code over its
+  stream-JSON protocol — one bounded subprocess per turn, resumed via Claude
+  Code's own session store (`agent/headless.py`: tolerant NDJSON parser →
+  typed events; session ids persisted per project+mode in the agent cache).
+  Assistant prose streams into the conversation; tool invocations render as
+  compact expandable cards (never raw JSON); a run sidebar polls the domain
+  tree and background-job records independently of the agent
+  (`tui/services/run_monitor.py`), so an hours-long calibration keeps ticking
+  on screen while the turn runs. `esc` interrupts a turn (kills its
+  subprocess) or backs out when idle; headless turns run under the modelling
+  profile's tool allowlist (no file Write/Edit — config changes go through
+  the guarded `update_config` tool). Codex/Gemini (or a failed stream) fall
+  back to the suspend round-trip with modelling priming. Stdlib-only driver;
+  no new dependencies.
 - **Agent home screen with a suspend round-trip**: the TUI's four-panel Agent
   Command Center becomes a minimal Agent home (`AgentHomeScreen`) — two mode
   cards (Model / Code) over two dim context lines (detected config with a

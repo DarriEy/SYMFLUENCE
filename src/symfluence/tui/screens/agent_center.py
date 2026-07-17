@@ -182,6 +182,14 @@ class AgentHomeScreen(Screen):
             self._config_index += 1
             self._render_context_lines(self._snapshot)
 
+    def _selected_config_path(self) -> Path | None:
+        if not self._snapshot or not self._snapshot.configs:
+            return None
+        shown, _summary = self._snapshot.configs[
+            self._config_index % len(self._snapshot.configs)]
+        path = Path(shown)
+        return path if path.is_absolute() else self._snapshot.workdir / path
+
     # ------------------------------------------------------------- sessions
 
     def _start_session(self, mode: AgentMode) -> None:
@@ -200,6 +208,18 @@ class AgentHomeScreen(Screen):
                 f"Runtime {self._cli!r} is not available. See `symfluence agent doctor`.",
                 severity="error",
             )
+            return
+
+        # Modelling gets the native chat when the runtime can stream headlessly;
+        # other runtimes fall through to the suspend round-trip with modelling
+        # priming.
+        if mode is AgentMode.MODELLING and launcher.supports_headless:
+            from .agent_chat import AgentChatScreen
+            self.app.push_screen(AgentChatScreen(
+                launcher,
+                workdir=Path.cwd(),
+                config_path=self._selected_config_path(),
+            ))
             return
 
         if not self._suspend_session(launcher, mode):
