@@ -209,3 +209,36 @@ class TestExampleCommands:
         parser = CLIParser()
         args = parser.parse_args(['example', 'list'])
         assert args.action == 'list'
+
+
+class TestGlobalOptionPassthroughSafety:
+    """Global-named flags must never be stolen from host-CLI pass-through."""
+
+    def test_agent_launch_keeps_global_named_flags_in_extra(self):
+        from symfluence.cli.argument_parser import CLIParser
+        args = CLIParser().parse_args(['agent', 'launch', 'fix', '--debug'])
+        assert args.extra == ['--debug']
+        assert getattr(args, 'debug', None) in (None, False)
+
+    def test_leading_globals_still_hoisted_for_agent(self):
+        from symfluence.cli.argument_parser import CLIParser
+        args = CLIParser().parse_args(['--debug', 'agent', 'launch', 'fix'])
+        assert args.debug is True
+        assert args.extra == []
+
+    def test_option_sets_derive_from_single_spec(self):
+        """The shared sets must exactly match what the common parser registers."""
+        from symfluence.cli.argument_parser import (
+            GLOBAL_FLAG_OPTIONS,
+            GLOBAL_VALUE_OPTIONS,
+            CLIParser,
+        )
+        parser = CLIParser()
+        registered_flags, registered_values = set(), set()
+        for action in parser.common_parser._actions:
+            if not action.option_strings:
+                continue
+            target = registered_flags if action.nargs == 0 else registered_values
+            target.update(action.option_strings)
+        assert registered_flags == set(GLOBAL_FLAG_OPTIONS)
+        assert registered_values == set(GLOBAL_VALUE_OPTIONS)

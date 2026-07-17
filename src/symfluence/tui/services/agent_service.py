@@ -70,13 +70,10 @@ def _first_sentence(text: str, limit: int = 90) -> str:
 
 
 def _frontmatter(md_file: Path) -> dict:
-    try:
-        _, frontmatter, _ = md_file.read_text(encoding='utf-8').split('---', 2)
-        import yaml
-        meta = yaml.safe_load(frontmatter)
-        return meta if isinstance(meta, dict) else {}
-    except Exception:  # noqa: BLE001 — a bad frontmatter must not break the screen
-        return {}
+    from symfluence.resources import parse_frontmatter
+
+    parsed = parse_frontmatter(md_file)
+    return parsed[0] if parsed else {}
 
 
 class AgentService:

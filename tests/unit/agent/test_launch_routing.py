@@ -77,10 +77,12 @@ def test_no_tty_skips_tui(monkeypatch, spies):
 
 def test_interactive_tty_opens_command_center(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
-    AgentCommands.launch(_args(cli='codex', no_skills=True))
+    AgentCommands.launch(_args(cli='codex', no_skills=True, extra=['--resume']))
 
     # TUI opened on the agent screen with the presets forwarded ...
     assert spies['tui']['initial_mode'] == 'agent'
-    assert spies['tui']['agent_defaults'] == {'cli': 'codex', 'no_skills': True}
+    assert spies['tui']['agent_defaults'] == {
+        'cli': 'codex', 'no_skills': True, 'extra_args': ['--resume'],
+    }
     # ... and its handoff result was completed via launch_agent.
     assert spies['direct']['cli'] == 'claude'

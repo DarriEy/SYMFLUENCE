@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Review follow-ups to the agent interface and CLI option handling** (#300,
+  #299): `--dry-run binary <tool>` now previews instead of executing; global
+  option normalization no longer steals host-CLI flags from `agent launch`
+  pass-through (structure-aware boundary at REMAINDER subcommands, option
+  names derived from a single spec); the MCP server survives non-object
+  JSON-RPC input and bounds subprocess output via a temp file; the Agent
+  Command Center forwards `--` pass-through args and validates the preselected
+  runtime; priming failures degrade with visible warnings and the launch card
+  only claims layers that actually activated (a SYMFLUENCE-generated
+  `AGENTS.md` is refreshed, a user-authored one is reported as blocking
+  injection); frontmatter parsing consolidated into
+  `resources.parse_frontmatter`.
+
 ### Added
 - **The SYMFLUENCE agent interface** (`symfluence agent`): `agent launch` now
   primes the host coding-agent CLI (Claude Code, Codex, Gemini, ...) as the

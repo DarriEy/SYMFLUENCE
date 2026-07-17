@@ -47,6 +47,7 @@ class AgentCommandCenterScreen(Screen):
         self._snapshot: AgentSnapshot | None = None
         self._selected_runtime: str | None = None
         self._no_skills = False
+        self._extra_args: list[str] = []
 
     # ------------------------------------------------------------------ UI
 
@@ -85,6 +86,7 @@ class AgentCommandCenterScreen(Screen):
         if defaults.get('cli'):
             self._selected_runtime = defaults['cli']
         self._no_skills = bool(defaults.get('no_skills'))
+        self._extra_args = list(defaults.get('extra_args') or [])
         self._refresh()
 
     def on_screen_resume(self) -> None:
@@ -197,11 +199,20 @@ class AgentCommandCenterScreen(Screen):
                 severity="error",
             )
             return
+        selected = next(
+            (r for r in snapshot.runtimes if r.name == self._selected_runtime), None)
+        if selected is not None and not selected.installed:
+            self.app.notify(
+                f"'{selected.name}' is not installed — pick an installed runtime.",
+                severity="error",
+            )
+            return
         self.app.exit(
             AgentHandoff(
                 cli=self._selected_runtime,
                 prompt=prompt,
                 no_skills=self._no_skills,
+                extra_args=list(self._extra_args),
             )
         )
 

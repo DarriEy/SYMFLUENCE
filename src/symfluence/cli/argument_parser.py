@@ -110,6 +110,45 @@ EXTERNAL_TOOLS = DEFAULT_TOOLS + EXPERIMENTAL_TOOLS
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
 
+# The global options, defined once. _create_common_parser registers them, and the
+# derived GLOBAL_FLAG_OPTIONS / GLOBAL_VALUE_OPTIONS sets drive both
+# _normalize_global_options and main_cli's binary pass-through prefix handling —
+# a new global option added here propagates everywhere.
+_GLOBAL_OPTION_SPECS: tuple = (
+    (('--config',), {
+        'type': str,
+        'help': f'Path to configuration file (default: {DEFAULT_CONFIG_PATH})'}),
+    (('--debug',), {
+        'action': 'store_true', 'help': 'Enable debug output'}),
+    (('--visualise', '--visualize'), {
+        'action': 'store_true', 'dest': 'visualise',
+        'help': 'Enable visualization during workflow execution'}),
+    (('--diagnostic',), {
+        'action': 'store_true',
+        'help': 'Enable diagnostic plots for workflow validation'}),
+    (('--dry-run',), {
+        'action': 'store_true', 'dest': 'dry_run',
+        'help': 'Preview supported operations without making changes'}),
+    (('--profile',), {
+        'action': 'store_true', 'dest': 'profile',
+        'help': 'Enable I/O profiling for workflow execution'}),
+    (('--profile-output',), {
+        'type': str, 'dest': 'profile_output',
+        'help': 'Workflow profiling report path (default: profile_report.json)'}),
+    (('--profile-stacks',), {
+        'action': 'store_true', 'dest': 'profile_stacks',
+        'help': 'Capture workflow profiling stacks (expensive)'}),
+)
+
+GLOBAL_FLAG_OPTIONS = frozenset(
+    flag for flags, kwargs in _GLOBAL_OPTION_SPECS
+    if kwargs.get('action') == 'store_true' for flag in flags
+)
+GLOBAL_VALUE_OPTIONS = frozenset(
+    flag for flags, kwargs in _GLOBAL_OPTION_SPECS
+    if kwargs.get('action') != 'store_true' for flag in flags
+)
+
 
 class CLIParser:
     """
@@ -134,23 +173,9 @@ class CLIParser:
         # Use SUPPRESS to avoid overwriting global flags with subcommand defaults
         parser = argparse.ArgumentParser(add_help=False, argument_default=argparse.SUPPRESS)
 
-        # Global options available to all commands
-        parser.add_argument('--config', type=str,
-                          help=f'Path to configuration file (default: {DEFAULT_CONFIG_PATH})')
-        parser.add_argument('--debug', action='store_true',
-                          help='Enable debug output')
-        parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
-                          help='Enable visualization during workflow execution')
-        parser.add_argument('--diagnostic', action='store_true',
-                          help='Enable diagnostic plots for workflow validation')
-        parser.add_argument('--dry-run', action='store_true', dest='dry_run',
-                          help='Preview supported operations without making changes')
-        parser.add_argument('--profile', action='store_true', dest='profile',
-                          help='Enable I/O profiling for workflow execution')
-        parser.add_argument('--profile-output', type=str, dest='profile_output',
-                          help='Workflow profiling report path (default: profile_report.json)')
-        parser.add_argument('--profile-stacks', action='store_true', dest='profile_stacks',
-                          help='Capture workflow profiling stacks (expensive)')
+        # Global options available to all commands (single source: _GLOBAL_OPTION_SPECS)
+        for flags, kwargs in _GLOBAL_OPTION_SPECS:
+            parser.add_argument(*flags, **kwargs)
         return parser
 
     def _create_parser(self) -> argparse.ArgumentParser:
@@ -987,37 +1012,64 @@ For more help on a specific command:
         raw_args = list(sys.argv[1:] if args is None else args)
         return self.parser.parse_args(self._normalize_global_options(raw_args))
 
-    @staticmethod
-    def _normalize_global_options(args: List[str]) -> List[str]:
-        """Allow global options before the category or after an action.
+    def _passthrough_boundary(self, args: List[str]) -> int:
+        """Index where pass-through territory begins (nothing is hoisted from there).
 
-        ``argparse`` parent parsers normally make option placement depend on
-        which leaf parser inherited the parent.  Move known global options to
-        the front before parsing, but leave everything after ``--`` untouched
-        so pass-through/remainder arguments retain their original meaning.
+        Walks the subcommand tree along the positional tokens; the boundary is a
+        literal ``--``, or the token right after a subcommand whose parser
+        declares a ``REMAINDER`` positional (e.g. ``agent launch``'s ``extra``)
+        — everything beyond belongs to the host tool, not to symfluence.
         """
-        value_options = {'--config', '--profile-output'}
-        flag_options = {
-            '--debug', '--visualise', '--visualize', '--diagnostic',
-            '--dry-run', '--profile', '--profile-stacks',
-        }
-        global_args: List[str] = []
-        remaining: List[str] = []
+        parser = self.parser
         index = 0
         while index < len(args):
             token = args[index]
             if token == '--':
-                remaining.extend(args[index:])
-                break
+                return index
+            if token.startswith('-'):
+                option = token.partition('=')[0]
+                if option in GLOBAL_VALUE_OPTIONS and '=' not in token:
+                    index += 2
+                    continue
+                index += 1
+                continue
+            subparsers = next(
+                (a for a in parser._actions
+                 if isinstance(a, argparse._SubParsersAction)), None)
+            if subparsers is None or token not in subparsers.choices:
+                return len(args)  # leaf reached / unknown token: argparse decides
+            parser = subparsers.choices[token]
+            if any(a.nargs == argparse.REMAINDER for a in parser._actions):
+                return index + 1
+            index += 1
+        return len(args)
+
+    def _normalize_global_options(self, args: List[str]) -> List[str]:
+        """Allow global options before the category or after an action.
+
+        ``argparse`` parent parsers normally make option placement depend on
+        which leaf parser inherited the parent.  Move known global options to
+        the front before parsing — but never out of pass-through territory
+        (after ``--``, or anything following a subcommand with a ``REMAINDER``
+        positional), where identically-named flags belong to the host tool.
+        """
+        boundary = self._passthrough_boundary(args)
+        head, tail = args[:boundary], args[boundary:]
+
+        global_args: List[str] = []
+        remaining: List[str] = []
+        index = 0
+        while index < len(head):
+            token = head[index]
             option, separator, _ = token.partition('=')
-            if option in value_options:
+            if option in GLOBAL_VALUE_OPTIONS:
                 global_args.append(token)
-                if not separator and index + 1 < len(args):
+                if not separator and index + 1 < len(head):
                     index += 1
-                    global_args.append(args[index])
-            elif token in flag_options:
+                    global_args.append(head[index])
+            elif token in GLOBAL_FLAG_OPTIONS:
                 global_args.append(token)
             else:
                 remaining.append(token)
             index += 1
-        return global_args + remaining
+        return global_args + remaining + tail

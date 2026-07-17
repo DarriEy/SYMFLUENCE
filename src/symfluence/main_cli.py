@@ -45,20 +45,19 @@ def main():
     argv = sys.argv[1:]
     # Global options may precede ``binary``.  Strip only that prefix for
     # dispatch detection; everything after the tool name remains opaque and is
-    # forwarded verbatim to the external executable.
+    # forwarded verbatim to the external executable. The option-name sets are
+    # the single source shared with the parser (argument_parser._GLOBAL_OPTION_SPECS).
+    from symfluence.cli.argument_parser import GLOBAL_FLAG_OPTIONS, GLOBAL_VALUE_OPTIONS
     binary_argv = list(argv)
-    _GLOBAL_FLAGS = {
-        '--debug', '--visualise', '--visualize', '--diagnostic', '--dry-run',
-        '--profile', '--profile-stacks',
-    }
-    _GLOBAL_VALUES = {'--config', '--profile-output'}
+    stripped_globals = []
     while binary_argv:
         option = binary_argv[0].partition('=')[0]
-        if binary_argv[0] in _GLOBAL_FLAGS or (
-            option in _GLOBAL_VALUES and '=' in binary_argv[0]
+        if binary_argv[0] in GLOBAL_FLAG_OPTIONS or (
+            option in GLOBAL_VALUE_OPTIONS and '=' in binary_argv[0]
         ):
-            binary_argv.pop(0)
-        elif binary_argv[0] in _GLOBAL_VALUES and len(binary_argv) >= 2:
+            stripped_globals.append(binary_argv.pop(0))
+        elif binary_argv[0] in GLOBAL_VALUE_OPTIONS and len(binary_argv) >= 2:
+            stripped_globals.extend(binary_argv[:2])
             del binary_argv[:2]
         else:
             break
@@ -68,6 +67,12 @@ def main():
         and binary_argv[1] not in _BINARY_ACTIONS
         and not binary_argv[1].startswith('-')
     ):
+        # Stripped globals must be honored, not silently dropped: --dry-run
+        # previews the exec instead of running the real binary.
+        if '--dry-run' in stripped_globals:
+            print(f"[dry-run] would execute: {binary_argv[1]} "
+                  + ' '.join(binary_argv[2:]))
+            return 0
         from symfluence.cli.commands.binary_commands import BinaryCommands
         return BinaryCommands.exec_binary(binary_argv[1], binary_argv[2:])
 

@@ -90,3 +90,17 @@ def test_agent_mode_registered_in_app():
             return app.current_mode
 
     assert asyncio.run(_test()) == 'agent'
+
+
+def test_extra_args_flow_through_handoff():
+    async def _test():
+        app = SymfluenceTUI(
+            initial_mode='agent',
+            agent_defaults={'extra_args': ['--resume']},
+        )
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press('l')
+        return app.return_value
+
+    assert asyncio.run(_test()).extra_args == ['--resume']
