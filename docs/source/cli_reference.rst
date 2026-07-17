@@ -29,7 +29,8 @@ Basic usage:
 Global Options
 ==============
 
-These options are available to all commands:
+These options may be written before the category or after the action. Options
+that affect only supported operations are explicitly identified below.
 
 .. list-table::
    :header-rows: 1
@@ -38,21 +39,29 @@ These options are available to all commands:
    * - Option
      - Description
    * - ``--config PATH``
-     - Path to configuration file (default: ./config.yaml)
+     - Path to configuration file (default: ./0_config_files/config_template.yaml;
+       override with SYMFLUENCE_DEFAULT_CONFIG)
    * - ``--debug``
      - Enable debug output and stack traces
    * - ``--visualise / --visualize``
-     - Enable visualization during execution
+     - Enable visualization during workflow execution
+   * - ``--diagnostic``
+     - Enable diagnostic plots during workflow execution
    * - ``--dry-run``
-     - Show what would be executed without running
+     - Preview supported operations without making changes (currently workflow
+       cleaning and binary system-dependency installation)
    * - ``--profile``
-     - Enable I/O profiling
+     - Enable I/O profiling for workflow execution
    * - ``--profile-output PATH``
-     - Path for profiling report (default: profile_report.json)
+     - Path for workflow profiling report (default: profile_report.json)
    * - ``--profile-stacks``
-     - Capture stack traces in profiling
+     - Capture stack traces in workflow profiling
    * - ``--version``
      - Display SYMFLUENCE version
+
+For bundled-binary pass-through, global options may precede ``binary``. Every
+argument after the tool name is forwarded unchanged; for example,
+``symfluence --debug binary summa --version`` forwards ``--version`` to SUMMA.
 
 Workflow Commands
 =================

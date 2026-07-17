@@ -8,7 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from symfluence.cli.commands.base import DEFAULT_CONFIG_PATH, BaseCommand
+from symfluence.cli.commands.base import BaseCommand
+from symfluence.cli.defaults import DEFAULT_CONFIG_PATH
 from symfluence.cli.exit_codes import ExitCode
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]

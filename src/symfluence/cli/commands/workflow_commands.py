@@ -298,7 +298,7 @@ class WorkflowCommands(BaseCommand):
         dry_run = BaseCommand.get_arg(args, 'dry_run', False)
 
         # Require confirmation for non-dry-run destructive operations
-        if not dry_run and level in ('output', 'all'):
+        if not dry_run and level in ('outputs', 'all'):
             if not BaseCommand.confirm_action(
                 f"This will delete {level} files. Are you sure?"
             ):
@@ -317,9 +317,9 @@ class WorkflowCommands(BaseCommand):
             # Feature in development - provide helpful guidance
             BaseCommand._console.warning("[BETA] Automated cleaning is under development")
             BaseCommand._console.info(f"Manual cleanup guidance for '{level}' level:")
-            if level == 'temp':
+            if level == 'intermediate':
                 BaseCommand._console.indent("Remove temporary files: rm -rf <domain>/temp/*")
-            elif level == 'output':
+            elif level == 'outputs':
                 BaseCommand._console.indent("Remove model outputs: rm -rf <domain>/simulations/*/output/*")
             elif level == 'all':
                 BaseCommand._console.indent("Remove temp files: rm -rf <domain>/temp/*")
