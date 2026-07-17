@@ -3,7 +3,7 @@
 
 """RECOGNIZED_FLAT_KEYS is a closed set.
 
-The flat-key audit (docs/config_flat_key_audit.md) promoted every
+The flat-key audit (docs/adr/config_flat_key_audit.md) promoted every
 formerly-recognized key into a typed Pydantic field, an alias, or deleted
 it as dead. The set now holds only deprecated keys consumed by
 compatibility validators. These tests keep it that way: new config keys

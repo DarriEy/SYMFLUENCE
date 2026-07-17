@@ -43,12 +43,8 @@ env/
 .venv-docs/
 .conda-env/
 
-# Ignore everything in 0_config_files (user workspace)
-0_config_files/*
-
-# Keep only the README explaining the new structure
-!0_config_files/README.md
-
+# Ignore the 0_config_files user workspace (created at runtime by the CLI)
+0_config_files/
 
 # Claude Code
 CLAUDE.md

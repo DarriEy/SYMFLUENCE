@@ -139,6 +139,22 @@ git tag -a v0.7.0 -m "Release v0.7.0"
 git push origin main --tags
 ```
 
+### Maintenance Scripts
+
+Manual helper scripts in `scripts/` used at release time or during
+config-model work (none are wired into CI — run them by hand):
+
+- `scripts/bump_version.sh <X.Y.Z>` — bumps the version in
+  `src/symfluence/symfluence_version.py` (single source of truth) and
+  `npm/package.json`, then runs `scripts/check_version_sync.sh` to verify.
+  Run before tagging a release.
+- `scripts/sync_requirements_from_pyproject.py` — regenerates the local
+  (gitignored) `requirements.txt` from `pyproject.toml` for workflows that
+  need a flat requirements file.
+- `scripts/insert_template_keys.py` — inserts documented config-template
+  entries for Pydantic-aliased fields when promoting flat keys into typed
+  config models (see its docstring for usage).
+
 ### Hotfixes
 
 ```bash

@@ -168,7 +168,7 @@ LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
 # (Resolves the bulk of RTI review open-question Q3 / Tier 3 item 21 noise; see
 # docs/adr/0006-config-unknown-keys-warn-by-default.md. Conceptual-model and
 # unbacked feature families are handled separately — see that ADR's follow-on.)
-# The flat-key audit (docs/config_flat_key_audit.md) emptied this set down
+# The flat-key audit (docs/adr/config_flat_key_audit.md) emptied this set down
 # to deprecated keys: every formerly-recognized key was either promoted to a
 # typed Pydantic field (state/DA, IGNACIO/GNN/LSTM, multi-gauge,
 # optimizer/evaluator odds, HYPE/NGEN/FUSE/GR/mizuRoute/paths, per-model

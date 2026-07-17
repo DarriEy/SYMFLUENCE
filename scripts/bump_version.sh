@@ -2,7 +2,7 @@
 # Atomically bump the SYMFLUENCE version across all tracked files.
 #
 # Single source of truth: src/symfluence/symfluence_version.py
-# Files kept in sync: tools/npm/package.json, npm/package.json, package-lock.json
+# Files kept in sync: npm/package.json
 #
 # Usage: scripts/bump_version.sh <new_version>
 # Example: scripts/bump_version.sh 0.8.3
@@ -34,10 +34,9 @@ fi
 
 echo "Bumping version: $OLD_VERSION -> $NEW_VERSION"
 
-# Replace only the first `"version":` line in each JSON file. (For
-# package-lock.json, the first occurrence is the node_modules/symfluence entry
-# that check_version_sync.sh validates.) We use awk for portability — BSD sed
-# on macOS does not support the GNU `0,/pattern/` address range.
+# Replace only the first `"version":` line in the JSON file. We use awk for
+# portability — BSD sed on macOS does not support the GNU `0,/pattern/`
+# address range.
 
 replace_first_version() {
     local file="$1"
@@ -57,17 +56,11 @@ sed -i.bak "s/^__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" \
     "$REPO_ROOT/src/symfluence/symfluence_version.py"
 rm -f "$REPO_ROOT/src/symfluence/symfluence_version.py.bak"
 
-# 2. tools/npm/package.json
-replace_first_version "$REPO_ROOT/tools/npm/package.json" "$NEW_VERSION"
-
-# 3. npm/package.json
+# 2. npm/package.json
 replace_first_version "$REPO_ROOT/npm/package.json" "$NEW_VERSION"
 
-# 4. package-lock.json (node_modules/symfluence "version" field)
-replace_first_version "$REPO_ROOT/package-lock.json" "$NEW_VERSION"
-
 echo ""
-# Verify all four files are in sync
+# Verify both files are in sync
 "$SCRIPT_DIR/check_version_sync.sh"
 
 echo ""
