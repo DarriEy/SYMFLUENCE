@@ -14,17 +14,30 @@ def test_non_handoff_results_are_ignored():
 
 
 def test_handoff_maps_to_launch_agent(monkeypatch):
+    from symfluence.agent.modes import AgentMode
+
     calls = {}
 
-    def fake_launch(prompt=None, extra_args=None, cli=None, no_skills=False):
-        calls.update(prompt=prompt, extra_args=extra_args, cli=cli, no_skills=no_skills)
+    def fake_launch(prompt=None, extra_args=None, cli=None, no_skills=False,
+                    mode=AgentMode.CODING):
+        calls.update(prompt=prompt, extra_args=extra_args, cli=cli,
+                     no_skills=no_skills, mode=mode)
         return 0
 
     import symfluence.agent.launcher as launcher
     monkeypatch.setattr(launcher, 'launch_agent', fake_launch)
 
-    request = handoff.AgentHandoff(cli='codex', prompt='do it', no_skills=True)
+    request = handoff.AgentHandoff(
+        cli='codex', prompt='do it', no_skills=True, mode=AgentMode.MODELLING,
+    )
     assert handoff.complete_handoff(request) == 0
     assert calls == {
         'prompt': 'do it', 'extra_args': [], 'cli': 'codex', 'no_skills': True,
+        'mode': AgentMode.MODELLING,
     }
+
+
+def test_handoff_mode_defaults_to_coding():
+    from symfluence.agent.modes import AgentMode
+
+    assert handoff.AgentHandoff().mode is AgentMode.CODING

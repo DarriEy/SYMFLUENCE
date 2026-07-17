@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agent modes** (`symfluence agent model` / `symfluence agent code`): the
+  agent surface now has two first-class session modes, each a frozen
+  `ModeProfile` (`agent/modes.py`) that shapes priming end to end. *Modelling*
+  primes the operational skills (`explore-platform`, `run-workflow-locally`,
+  `debug-calibration`), both subagents, modelling house rules (never edit
+  platform source; drive everything through the workflow/MCP tools; report in
+  hydrological terms), and a headless tool allowlist for the planned native
+  chat. *Coding* keeps the full skill set and the host CLI's own permissions.
+  Bare `symfluence agent` opens the TUI agent screen; `agent doctor` absorbs
+  the former `list`/`skills` verbs (plus `--json`); `agent mcp --mode` serves
+  one mode's tool profile; `AgentLauncher` gains `supports_headless`;
+  `build_launch_argv()` is the single argv assembly shared by every launch
+  path. Skills now materialize per-mode (separate cache scopes) and copy the
+  whole skill directory, so reference files beside `SKILL.md` survive.
+
+### Changed
+- **Agent verb consolidation**: `agent launch` is deprecated (alias for
+  `agent code`); the already-deprecated `agent start`/`agent run` and the
+  `agent list`/`agent skills` verbs are removed.
+
 ### Fixed
 - **Review follow-ups to the agent interface and CLI option handling** (#300,
   #299): `--dry-run binary <tool>` now previews instead of executing; global

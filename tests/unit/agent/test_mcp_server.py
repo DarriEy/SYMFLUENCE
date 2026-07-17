@@ -90,6 +90,31 @@ def test_non_object_json_gets_error_not_crash():
     assert responses[2]['result'] == {}
 
 
+def test_profile_filter_mechanics():
+    """A restricted tool set hides tools from list and call alike."""
+    restricted = {'validate_config': mcp_server.TOOLS['validate_config']}
+
+    listed = mcp_server.handle_message(_request('tools/list'), restricted)
+    assert [t['name'] for t in listed['result']['tools']] == ['validate_config']
+
+    called = mcp_server.handle_message(
+        _request('tools/call', name='list_capabilities', arguments={}),
+        restricted,
+    )
+    assert 'Unknown tool' in called['error']['message']
+
+
+def test_tools_for_profile_resolves_mode_profiles():
+    # Both current profiles expose every tool (mcp_tools=None); the mechanism
+    # must still resolve them and reject unknown profile names.
+    assert mcp_server.tools_for_profile(None) == mcp_server.TOOLS
+    assert mcp_server.tools_for_profile('model') == mcp_server.TOOLS
+    assert mcp_server.tools_for_profile('code') == mcp_server.TOOLS
+    import pytest
+    with pytest.raises(ValueError):
+        mcp_server.tools_for_profile('bogus')
+
+
 def test_run_workflow_step_output_is_bounded(tmp_path, monkeypatch):
     """Step output is spooled to disk and only the tail is returned."""
     config = tmp_path / 'c.yaml'

@@ -1,12 +1,24 @@
 AI Agent Guide
 ==============
 
-``symfluence agent launch`` hands off to an installed coding-agent CLI — Claude
-Code (``claude``), OpenAI Codex (``codex``), Gemini CLI (``gemini``), or another —
+``symfluence agent`` hands off to an installed coding-agent CLI — Claude Code
+(``claude``), OpenAI Codex (``codex``), Gemini CLI (``gemini``), or another —
 primed as the *SYMFLUENCE agent*. SYMFLUENCE does not ship its own language
 model: it detects whichever agent CLI you have installed, picks up whichever API
 key is in your environment, primes the CLI with SYMFLUENCE context, and replaces
 itself with that agent so it drives your project directly.
+
+There are two session modes, each with its own priming profile:
+
+- ``symfluence agent model`` — a **modelling session**: run experiments
+  conversationally (configs, runs, calibrations, results). Primed with the
+  operational skills and the MCP tools; its house rules forbid editing platform
+  source code and require driving everything through the workflow tools.
+- ``symfluence agent code`` — a **coding session**: extend the platform
+  (models, data handlers, optimizers) in the host CLI's full coding
+  experience, primed with every packaged skill and subagent.
+
+Bare ``symfluence agent`` opens the TUI agent screen to pick a mode.
 
 The priming has four provider-agnostic layers, each wired in only where the host
 CLI supports it:
@@ -44,47 +56,41 @@ API key is only used by the CLI itself, never read or forwarded by SYMFLUENCE.
 Usage
 -----
 
-Open the Agent Command Center (run from your project directory)::
+Start a session from your project directory::
 
-    symfluence agent launch
+    symfluence agent           # TUI agent screen: pick a mode
+    symfluence agent model     # modelling session
+    symfluence agent code      # coding session
 
-This is a dedicated screen in the SYMFLUENCE TUI: it shows the detected
-runtimes (pick one with the arrow keys), the mission context (configs and
-domains found in your directory), the capabilities that will prime the session,
-and a preflight check panel. Press ``l`` to launch, ``p`` for a one-shot
-prompt, ``k`` to toggle priming, ``r`` to refresh. The rest of the TUI
-(dashboard, runs, workflow, calibration) is one keypress away; inside
-``symfluence tui launch`` the same screen is mode ``7``.
+Interactive coding sessions open the agent screen in the SYMFLUENCE TUI first
+(runtimes, mission context, preflight; inside ``symfluence tui launch`` the
+same screen is mode ``7``). The handoff always happens *after* the TUI exits —
+the screen never runs the agent inside itself, which keeps the terminal clean
+for the host CLI. Modelling sessions currently hand off the same way, primed
+with the modelling profile; an embedded native chat screen is planned.
 
-The handoff always happens *after* the TUI exits — the screen never runs the
-agent inside itself, which keeps the terminal clean for the host CLI (and
-leaves room to embed the agent in the TUI later).
+One-shot prompts (run once and exit — useful in scripts)::
 
-Hand off immediately without the command center::
+    symfluence agent model "validate my config and run the next step"
+    symfluence agent code "add an MSWEP forcing data handler"
 
-    symfluence agent launch --direct
+Skip the TUI, pick a specific CLI, or launch bare without SYMFLUENCE priming::
 
-One-shot prompt (always direct; runs once and exits — useful in scripts)::
-
-    symfluence agent launch "add an MSWEP forcing data handler"
-
-Pick a specific CLI, or launch it bare without SYMFLUENCE priming::
-
-    symfluence agent launch --cli codex
-    symfluence agent launch --no-skills
+    symfluence agent code --direct
+    symfluence agent code --cli codex
+    symfluence agent model --no-skills
 
 Forward extra flags to the underlying CLI after ``--``::
 
-    symfluence agent launch -- --model claude-sonnet-4-6
+    symfluence agent code -- --model claude-sonnet-4-6
 
 Sessions without a TTY, or installs without the TUI extra (``pip install
 "symfluence[tui]"``), fall back to the direct handoff automatically.
 
 Inspect the setup::
 
-    symfluence agent list      # registered CLIs; which one launch would pick
-    symfluence agent skills    # the packaged skills
-    symfluence agent doctor    # full diagnosis (CLIs, keys, skills, MCP server)
+    symfluence agent doctor           # runtimes, keys, per-mode priming, MCP server
+    symfluence agent doctor --json    # the same, machine-readable
 
 How it works
 ------------
@@ -116,18 +122,19 @@ Skills
 ------
 
 Skills are concise domain guides the agent consults when working on SYMFLUENCE
-tasks — for both *running* the platform and *extending* it. The packaged skills:
+tasks — for both *running* the platform and *extending* it. The packaged skills
+and which mode carries them:
 
-==========================  =================================================
-Skill                       Use it for
-==========================  =================================================
-``explore-platform``        Discovering available models/datasets/configs (live registry)
-``run-workflow-locally``    Running the workflow end to end (or a single step)
-``add-data-handler``        Adding a forcing / attribute / observation dataset
-``add-model-handler``       Adding or wiring a hydrological model
-``add-optimizer``           Adding a calibration/search algorithm
-``debug-calibration``       Diagnosing calibration / optimizer problems
-==========================  =================================================
+==========================  ==============================================  =========
+Skill                       Use it for                                      Modes
+==========================  ==============================================  =========
+``explore-platform``        Discovering available models/datasets/configs   both
+``run-workflow-locally``    Running the workflow end to end (or one step)   both
+``debug-calibration``       Diagnosing calibration / optimizer problems     both
+``add-data-handler``        Adding a forcing / attribute / obs dataset      code
+``add-model-handler``       Adding or wiring a hydrological model           code
+``add-optimizer``           Adding a calibration/search algorithm           code
+==========================  ==============================================  =========
 
 The MCP server
 --------------
@@ -144,10 +151,11 @@ Tool                    What it does
 ``run_workflow_step``   Run a single workflow step (long-running; set a timeout)
 ======================  =====================================================
 
-``agent launch`` wires it in automatically where the host CLI supports
-per-launch MCP configuration. To register it manually in any MCP-capable tool,
-add a stdio server named ``symfluence`` running ``symfluence agent mcp`` — e.g.
-for Gemini CLI::
+The session verbs wire it in automatically where the host CLI supports
+per-launch MCP configuration, passing ``--mode`` so the server serves that
+mode's tool profile. To register it manually in any MCP-capable tool, add a
+stdio server named ``symfluence`` running ``symfluence agent mcp`` — e.g. for
+Gemini CLI::
 
     gemini mcp add symfluence symfluence agent mcp
 
@@ -196,9 +204,10 @@ point ``SYMFLUENCE_DEFAULT_CONFIG`` at your config file.
 Deprecation
 -----------
 
-``symfluence agent start`` and ``symfluence agent run "..."`` are deprecated aliases
-for ``symfluence agent launch`` (interactive and one-shot respectively) and will be
-removed in a future release.
+``symfluence agent launch`` is a deprecated alias for ``symfluence agent code``
+and will be removed in a future release. The former ``start``, ``run``,
+``list``, and ``skills`` verbs have been removed — ``doctor`` (and
+``doctor --json``) covers what ``list`` and ``skills`` reported.
 
 See Also
 --------

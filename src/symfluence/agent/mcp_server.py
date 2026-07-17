@@ -208,11 +208,26 @@ TOOLS = {
 }
 
 
+def tools_for_profile(profile: str | None) -> dict:
+    """The subset of :data:`TOOLS` an agent-mode profile exposes.
+
+    ``profile`` is an :class:`~symfluence.agent.modes.AgentMode` value; None
+    (or a profile that declares no filter) exposes every registered tool.
+    """
+    if profile is None:
+        return TOOLS
+    from .modes import get_profile
+    allowed = get_profile(profile).mcp_tools
+    if allowed is None:
+        return TOOLS
+    return {name: spec for name, spec in TOOLS.items() if name in allowed}
+
+
 # ---------------------------------------------------------------------------
 # JSON-RPC plumbing
 # ---------------------------------------------------------------------------
 
-def _tools_list_result() -> dict:
+def _tools_list_result(tools: dict) -> dict:
     return {
         'tools': [
             {
@@ -220,14 +235,14 @@ def _tools_list_result() -> dict:
                 'description': spec['description'],
                 'inputSchema': spec['inputSchema'],
             }
-            for name, spec in TOOLS.items()
+            for name, spec in tools.items()
         ]
     }
 
 
-def _tools_call_result(params: dict) -> dict:
+def _tools_call_result(params: dict, tools: dict) -> dict:
     name = params.get('name')
-    spec = TOOLS.get(name)
+    spec = tools.get(name)
     if spec is None:
         raise ValueError(f"Unknown tool: {name!r}")
     try:
@@ -250,8 +265,13 @@ def _invalid_request(detail: str) -> dict:
     }
 
 
-def handle_message(message) -> dict | None:
-    """Handle one JSON-RPC message; return the response, or None for notifications."""
+def handle_message(message, tools: dict | None = None) -> dict | None:
+    """Handle one JSON-RPC message; return the response, or None for notifications.
+
+    ``tools`` is the tool set this server instance serves (default: all).
+    """
+    if tools is None:
+        tools = TOOLS
     if not isinstance(message, dict):
         # Valid JSON but not a request object (e.g. a batch array or scalar).
         # Answer in-band — the server must survive anything on stdin.
@@ -274,9 +294,9 @@ def handle_message(message) -> dict | None:
         elif method == 'ping':
             result = {}
         elif method == 'tools/list':
-            result = _tools_list_result()
+            result = _tools_list_result(tools)
         elif method == 'tools/call':
-            result = _tools_call_result(params)
+            result = _tools_call_result(params, tools)
         else:
             return {
                 'jsonrpc': '2.0', 'id': msg_id,
@@ -290,10 +310,15 @@ def handle_message(message) -> dict | None:
     return {'jsonrpc': '2.0', 'id': msg_id, 'result': result}
 
 
-def serve(stdin=None, stdout=None) -> int:
-    """Serve MCP over stdio until EOF. Blocks; used by `symfluence agent mcp`."""
+def serve(stdin=None, stdout=None, profile: str | None = None) -> int:
+    """Serve MCP over stdio until EOF. Blocks; used by `symfluence agent mcp`.
+
+    ``profile`` restricts the tool set to one agent mode's profile
+    (``--profile`` on the CLI); None serves every registered tool.
+    """
     stdin = stdin if stdin is not None else sys.stdin
     stdout = stdout if stdout is not None else sys.stdout
+    tools = tools_for_profile(profile)
 
     for line in stdin:
         line = line.strip()
@@ -307,7 +332,7 @@ def serve(stdin=None, stdout=None) -> int:
                 'error': {'code': -32700, 'message': 'Parse error'},
             }
         else:
-            response = handle_message(message)
+            response = handle_message(message, tools)
         if response is not None:
             stdout.write(json.dumps(response) + '\n')
             stdout.flush()

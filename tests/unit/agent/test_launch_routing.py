@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Tests for the `agent launch` TUI-vs-direct routing decision."""
+"""Tests for the agent verb routing (TUI vs direct, per-mode)."""
 from __future__ import annotations
 
 from argparse import Namespace
@@ -9,6 +9,7 @@ from argparse import Namespace
 import pytest
 
 from symfluence.agent.handoff import AgentHandoff
+from symfluence.agent.modes import AgentMode
 from symfluence.cli.commands.agent_commands import AgentCommands
 
 
@@ -17,10 +18,11 @@ def spies(monkeypatch):
     """Spy on both destinations: direct launch_agent and the TUI."""
     record = {'direct': None, 'tui': None}
 
-    def fake_launch_agent(prompt=None, extra_args=None, cli=None, no_skills=False):
+    def fake_launch_agent(prompt=None, extra_args=None, cli=None,
+                          no_skills=False, mode=AgentMode.CODING):
         record['direct'] = {
             'prompt': prompt, 'extra_args': extra_args,
-            'cli': cli, 'no_skills': no_skills,
+            'cli': cli, 'no_skills': no_skills, 'mode': mode,
         }
         return 0
 
@@ -54,23 +56,23 @@ def _fake_tty(monkeypatch, value: bool) -> None:
     monkeypatch.setattr(sys.stdout, 'isatty', lambda: value, raising=False)
 
 
-def test_direct_flag_skips_tui(monkeypatch, spies):
+def test_code_direct_flag_skips_tui(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
-    AgentCommands.launch(_args(direct=True))
-    assert spies['direct'] is not None
+    AgentCommands.code(_args(direct=True))
+    assert spies['direct']['mode'] is AgentMode.CODING
     assert spies['tui'] is None
 
 
-def test_oneshot_prompt_skips_tui(monkeypatch, spies):
+def test_code_oneshot_prompt_skips_tui(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
-    AgentCommands.launch(_args(prompt='do the thing'))
+    AgentCommands.code(_args(prompt='do the thing'))
     assert spies['direct']['prompt'] == 'do the thing'
     assert spies['tui'] is None
 
 
-def test_no_tty_skips_tui(monkeypatch, spies):
+def test_code_no_tty_skips_tui(monkeypatch, spies):
     _fake_tty(monkeypatch, False)
-    AgentCommands.launch(_args())
+    AgentCommands.code(_args())
     assert spies['direct'] is not None
     assert spies['tui'] is None
 
@@ -88,18 +90,18 @@ def _fake_textual_available(monkeypatch, available: bool) -> None:
     monkeypatch.setattr('importlib.util.find_spec', fake_find_spec)
 
 
-def test_missing_textual_falls_back_to_direct(monkeypatch, spies):
+def test_code_missing_textual_falls_back_to_direct(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
     _fake_textual_available(monkeypatch, False)
-    AgentCommands.launch(_args())
+    AgentCommands.code(_args())
     assert spies['direct'] is not None
     assert spies['tui'] is None
 
 
-def test_interactive_tty_opens_command_center(monkeypatch, spies):
+def test_code_interactive_tty_opens_agent_screen(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
     _fake_textual_available(monkeypatch, True)
-    AgentCommands.launch(_args(cli='codex', no_skills=True, extra=['--resume']))
+    AgentCommands.code(_args(cli='codex', no_skills=True, extra=['--resume']))
 
     # TUI opened on the agent screen with the presets forwarded ...
     assert spies['tui']['initial_mode'] == 'agent'
@@ -108,3 +110,38 @@ def test_interactive_tty_opens_command_center(monkeypatch, spies):
     }
     # ... and its handoff result was completed via launch_agent.
     assert spies['direct']['cli'] == 'claude'
+
+
+def test_model_launches_directly_with_modelling_mode(monkeypatch, spies):
+    _fake_tty(monkeypatch, True)
+    AgentCommands.model(_args(prompt='validate my config'))
+    assert spies['direct']['mode'] is AgentMode.MODELLING
+    assert spies['direct']['prompt'] == 'validate my config'
+    assert spies['tui'] is None
+
+
+def test_model_interactive_launches_directly(monkeypatch, spies):
+    _fake_tty(monkeypatch, True)
+    AgentCommands.model(_args())
+    assert spies['direct']['mode'] is AgentMode.MODELLING
+    assert spies['tui'] is None
+
+
+def test_launch_is_deprecated_alias_for_code(monkeypatch, spies):
+    _fake_tty(monkeypatch, True)
+    AgentCommands.launch(_args(direct=True))
+    assert spies['direct']['mode'] is AgentMode.CODING
+
+
+def test_home_opens_tui_on_tty(monkeypatch, spies):
+    _fake_tty(monkeypatch, True)
+    _fake_textual_available(monkeypatch, True)
+    AgentCommands.home(_args())
+    assert spies['tui']['initial_mode'] == 'agent'
+
+
+def test_home_without_tty_prints_guidance(monkeypatch, spies):
+    _fake_tty(monkeypatch, False)
+    assert AgentCommands.home(_args()) == 0
+    assert spies['tui'] is None
+    assert spies['direct'] is None  # never auto-launches a session

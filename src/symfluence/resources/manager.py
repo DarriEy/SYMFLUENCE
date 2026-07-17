@@ -342,7 +342,22 @@ def parse_frontmatter(md_file: Path) -> tuple[dict, str] | None:
     return meta, body.strip()
 
 
-def _render_agents_md(skills_dir: Path, preamble: str | None = None) -> str:
+def _selected_skills(
+    skills_dir: Path, skills: tuple[str, ...] | None,
+) -> list[Path]:
+    """The packaged skill directories to materialize (all when ``skills`` is None)."""
+    return [
+        skill for skill in sorted(skills_dir.iterdir())
+        if (skill / 'SKILL.md').is_file()
+        and (skills is None or skill.name in skills)
+    ]
+
+
+def _render_agents_md(
+    skills_dir: Path,
+    preamble: str | None = None,
+    skills: tuple[str, ...] | None = None,
+) -> str:
     """Render the packaged skills into a single neutral ``AGENTS.md`` document."""
     lines = []
     if preamble:
@@ -355,19 +370,20 @@ def _render_agents_md(skills_dir: Path, preamble: str | None = None) -> str:
         "running the workflow).",
         "",
     ]
-    for skill in sorted(skills_dir.iterdir()):
-        skill_md = skill / 'SKILL.md'
-        if not skill_md.is_file():
-            continue
+    for skill in _selected_skills(skills_dir, skills):
         lines.append(f"## {skill.name}")
         lines.append("")
-        lines.append(skill_md.read_text(encoding='utf-8').strip())
+        lines.append((skill / 'SKILL.md').read_text(encoding='utf-8').strip())
         lines.append("")
     return "\n".join(lines)
 
 
 def prepare_agent_context(
-    skills_mode: str, workdir: Path, preamble: str | None = None,
+    skills_mode: str,
+    workdir: Path,
+    preamble: str | None = None,
+    skills: tuple[str, ...] | None = None,
+    cache_scope: str | None = None,
 ) -> tuple[list[str], list[str], bool]:
     """
     Materialize the packaged skills for an external coding-agent CLI.
@@ -386,6 +402,10 @@ def prepare_agent_context(
         preamble: Optional block (agent identity / project context) prepended to
             the generated ``AGENTS.md``. Ignored in ``claude_native`` mode, where
             identity travels via the CLI's own system-prompt flag.
+        skills: Packaged skill names to materialize; None means all of them.
+        cache_scope: Optional subdirectory of the agent cache to materialize
+            into (e.g. an agent-mode name), so differently-primed launches
+            don't clobber each other's cache payloads.
 
     Returns:
         ``(extra_argv, messages, delivered)`` — extra arguments to pass to the
@@ -400,18 +420,17 @@ def prepare_agent_context(
 
     if skills_mode == 'claude_native':
         cache_root = agent_cache_root()
+        if cache_scope:
+            cache_root = cache_root / cache_scope
         target = cache_root / '.claude' / 'skills'
         if target.exists():
             shutil.rmtree(target)
         target.mkdir(parents=True, exist_ok=True)
         count = 0
-        for skill in sorted(skills_dir.iterdir()):
-            skill_md = skill / 'SKILL.md'
-            if not skill_md.is_file():
-                continue
-            dest = target / skill.name
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(skill_md, dest / 'SKILL.md')
+        for skill in _selected_skills(skills_dir, skills):
+            # The whole skill directory travels, so reference/asset files
+            # shipped alongside SKILL.md survive materialization.
+            shutil.copytree(skill, target / skill.name)
             count += 1
         return (
             ['--add-dir', str(cache_root)],
@@ -433,9 +452,10 @@ def prepare_agent_context(
                 ], False
             # Ours from an earlier launch: refresh (preamble + skills may be stale).
             agents_md.write_text(
-                _render_agents_md(skills_dir, preamble), encoding='utf-8')
+                _render_agents_md(skills_dir, preamble, skills), encoding='utf-8')
             return [], [f"Refreshed SYMFLUENCE context in {agents_md}."], True
-        agents_md.write_text(_render_agents_md(skills_dir, preamble), encoding='utf-8')
+        agents_md.write_text(
+            _render_agents_md(skills_dir, preamble, skills), encoding='utf-8')
         return [], [f"Wrote SYMFLUENCE skills to {agents_md}."], True
 
     return [], [], False

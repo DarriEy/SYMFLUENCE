@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .modes import AgentMode
+
 
 @dataclass(frozen=True)
 class AgentHandoff:
@@ -25,12 +27,14 @@ class AgentHandoff:
         prompt: One-shot prompt (None = interactive session).
         no_skills: Launch the bare CLI without SYMFLUENCE priming.
         extra_args: Extra argv forwarded verbatim to the host CLI.
+        mode: Which agent mode's priming profile to launch with.
     """
 
     cli: str | None = None
     prompt: str | None = None
     no_skills: bool = False
     extra_args: list[str] = field(default_factory=list)
+    mode: AgentMode = AgentMode.CODING
 
 
 def complete_handoff(result: object) -> int | None:
@@ -49,4 +53,5 @@ def complete_handoff(result: object) -> int | None:
         extra_args=result.extra_args,
         cli=result.cli,
         no_skills=result.no_skills,
+        mode=result.mode,
     )
