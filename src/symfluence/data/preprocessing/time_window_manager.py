@@ -18,6 +18,8 @@ from typing import Any, Dict, Optional, Tuple, Union
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.mixins.logging import _class_logger_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,8 @@ class TimeWindowManager:
             logger: Logger instance
         """
         self.config = config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
 
     def get_simulation_times(
         self,

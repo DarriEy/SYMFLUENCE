@@ -430,3 +430,91 @@ class TestPluginDiscovery:
         assert R.runners.get("PLUGIN_TEST_MODEL") is _PluginRunner
         # Clean up
         R.runners.remove("PLUGIN_TEST_MODEL")
+
+    @staticmethod
+    def _ep_raising(exc):
+        """Build a fake entry point whose register() raises *exc*."""
+
+        class _EP:
+            name = "failing_plugin"
+            value = "failing_package:register"
+
+            def load(self):
+                def register():
+                    raise exc
+                return register
+
+        return _EP()
+
+    def test_missing_thirdparty_dep_stays_quiet(self, monkeypatch, caplog):
+        """A genuinely missing third-party module is debug-logged, not warned.
+
+        e.g. an MPI/GPU-only model on a laptop without the dependency.
+        """
+        import importlib.metadata
+        import logging as _logging
+
+        from symfluence.core import _bootstrap
+
+        exc = ModuleNotFoundError("No module named 'jax'", name="jax")
+        monkeypatch.setattr(
+            importlib.metadata, "entry_points", lambda group: [self._ep_raising(exc)]
+        )
+        with caplog.at_level(_logging.DEBUG, logger="symfluence.core._bootstrap"):
+            _bootstrap._discover_plugins()
+
+        warnings_ = [r for r in caplog.records if r.levelno >= _logging.WARNING
+                     and "failing_plugin" in r.getMessage()]
+        assert not warnings_, "missing optional dependency should stay at DEBUG"
+        assert any("optional dependency missing" in r.getMessage()
+                   for r in caplog.records)
+
+    def test_api_drift_import_error_warns(self, monkeypatch, caplog):
+        """An ImportError caused by SYMFLUENCE API drift is warned loudly.
+
+        Regression: installed jxaj/jsacsma/jhbv plugins importing the removed
+        ``StandardModelPostprocessor`` alias were debug-logged as an "optional
+        dependency missing", silently removing those models from the registry
+        and voiding whole calibration runs.
+        """
+        import importlib.metadata
+        import logging as _logging
+
+        from symfluence.core import _bootstrap
+
+        exc = ImportError(
+            "cannot import name 'StandardModelPostprocessor' from "
+            "'symfluence.models.base.standard_postprocessor'",
+            name="symfluence.models.base.standard_postprocessor",
+        )
+        monkeypatch.setattr(
+            importlib.metadata, "entry_points", lambda group: [self._ep_raising(exc)]
+        )
+        with caplog.at_level(_logging.DEBUG, logger="symfluence.core._bootstrap"):
+            _bootstrap._discover_plugins()
+
+        warnings_ = [r for r in caplog.records if r.levelno >= _logging.WARNING
+                     and "incompatible" in r.getMessage()]
+        assert warnings_, "API-drift ImportError must surface as a WARNING"
+
+    def test_missing_symfluence_module_warns(self, monkeypatch, caplog):
+        """A ModuleNotFoundError for a symfluence.* module is API drift, not
+        an optional dependency, and must be warned."""
+        import importlib.metadata
+        import logging as _logging
+
+        from symfluence.core import _bootstrap
+
+        exc = ModuleNotFoundError(
+            "No module named 'symfluence.models.base.standard_postprocessor'",
+            name="symfluence.models.base.standard_postprocessor",
+        )
+        monkeypatch.setattr(
+            importlib.metadata, "entry_points", lambda group: [self._ep_raising(exc)]
+        )
+        with caplog.at_level(_logging.DEBUG, logger="symfluence.core._bootstrap"):
+            _bootstrap._discover_plugins()
+
+        warnings_ = [r for r in caplog.records if r.levelno >= _logging.WARNING
+                     and "incompatible" in r.getMessage()]
+        assert warnings_

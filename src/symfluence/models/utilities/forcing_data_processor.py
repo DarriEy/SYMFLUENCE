@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.mixins.logging import _class_logger_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +72,8 @@ class ForcingDataProcessor:
             logger: Logger instance
         """
         self.config = config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
 
     def load_forcing_data(
         self,

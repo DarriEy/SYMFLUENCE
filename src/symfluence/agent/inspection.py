@@ -14,7 +14,8 @@ Path conventions read here (see ``project/logging_manager.py`` and
 ``optimization/core/results_manager.py``):
 
 - domain dir:      ``{SYMFLUENCE_DATA_DIR}/domain_{DOMAIN_NAME}``
-- run logs:        ``{domain}/_workLog_{DOMAIN_NAME}/symfluence_{type}_{DOMAIN_NAME}_{ts}.log``
+- run logs:        ``{domain}/_workLog_{DOMAIN_NAME}/symfluence_{DOMAIN_NAME}[_{EXPERIMENT_ID}]_{ts}.log``
+  (legacy runs: ``symfluence_general_{DOMAIN_NAME}_{ts}.log``)
 - optimization:    ``{domain}/optimization/{algorithm}_{experiment_id}/``
   with ``best_parameters.csv``, ``optimization_history.csv``,
   ``optimization_metadata.csv``, and ``final_evaluation/``.
@@ -64,10 +65,16 @@ def read_run_log(
     if not log_dir.is_dir():
         raise ValueError(f"No log directory yet: {log_dir}")
 
-    logs = sorted(
-        log_dir.glob(f'symfluence_{log_type}_{domain}_*.log'),
-        key=lambda p: p.stat().st_mtime,
-    )
+    if log_type == 'general':
+        # New protocol: symfluence_{domain}[_{experiment_id}]_{ts}.log;
+        # keep matching the legacy symfluence_general_{domain}_*.log too.
+        candidates = (
+            set(log_dir.glob(f'symfluence_{domain}_*.log'))
+            | set(log_dir.glob(f'symfluence_general_{domain}_*.log'))
+        )
+    else:
+        candidates = set(log_dir.glob(f'symfluence_{log_type}_{domain}_*.log'))
+    logs = sorted(candidates, key=lambda p: p.stat().st_mtime)
     if not logs:
         raise ValueError(f"No '{log_type}' logs in {log_dir}")
     log_path = logs[-1]

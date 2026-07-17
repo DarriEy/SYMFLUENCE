@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 
+from symfluence.core.mixins.logging import _class_logger_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +67,8 @@ class DataQualityHandler:
             logger: Logger instance
         """
         self.config = config or {}
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
 
     def handle_nan_values(
         self,
