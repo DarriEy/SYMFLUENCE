@@ -234,21 +234,26 @@ class MESHResultExtractor(ModelResultExtractor):
             'precipitation': ['PREC', 'PRECACC'],
         }
 
-        # For runoff/streamflow: compute total discharge from water balance.
-        # With run_def mode (wf_lzs baseflow active): total Q = RFF + LKG
-        #   RFF = surface runoff (OVRFLW + LATFLW)
-        #   LKG = lower zone discharge (baseflow from wf_lzs: dlz = FLZ * LZS^PWR)
-        # Fallback for noroute mode (LKG=0): total Q = RFF + DRAINSOL
-        #   DRAINSOL = soil drainage to deep zone (proxy for eventual baseflow)
+        # For runoff/streamflow: compute total discharge from the basin water
+        # balance. The correct total depends on the run mode, distinguished by
+        # whether the lower-zone baseflow (LKG) is active:
+        #
+        #  * Routing mode (runrte / run_def, wf_lzs active, LKG != 0): the
+        #    basin-average RFF ALREADY reports total runoff — surface +
+        #    interflow + lower-zone baseflow — i.e. RFF == OVRFLW + LATFLW + LKG
+        #    (verified against the MESH Basin_average_water_balance to < 1e-5
+        #    mm/day). RFF alone is therefore the total streamflow; adding LKG
+        #    again double-counts baseflow.
+        #  * noroute mode (LKG == 0): RFF carries only the surface term
+        #    (OVRFLW + LATFLW) while the deep soil drainage leaves via DRAINSOL,
+        #    which RFF excludes. Add DRAINSOL as the baseflow contribution.
         if variable_type in ('streamflow', 'runoff'):
             df.columns = df.columns.str.strip()
             if 'RFF' in df.columns:
                 total = df['RFF'].copy()
-                # Prefer LKG (actual baseflow) when available and non-zero
-                if 'LKG' in df.columns and df['LKG'].abs().sum() > 0:
-                    total = total + df['LKG']
-                elif 'DRAINSOL' in df.columns:
-                    # Fallback: noroute mode where LKG=0
+                lkg_active = 'LKG' in df.columns and df['LKG'].abs().sum() > 0
+                if not lkg_active and 'DRAINSOL' in df.columns:
+                    # noroute: RFF is surface-only, add deep drainage as baseflow
                     total = total + df['DRAINSOL']
                 return pd.Series(
                     total.values,

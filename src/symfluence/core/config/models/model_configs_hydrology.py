@@ -353,6 +353,13 @@ class MESHConfig(BaseModel):
     install_path: str = Field(default='default', alias='MESH_INSTALL_PATH')
     exe: str = Field(default='mesh.exe', alias='MESH_EXE')
     spatial_mode: SpatialModeType = Field(default='auto', alias='MESH_SPATIAL_MODE')
+    # MESH run mode: 'runrte' (WATROUTE channel routing + wf_lzs lower-zone
+    # baseflow store active) or 'noroute' (streamflow taken directly from the
+    # basin water balance). Left unset (None) => auto: multi-cell domains route
+    # ('runrte'), a single cell has no channel network and falls back to
+    # 'noroute'. Set explicitly to 'runrte' to keep the baseflow store (and its
+    # FLZ/PWR/RCHARG parameters) live even on a single-cell domain.
+    run_mode: Optional[str] = Field(default=None, alias='MESH_RUNMODE')
     settings_path: str = Field(default='default', alias='SETTINGS_MESH_PATH')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MESH')
     forcing_path: str = Field(default='default', alias='MESH_FORCING_PATH')

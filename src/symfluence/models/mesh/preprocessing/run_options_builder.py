@@ -100,15 +100,36 @@ class RunOptionsConfigBuilder(ConfigMixin):
             with open(self._path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            runmode = self._get_config_value('MESH_RUNMODE', 'runrte')
+            # Run mode. Unset (None) => auto-pick from domain size below; an
+            # explicit 'runrte'/'noroute' is always honoured. (The previous
+            # call passed the key string as the typed accessor and omitted
+            # dict_key, so MESH_RUNMODE was silently ignored and every domain
+            # defaulted to 'runrte' before the single-cell override.)
+            runmode = self._get_config_value(
+                lambda: self.config.model.mesh.run_mode,
+                default=None,
+                dict_key='MESH_RUNMODE',
+            )
+            explicit_runmode = runmode is not None
 
             num_cells = get_num_cells_fn()
-            if num_cells == 1 and runmode != 'noroute':
+            if not explicit_runmode:
+                # A single cell has no channel network for WATROUTE to route
+                # through, so the wf_lzs lower-zone baseflow store cannot be
+                # exercised — use 'noroute' (extractor handles RFF+DRAINSOL).
+                # Multi-cell domains route and get the baseflow store.
+                runmode = 'noroute' if num_cells == 1 else 'runrte'
+                if num_cells == 1:
+                    self.logger.info(
+                        "Single-cell domain detected (lumped mode). "
+                        "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
+                    )
+            elif num_cells == 1 and runmode != 'noroute':
                 self.logger.info(
-                    "Single-cell domain detected (lumped mode). "
-                    "Using RUNMODE 'noroute' (extractor handles RFF+DRAINSOL)."
+                    "Single-cell domain with explicit MESH_RUNMODE='%s': "
+                    "honouring the routing request so the wf_lzs baseflow store "
+                    "(FLZ/PWR/RCHARG) stays active.", runmode
                 )
-                runmode = 'noroute'
 
             if runmode == 'noroute':
                 streamflow_flag = 'none'
