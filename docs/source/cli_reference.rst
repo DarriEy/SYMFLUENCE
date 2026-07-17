@@ -478,10 +478,11 @@ List available example notebooks.
 Agent Commands
 ==============
 
-Hand off to an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed
-with the SYMFLUENCE skills. SYMFLUENCE does not ship its own language model — it
-detects an installed agent CLI, exposes the SYMFLUENCE skills to it, and replaces
-itself with that agent. See :doc:`agent_guide` for the full walkthrough.
+Launch an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed as
+the *SYMFLUENCE agent*: packaged skills, an identity block with live project
+context, the SYMFLUENCE MCP server, and specialist subagents. SYMFLUENCE does not
+ship its own language model — it detects an installed agent CLI, primes it, and
+replaces itself with that agent. See :doc:`agent_guide` for the full walkthrough.
 
 agent launch
 ------------
@@ -497,11 +498,55 @@ it runs once and exits (handy in scripts).
    # One-shot prompt
    symfluence agent launch "add an MSWEP forcing data handler"
 
+   # Pick a specific CLI, or launch it bare (no SYMFLUENCE priming)
+   symfluence agent launch --cli codex
+   symfluence agent launch --no-skills
+
    # Forward extra flags to the underlying CLI after --
    symfluence agent launch -- --model claude-sonnet-4-6
 
-CLI selection and skill exposure are controlled by environment variables
+CLI selection and priming can also be controlled by environment variables
 (``SYMFLUENCE_AGENT_CLI``, ``SYMFLUENCE_NO_SKILLS``); see :doc:`agent_guide`.
+
+agent list
+----------
+
+Show the registered agent CLIs, which are installed, and which one
+``agent launch`` would pick.
+
+.. code-block:: bash
+
+   symfluence agent list
+
+agent skills
+------------
+
+List the packaged SYMFLUENCE skills exposed to the agent at launch.
+
+.. code-block:: bash
+
+   symfluence agent skills
+
+agent doctor
+------------
+
+Diagnose the agent setup: CLI detection, API keys, packaged skills and
+subagents, cache directory, MCP server, and detected project context.
+
+.. code-block:: bash
+
+   symfluence agent doctor
+
+agent mcp
+---------
+
+Serve the SYMFLUENCE MCP server on stdio. ``agent launch`` wires this into the
+host CLI automatically where supported; it can also be registered manually in
+any MCP-capable tool.
+
+.. code-block:: bash
+
+   symfluence agent mcp
 
 Deprecated aliases
 ~~~~~~~~~~~~~~~~~~~

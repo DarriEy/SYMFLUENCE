@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The SYMFLUENCE agent interface** (`symfluence agent`): `agent launch` now
+  primes the host coding-agent CLI (Claude Code, Codex, Gemini, ...) as the
+  SYMFLUENCE agent instead of opening it bare. Four provider-agnostic layers,
+  each wired through whatever mechanism the CLI declares in the launcher
+  registry: (1) the packaged skills (unchanged); (2) an identity block with
+  live project context (detected configs, domain directories) and operating
+  house rules, delivered via the CLI's system-prompt flag or the `AGENTS.md`
+  preamble; (3) a dependency-free MCP server (`symfluence agent mcp`) exposing
+  `list_capabilities`, `validate_config`, `workflow_status`, and
+  `run_workflow_step`; (4) packaged specialist subagents
+  (`calibration-debugger`, `platform-scout`).
+- New `agent` verbs: `agent list` (registered CLIs and which one launch picks),
+  `agent skills` (packaged skills), `agent doctor` (full setup diagnosis), and
+  `agent mcp` (serve the MCP server on stdio); `agent launch` gains `--cli`
+  and `--no-skills`.
+
 ---
 
 ## [0.9.2] - 2026-07-07

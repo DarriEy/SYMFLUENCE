@@ -29,6 +29,18 @@ class AgentLauncher:
             :func:`symfluence.resources.prepare_agent_context`.
         oneshot: argv template for a single non-interactive prompt, with a
             ``"{prompt}"`` placeholder (e.g. ``("claude", "-p", "{prompt}")``).
+        system_prompt_args: argv template (``"{prompt}"`` placeholder) that
+            appends a system prompt, e.g. ``("--append-system-prompt", "{prompt}")``.
+            Empty when the CLI has no such flag — the identity block is then
+            delivered as the ``AGENTS.md`` preamble instead.
+        mcp_config_args: argv template registering the SYMFLUENCE MCP server.
+            Placeholders: ``{path}`` (a written MCP JSON config file),
+            ``{command_toml}`` / ``{args_toml}`` (TOML-quoted server command and
+            argument list, for CLIs that take dotted config overrides). Empty
+            when the CLI cannot be wired per-invocation; the launcher then just
+            prints how to register ``symfluence agent mcp`` manually.
+        agents_args: argv template (``"{json}"`` placeholder) that defines
+            custom subagents. Empty when unsupported.
     """
 
     name: str
@@ -36,6 +48,9 @@ class AgentLauncher:
     env_keys: tuple[str, ...]
     skills_mode: str
     oneshot: tuple[str, ...]
+    system_prompt_args: tuple[str, ...] = ()
+    mcp_config_args: tuple[str, ...] = ()
+    agents_args: tuple[str, ...] = ()
 
     def interactive_argv(self) -> list[str]:
         """argv for an interactive session."""
@@ -51,10 +66,17 @@ _BUILTINS: tuple[AgentLauncher, ...] = (
     AgentLauncher(
         name='claude', binary='claude', env_keys=('ANTHROPIC_API_KEY',),
         skills_mode='claude_native', oneshot=('claude', '-p', '{prompt}'),
+        system_prompt_args=('--append-system-prompt', '{prompt}'),
+        mcp_config_args=('--mcp-config', '{path}'),
+        agents_args=('--agents', '{json}'),
     ),
     AgentLauncher(
         name='codex', binary='codex', env_keys=('OPENAI_API_KEY',),
         skills_mode='agents_md', oneshot=('codex', 'exec', '{prompt}'),
+        mcp_config_args=(
+            '-c', 'mcp_servers.symfluence.command={command_toml}',
+            '-c', 'mcp_servers.symfluence.args={args_toml}',
+        ),
     ),
     AgentLauncher(
         name='gemini', binary='gemini', env_keys=('GEMINI_API_KEY', 'GOOGLE_API_KEY'),
