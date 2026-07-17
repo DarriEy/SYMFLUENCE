@@ -16,9 +16,10 @@ the server only needs ``initialize``/``tools/list``/``tools/call``/``ping``.
 from __future__ import annotations
 
 import json
-import shutil
+import os
 import subprocess  # nosec B404 — runs the symfluence CLI itself, argv-built
 import sys
+import tempfile
 from pathlib import Path
 
 PROTOCOL_VERSION = '2025-06-18'
@@ -82,15 +83,25 @@ def _tool_workflow_status(arguments: dict) -> dict:
 
 
 def _symfluence_argv() -> list[str]:
-    """argv prefix that reaches the symfluence CLI from this interpreter."""
-    binary = shutil.which('symfluence')
-    if binary:
-        return [binary]
-    return [sys.executable, '-m', 'symfluence']
+    """argv prefix that reaches the symfluence CLI from this environment."""
+    from .priming import symfluence_invocation
+    return symfluence_invocation()
+
+
+def _read_tail(buf) -> str:
+    """Read the last ``_MAX_OUTPUT_CHARS`` worth of a binary temp file."""
+    buf.seek(0, os.SEEK_END)
+    size = buf.tell()
+    buf.seek(max(0, size - _MAX_OUTPUT_CHARS))
+    return buf.read().decode('utf-8', errors='replace')
 
 
 def _tool_run_workflow_step(arguments: dict) -> dict:
-    """Run one workflow step as a subprocess and report its outcome."""
+    """Run one workflow step as a subprocess and report its outcome.
+
+    Output is streamed to a temp file and only the tail is returned, so an
+    hours-long chatty step never grows this long-lived server's memory.
+    """
     path = Path(arguments['config_path'])
     if not path.is_file():
         raise ValueError(f"Config file not found: {path}")
@@ -101,18 +112,20 @@ def _tool_run_workflow_step(arguments: dict) -> dict:
     if arguments.get('force_rerun'):
         argv.append('--force-rerun')
 
-    try:
-        proc = subprocess.run(  # nosec B603 — argv built above, no shell
-            argv, capture_output=True, text=True, timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        return {
-            'ok': False,
-            'error': f"Step {step!r} still running after {timeout}s; it was killed. "
-                     f"Re-run with a larger timeout_seconds, or run it outside the "
-                     f"agent: {' '.join(argv)}",
-        }
-    output = (proc.stdout + proc.stderr)[-_MAX_OUTPUT_CHARS:]
+    with tempfile.TemporaryFile() as buf:
+        try:
+            proc = subprocess.run(  # nosec B603 — argv built above, no shell
+                argv, stdout=buf, stderr=subprocess.STDOUT, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                'ok': False,
+                'error': f"Step {step!r} still running after {timeout}s; it was killed. "
+                         f"Re-run with a larger timeout_seconds, or run it outside the "
+                         f"agent: {' '.join(argv)}",
+                'output': _read_tail(buf),
+            }
+        output = _read_tail(buf)
     return {'ok': proc.returncode == 0, 'exit_code': proc.returncode, 'output': output}
 
 
@@ -230,8 +243,20 @@ def _tools_call_result(params: dict) -> dict:
     }
 
 
-def handle_message(message: dict) -> dict | None:
+def _invalid_request(detail: str) -> dict:
+    return {
+        'jsonrpc': '2.0', 'id': None,
+        'error': {'code': -32600, 'message': f"Invalid Request: {detail}"},
+    }
+
+
+def handle_message(message) -> dict | None:
     """Handle one JSON-RPC message; return the response, or None for notifications."""
+    if not isinstance(message, dict):
+        # Valid JSON but not a request object (e.g. a batch array or scalar).
+        # Answer in-band — the server must survive anything on stdin.
+        return _invalid_request('expected a JSON-RPC request object')
+
     method = message.get('method')
     msg_id = message.get('id')
     params = message.get('params') or {}

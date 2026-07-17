@@ -23,14 +23,10 @@ from .base import BaseCommand, cli_exception_handler
 
 def _skill_frontmatter(skill_md: Path) -> dict:
     """Parse a SKILL.md YAML frontmatter block, returning {} on any problem."""
-    try:
-        text = skill_md.read_text(encoding='utf-8')
-        _, frontmatter, _ = text.split('---', 2)
-        import yaml
-        meta = yaml.safe_load(frontmatter)
-        return meta if isinstance(meta, dict) else {}
-    except Exception:  # noqa: BLE001 — a bad SKILL.md must not break the listing
-        return {}
+    from symfluence.resources import parse_frontmatter
+
+    parsed = parse_frontmatter(skill_md)
+    return parsed[0] if parsed else {}
 
 
 class AgentCommands(BaseCommand):
@@ -70,18 +66,25 @@ class AgentCommands(BaseCommand):
         if not (sys.stdin.isatty() and sys.stdout.isatty()):
             return direct()
 
-        try:
-            from symfluence.tui import launch_tui
-            result = launch_tui(
-                initial_mode='agent',
-                agent_defaults={'cli': cli, 'no_skills': no_skills},
-            )
-        except ImportError:
+        # Only the availability probe may fall back to direct: an ImportError
+        # raised later, while the TUI session is running, is a real error and
+        # must surface — not silently exec the agent.
+        import importlib.util
+        if importlib.util.find_spec('textual') is None:
             BaseCommand._console.debug(
                 'TUI extra not installed (pip install "symfluence[tui]"); '
                 'handing off directly.'
             )
             return direct()
+
+        from symfluence.tui import launch_tui
+
+        result = launch_tui(
+            initial_mode='agent',
+            agent_defaults={
+                'cli': cli, 'no_skills': no_skills, 'extra_args': list(extra or []),
+            },
+        )
 
         from symfluence.agent.handoff import complete_handoff
 

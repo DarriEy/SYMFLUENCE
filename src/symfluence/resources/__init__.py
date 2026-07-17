@@ -14,12 +14,14 @@ from .manager import (
     get_skills_dir,
     get_system_deps_registry_path,
     list_config_templates,
+    parse_frontmatter,
     prepare_agent_context,
 )
 
 __all__ = [
     'agent_cache_root',
     'get_agents_dir',
+    'parse_frontmatter',
     'get_base_settings_dir',
     'get_config_template',
     'get_skills_dir',

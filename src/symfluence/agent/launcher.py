@@ -102,23 +102,24 @@ def launch_agent(
     # Prime the CLI as the SYMFLUENCE agent (skills, identity, MCP, subagents).
     from .priming import prime_launch
     workdir = Path.cwd()
-    ctx_args, messages = prime_launch(launcher, workdir, no_skills=no_skills)
-    for message in messages:
-        console.debug(message)
+    report = prime_launch(launcher, workdir, no_skills=no_skills)
+    for note in report.notes:
+        console.debug(note)
+    for warning in report.warnings:
+        console.warning(warning)
 
     if prompt:
         base = launcher.oneshot_argv(prompt)
-        argv = [base[0], *ctx_args, *base[1:], *extra_args]
+        argv = [base[0], *report.argv, *base[1:], *extra_args]
     else:
-        argv = [*launcher.interactive_argv(), *ctx_args, *extra_args]
+        argv = [*launcher.interactive_argv(), *report.argv, *extra_args]
 
     from .presentation import launch_card
-    primed = not (no_skills or os.environ.get('SYMFLUENCE_NO_SKILLS'))
     console.print(launch_card(
         launcher_name=launcher.name,
         workdir=workdir,
         interactive=prompt is None,
-        primed=primed,
+        layers=[name for name, active in report.layers.items() if active],
     ))
     try:
         # Deliberate process handoff to the resolved agent CLI. argv is built from

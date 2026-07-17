@@ -75,12 +75,36 @@ def test_no_tty_skips_tui(monkeypatch, spies):
     assert spies['tui'] is None
 
 
+def _fake_textual_available(monkeypatch, available: bool) -> None:
+    """Pin the textual-availability probe so routing tests are CI-independent."""
+    import importlib.util
+    real_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name, *args, **kwargs):
+        if name == 'textual':
+            return object() if available else None
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr('importlib.util.find_spec', fake_find_spec)
+
+
+def test_missing_textual_falls_back_to_direct(monkeypatch, spies):
+    _fake_tty(monkeypatch, True)
+    _fake_textual_available(monkeypatch, False)
+    AgentCommands.launch(_args())
+    assert spies['direct'] is not None
+    assert spies['tui'] is None
+
+
 def test_interactive_tty_opens_command_center(monkeypatch, spies):
     _fake_tty(monkeypatch, True)
-    AgentCommands.launch(_args(cli='codex', no_skills=True))
+    _fake_textual_available(monkeypatch, True)
+    AgentCommands.launch(_args(cli='codex', no_skills=True, extra=['--resume']))
 
     # TUI opened on the agent screen with the presets forwarded ...
     assert spies['tui']['initial_mode'] == 'agent'
-    assert spies['tui']['agent_defaults'] == {'cli': 'codex', 'no_skills': True}
+    assert spies['tui']['agent_defaults'] == {
+        'cli': 'codex', 'no_skills': True, 'extra_args': ['--resume'],
+    }
     # ... and its handoff result was completed via launch_agent.
     assert spies['direct']['cli'] == 'claude'
