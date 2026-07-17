@@ -297,7 +297,7 @@ class TestWorkflowClean:
 
         args = Namespace(
             config=str(config_file),
-            level='temp',
+            level='intermediate',
             dry_run=False,
             debug=False
         )
@@ -305,7 +305,23 @@ class TestWorkflowClean:
         result = WorkflowCommands.clean(args)
 
         assert result == ExitCode.SUCCESS
-        mock_instance.clean_workflow_files.assert_called_once_with(level='temp', dry_run=False)
+        mock_instance.clean_workflow_files.assert_called_once_with(level='intermediate', dry_run=False)
+
+    @patch('symfluence.cli.commands.base.BaseCommand.confirm_action', return_value=False)
+    @patch('symfluence.SYMFLUENCE')
+    def test_clean_outputs_requires_confirmation(
+        self, mock_symfluence_class, mock_confirm, temp_config_dir
+    ):
+        config_file = temp_config_dir / "config_files" / "config_template.yaml"
+        args = Namespace(
+            config=str(config_file), level='outputs', dry_run=False, debug=False
+        )
+
+        result = WorkflowCommands.clean(args)
+
+        assert result == ExitCode.SUCCESS
+        mock_confirm.assert_called_once()
+        mock_symfluence_class.assert_not_called()
 
     @patch('symfluence.SYMFLUENCE')
     def test_clean_without_method(self, mock_symfluence_class, temp_config_dir):
@@ -338,7 +354,7 @@ class TestWorkflowClean:
 
         args = Namespace(
             config=str(config_file),
-            level='output',
+            level='outputs',
             dry_run=False,
             debug=False
         )

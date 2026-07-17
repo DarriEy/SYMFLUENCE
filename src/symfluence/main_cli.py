@@ -43,14 +43,33 @@ def main():
     # consumed by symfluence's own parser.
     _BINARY_ACTIONS = {'install', 'validate', 'doctor', 'install-sysdeps', 'info'}
     argv = sys.argv[1:]
+    # Global options may precede ``binary``.  Strip only that prefix for
+    # dispatch detection; everything after the tool name remains opaque and is
+    # forwarded verbatim to the external executable.
+    binary_argv = list(argv)
+    _GLOBAL_FLAGS = {
+        '--debug', '--visualise', '--visualize', '--diagnostic', '--dry-run',
+        '--profile', '--profile-stacks',
+    }
+    _GLOBAL_VALUES = {'--config', '--profile-output'}
+    while binary_argv:
+        option = binary_argv[0].partition('=')[0]
+        if binary_argv[0] in _GLOBAL_FLAGS or (
+            option in _GLOBAL_VALUES and '=' in binary_argv[0]
+        ):
+            binary_argv.pop(0)
+        elif binary_argv[0] in _GLOBAL_VALUES and len(binary_argv) >= 2:
+            del binary_argv[:2]
+        else:
+            break
     if (
-        len(argv) >= 2
-        and argv[0] == 'binary'
-        and argv[1] not in _BINARY_ACTIONS
-        and not argv[1].startswith('-')
+        len(binary_argv) >= 2
+        and binary_argv[0] == 'binary'
+        and binary_argv[1] not in _BINARY_ACTIONS
+        and not binary_argv[1].startswith('-')
     ):
         from symfluence.cli.commands.binary_commands import BinaryCommands
-        return BinaryCommands.exec_binary(argv[1], argv[2:])
+        return BinaryCommands.exec_binary(binary_argv[1], binary_argv[2:])
 
     try:
         # Create parser and parse arguments
