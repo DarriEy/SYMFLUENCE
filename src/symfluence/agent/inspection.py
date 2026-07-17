@@ -239,6 +239,56 @@ def get_results_summary(config_path: str | Path,
     }
 
 
+def get_plot_paths(config_path: str | Path,
+                   experiment_id: str | None = None) -> dict:
+    """Figures produced for the newest (or named) experiment run."""
+    _, domain_dir = resolve_domain(config_path)
+    run_dir = _pick_experiment_dir(domain_dir, experiment_id)
+    plots = sorted(
+        str(p) for pattern in ('*.png', '*.pdf', '*.svg')
+        for p in run_dir.rglob(pattern)
+    )
+    return {'run_dir': str(run_dir), 'run_name': run_dir.name, 'plots': plots}
+
+
+def compare_experiments(config_path: str | Path) -> dict:
+    """One row per optimization run of the config's domain, best score first."""
+    _, domain_dir = resolve_domain(config_path)
+    optimization = domain_dir / 'optimization'
+    if not optimization.is_dir():
+        raise ValueError(f"No optimization directory yet: {optimization}")
+
+    rows = []
+    for run_dir in sorted(p for p in optimization.iterdir() if p.is_dir()):
+        row: dict = {'run_name': run_dir.name}
+        metadata_csv = run_dir / 'optimization_metadata.csv'
+        if metadata_csv.is_file():
+            meta_rows = _read_csv_rows(metadata_csv)
+            if meta_rows:
+                meta = meta_rows[0]
+                row.update({
+                    'algorithm': meta.get('algorithm'),
+                    'experiment_id': meta.get('experiment_id'),
+                    'metric': meta.get('target_metric'),
+                    'best_score': _float_or_none(meta.get('best_score')),
+                    'completed_at': meta.get('completed_at'),
+                })
+        history_csv = run_dir / 'optimization_history.csv'
+        if history_csv.is_file():
+            row['iterations'] = len(_read_csv_rows(history_csv))
+            row.setdefault('best_score', max(
+                (score for r in _read_csv_rows(history_csv)
+                 if (score := _float_or_none(r.get('best_score'))) is not None),
+                default=None,
+            ))
+        row['in_progress'] = history_csv.is_file() and not metadata_csv.is_file()
+        rows.append(row)
+
+    rows.sort(key=lambda r: (r.get('best_score') is None,
+                             -(r.get('best_score') or 0.0)))
+    return {'domain_dir': str(domain_dir), 'experiments': rows}
+
+
 def update_config(config_path: str | Path, changes: dict,
                   dry_run: bool = False) -> dict:
     """Apply flat key changes to an experiment config, validated and backed up.

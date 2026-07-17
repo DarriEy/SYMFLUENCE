@@ -30,7 +30,10 @@ class AgentChatSession:
         workdir: Path,
         mode: AgentMode = AgentMode.MODELLING,
     ):
-        self.driver = HeadlessClaudeDriver(launcher, workdir, mode)
+        # The chat screen watches the approvals directory, so off-allowlist
+        # tools prompt the human instead of being denied outright.
+        self.driver = HeadlessClaudeDriver(
+            launcher, workdir, mode, interactive_approvals=True)
         self.busy = False
 
     @property

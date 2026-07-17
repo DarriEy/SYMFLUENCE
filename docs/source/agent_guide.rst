@@ -168,6 +168,8 @@ Tool                     What it does
 ``list_domains``         The ``domain_*`` dirs under a data root, summarized
 ``calibration_status``   Iterations, best score, and progress of a calibration
 ``get_results_summary``  Headline metrics (KGE/NSE/...) and artifact paths
+``get_plot_paths``       Figures (png/pdf/svg) produced for an experiment run
+``compare_experiments``  All optimization runs of a domain, best score first
 ``update_config``        Guarded config edit: validated, backed up, in place
 =======================  ====================================================
 
@@ -176,6 +178,21 @@ wrapper that records its exit code, with its record and log kept in the agent
 cache. Long model runs and calibrations should go through
 ``start_workflow_job`` — ``run_workflow_step`` holds the MCP connection for
 the whole step.
+
+Interactive approvals
+---------------------
+
+In the native modelling chat, tools outside the modelling allowlist are not
+denied outright: Claude Code routes them through a hidden ``approve_action``
+permission bridge, and the chat pops an allow/deny modal (``y`` / ``n``). No
+reply within the timeout is a denial — permission is never granted by
+silence. Outside the chat (one-shot ``agent model "…"``, or any context with
+no UI watching), the same tools are hard-denied instead. See ADR-0004 for the
+policy.
+
+In the chat, ``ctrl+e`` exports the conversation as Markdown into the working
+directory, and each turn's footer line shows its duration, cost, and the
+running session total.
 
 The session verbs wire it in automatically where the host CLI supports
 per-launch MCP configuration, passing ``--mode`` so the server serves that

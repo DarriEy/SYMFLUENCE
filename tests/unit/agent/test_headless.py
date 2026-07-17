@@ -131,6 +131,22 @@ def test_build_turn_argv_carries_streaming_and_permissions(tmp_path, monkeypatch
     assert '--mcp-config' in argv
 
 
+def test_interactive_approvals_swap_denials_for_prompt_tool(tmp_path, monkeypatch):
+    monkeypatch.delenv('SYMFLUENCE_NO_SKILLS', raising=False)
+    prompting = headless.HeadlessClaudeDriver(
+        CLAUDE, tmp_path, interactive_approvals=True)
+    argv = prompting.build_turn_argv('hi')
+    assert '--permission-prompt-tool' in argv
+    assert argv[argv.index('--permission-prompt-tool') + 1] == \
+        'mcp__symfluence__approve_action'
+    assert '--disallowedTools' not in argv     # denials become prompts
+
+    denying = headless.HeadlessClaudeDriver(CLAUDE, tmp_path)
+    argv = denying.build_turn_argv('hi')
+    assert '--permission-prompt-tool' not in argv
+    assert '--disallowedTools' in argv         # no UI watching: hard denials
+
+
 def _fake_claude(tmp_path, body: str) -> registry.AgentLauncher:
     """A stand-in 'claude' binary that prints canned stream-JSON."""
     import stat

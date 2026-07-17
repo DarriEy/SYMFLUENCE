@@ -21,7 +21,7 @@ from pathlib import Path
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Footer, Header, Input, Static
 
 from symfluence.agent.headless import (
@@ -95,12 +95,39 @@ class ToolCallCard(Static):
             self._render_line()
 
 
+class ApprovalModal(ModalScreen):
+    """One permission request from the headless agent: allow or deny."""
+
+    BINDINGS = [
+        Binding("y", "decide(True)", "Allow"),
+        Binding("n", "decide(False)", "Deny"),
+        Binding("escape", "decide(False)", "Deny"),
+    ]
+
+    def __init__(self, request: dict, **kwargs):
+        super().__init__(**kwargs)
+        self._request = request
+
+    def compose(self) -> ComposeResult:
+        tool = self._request.get('tool_name', 'unknown tool')
+        args = _args_summary(self._request.get('input') or {}, limit=200)
+        yield Static(
+            f"[b]The agent asks to use[/b]\n\n  {tool}\n  [dim]{args}[/dim]\n\n"
+            f"[b]y[/b] allow · [b]n[/b]/[b]esc[/b] deny",
+            id="agent-approval",
+        )
+
+    def action_decide(self, approved: bool) -> None:
+        self.dismiss((self._request['id'], approved))
+
+
 class AgentChatScreen(Screen):
     """The modelling-mode chat session."""
 
     BINDINGS = [
         Binding("escape", "interrupt_or_back", "Interrupt / Back"),
         Binding("ctrl+s", "toggle_sidebar", "Sidebar"),
+        Binding("ctrl+e", "export_transcript", "Export"),
     ]
 
     def __init__(
@@ -118,6 +145,9 @@ class AgentChatScreen(Screen):
         self._stream_widget: ChatMessage | None = None
         self._stream_text = ""
         self._cards: dict[str, ToolCallCard] = {}
+        self._session_cost = 0.0
+        self._transcript: list[tuple[str, str]] = []  # (speaker, text)
+        self._approval_open = False
 
     # ------------------------------------------------------------------ UI
 
@@ -153,8 +183,31 @@ class AgentChatScreen(Screen):
                         group="sidebar", exit_on_error=False)
 
     def _poll_sidebar(self) -> None:
+        from symfluence.agent import approvals
+
         status = self._monitor.poll()
+        pending = approvals.list_pending()
         self.app.call_from_thread(self._render_sidebar, status)
+        if pending:
+            self.app.call_from_thread(self._offer_approval, pending[0])
+
+    def _offer_approval(self, request: dict) -> None:
+        if self._approval_open:
+            return
+        self._approval_open = True
+        self.app.push_screen(ApprovalModal(request), self._approval_decided)
+
+    def _approval_decided(self, decision: tuple[str, bool] | None) -> None:
+        from symfluence.agent import approvals
+
+        self._approval_open = False
+        if decision is None:
+            return
+        request_id, approved = decision
+        approvals.reply(request_id, approved)
+        note = "approved" if approved else "denied"
+        self._append(ChatMessage(f"[dim]Permission {note}.[/dim]",
+                                 classes="chat-msg-system"))
 
     def _render_sidebar(self, status: RunStatus) -> None:
         lines: list[str] = ["[b]Run status[/b]", ""]
@@ -195,6 +248,7 @@ class AgentChatScreen(Screen):
             return
         event.input.value = ""
         self._append(ChatMessage(f"[b]You[/b]\n{prompt}", classes="chat-msg-user"))
+        self._transcript.append(("You", prompt))
         self._set_busy(True)
         self.run_worker(self._run_turn(prompt), exclusive=True, group="turn",
                         exit_on_error=False)
@@ -235,6 +289,7 @@ class AgentChatScreen(Screen):
             else:
                 self._append(ChatMessage(f"[b]Agent[/b]\n{event.text}",
                                          classes="chat-msg-agent"))
+            self._transcript.append(("Agent", event.text))
         elif isinstance(event, ToolCallStarted):
             self._stream_widget = None
             self._stream_text = ""
@@ -242,20 +297,27 @@ class AgentChatScreen(Screen):
                                 _args_summary(event.arguments))
             self._cards[event.tool_id] = card
             self._append(card)
+            self._transcript.append(
+                ("Tool", f"{card.tool_name} · {card.summary}"))
         elif isinstance(event, ToolCallFinished):
             card = self._cards.get(event.tool_id)
             if card is not None:
                 card.resolve(event.output, event.is_error)
         elif isinstance(event, TurnResult):
+            if event.cost_usd:
+                self._session_cost += event.cost_usd
             note = []
             if event.duration_s:
                 note.append(f"{event.duration_s:.0f}s")
             if event.cost_usd:
                 note.append(f"${event.cost_usd:.2f}")
+            if self._session_cost:
+                note.append(f"Σ ${self._session_cost:.2f}")
             if event.is_error:
                 self._append(ChatMessage(
                     f"[red]Turn failed[/red][dim] — {event.text[:400]}[/dim]",
                     classes="chat-msg-system"))
+                self._transcript.append(("System", f"Turn failed — {event.text}"))
             elif note:
                 self._append(ChatMessage(f"[dim]{' · '.join(note)}[/dim]",
                                          classes="chat-msg-system"))
@@ -264,6 +326,7 @@ class AgentChatScreen(Screen):
                 f"[red]Driver error[/red][dim] — {event.message}\n"
                 f"Retry, or run `symfluence agent model` from a terminal.[/dim]",
                 classes="chat-msg-system"))
+            self._transcript.append(("System", f"Driver error — {event.message}"))
 
     # --------------------------------------------------------------- helpers
 
@@ -281,6 +344,31 @@ class AgentChatScreen(Screen):
                                          classes="chat-msg-system"))
         else:
             self.app.pop_screen()
+
+    def action_export_transcript(self) -> None:
+        if not self._transcript:
+            self.app.notify("Nothing to export yet.", severity="warning")
+            return
+        import time
+        path = self._workdir / f"agent-transcript-{time.strftime('%Y%m%d-%H%M%S')}.md"
+        lines = [f"# SYMFLUENCE modelling session — {self._workdir.name}", ""]
+        if self._session.session_id:
+            lines.append(f"Session `{self._session.session_id}`")
+        if self._session_cost:
+            lines.append(f"Total cost ${self._session_cost:.2f}")
+        lines.append("")
+        for speaker, text in self._transcript:
+            if speaker == "Tool":
+                lines.append(f"> `{text}`")
+            else:
+                lines.append(f"**{speaker}**: {text}")
+            lines.append("")
+        try:
+            path.write_text("\n".join(lines), encoding='utf-8')
+        except OSError as e:
+            self.app.notify(f"Export failed: {e}", severity="error")
+            return
+        self.app.notify(f"Transcript saved to {path.name}.")
 
 
 def _short_tool_name(name: str) -> str:
