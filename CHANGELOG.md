@@ -10,100 +10,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Native modelling chat**: `symfluence agent model` in the TUI now opens a
+- **The SYMFLUENCE agent interface** (`symfluence agent`): hands off to an
+  installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed as the
+  SYMFLUENCE agent through four provider-agnostic layers, each wired through
+  whatever mechanism the CLI declares in the launcher registry: (1) the
+  packaged skills; (2) an identity block with live project context (detected
+  configs, domain directories) and operating house rules, delivered via the
+  CLI's system-prompt flag or the `AGENTS.md` preamble; (3) a dependency-free
+  MCP server (`symfluence agent mcp`); (4) packaged specialist subagents
+  (`calibration-debugger`, `platform-scout`).
+- **Agent modes** (`symfluence agent model` / `symfluence agent code`): two
+  first-class session modes, each a frozen `ModeProfile` (`agent/modes.py`)
+  that shapes priming end to end. *Modelling* primes the operational skills
+  (`explore-platform`, `run-workflow-locally`, `debug-calibration`), both
+  subagents, modelling house rules (never edit platform source; drive
+  everything through the workflow/MCP tools; report in hydrological terms),
+  and a headless tool allowlist for the native chat. *Coding* keeps the full
+  skill set and the host CLI's own permissions. Bare `symfluence agent` opens
+  the TUI agent screen; `agent doctor` diagnoses the setup per mode (with
+  `--json`); `agent mcp --mode` serves one mode's tool profile; skills
+  materialize per-mode and copy whole skill directories.
+- **MCP background jobs and platform-inspection tools**: the agent MCP server
+  exposes 15 tools. `start_workflow_job` / `get_job_status` / `cancel_job` /
+  `list_jobs` run workflow executions as detached background jobs (a stdlib
+  wrapper records the exit code durably; records and logs live in the agent
+  cache; cancellation signals the process group), so a chat session can start
+  an hours-long calibration without blocking the MCP connection.
+  `read_run_log`, `list_domains`, `calibration_status`, `get_results_summary`,
+  `get_plot_paths`, and `compare_experiments` answer the modelling questions
+  (log tails, domain inventory, calibration progress, headline KGE/NSE
+  metrics, figures, cross-experiment ranking) by reading the `domain_*` tree
+  directly with stdlib CSV parsing. `update_config` is the one writer: a
+  line-preserving edit of the user's experiment YAML that must pass typed
+  `SymfluenceConfig` validation and backs the original up first.
+- **Agent home screen with a suspend round-trip**: a minimal Agent home in the
+  TUI (mode `7`) — two mode cards (Model / Code) over two dim context lines
+  (detected config with a cycle key, runtime readiness); diagnostics behind a
+  `d` details modal. Starting a coding session round-trips: the TUI suspends,
+  the primed coding-agent CLI runs full-screen in the same terminal, and the
+  home screen returns when it exits. Terminals that cannot suspend fall back
+  to the classic `AgentHandoff` exec after the TUI exits (`--direct`, a
+  one-shot prompt, no TTY, or a missing TUI extra hand off immediately).
+- **Native modelling chat**: `symfluence agent model` in the TUI opens a
   SYMFLUENCE-native chat screen driving headless Claude Code over its
   stream-JSON protocol — one bounded subprocess per turn, resumed via Claude
   Code's own session store (`agent/headless.py`: tolerant NDJSON parser →
-  typed events; session ids persisted per project+mode in the agent cache).
-  Assistant prose streams into the conversation; tool invocations render as
-  compact expandable cards (never raw JSON); a run sidebar polls the domain
-  tree and background-job records independently of the agent
-  (`tui/services/run_monitor.py`), so an hours-long calibration keeps ticking
-  on screen while the turn runs. `esc` interrupts a turn (kills its
-  subprocess) or backs out when idle; headless turns run under the modelling
-  profile's tool allowlist (no file Write/Edit — config changes go through
-  the guarded `update_config` tool). Codex/Gemini (or a failed stream) fall
-  back to the suspend round-trip with modelling priming. Stdlib-only driver;
-  no new dependencies.
-- **Agent home screen with a suspend round-trip**: the TUI's four-panel Agent
-  Command Center becomes a minimal Agent home (`AgentHomeScreen`) — two mode
-  cards (Model / Code) over two dim context lines (detected config with a
-  cycle key, runtime readiness); diagnostics moved behind a `d` details
-  modal. Starting a session now round-trips instead of exiting: the TUI
-  suspends, the primed coding-agent CLI runs full-screen in the same
-  terminal, and the home screen returns (with a session-ended notice) when
-  it exits. Terminals that cannot suspend keep the classic `AgentHandoff`
-  exec fallback.
-- **MCP background jobs and platform-inspection tools**: the agent MCP server
-  grows from 4 to 13 tools. `start_workflow_job` / `get_job_status` /
-  `cancel_job` / `list_jobs` run workflow executions as detached background
-  jobs (a stdlib wrapper records the exit code durably; records and logs live
-  in the agent cache; cancellation signals the process group), so a chat
-  session can start an hours-long calibration without blocking the MCP
-  connection. `read_run_log`, `list_domains`, `calibration_status`, and
-  `get_results_summary` answer the modelling questions (log tails, domain
-  inventory, iteration/best-score progress, headline KGE/NSE metrics) by
-  reading the `domain_*` tree directly with stdlib CSV parsing.
-  `update_config` is the one writer: a line-preserving edit of the user's
-  experiment YAML that must pass typed `SymfluenceConfig` validation and
-  backs the original up first (`agent/jobs.py`, `agent/inspection.py`).
-- **Agent modes** (`symfluence agent model` / `symfluence agent code`): the
-  agent surface now has two first-class session modes, each a frozen
-  `ModeProfile` (`agent/modes.py`) that shapes priming end to end. *Modelling*
-  primes the operational skills (`explore-platform`, `run-workflow-locally`,
-  `debug-calibration`), both subagents, modelling house rules (never edit
-  platform source; drive everything through the workflow/MCP tools; report in
-  hydrological terms), and a headless tool allowlist for the planned native
-  chat. *Coding* keeps the full skill set and the host CLI's own permissions.
-  Bare `symfluence agent` opens the TUI agent screen; `agent doctor` absorbs
-  the former `list`/`skills` verbs (plus `--json`); `agent mcp --mode` serves
-  one mode's tool profile; `AgentLauncher` gains `supports_headless`;
-  `build_launch_argv()` is the single argv assembly shared by every launch
-  path. Skills now materialize per-mode (separate cache scopes) and copy the
-  whole skill directory, so reference files beside `SKILL.md` survive.
+  typed events; session ids persisted per project+mode). Assistant prose
+  streams into the conversation; tool invocations render as compact
+  expandable cards (never raw JSON); a run sidebar polls the domain tree and
+  background-job records independently of the agent, so an hours-long
+  calibration keeps ticking on screen. `esc` interrupts a turn, `ctrl+e`
+  exports the conversation as Markdown, and each turn's footer shows
+  duration, cost, and the running session total. Codex/Gemini (or a failed
+  stream) fall back to the suspend round-trip with modelling priming.
+  Stdlib-only driver; no new dependencies.
+- **Interactive permission approvals** in the modelling chat: tools outside
+  the modelling allowlist route through a hidden `approve_action`
+  permission-prompt bridge (`agent/approvals.py`) — the MCP server blocks,
+  the chat pops an allow/deny modal, and no reply is a denial. Outside the
+  chat the same tools stay hard-denied. ADR-0004 rewritten for the current
+  architecture (human-in-the-loop at the layer that executes actions).
+- **MESH multi-GRU preprocessing fixes and elevation-band precip correction**:
+  GRU-dependent hydrology parameters (ZSNL/ZPLS/ZPLG/...) expand to one value
+  per GRU so multi-GRU domains initialize; new forcing keys
+  `MESH_PRECIP_LAPSE_RATE` (orographic gradient for elevation-banded forcing)
+  and `MESH_PRECIP_MULTIPLIER` (uniform gauge-undercatch correction), both
+  defaulting to no-op; `SKIP_WARM_START` documented as defaulting to true so
+  calibrations are reproducible regardless of machine history.
 
 ### Changed
 - **Agent verb consolidation**: `agent launch` is deprecated (alias for
-  `agent code`); the already-deprecated `agent start`/`agent run` and the
-  `agent list`/`agent skills` verbs are removed.
+  `agent code`, to be removed after one release); the already-deprecated
+  `agent start`/`agent run` and the `agent list`/`agent skills` verbs are
+  removed (`agent doctor` covers the last two).
 
 ### Fixed
 - **Review follow-ups to the agent interface and CLI option handling** (#300,
   #299): `--dry-run binary <tool>` now previews instead of executing; global
-  option normalization no longer steals host-CLI flags from `agent launch`
+  option normalization no longer steals host-CLI flags from agent-session
   pass-through (structure-aware boundary at REMAINDER subcommands, option
   names derived from a single spec); the MCP server survives non-object
-  JSON-RPC input and bounds subprocess output via a temp file; the Agent
-  Command Center forwards `--` pass-through args and validates the preselected
+  JSON-RPC input and bounds subprocess output via a temp file; the agent
+  screen forwards `--` pass-through args and validates the preselected
   runtime; priming failures degrade with visible warnings and the launch card
   only claims layers that actually activated (a SYMFLUENCE-generated
   `AGENTS.md` is refreshed, a user-authored one is reported as blocking
   injection); frontmatter parsing consolidated into
   `resources.parse_frontmatter`.
-
-### Added
-- **The SYMFLUENCE agent interface** (`symfluence agent`): `agent launch` now
-  primes the host coding-agent CLI (Claude Code, Codex, Gemini, ...) as the
-  SYMFLUENCE agent instead of opening it bare. Four provider-agnostic layers,
-  each wired through whatever mechanism the CLI declares in the launcher
-  registry: (1) the packaged skills (unchanged); (2) an identity block with
-  live project context (detected configs, domain directories) and operating
-  house rules, delivered via the CLI's system-prompt flag or the `AGENTS.md`
-  preamble; (3) a dependency-free MCP server (`symfluence agent mcp`) exposing
-  `list_capabilities`, `validate_config`, `workflow_status`, and
-  `run_workflow_step`; (4) packaged specialist subagents
-  (`calibration-debugger`, `platform-scout`).
-- New `agent` verbs: `agent list` (registered CLIs and which one launch picks),
-  `agent skills` (packaged skills), `agent doctor` (full setup diagnosis), and
-  `agent mcp` (serve the MCP server on stdio); `agent launch` gains `--cli`
-  and `--no-skills`.
-- **Agent Command Center**: `symfluence agent launch` now opens a dedicated
-  Agent screen in the SYMFLUENCE TUI — runtime selector, mission context,
-  capabilities, and preflight checks — and hands off to the chosen agent CLI
-  only after the TUI exits (typed `AgentHandoff` contract, ready for a future
-  embedded agent). `--direct` (or a one-shot prompt, no TTY, or a missing TUI
-  extra) restores the immediate handoff. The screen is also mode `7` inside
-  `symfluence tui launch`.
 
 ---
 

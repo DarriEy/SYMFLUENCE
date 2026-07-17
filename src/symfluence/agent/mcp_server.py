@@ -244,6 +244,31 @@ def _tool_update_config(arguments: dict) -> dict:
     )
 
 
+def _tool_get_plot_paths(arguments: dict) -> dict:
+    """Figures produced for an experiment run."""
+    from .inspection import get_plot_paths
+
+    return get_plot_paths(
+        arguments['config_path'], experiment_id=arguments.get('experiment_id'))
+
+
+def _tool_compare_experiments(arguments: dict) -> dict:
+    """All optimization runs of a domain, best score first."""
+    from .inspection import compare_experiments
+
+    return compare_experiments(arguments['config_path'])
+
+
+def _tool_approve_action(arguments: dict) -> dict:
+    """Permission-prompt bridge: ask the human in the TUI, blocking."""
+    from .approvals import request_approval
+
+    return request_approval(
+        str(arguments.get('tool_name', 'unknown tool')),
+        arguments.get('input') or {},
+    )
+
+
 _CONFIG_PATH_PROP = {
     'type': 'string',
     'description': 'Path to the SYMFLUENCE config YAML file.',
@@ -502,6 +527,55 @@ TOOLS = {
             'required': ['config_path', 'changes'],
         },
     },
+    'get_plot_paths': {
+        'handler': _tool_get_plot_paths,
+        'description': (
+            'List the figures (png/pdf/svg) produced for the newest or named '
+            "experiment run of a config's domain."
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'experiment_id': {
+                    'type': 'string',
+                    'description': 'Pin a specific experiment (default: newest run).',
+                },
+            },
+            'required': ['config_path'],
+        },
+    },
+    'compare_experiments': {
+        'handler': _tool_compare_experiments,
+        'description': (
+            "Compare every optimization run of a config's domain: algorithm, "
+            'metric, best score, iterations, completion — best score first.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {'config_path': _CONFIG_PATH_PROP},
+            'required': ['config_path'],
+        },
+    },
+    'approve_action': {
+        'handler': _tool_approve_action,
+        # The permission-prompt bridge: called by Claude Code itself (via
+        # --permission-prompt-tool), never meant for the model to pick from
+        # the tool list — hence hidden from tools/list.
+        'hidden': True,
+        'description': (
+            'Ask the human in the SYMFLUENCE TUI to approve one tool use '
+            '(permission-prompt bridge; blocks until answered or timeout).'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'tool_name': {'type': 'string'},
+                'input': {'type': 'object'},
+            },
+            'required': ['tool_name'],
+        },
+    },
 }
 
 
@@ -533,6 +607,7 @@ def _tools_list_result(tools: dict) -> dict:
                 'inputSchema': spec['inputSchema'],
             }
             for name, spec in tools.items()
+            if not spec.get('hidden')
         ]
     }
 

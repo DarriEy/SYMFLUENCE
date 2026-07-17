@@ -27,10 +27,12 @@ def test_notifications_get_no_reply():
     assert mcp_server.handle_message(message) is None
 
 
-def test_tools_list_exposes_all_tools():
+def test_tools_list_exposes_all_visible_tools():
     response = mcp_server.handle_message(_request('tools/list'))
     names = {tool['name'] for tool in response['result']['tools']}
-    assert names == set(mcp_server.TOOLS)
+    visible = {name for name, spec in mcp_server.TOOLS.items()
+               if not spec.get('hidden')}
+    assert names == visible
     for tool in response['result']['tools']:
         assert tool['description']
         assert tool['inputSchema']['type'] == 'object'

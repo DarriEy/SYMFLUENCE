@@ -322,3 +322,10 @@ ChatMessage {
 .tool-card.-err {
     border-left: solid $error;
 }
+
+#agent-approval {
+    width: 64;
+    border: round $warning;
+    background: $panel;
+    padding: 1 2;
+}

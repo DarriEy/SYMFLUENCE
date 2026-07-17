@@ -116,6 +116,69 @@ def test_chat_escape_backs_out_when_idle(tmp_path):
     assert closed == 'AgentHomeScreen'
 
 
+def test_pending_approval_pops_modal_and_reply_is_written(tmp_path):
+    from symfluence.agent import approvals
+
+    launcher = _fake_claude(tmp_path, _TURN)
+
+    async def _test():
+        app = SymfluenceTUI()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = AgentChatScreen(launcher, workdir=tmp_path)
+            app.push_screen(screen)
+            await pilot.pause()
+
+            # A headless MCP server asks for permission (request file appears).
+            root = approvals.approvals_root()
+            root.mkdir(parents=True, exist_ok=True)
+            (root / 'req42.request.json').write_text(
+                json.dumps({'id': 'req42', 'tool_name': 'Edit',
+                            'input': {'file_path': 'c.yaml'},
+                            'created_at': __import__('time').time()}),
+                encoding='utf-8')
+
+            screen._offer_approval(approvals.list_pending()[0])
+            await pilot.pause()
+            modal = type(app.screen).__name__
+            await pilot.press('y')
+            await pilot.pause()
+            replies = approvals.list_pending()
+            reply_file = (root / 'req42.reply.json')
+            return modal, replies, json.loads(
+                reply_file.read_text(encoding='utf-8'))
+
+    modal, still_pending, reply = asyncio.run(_test())
+    assert modal == 'ApprovalModal'
+    assert still_pending == []            # answered requests are not re-offered
+    assert reply == {'approved': True, 'message': ''}
+
+
+def test_transcript_export_writes_markdown(tmp_path):
+    launcher = _fake_claude(tmp_path, _TURN)
+
+    async def _test():
+        app = SymfluenceTUI()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = AgentChatScreen(launcher, workdir=tmp_path)
+            app.push_screen(screen)
+            await pilot.pause()
+            screen._transcript = [("You", "validate my config"),
+                                  ("Tool", "validate_config · config.yaml"),
+                                  ("Agent", "Your config is valid.")]
+            screen.action_export_transcript()
+            await pilot.pause()
+        return sorted(tmp_path.glob('agent-transcript-*.md'))
+
+    exports = asyncio.run(_test())
+    assert len(exports) == 1
+    text = exports[0].read_text(encoding='utf-8')
+    assert '**You**: validate my config' in text
+    assert '> `validate_config · config.yaml`' in text
+    assert '**Agent**: Your config is valid.' in text
+
+
 def test_run_monitor_handles_missing_everything(tmp_path):
     status = RunMonitor(None).poll()
     assert status.config_name is None
