@@ -84,7 +84,7 @@ def run_diagnostics(workdir: Path) -> list[Check]:
             OK if ok else FAIL, 'MCP server',
             f"{len(TOOLS)} tool(s) available" if ok else 'initialize failed',
         ))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — a diagnostic must report, not raise
         checks.append(Check(FAIL, 'MCP server', f"{type(e).__name__}: {e}"))
 
     from .context import detect_project_context

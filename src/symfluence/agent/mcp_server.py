@@ -60,7 +60,7 @@ def _tool_validate_config(arguments: dict) -> dict:
         raise ValueError(f"Config file not found: {path}")
     try:
         config = SymfluenceConfig.from_file(path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — any load failure is the tool's answer
         return {'valid': False, 'error': str(e)}
     summary = {}
     for key in ('DOMAIN_NAME', 'EXPERIMENT_ID', 'HYDROLOGICAL_MODEL', 'FORCING_DATASET'):
@@ -219,7 +219,7 @@ def _tools_call_result(params: dict) -> dict:
         raise ValueError(f"Unknown tool: {name!r}")
     try:
         payload = spec['handler'](params.get('arguments') or {})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — tool errors go in-band per MCP spec
         return {
             'content': [{'type': 'text', 'text': f"{type(e).__name__}: {e}"}],
             'isError': True,
@@ -257,7 +257,7 @@ def handle_message(message: dict) -> dict | None:
                 'jsonrpc': '2.0', 'id': msg_id,
                 'error': {'code': -32601, 'message': f"Method not found: {method}"},
             }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — the server must answer, not crash
         return {
             'jsonrpc': '2.0', 'id': msg_id,
             'error': {'code': -32603, 'message': f"{type(e).__name__}: {e}"},

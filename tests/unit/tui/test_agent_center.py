@@ -14,7 +14,6 @@ from symfluence.agent.handoff import AgentHandoff  # noqa: E402
 from symfluence.tui.app import SymfluenceTUI  # noqa: E402
 from symfluence.tui.services.agent_service import AgentService  # noqa: E402
 
-
 # ---------------------------------------------------------------- service
 
 def test_snapshot_gathers_everything(tmp_path):

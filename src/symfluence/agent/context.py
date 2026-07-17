@@ -51,7 +51,7 @@ def _summarize_config(path: Path) -> dict[str, str] | None:
             return None
         import yaml
         data = yaml.safe_load(path.read_text(encoding='utf-8', errors='replace'))
-    except Exception:  # unreadable / not YAML — not a config, not an error
+    except Exception:  # noqa: BLE001 — unreadable / not YAML: not a config, not an error
         return None
     if not isinstance(data, dict):
         return None

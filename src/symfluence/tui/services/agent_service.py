@@ -75,7 +75,7 @@ def _frontmatter(md_file: Path) -> dict:
         import yaml
         meta = yaml.safe_load(frontmatter)
         return meta if isinstance(meta, dict) else {}
-    except Exception:
+    except Exception:  # noqa: BLE001 — a bad frontmatter must not break the screen
         return {}
 
 

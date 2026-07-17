@@ -29,7 +29,7 @@ def _skill_frontmatter(skill_md: Path) -> dict:
         import yaml
         meta = yaml.safe_load(frontmatter)
         return meta if isinstance(meta, dict) else {}
-    except Exception:
+    except Exception:  # noqa: BLE001 — a bad SKILL.md must not break the listing
         return {}
 
 

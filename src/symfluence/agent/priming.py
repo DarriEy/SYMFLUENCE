@@ -38,7 +38,7 @@ def _parse_agent_file(path: Path) -> tuple[str, dict] | None:
         _, frontmatter, body = text.split('---', 2)
         import yaml
         meta = yaml.safe_load(frontmatter)
-    except Exception:  # malformed definition — skip it, don't break the launch
+    except Exception:  # noqa: BLE001 — malformed definition: skip it, don't break the launch
         return None
     if not isinstance(meta, dict) or 'description' not in meta:
         return None
