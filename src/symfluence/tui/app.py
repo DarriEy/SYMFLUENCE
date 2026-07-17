@@ -15,7 +15,7 @@ from typing import Optional
 from textual.app import App
 from textual.binding import Binding
 
-from .screens.agent_center import AgentCommandCenterScreen
+from .screens.agent_center import AgentHomeScreen
 from .screens.calibration import CalibrationScreen
 from .screens.command_palette import CommandPaletteScreen
 from .screens.dashboard import DashboardScreen
@@ -58,7 +58,7 @@ class SymfluenceTUI(App):
         "calibration": CalibrationScreen,
         "slurm": SlurmMonitorScreen,
         "compare": ResultsCompareScreen,
-        "agent": AgentCommandCenterScreen,
+        "agent": AgentHomeScreen,
     }
 
     def __init__(
@@ -178,7 +178,7 @@ class SymfluenceTUI(App):
             ("mode:workflow", "Go to Workflow Launcher", "workflow run steps"),
             ("mode:calibration", "Go to Calibration Monitor", "calibration metrics"),
             ("mode:compare", "Go to Results Comparison", "compare metrics experiments"),
-            ("mode:agent", "Go to Agent Command Center", "agent ai assistant launch claude codex gemini"),
+            ("mode:agent", "Go to Agent home", "agent ai assistant model code launch claude codex gemini"),
             ("app:load_demo_bow", "Load Demo: Bow at Banff", "demo sample onboarding"),
             ("app:set_data_dir", "Set Data Directory", "data dir path configure"),
             ("app:open_help", "Open Help", "help docs keybindings"),

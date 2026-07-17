@@ -2,7 +2,7 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """
-Data provider for the Agent Command Center screen.
+Data provider for the Agent home screen.
 
 Aggregates everything the screen renders — registered runtimes, packaged
 skills/subagents, MCP tools, detected project context, and preflight
@@ -36,7 +36,7 @@ class RuntimeStatus:
 
 @dataclass(frozen=True)
 class AgentSnapshot:
-    """Everything the Agent Command Center renders, gathered in one pass."""
+    """Everything the Agent home screen renders, gathered in one pass."""
 
     workdir: Path
     runtimes: list[RuntimeStatus] = field(default_factory=list)
@@ -77,7 +77,7 @@ def _frontmatter(md_file: Path) -> dict:
 
 
 class AgentService:
-    """Gathers the Agent Command Center snapshot."""
+    """Gathers the Agent home screen snapshot."""
 
     def snapshot(self, workdir: Path | None = None) -> AgentSnapshot:
         """Collect the full snapshot for ``workdir`` (default: cwd)."""

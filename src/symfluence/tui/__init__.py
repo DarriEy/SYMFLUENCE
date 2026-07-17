@@ -26,11 +26,11 @@ def launch_tui(config_path=None, demo=None, initial_mode=None, agent_defaults=No
         config_path: Optional path to a YAML config file to preload.
         demo: Optional demo name (e.g. 'bow') to load a built-in config.
         initial_mode: Optional mode to open on (e.g. 'agent'); default dashboard.
-        agent_defaults: Optional presets for the Agent Command Center
+        agent_defaults: Optional presets for the Agent home screen
             (``{'cli': ..., 'no_skills': ...}``).
 
     Returns:
-        The app's exit result. When the Agent Command Center requests a launch
+        The app's exit result. When the Agent home screen requests a launch
         this is an :class:`symfluence.agent.handoff.AgentHandoff` for the
         caller to complete; otherwise None.
     """

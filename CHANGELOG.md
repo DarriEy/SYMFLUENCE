@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Agent home screen with a suspend round-trip**: the TUI's four-panel Agent
+  Command Center becomes a minimal Agent home (`AgentHomeScreen`) — two mode
+  cards (Model / Code) over two dim context lines (detected config with a
+  cycle key, runtime readiness); diagnostics moved behind a `d` details
+  modal. Starting a session now round-trips instead of exiting: the TUI
+  suspends, the primed coding-agent CLI runs full-screen in the same
+  terminal, and the home screen returns (with a session-ended notice) when
+  it exits. Terminals that cannot suspend keep the classic `AgentHandoff`
+  exec fallback.
 - **MCP background jobs and platform-inspection tools**: the agent MCP server
   grows from 4 to 13 tools. `start_workflow_job` / `get_job_status` /
   `cancel_job` / `list_jobs` run workflow executions as detached background

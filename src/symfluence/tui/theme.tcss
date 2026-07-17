@@ -229,37 +229,40 @@ DataTable > .datatable--header {
     text-style: none;
 }
 
-/* Agent Command Center */
-#agent-grid {
-    height: 1fr;
+/* Agent home */
+#agent-home {
+    align: center middle;
+    padding: 1 4;
 }
 
-#agent-left, #agent-right {
-    width: 1fr;
-    padding: 0 1;
-}
-
-.agent-panel {
-    border: round #287f95;
-    background: $panel;
-    padding: 1 2;
+#agent-home-title {
+    text-style: bold;
+    width: 64;
     margin: 0 0 1 0;
 }
 
-#agent-runtime-list {
+#agent-mode-list {
+    width: 64;
     height: auto;
-    max-height: 14;
+    border: round #287f95;
+    background: $panel;
+    padding: 1 1;
 }
 
-#agent-preflight {
-    height: 1fr;
+#agent-mode-list > .option-list--option-highlighted {
+    background: #287f95 30%;
 }
 
-#agent-context {
-    height: auto;
-    max-height: 16;
+#agent-config-line, #agent-ready-line {
+    width: 64;
+    margin: 1 0 0 0;
 }
 
-#agent-capabilities {
-    height: 1fr;
+/* Agent details modal */
+#agent-details {
+    width: 72;
+    max-height: 80%;
+    border: round #287f95;
+    background: $panel;
+    padding: 1 2;
 }

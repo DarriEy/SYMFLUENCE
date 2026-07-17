@@ -62,12 +62,14 @@ Start a session from your project directory::
     symfluence agent model     # modelling session
     symfluence agent code      # coding session
 
-Interactive coding sessions open the agent screen in the SYMFLUENCE TUI first
-(runtimes, mission context, preflight; inside ``symfluence tui launch`` the
-same screen is mode ``7``). The handoff always happens *after* the TUI exits —
-the screen never runs the agent inside itself, which keeps the terminal clean
-for the host CLI. Modelling sessions currently hand off the same way, primed
-with the modelling profile; an embedded native chat screen is planned.
+The TUI agent screen (mode ``7`` inside ``symfluence tui launch``) is a
+minimal home: two mode cards, the detected config, and runtime readiness;
+``d`` opens the diagnostics detail. Starting a session from it **round-trips**
+— the TUI suspends, the real coding-agent CLI runs full-screen in the same
+terminal, and the home screen returns when the session ends. Terminals that
+cannot suspend fall back to the classic exec handoff after the TUI exits.
+Modelling sessions currently use the same round-trip, primed with the
+modelling profile; an embedded native chat screen is planned.
 
 One-shot prompts (run once and exit — useful in scripts)::
 
