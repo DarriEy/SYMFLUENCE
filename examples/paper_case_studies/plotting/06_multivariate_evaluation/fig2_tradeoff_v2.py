@@ -116,23 +116,30 @@ def load_summa_output(exp_dir):
     daily_path = daily_files[0] if daily_files else None
     timestep_path = timestep_files[0] if timestep_files else None
 
-    if daily_path is None or not daily_path.exists():
+    # The TWS-component storage variables (scalarSWE and the soil/canopy/aquifer
+    # stores) are written every timestep for the TWS objective (outputControl
+    # `| 1`), so they live in the timestep file, not the daily file. Read them
+    # from whichever file carries scalarSWE and aggregate to daily.
+    store_path = None
+    if daily_path and daily_path.exists() and 'scalarSWE' in xr.open_dataset(daily_path).variables:
+        store_path = daily_path
+    elif timestep_path and timestep_path.exists():
+        store_path = timestep_path
+    if store_path is None:
         return None
 
-    ds_day = xr.open_dataset(daily_path)
-    times = pd.to_datetime(ds_day.time.values)
+    ds_store = xr.open_dataset(store_path)
+    store_times = pd.to_datetime(ds_store.time.values)
+    store = pd.DataFrame({
+        'SWE': ds_store['scalarSWE'].values.flatten(),
+        'soil_water': ds_store['scalarTotalSoilWat'].values.flatten(),
+        'canopy_water': ds_store['scalarCanopyWat'].values.flatten(),
+        'aquifer': ds_store['scalarAquiferStorage'].values.flatten() * 1000,
+    }, index=store_times)
+    ds_store.close()
 
-    data = {
-        'time': times,
-        'SWE': ds_day['scalarSWE'].values.flatten(),
-        'soil_water': ds_day['scalarTotalSoilWat'].values.flatten(),
-        'canopy_water': ds_day['scalarCanopyWat'].values.flatten(),
-        'aquifer': ds_day['scalarAquiferStorage'].values.flatten() * 1000,
-    }
-    data['TWS'] = data['SWE'] + data['soil_water'] + data['canopy_water'] + data['aquifer']
-
-    df = pd.DataFrame(data).set_index('time')
-    ds_day.close()
+    df = store.resample('D').mean()  # no-op if already daily
+    df['TWS'] = df['SWE'] + df['soil_water'] + df['canopy_water'] + df['aquifer']
 
     # Load streamflow from timestep
     if timestep_path and timestep_path.exists():
@@ -560,7 +567,7 @@ def main():
     plt.tight_layout()
 
     # Save
-    output_path = OUTPUT_DIR / "fig2_tradeoff_v2.png"
+    output_path = OUTPUT_DIR / "figure_10_multiobjective_tradeoff.png"
     fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     fig.savefig(output_path.with_suffix('.pdf'), bbox_inches='tight', facecolor='white')
     print(f"\nSaved: {output_path}")

@@ -51,16 +51,51 @@ ANALYSIS_DIR = _HERE.parent / "analysis"
 FIGURES_DIR = _HERE.parents[1] / "output"
 DATA_DIR = Path(os.environ.get('SYMFLUENCE_DATA_DIR', _REPO_ROOT.parent / 'SYMFLUENCE_data'))
 
-# Bow pipeline domain: shipped config first, original study layout second.
-_BOW_PIPELINE_CANDIDATES = ["domain_Bow_at_Banff_lumped", "domain_Bow_at_Banff_semi_distributed"]
+# Bow pipeline domain. The paper's Fig 4 uses the SUB-BASIN semi-distributed Bow
+# domain (discrete contiguous sub-basin HRUs, ~49–56), NOT the elevation-band
+# lumped domain (which yields fragmented sliver polygons). Prefer the
+# semi-distributed sub-basin domain (49 sub-basin HRUs with per-HRU elev_mean and
+# processed ERA5 forcing); fall back to the elevation-band and lumped domains.
+_BOW_PIPELINE_CANDIDATES = [
+    "domain_Bow_at_Banff_semidistributed_era5",
+    "domain_Bow_at_Banff_lumped_elev_bands",
+    "domain_Bow_at_Banff_lumped",
+    "domain_Bow_at_Banff_semi_distributed",
+]
+
+
+def _has_basin_avg_forcing(domain_dir: Path) -> bool:
+    """True if the domain has processed basin-averaged forcing NetCDFs."""
+    ba = _forcing_root(domain_dir) / "basin_averaged_data"
+    return ba.exists() and any(ba.glob("*.nc"))
 
 
 def _bow_pipeline_dir() -> Path:
-    for name in _BOW_PIPELINE_CANDIDATES:
-        d = DATA_DIR / name
-        if d.exists():
+    """Resolve the Bow domain for the forcing figure.
+
+    Prefer the first candidate that both exists and carries processed
+    basin-averaged forcing (so the lapse panels have per-HRU data); otherwise
+    fall back to the first that merely exists, then to the first name.
+    """
+    existing = [DATA_DIR / n for n in _BOW_PIPELINE_CANDIDATES if (DATA_DIR / n).exists()]
+    for d in existing:
+        if _has_basin_avg_forcing(d):
             return d
+    if existing:
+        return existing[0]
     return DATA_DIR / _BOW_PIPELINE_CANDIDATES[0]
+
+
+def _tvar(ds):
+    """Temperature variable name present in a dataset. Basin-averaged/raw forcing
+    carries the CF name (air_temperature) after CFIF standardisation, while a
+    SUMMA-ready file keeps SUMMA's required 'airtemp'. Resolve either."""
+    if ds is None:
+        return None
+    for c in ("air_temperature", "airtemp", "temperature"):
+        if c in ds.data_vars:
+            return c
+    return None
 
 
 def _forcing_root(domain_dir: Path) -> Path:
@@ -70,11 +105,17 @@ def _forcing_root(domain_dir: Path) -> Path:
 
 
 def _find_hru_shp(domain_dir: Path) -> Path:
-    """HRU shapefile: original flat layout first, then the nested current one."""
+    """HRU shapefile: original flat layout first, then the nested current one.
+
+    Multi-HRU discretisations name the catchment file after the scheme
+    (``*_HRUs_elevation.shp``, ``*_HRUs_elevation_aspect.shp``) rather than the
+    lumped ``*_HRUs_GRUs.shp``; match any ``*_HRUs_*.shp``.
+    """
     flat = domain_dir / "shapefiles" / "catchment" / f"{domain_dir.name[7:]}_HRUs_GRUs.shp"
     if flat.exists():
         return flat
-    hits = sorted((domain_dir / "shapefiles" / "catchment").glob("**/*_HRUs_GRUs.shp"))
+    catch = domain_dir / "shapefiles" / "catchment"
+    hits = sorted(catch.glob("**/*_HRUs_GRUs.shp")) or sorted(catch.glob("**/*_HRUs_*.shp"))
     return hits[0] if hits else flat
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -481,15 +522,30 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
     hrus = gpd.read_file(hru_shp) if HAS_GEOPANDAS and hru_shp.exists() else None
     grid = gpd.read_file(grid_shp) if HAS_GEOPANDAS and grid_shp.exists() else None
 
-    # Load forcing data
+    # Select the January-2004 monthly file for each store so every panel shows a
+    # consistent winter snapshot (the paper's Fig 4 uses January 2004). Monthly
+    # files carry the month in their name as either YYYYMM (raw ERA5) or
+    # YYYY-MM (remapped/SUMMA); fall back to the first file if 2004-01 is absent.
+    def _pick_month(files, year=2004, month=1):
+        if not files:
+            return None
+        toks = (f"{year}{month:02d}", f"{year}-{month:02d}")
+        for f in files:
+            if any(t in f.name for t in toks):
+                return f
+        return files[0]
+
     raw_files = sorted(raw_dir.glob("*.nc")) if raw_dir.exists() else []
     ba_files = sorted(ba_dir.glob("*.nc")) if ba_dir.exists() else []
     summa_files = sorted(summa_dir.glob("*.nc")) if summa_dir.exists() else []
-    ds_raw = xr.open_dataset(raw_files[0]) if raw_files else None
-    ds_ba = xr.open_dataset(ba_files[0]) if ba_files else None
-    ds_summa = xr.open_dataset(summa_files[0]) if summa_files else None
+    _raw_f = _pick_month(raw_files)
+    _ba_f = _pick_month(ba_files)
+    _summa_f = _pick_month(summa_files)
+    ds_raw = xr.open_dataset(_raw_f) if _raw_f else None
+    ds_ba = xr.open_dataset(_ba_f) if _ba_f else None
+    ds_summa = xr.open_dataset(_summa_f) if _summa_f else None
 
-    # Common time index for spatial panels
+    # Common time index for spatial panels: mid-January (~day 15, midday).
     t_idx = min(14 * 24 + 12, len(ds_ba.time) - 1) if ds_ba is not None else 0
 
     # ---- ROW 1: Spatial remapping (Bow) ----
@@ -521,24 +577,42 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
     else:
         ax_a.text(0.5, 0.5, "Shapefiles\nnot available",
                   transform=ax_a.transAxes, ha="center", va="center", fontsize=8)
+    ax_a.set_title("Grid + HRU geometry", fontsize=10)
     _panel_label(ax_a, "a")
 
     # Compute shared color range for panels (b) and (c) so the
     # elevation-dependent lapse-rate gradient is visually consistent.
+    # Panels (b) raw grid, (c) remapped and (d) lapse-corrected share ONE colour
+    # range (as in the paper) so the elevation-driven spread in (d) reads against
+    # the near-uniform remapped field in (c). Span the union of the three fields.
     shared_vmin, shared_vmax = None, None
-    if ds_ba is not None and "airtemp" in ds_ba.data_vars and hrus is not None:
-        _hru_temps = ds_ba["airtemp"].isel(time=t_idx).values
-        if len(_hru_temps) == len(hrus):
-            shared_vmin = float(np.nanmin(_hru_temps))
-            shared_vmax = float(np.nanmax(_hru_temps))
+    _pool = []
+    for _ds, _dim in ((ds_ba, "hru"), (ds_summa, "hru")):
+        if _ds is not None and _tvar(_ds) is not None and hrus is not None:
+            _v = _ds[_tvar(_ds)].isel(time=t_idx).values
+            if len(_v) == len(hrus):
+                _pool.append(_v)
+    if ds_raw is not None and _tvar(ds_raw) is not None:
+        _pool.append(ds_raw[_tvar(ds_raw)].isel(time=t_idx).values.ravel())
+    if _pool:
+        _all = np.concatenate([p.ravel() for p in _pool])
+        shared_vmin = float(np.nanmin(_all))
+        shared_vmax = float(np.nanmax(_all))
 
     # (b) Raw ERA5 gridded temperature snapshot
     ax_b = fig.add_subplot(gs[0, 1])
-    if ds_raw is not None and "airtemp" in ds_raw.data_vars:
+    if ds_raw is not None and _tvar(ds_raw) is not None:
         lats_raw = ds_raw.latitude.values
         lons_raw = ds_raw.longitude.values
-        raw_slice = ds_raw["airtemp"].isel(time=t_idx)
-        im = ax_b.pcolormesh(lons_raw, lats_raw, raw_slice.values,
+        # Normalise ERA5 longitudes to the −180..180 convention so the raw grid
+        # registers with the HRU polygons (raw ERA5 is stored in 0..360).
+        lons_raw = np.where(lons_raw > 180, lons_raw - 360, lons_raw)
+        raw_slice = ds_raw[_tvar(ds_raw)].isel(time=t_idx)
+        # Order columns by ascending longitude for a monotonic pcolormesh axis.
+        _order = np.argsort(lons_raw)
+        lons_raw = lons_raw[_order]
+        raw_vals = raw_slice.values[:, _order]
+        im = ax_b.pcolormesh(lons_raw, lats_raw, raw_vals,
                              cmap="RdYlBu_r", shading="nearest",
                              vmin=shared_vmin, vmax=shared_vmax)
         cb = fig.colorbar(im, ax=ax_b, shrink=0.75, pad=0.02)
@@ -550,18 +624,16 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
                                linewidth=0.8, alpha=0.9)
         ax_b.set_xlabel("Longitude", fontsize=8)
         ax_b.set_ylabel("Latitude", fontsize=8)
-        ax_b.text(0.02, 0.98, f"ERA5 raw ({len(lats_raw)}\u00d7{len(lons_raw)} grid)",
-                  transform=ax_b.transAxes, fontsize=7, va="top",
-                  bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
     else:
         ax_b.text(0.5, 0.5, "Raw data\nnot available",
                   transform=ax_b.transAxes, ha="center", va="center", fontsize=8)
+    ax_b.set_title("Raw ERA5 temperature", fontsize=10)
     _panel_label(ax_b, "b")
 
     # (c) Temperature remapped to HRUs — no smoothing, show remapping directly
     ax_c = fig.add_subplot(gs[0, 2])
     if ds_raw is not None and ds_ba is not None and hrus is not None:
-        temp_vals = ds_ba["airtemp"].isel(time=t_idx).values
+        temp_vals = ds_ba[_tvar(ds_ba)].isel(time=t_idx).values
         if len(temp_vals) == len(hrus):
             # Compute HRU bounds with buffer for zoom
             bounds = hrus.total_bounds  # minx, miny, maxx, maxy
@@ -593,37 +665,40 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
     else:
         ax_c.text(0.5, 0.5, "Data not\navailable",
                   transform=ax_c.transAxes, ha="center", va="center", fontsize=8)
+    ax_c.set_title("Remapped to HRUs", fontsize=10)
     _panel_label(ax_c, "c")
 
     # ---- ROW 2: Variable transformation + lapse correction ----
 
-    # (d) Basin-averaged temperature time series (raw spatial mean vs basin-avg vs SUMMA-ready)
+    # (d) HRU temperatures AFTER lapse-rate correction (SUMMA-ready snapshot).
+    # Same layout as (c) but from the lapsed store, so the elevation-driven
+    # cooling of high sub-basins becomes visible (paper Fig 4d).
     ax_d = fig.add_subplot(gs[1, 0])
-    if ds_raw is not None and ds_ba is not None and "airtemp" in ds_raw.data_vars:
-        raw_ts = ds_raw["airtemp"].mean(dim=["latitude", "longitude"])
-        ba_ts = ds_ba["airtemp"].mean(dim="hru")
-        n_show = min(14 * 24, len(raw_ts))
-        hours = np.arange(n_show)
-        ax_d.plot(hours, raw_ts.values[:n_show], color="#888888",
-                  linewidth=0.6, alpha=0.7, label="Raw (spatial mean)")
-        ax_d.plot(hours, ba_ts.values[:n_show], color=DOMAIN_COLORS["bow"],
-                  linewidth=0.9, label="Basin-avg (HRU mean)")
-        if ds_summa is not None and "airtemp" in ds_summa.data_vars:
-            summa_ts = ds_summa["airtemp"].mean(dim="hru")
-            ax_d.plot(hours, summa_ts.values[:n_show], color="#d62728",
-                      linewidth=0.8, linestyle="--", alpha=0.8, label="SUMMA-ready")
-        ax_d.set_xlabel("Hour of month", fontsize=8)
-        ax_d.set_ylabel("Temperature (K)", fontsize=8)
-        ax_d.legend(fontsize=6, loc="best", frameon=True)
-        diff = np.nanmean(np.abs(raw_ts.values[:n_show] - ba_ts.values[:n_show]))
-        ax_d.text(0.02, 0.02, f"MAD: {diff:.2f} K",
-                  transform=ax_d.transAxes, fontsize=7, va="bottom",
-                  bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
-        ax_d.spines["top"].set_visible(False)
-        ax_d.spines["right"].set_visible(False)
+    if ds_summa is not None and _tvar(ds_summa) is not None and hrus is not None:
+        summa_vals = ds_summa[_tvar(ds_summa)].isel(time=t_idx).values
+        if len(summa_vals) == len(hrus):
+            bounds = hrus.total_bounds
+            buf = 0.05 * max(bounds[2] - bounds[0], bounds[3] - bounds[1])
+            hrus_d = hrus.copy()
+            hrus_d["airtemp_lapsed"] = summa_vals
+            hrus_d.plot(column="airtemp_lapsed", ax=ax_d, cmap="RdYlBu_r",
+                        edgecolor="white", linewidth=0.3, legend=True,
+                        vmin=shared_vmin, vmax=shared_vmax,
+                        legend_kwds={"label": "T (K)", "shrink": 0.65})
+            if grid is not None:
+                grid.plot(ax=ax_d, facecolor="none", edgecolor="#DD8452",
+                          linewidth=0.5, linestyle=":", alpha=0.4)
+            ax_d.set_xlim(bounds[0] - buf, bounds[2] + buf)
+            ax_d.set_ylim(bounds[1] - buf, bounds[3] + buf)
+            ax_d.set_xlabel("Longitude", fontsize=8)
+            ax_d.set_ylabel("Latitude", fontsize=8)
+        else:
+            ax_d.text(0.5, 0.5, "Shape mismatch", transform=ax_d.transAxes,
+                      ha="center", va="center", fontsize=8)
     else:
-        ax_d.text(0.5, 0.5, "Forcing data\nnot available",
+        ax_d.text(0.5, 0.5, "Lapse data\nnot available",
                   transform=ax_d.transAxes, ha="center", va="center", fontsize=8)
+    ax_d.set_title("After lapse correction", fontsize=10)
     _panel_label(ax_d, "d")
 
     # (e) Lapse-rate scatter: temperature vs elevation
@@ -631,13 +706,13 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
     if ds_ba is not None and ds_summa is not None and hrus is not None and HAS_GEOPANDAS:
         elevations = hrus["elev_mean"].values if "elev_mean" in hrus.columns else None
         if elevations is not None:
-            ba_temp = ds_ba["airtemp"].isel(time=t_idx).values
-            summa_temp = ds_summa["airtemp"].isel(time=t_idx).values
-            ax_e.scatter(elevations, ba_temp, color="#888888", s=15, alpha=0.6,
-                         edgecolors="white", linewidth=0.3,
+            ba_temp = ds_ba[_tvar(ds_ba)].isel(time=t_idx).values
+            summa_temp = ds_summa[_tvar(ds_summa)].isel(time=t_idx).values
+            ax_e.scatter(elevations, ba_temp, color="#E69F00", s=18, alpha=0.7,
+                         marker="s", edgecolors="white", linewidth=0.3,
                          label="Before correction", zorder=3)
             ax_e.scatter(elevations, summa_temp, color=DOMAIN_COLORS["bow"],
-                         s=15, alpha=0.6, edgecolors="white", linewidth=0.3,
+                         s=18, alpha=0.7, edgecolors="white", linewidth=0.3,
                          label="After correction", zorder=4)
             # Theoretical lapse rate line
             elev_range = np.linspace(elevations.min(), elevations.max(), 100)
@@ -646,7 +721,7 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
             ref_elev = np.nanmean(elevations)
             theoretical = ref_temp - lapse_rate * (elev_range - ref_elev)
             ax_e.plot(elev_range, theoretical, "--", color="#d62728",
-                      linewidth=1.0, alpha=0.6, label="\u22126.5 K/km")
+                      linewidth=1.0, alpha=0.6, label="\u22126.5 K km$^{-1}$")
             ax_e.set_xlabel("Elevation (m)", fontsize=8)
             ax_e.set_ylabel("Temperature (K)", fontsize=8)
             ax_e.legend(fontsize=6, frameon=True)
@@ -659,45 +734,38 @@ def fig_paper_forcing(analysis: Dict, save_path: Path, fmt: str = "png",
     else:
         ax_e.text(0.5, 0.5, "Lapse-rate data\nnot available",
                   transform=ax_e.transAxes, ha="center", va="center", fontsize=8)
+    ax_e.set_title("T vs elevation", fontsize=10)
     _panel_label(ax_e, "e")
 
-    # (f) Spatial map of lapse-rate correction difference (delta T = after - before)
+    # (f) Basin-averaged temperature over January 2004: raw spatial mean vs
+    # HRU-weighted mean vs the lapse-corrected mean (paper Fig 4f).
     ax_f = fig.add_subplot(gs[1, 2])
-    if ds_ba is not None and ds_summa is not None and hrus is not None and HAS_GEOPANDAS:
-        ba_temp_f = ds_ba["airtemp"].isel(time=t_idx).values
-        summa_temp_f = ds_summa["airtemp"].isel(time=t_idx).values
-        if len(ba_temp_f) == len(hrus) and len(summa_temp_f) == len(hrus):
-            delta_t = summa_temp_f - ba_temp_f
-            hrus_dt = hrus.copy()
-            hrus_dt["delta_T"] = delta_t
-            # Symmetric colorbar centered at 0
-            vmax = max(abs(np.nanmin(delta_t)), abs(np.nanmax(delta_t)))
-            if vmax < 0.01:
-                vmax = 1.0
-            hrus_dt.plot(column="delta_T", ax=ax_f, cmap="RdBu_r",
-                         edgecolor="white", linewidth=0.3,
-                         legend=True, vmin=-vmax, vmax=vmax,
-                         legend_kwds={"label": "\u0394T (K)", "shrink": 0.65})
-            # Grid overlay dotted
-            if grid is not None:
-                grid.plot(ax=ax_f, facecolor="none", edgecolor="#DD8452",
-                          linewidth=0.5, linestyle=":", alpha=0.4)
-            # Zoom to basin extent
-            bounds = hrus.total_bounds
-            buf = 0.05 * max(bounds[2] - bounds[0], bounds[3] - bounds[1])
-            ax_f.set_xlim(bounds[0] - buf, bounds[2] + buf)
-            ax_f.set_ylim(bounds[1] - buf, bounds[3] + buf)
-            ax_f.set_xlabel("Longitude", fontsize=8)
-            ax_f.set_ylabel("Latitude", fontsize=8)
-        else:
-            ax_f.text(0.5, 0.5, "Shape mismatch",
-                      transform=ax_f.transAxes, ha="center", va="center", fontsize=8)
+    if ds_raw is not None and ds_ba is not None and _tvar(ds_raw) is not None:
+        raw_ts = ds_raw[_tvar(ds_raw)].mean(dim=["latitude", "longitude"])
+        ba_ts = ds_ba[_tvar(ds_ba)].mean(dim="hru")
+        n_show = min(14 * 24, len(raw_ts))
+        days = np.arange(n_show) / 24.0
+        ax_f.plot(days, raw_ts.values[:n_show], color="#888888",
+                  linewidth=0.8, alpha=0.85, label="Raw spatial mean")
+        ax_f.plot(days, ba_ts.values[:n_show], color=DOMAIN_COLORS["bow"],
+                  linewidth=1.1, label="HRU-weighted mean")
+        if ds_summa is not None and _tvar(ds_summa) is not None:
+            summa_ts = ds_summa[_tvar(ds_summa)].mean(dim="hru")
+            ax_f.plot(days, summa_ts.values[:n_show], color="#d62728",
+                      linewidth=1.0, linestyle="--", alpha=0.85,
+                      label="After lapse correction")
+        ax_f.set_xlabel("Day of month (January 2004)", fontsize=8)
+        ax_f.set_ylabel("Temperature (K)", fontsize=8)
+        ax_f.legend(fontsize=6, loc="lower right", frameon=True)
+        ax_f.spines["top"].set_visible(False)
+        ax_f.spines["right"].set_visible(False)
     else:
-        ax_f.text(0.5, 0.5, "Lapse data\nnot available",
+        ax_f.text(0.5, 0.5, "Forcing data\nnot available",
                   transform=ax_f.transAxes, ha="center", va="center", fontsize=8)
+    ax_f.set_title("Basin-averaged T", fontsize=10)
     _panel_label(ax_f, "f")
 
-    out = save_path / f"fig_paper_forcing.{fmt}"
+    out = save_path / f"figure_04_forcing_transformation.{fmt}"
     fig.savefig(out, dpi=dpi)
     logger.info(f"Saved: {out}")
     plt.close(fig)
@@ -1059,16 +1127,17 @@ def main():
     logger.info("Creating composite publication figures for Section 4.12")
     logger.info("=" * 60)
 
-    for label, fn in [("Pipeline Architecture and Scaling", fig_paper_architecture),
-                      ("Forcing Data Transformation", fig_paper_forcing),
-                      ("Observation Data Flow", fig_paper_observations)]:
+    # Only the forcing-transformation composite is a paper figure (Fig 4).
+    # The architecture/DAG panel and the observation-flow figure are not paper
+    # figures and are no longer generated.
+    for label, fn in [("Forcing Data Transformation", fig_paper_forcing)]:
         logger.info("\n%s ...", label)
         try:
             fn(analysis, FIGURES_DIR, args.format, args.dpi)
         except Exception as e:  # noqa: BLE001 - keep rendering the other figures
             logger.warning("SKIPPED %s: %s", label, e)
 
-    logger.info(f"\nAll 3 composite figures saved to: {FIGURES_DIR}")
+    logger.info(f"\nForcing composite figure saved to: {FIGURES_DIR}")
 
 
 if __name__ == "__main__":
