@@ -683,6 +683,83 @@ detect_netcdf_lib_paths
     '''.strip()
 
 
+def get_safe_build_path() -> str:
+    """
+    Get a snippet that makes the build reachable via a Make/shell-safe path.
+
+    Some tools (mizuRoute, FUSE) ship hand-written Fortran Makefiles that pass
+    space-separated *unquoted* source-file lists to the compiler and use perl
+    substitutions to inject the build path. When the install directory contains
+    a space or an ``@`` -- as Google Drive mounts do
+    (``GoogleDrive-user@gmail.com/My Drive/...``) -- both break:
+
+    * a space splits every source path into two bogus arguments
+      (``.../My Drive/foo.f90`` -> ``.../My`` + ``Drive/foo.f90``), and
+    * a perl replacement string interpolates ``@name`` as an (empty) array,
+      silently deleting the ``@gmail`` component of the path.
+
+    This snippet defines ``symfluence_safe_build_dir`` and calls it from the
+    tool's install root. If the real path contains any character outside the
+    safe set ``[A-Za-z0-9/._-]`` it creates a symlink with a clean name under a
+    safe base directory and ``cd``s into it, so every downstream ``$(pwd)`` /
+    ``$(cd .. && pwd)`` -- and therefore every path fed to Make -- is safe.
+    When the path is already safe it is a no-op, so tools on ordinary paths are
+    unaffected. Override the link location with ``SYMFLUENCE_BUILD_LINK_DIR``.
+
+    Include this AFTER ``get_common_build_environment`` and BEFORE the tool's
+    own build snippet, while the shell is still at the install root.
+
+    Returns:
+        Shell script snippet that relocates the build onto a safe path.
+    """
+    return r'''
+# === Safe build path (spaces / '@' in the install path, e.g. Google Drive) ===
+symfluence_safe_build_dir() {
+    local real clean_base link tag c
+    real="$(pwd -P)"
+
+    # Already reachable via a Make/shell-safe path -> nothing to do.
+    case "$real" in
+        *[!A-Za-z0-9/._-]*) : ;;   # contains a hostile character, sanitize
+        *) return 0 ;;
+    esac
+
+    # Pick a base directory that is itself safe and writable.
+    clean_base=""
+    for c in "${SYMFLUENCE_BUILD_LINK_DIR:-}" "$HOME/.symfluence/build-links" "${TMPDIR:-}" "/tmp"; do
+        [ -n "$c" ] || continue
+        case "$c" in *[!A-Za-z0-9/._-]*) continue ;; esac
+        clean_base="$c"
+        break
+    done
+    : "${clean_base:=/tmp}"
+    mkdir -p "$clean_base" 2>/dev/null || true
+
+    tag="$(basename "$real")"
+    case "$tag" in *[!A-Za-z0-9._-]*) tag="build" ;; esac
+    link="$clean_base/symfluence-$tag-$$"
+
+    rm -f "$link" 2>/dev/null || true
+    if ln -s "$real" "$link" 2>/dev/null && [ -d "$link" ]; then
+        # Track for cleanup, then switch into the clean path. A logical cd
+        # keeps $PWD == $link, so pwd returns the safe path from here on.
+        SYMFLUENCE_BUILD_LINKS="${SYMFLUENCE_BUILD_LINKS:+$SYMFLUENCE_BUILD_LINKS }$link"
+        trap 'for _l in $SYMFLUENCE_BUILD_LINKS; do rm -f "$_l"; done' EXIT
+        cd "$link" || return 1
+        echo "SYMFLUENCE: building via clean symlink to avoid spaces/'@' in path:"
+        echo "  $link -> $real"
+    else
+        echo "SYMFLUENCE WARNING: the build path contains a space or '@' and a" >&2
+        echo "  clean symlink could not be created under '$clean_base'. The" >&2
+        echo "  Fortran Makefile build may fail. Set SYMFLUENCE_BUILD_LINK_DIR" >&2
+        echo "  to a writable path without spaces or '@' to work around this." >&2
+    fi
+    return 0
+}
+symfluence_safe_build_dir
+    '''.strip()
+
+
 def get_geos_proj_detection() -> str:
     """
     Get reusable GEOS and PROJ detection shell snippet.
@@ -1363,6 +1440,7 @@ def get_all_snippets() -> Dict[str, str]:
         'netcdf_detect': get_netcdf_detection(),
         'hdf5_detect': get_hdf5_detection(),
         'netcdf_lib_detect': get_netcdf_lib_detection(),
+        'safe_build_path': get_safe_build_path(),
         'geos_proj_detect': get_geos_proj_detection(),
         'udunits2_detect_build': get_udunits2_detection_and_build(),
         'bison_detect_build': get_bison_detection_and_build(),

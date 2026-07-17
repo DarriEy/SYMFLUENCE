@@ -16,6 +16,7 @@ from __future__ import annotations
 from symfluence.cli.services import (
     get_common_build_environment,
     get_netcdf_detection,
+    get_safe_build_path,
 )
 from symfluence.core.registries import R
 
@@ -33,6 +34,7 @@ def get_mizuroute_build_instructions():
     """
     common_env = get_common_build_environment()
     netcdf_detect = get_netcdf_detection()
+    safe_build_path = get_safe_build_path()
 
     return {
         'description': 'Mizukami routing model for river network routing',
@@ -46,6 +48,9 @@ def get_mizuroute_build_instructions():
         'build_commands': [
             common_env,
             netcdf_detect,
+            # Relocate onto a Make/shell-safe path (spaces / '@' in the install
+            # path, e.g. Google Drive) BEFORE entering the build directory.
+            safe_build_path,
             r'''
 # Build mizuRoute - edit Makefile directly (it doesn't use env vars)
 cd route/build
@@ -92,7 +97,12 @@ echo "=== Configuring Makefile ==="
 perl -i -pe "s|^FC\s*=.*$|FC = gnu|" Makefile
 perl -i -pe "s|^FC_EXE\s*=.*$|FC_EXE = ${FC:-gfortran}|" Makefile
 perl -i -pe "s|^EXE\s*=.*$|EXE = mizuRoute.exe|" Makefile
-perl -i -pe "s|^F_MASTER\s*=.*$|F_MASTER = $F_MASTER_PATH/|" Makefile
+# Pass the path via the environment and read it with $ENV{...} in a
+# single-quoted perl program.  Interpolating the path directly into a
+# double-quoted perl replacement string treats an '@' (e.g. in a Google
+# Drive path like GoogleDrive-user@gmail.com) as an array interpolation
+# and silently deletes it.  $ENV{...} is a plain value lookup, immune to that.
+SYMF_F_MASTER="$F_MASTER_PATH/" perl -i -pe 's|^F_MASTER\s*=.*$|F_MASTER = $ENV{SYMF_F_MASTER}|' Makefile
 perl -i -pe "s|^\s*NCDF_PATH\s*=.*$|NCDF_PATH = ${NETCDF_FORTRAN}|" Makefile
 perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = ${MIZUROUTE_OPENMP:-no}|" Makefile
 

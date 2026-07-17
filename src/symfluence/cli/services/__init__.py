@@ -42,6 +42,7 @@ from .build_snippets import (
     get_hdf5_detection,
     get_netcdf_detection,
     get_netcdf_lib_detection,
+    get_safe_build_path,
     get_udunits2_detection_and_build,
 )
 
@@ -77,6 +78,7 @@ __all__ = [
     'get_netcdf_detection',
     'get_hdf5_detection',
     'get_netcdf_lib_detection',
+    'get_safe_build_path',
     'get_geos_proj_detection',
     'get_udunits2_detection_and_build',
     'get_bison_detection_and_build',
