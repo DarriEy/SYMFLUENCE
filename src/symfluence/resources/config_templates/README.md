@@ -10,21 +10,21 @@ config_templates/
 ├── config_template_comprehensive.yaml        # Reference: ALL options (flat style)
 ├── config_template_comprehensive_nested.yaml # Reference: ALL options (nested style)
 ├── config_template.yaml                      # Standard: Common options with docs
-├── config_quickstart_minimal.yaml            # Quickstart: Flat key style
-├── config_quickstart_minimal_nested.yaml     # Quickstart: Nested style
-├── camelsspat_template.yaml                  # CAMELS-SPAT dataset preset
-├── fluxnet_template.yaml                     # FLUXNET dataset preset
-├── norswe_template.yaml                      # NorSWE dataset preset
-└── examples/                                 # Tutorial-specific configs
+└── config_quickstart_minimal_nested.yaml     # Quickstart: Nested style
 ```
 
 ## Which Template Should I Use?
 
 ### Starting a New Project
 
+The easiest way to generate a starting configuration is the CLI:
+
+```bash
+symfluence project init --domain my_domain --model SUMMA --minimal
+```
+
 | Template | Use When |
 |----------|----------|
-| `config_quickstart_minimal.yaml` | You want the simplest starting point with flat UPPERCASE keys |
 | `config_quickstart_minimal_nested.yaml` | You prefer organized nested structure (domain, forcing, model sections) |
 | `config_template.yaml` | You want common options with inline documentation |
 
@@ -47,16 +47,6 @@ modeling best practices:
 6. **Optimization** - Parameter calibration (PSO, DE, DDS, etc.)
 7. **Evaluation** - Model assessment (streamflow, snow, ET, etc.)
 8. **Paths** - File/directory locations
-
-### Dataset-Specific Presets
-
-| Template | Dataset | Use When |
-|----------|---------|----------|
-| `camelsspat_template.yaml` | CAMELS-SPAT | Working with CAMELS-SPAT catchments |
-| `fluxnet_template.yaml` | FLUXNET | Working with FLUXNET tower sites |
-| `norswe_template.yaml` | NorSWE | Working with Norwegian SWE data |
-
-These templates have pre-configured paths and settings optimized for their respective datasets.
 
 ## Configuration Styles
 
@@ -92,20 +82,9 @@ for complex configurations.
 | `paths` | Data directories, shapefile paths, output locations |
 | `system` | Code/data directories, parallelization settings |
 
-## Examples Directory
-
-The `examples/` subdirectory contains configs used by tutorial notebooks:
-
-- `config_basin_notebook.yaml` - Basin-scale modeling tutorial
-- `config_continental_tutorial.yaml` - Continental-scale workflow
-- `config_fluxnet_notebook.yaml` - FLUXNET site modeling
-- `config_iceland_tutorial.yaml` - Iceland case study
-
-These are maintained for reproducibility and should not be modified.
-
 ## Creating Your Configuration
 
-1. **Copy** a quickstart template to your project directory
+1. **Generate** a config with `symfluence project init` (or copy the quickstart template)
 2. **Modify** the required fields (domain name, coordinates, time period)
 3. **Reference** `config_template_comprehensive.yaml` for additional options
 4. **Validate** using `symfluence config validate your_config.yaml`

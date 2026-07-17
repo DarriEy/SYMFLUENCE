@@ -39,7 +39,7 @@ that affect only supported operations are explicitly identified below.
    * - Option
      - Description
    * - ``--config PATH``
-     - Path to configuration file (default: ./0_config_files/config_template.yaml;
+     - Path to configuration file (default: ./config.yaml;
        override with SYMFLUENCE_DEFAULT_CONFIG)
    * - ``--debug``
      - Enable debug output and stack traces

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import os
 
+# Reference templates ship with the package under symfluence/resources/config_templates/.
 DEFAULT_CONFIG_PATH = os.environ.get(
     'SYMFLUENCE_DEFAULT_CONFIG',
-    './0_config_files/config_template.yaml',
+    './config.yaml',
 )

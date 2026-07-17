@@ -63,7 +63,7 @@ class ProjectCommands(BaseCommand):
                 BaseCommand._console.error(f"Invalid date range: {error.message if error else 'validation failed'}")
                 return ExitCode.VALIDATION_ERROR
 
-        output_dir = BaseCommand.get_arg(args, 'output_dir', './0_config_files/')
+        output_dir = BaseCommand.get_arg(args, 'output_dir', './')
         scaffold = BaseCommand.get_arg(args, 'scaffold', False)
         minimal = BaseCommand.get_arg(args, 'minimal', False)
         comprehensive = BaseCommand.get_arg(args, 'comprehensive', True)

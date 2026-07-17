@@ -43,6 +43,7 @@ Hands-on workshop exercises for guided learning:
 
 - **04a** – Logan River watershed
 - **04b** – Provo River watershed
+- **04c** – Logan River from the command line (shell-only SUMMA workflow, no Python)
 
 Designed for classroom and workshop settings with step-by-step guidance.
 

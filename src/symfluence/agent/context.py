@@ -72,9 +72,6 @@ def _candidate_configs(workdir: Path) -> list[Path]:
     default = os.environ.get('SYMFLUENCE_DEFAULT_CONFIG')
     if default:
         candidates.append(Path(default))
-    config_dir = workdir / '0_config_files'
-    if config_dir.is_dir():
-        candidates.extend(sorted(config_dir.glob('*.y*ml')))
     candidates.extend(sorted(workdir.glob('*.y*ml')))
     seen: set[Path] = set()
     unique = []
