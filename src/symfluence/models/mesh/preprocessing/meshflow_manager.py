@@ -122,8 +122,20 @@ def _patch_meshflow_network_bug():
 
             return rank_var, next_var, seg_id, to_segment
 
-        # Apply the patch
+        # Apply the patch. Rebind BOTH the defining module attribute and the
+        # package-level re-export: meshflow/utility/__init__.py does
+        # ``from .network import *``, so ``meshflow.utility.extract_rank_next``
+        # is a *separate* name bound at import time, and meshflow.core calls it
+        # via ``utility.extract_rank_next`` (``from . import utility``). Patching
+        # only network.extract_rank_next left the buggy original reachable on
+        # every multi-cell domain, so preprocessing crashed with
+        # "setting an array element with a sequence".
         meshflow_network.extract_rank_next = _patched_extract_rank_next
+        try:
+            import meshflow.utility as meshflow_utility
+            meshflow_utility.extract_rank_next = _patched_extract_rank_next
+        except Exception:  # noqa: BLE001 — best-effort second binding
+            pass
 
         # Log that patch was applied
         logger = logging.getLogger(__name__)

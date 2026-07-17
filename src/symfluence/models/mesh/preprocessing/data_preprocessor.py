@@ -625,6 +625,12 @@ class MESHDataPreprocessor:
         - MESH_forcing.nc (created by forcing processor)
         - MESH_drainage_database.nc (created by meshflow)
         - MESH_forcing_safe.nc (backup file)
+        - MESH_input_streamflow.txt (generated per-domain by
+          ConfigGenerator.create_streamflow_input with the correct outlet Rank
+          and observed series; a shipped template here carries placeholder
+          gauge coordinates that don't map to this domain's subbasins, so
+          copying it would silently overwrite the correct file and MESH would
+          then write no routed streamflow output on a multi-cell domain).
 
         Also handles cases where setup and forcing directories are the same
         or files already exist at the destination.
@@ -642,7 +648,8 @@ class MESHDataPreprocessor:
             "MESH_input_run_options.ini",
             "MESH_forcing.nc",
             "MESH_drainage_database.nc",
-            "MESH_forcing_safe.nc"
+            "MESH_forcing_safe.nc",
+            "MESH_input_streamflow.txt",
         ]
 
         for settings_file in self.setup_dir.glob("*"):

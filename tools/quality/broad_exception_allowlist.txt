@@ -843,6 +843,7 @@ src/symfluence/models/mesh/preprocessing/forcing_processor.py:MESHForcingProcess
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:<module>:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:MESHFlowManager.run:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/mesh/preprocessing/meshflow_manager.py:_patch_meshflow_network_bug:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mesh/preprocessing/meshflow_manager.py:_patch_meshflow_network_bug:except Exception:  # noqa: BLE001 — best-effort second binding
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.apply_hydrology_field_overrides:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.configure_lumped_outputs:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mesh/preprocessing/parameter_fixer.py:MESHParameterFixer.create_safe_forcing:except Exception as e:  # noqa: BLE001 — model execution resilience
