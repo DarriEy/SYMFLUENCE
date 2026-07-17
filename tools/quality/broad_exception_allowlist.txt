@@ -7,6 +7,7 @@
 src/symfluence/__init__.py:<module>:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/agent/context.py:_summarize_config:except Exception:  # noqa: BLE001 — unreadable / not YAML: not a config, not an error
 src/symfluence/agent/diagnostics.py:run_diagnostics:except Exception as e:  # noqa: BLE001 — a diagnostic must report, not raise
+src/symfluence/agent/inspection.py:update_config:except Exception as e:  # noqa: BLE001 — any validation failure blocks the edit
 src/symfluence/agent/mcp_server.py:_tool_validate_config:except Exception as e:  # noqa: BLE001 — any load failure is the tool's answer
 src/symfluence/agent/mcp_server.py:_tools_call_result:except Exception as e:  # noqa: BLE001 — tool errors go in-band per MCP spec
 src/symfluence/agent/mcp_server.py:handle_message:except Exception as e:  # noqa: BLE001 — the server must answer, not crash

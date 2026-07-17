@@ -142,14 +142,29 @@ The MCP server
 ``symfluence agent mcp`` serves the Model Context Protocol on stdio, exposing
 structured tools backed by the live platform:
 
-======================  =====================================================
-Tool                    What it does
-======================  =====================================================
-``list_capabilities``   Registry catalogs: models, forcings, optimizers, ...
-``validate_config``     Typed validation of a config file
-``workflow_status``     Per-step pipeline status for a config
-``run_workflow_step``   Run a single workflow step (long-running; set a timeout)
-======================  =====================================================
+=======================  ====================================================
+Tool                     What it does
+=======================  ====================================================
+``list_capabilities``    Registry catalogs: models, forcings, optimizers, ...
+``validate_config``      Typed validation of a config file
+``workflow_status``      Per-step pipeline status for a config
+``run_workflow_step``    Run a single workflow step, blocking until it ends
+``start_workflow_job``   Start a run/step/resume as a detached background job
+``get_job_status``       Poll a background job: state, runtime, log tail
+``cancel_job``           Cancel a background job (TERM, then KILL)
+``list_jobs``            All recorded background jobs, newest first
+``read_run_log``         Tail / grep the newest run log of a config's domain
+``list_domains``         The ``domain_*`` dirs under a data root, summarized
+``calibration_status``   Iterations, best score, and progress of a calibration
+``get_results_summary``  Headline metrics (KGE/NSE/...) and artifact paths
+``update_config``        Guarded config edit: validated, backed up, in place
+=======================  ====================================================
+
+Background jobs survive server (and TUI) restarts: each runs detached under a
+wrapper that records its exit code, with its record and log kept in the agent
+cache. Long model runs and calibrations should go through
+``start_workflow_job`` — ``run_workflow_step`` holds the MCP connection for
+the whole step.
 
 The session verbs wire it in automatically where the host CLI supports
 per-launch MCP configuration, passing ``--mode`` so the server serves that

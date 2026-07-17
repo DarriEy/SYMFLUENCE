@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MCP background jobs and platform-inspection tools**: the agent MCP server
+  grows from 4 to 13 tools. `start_workflow_job` / `get_job_status` /
+  `cancel_job` / `list_jobs` run workflow executions as detached background
+  jobs (a stdlib wrapper records the exit code durably; records and logs live
+  in the agent cache; cancellation signals the process group), so a chat
+  session can start an hours-long calibration without blocking the MCP
+  connection. `read_run_log`, `list_domains`, `calibration_status`, and
+  `get_results_summary` answer the modelling questions (log tails, domain
+  inventory, iteration/best-score progress, headline KGE/NSE metrics) by
+  reading the `domain_*` tree directly with stdlib CSV parsing.
+  `update_config` is the one writer: a line-preserving edit of the user's
+  experiment YAML that must pass typed `SymfluenceConfig` validation and
+  backs the original up first (`agent/jobs.py`, `agent/inspection.py`).
 - **Agent modes** (`symfluence agent model` / `symfluence agent code`): the
   agent surface now has two first-class session modes, each a frozen
   `ModeProfile` (`agent/modes.py`) that shapes priming end to end. *Modelling*
