@@ -48,6 +48,23 @@ Designed for classroom and workshop settings with step-by-step guidance.
 
 ---
 
+## Additional Collections
+
+Beyond the numbered learning path, this directory also contains:
+
+- **`paper_case_studies/`** – Configurations and plotting scripts that reproduce
+  the case studies and figures from the SYMFLUENCE papers (see its own README).
+- **`iceland_national_model/`** – Ready-to-use configurations for the Iceland
+  national domain (SUMMA, SUMMA + glaciers, HYPE, FWI). These complement the
+  guided Iceland walkthrough in **03a**.
+- **`camels_spat_attributes/`** – Configuration for deriving CAMELS-SPAT
+  catchment attributes across North America.
+- **`notebook_path_setup_template.ipynb`** – The env-aware path-setup pattern
+  used by the example notebooks; copy its first cells when authoring a new
+  notebook.
+
+---
+
 ## Quick Start
 
 1. **Install dependencies**
@@ -79,6 +96,11 @@ Designed for classroom and workshop settings with step-by-step guidance.
 Example data for **01a – 02c** are provided as a single ~354 MB bundle for quick testing.
 
 - **Download:** [GitHub Release – Example Data (01a–02c)](https://github.com/symfluence-org/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip)
+
+> **Note:** `examples-data-v0.5.5` is the most recent *full* example bundle and
+> remains the correct download for these examples. The newer
+> `examples-data-v0.6.0`/`v0.7.0` releases are ~18 MB minimal bundles used by CI
+> and are not sufficient to run the notebooks.
 
 If you have access to institutional storage (e.g. **FIR** or **UCalgary ARC**),
 you may instead point the config paths to your local dataset and set `DATA_ACCESS: 'maf'`.

@@ -1,8 +1,11 @@
 # Tools
 
-This folder hosts release and packaging tooling that is not required for
-normal development or usage.
+This folder hosts development tooling that is not required for normal
+development or usage.
 
-- `npm/`: release-only Node.js package used to ship prebuilt binaries.
-  The package is built during release workflows and is not required for
-  local installs when using `pip`.
+- `quality/`: data files for the repository quality gates (e.g. the
+  broad-exception allowlist consumed by `scripts/check_broad_exceptions.py`).
+
+The npm package used to ship prebuilt binaries lives at the repo root in
+`npm/`; it is published by the Release Binaries workflow
+(`.github/workflows/release-binaries.yml`).

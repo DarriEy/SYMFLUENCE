@@ -42,3 +42,11 @@ Keep them short — an ADR is a record, not a design document.
 ADR-0000 records the baseline decisions the codebase was built on, written
 down retroactively when the ADR practice was adopted; ADR-0001 onward record
 decisions made (or made explicit) ahead of the 1.0 release.
+
+## Related records
+
+- [config_flat_key_audit.md](config_flat_key_audit.md) — the executed
+  2026-06 flat-key audit that closed the recognized-flat-key set (referenced
+  by `core/config/legacy_aliases.py` and the config-authority tests). An
+  audit snapshot rather than an ADR, kept here with the rest of the decision
+  history.

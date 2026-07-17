@@ -129,7 +129,7 @@ jobs:
       # ========================================================================
       - name: Validate version synchronization
         run: |
-          echo "Checking that pyproject.toml and tools/npm/package.json versions match..."
+          echo "Checking that pyproject.toml and npm/package.json versions match..."
           chmod +x scripts/check_version_sync.sh
           ./scripts/check_version_sync.sh
 
