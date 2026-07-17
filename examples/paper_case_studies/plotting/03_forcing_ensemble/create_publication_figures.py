@@ -351,399 +351,159 @@ def _save(fig, stem: str):
 
 
 # ===================================================================
-# FIGURE 1: SWE Time Series (2-row panel with side legend)
+# FIGURE 6 (paper): Calibrated SWE from four reanalysis forcings
+#   (a) big SWE time series (obs grey fill + 4 reanalysis lines, cal/eval)
+#   (b) Skill: calibration vs evaluation grouped bars (hatched=cal, solid=eval)
+#   (c) Snowfall-undercatch correction (frozenPrecipMultip) with 1.0 baseline
+#   (d) Skill transfer (Cal - Eval KGE), lower is better
 # ===================================================================
-def figure1_swe_timeseries(
+# Paper Fig 6 uses ONLY the four reanalysis forcings (no GDDP, no NWM3), in the
+# order and colours of the published figure.
+REAN4 = ['aorc', 'era5', 'rdrs', 'conus404']
+PAPER_COLORS = {
+    'aorc':     '#009E73',   # teal-green
+    'era5':     '#D62728',   # red
+    'rdrs':     '#1F77B4',   # blue
+    'conus404': '#E69F00',   # orange
+}
+
+
+def figure_06_swe_forcings(
     obs_swe: Optional[pd.Series],
     sim_swe: Dict[str, pd.Series],
+    perf_df: pd.DataFrame,
+    param_df: pd.DataFrame,
 ):
-    """Two-panel SWE time-series with organized side legend."""
+    """Single 4-panel paper figure: SWE time series + three skill/parameter bars."""
     from matplotlib.lines import Line2D
     import matplotlib.patches as mpatches
+    from matplotlib.transforms import blended_transform_factory
 
-    # Create figure with space for legend on right
-    fig = plt.figure(figsize=(10, 5.5))
+    fig = plt.figure(figsize=(12, 8.2))
+    gs = gridspec.GridSpec(2, 3, height_ratios=[1.35, 1.0],
+                           hspace=0.42, wspace=0.28,
+                           left=0.07, right=0.985, top=0.94, bottom=0.09)
 
-    # GridSpec: main plots on left, legend on right
-    gs = gridspec.GridSpec(2, 2, width_ratios=[4, 1], height_ratios=[1, 1],
-                           hspace=0.12, wspace=0.02)
+    # ---- Panel (a): SWE time series (spans the top row) ----
+    ax_a = fig.add_subplot(gs[0, :])
+    t_min, t_max = pd.Timestamp('2015-01-01'), pd.Timestamp('2021-01-01')
 
-    ax_a = fig.add_subplot(gs[0, 0])
-    ax_b = fig.add_subplot(gs[1, 0], sharex=ax_a)
-    ax_leg = fig.add_subplot(gs[:, 1])  # Legend panel spans both rows
-    ax_leg.axis('off')
-
-    t_min, t_max = SIM_START, SIM_END
-
-    # --- helper: shade cal/eval ---
-    def _shade(ax, label=True):
-        from matplotlib.transforms import blended_transform_factory
-
-        cal_color = '#FDDBC7'
-        eval_color = '#D1E5F0'
-
-        ax.axvspan(CAL_START, CAL_END, alpha=0.35, color=cal_color, zorder=0)
-        ax.axvspan(EVAL_START, EVAL_END, alpha=0.35, color=eval_color, zorder=0)
-
-        for ts in [CAL_START, CAL_END, EVAL_START, EVAL_END]:
-            ax.axvline(ts, color='0.45', ls=':', lw=0.6, zorder=1)
-
-        if label:
-            trans = blended_transform_factory(ax.transData, ax.transAxes)
-            mid_cal = CAL_START + (CAL_END - CAL_START) / 2
-            mid_eval = EVAL_START + (EVAL_END - EVAL_START) / 2
-            ax.text(mid_cal, 0.97, 'Calibration', ha='center', va='top',
-                    fontsize=8, color='#B35806', fontweight='bold',
-                    fontstyle='italic', transform=trans,
-                    bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.8))
-            ax.text(mid_eval, 0.97, 'Evaluation', ha='center', va='top',
-                    fontsize=8, color='#2166AC', fontweight='bold',
-                    fontstyle='italic', transform=trans,
-                    bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.8))
-
-    # ---- Panel (a): Reanalysis ----
-    ax_a.text(0.02, 0.92, '(a) Reanalysis-driven', transform=ax_a.transAxes,
-              fontsize=10, fontweight='bold', va='top')
-
+    # Observed SNOTEL as a grey filled area
     if obs_swe is not None:
         s = obs_swe.loc[t_min:t_max]
-        ax_a.plot(s.index, s.values, color=COLORS['observed'], lw=2.0,
-                  zorder=10, solid_capstyle='round')
+        ax_a.fill_between(s.index, 0, s.values, color='#BFBFBF', alpha=0.65,
+                          zorder=1, linewidth=0)
+        ax_a.plot(s.index, s.values, color='#8A8A8A', lw=0.6, zorder=2)
 
-    for forcing in REANALYSIS:
+    # Four reanalysis-driven SWE lines
+    for forcing in REAN4:
         if forcing in sim_swe:
             s = sim_swe[forcing].loc[t_min:t_max]
-            ax_a.plot(s.index, s.values, color=COLORS[forcing], lw=1.3, alpha=0.85)
+            ax_a.plot(s.index, s.values, color=PAPER_COLORS[forcing], lw=1.3,
+                      alpha=0.9, zorder=5)
 
-    ax_a.set_ylabel('SWE (mm)')
-    ax_a.grid(True, alpha=0.25)
-    _shade(ax_a)
-    plt.setp(ax_a.get_xticklabels(), visible=False)
+    # Calibration / evaluation shading + divider
+    ax_a.axvspan(EVAL_START, EVAL_END, alpha=0.5, color='#EFEBE0', zorder=0)
+    ax_a.axvline(EVAL_START, color='0.45', ls='--', lw=0.9, zorder=3)
+    trans = blended_transform_factory(ax_a.transData, ax_a.transAxes)
+    mid_cal = CAL_START + (EVAL_START - CAL_START) / 2
+    mid_eval = EVAL_START + (EVAL_END - EVAL_START) / 2
+    ax_a.text(mid_cal, 0.94, 'calibration', ha='center', va='top', fontsize=10,
+              color='0.4', fontstyle='italic', transform=trans)
+    ax_a.text(mid_eval, 0.94, 'evaluation', ha='center', va='top', fontsize=10,
+              color='0.4', fontstyle='italic', transform=trans)
 
-    # ---- Panel (b): GDDP ----
-    ax_b.text(0.02, 0.92, '(b) GDDP-driven', transform=ax_b.transAxes,
-              fontsize=10, fontweight='bold', va='top')
-
-    if obs_swe is not None:
-        s = obs_swe.loc[t_min:t_max]
-        ax_b.plot(s.index, s.values, color=COLORS['observed'], lw=2.0, zorder=10)
-
-    gddp_frames = []
-    for forcing in GDDP:
-        if forcing in sim_swe:
-            s = sim_swe[forcing].loc[t_min:t_max]
-            ax_b.plot(s.index, s.values, color=COLORS[forcing], lw=0.7, alpha=0.6)
-            gddp_frames.append(s)
-
-    if len(gddp_frames) >= 2:
-        gddp_df = pd.concat(gddp_frames, axis=1)
-        env_min = gddp_df.min(axis=1)
-        env_max = gddp_df.max(axis=1)
-        env_mean = gddp_df.mean(axis=1)
-        ax_b.fill_between(env_min.index, env_min.values, env_max.values,
-                          color=COLORS['gddp_envelope'], alpha=0.35, zorder=1)
-        ax_b.plot(env_mean.index, env_mean.values, color=COLORS['gddp_mean'],
-                  lw=1.0, ls='--', zorder=8)
-
-    ax_b.set_ylabel('SWE (mm)')
-    ax_b.grid(True, alpha=0.25)
-    _shade(ax_b, label=False)
-
-    # Unified y-axis
-    y_max = max(ax_a.get_ylim()[1], ax_b.get_ylim()[1])
-    ax_a.set_ylim(0, y_max)
-    ax_b.set_ylim(0, y_max)
-
-    # x-axis formatting
-    ax_b.xaxis.set_major_locator(mdates.YearLocator())
-    ax_b.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-    ax_b.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[4, 7, 10]))
+    ax_a.set_ylabel('Snow water equivalent (mm)', fontsize=10)
     ax_a.set_xlim(t_min, t_max)
+    ax_a.set_ylim(bottom=0)
+    ax_a.grid(True, axis='y', alpha=0.2)
+    ax_a.xaxis.set_major_locator(mdates.YearLocator())
+    ax_a.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    ax_a.spines['top'].set_visible(False)
+    ax_a.spines['right'].set_visible(False)
+    ax_a.set_title('Calibrated SWE from four reanalysis forcings vs. observed, '
+                   'Paradise SNOTEL', fontsize=11, fontweight='bold')
+    ax_a.text(-0.045, 1.02, 'a', transform=ax_a.transAxes, fontsize=13,
+              fontweight='bold', va='bottom', ha='right')
 
-    # ---- Build organized legend in side panel ----
-    y_pos = 0.95
-    line_height = 0.055
+    # Legend strip below panel (a)
+    handles = [mpatches.Patch(facecolor='#BFBFBF', alpha=0.65,
+                              label='Observed (SNOTEL #679)')]
+    for forcing in REAN4:
+        handles.append(Line2D([0], [0], color=PAPER_COLORS[forcing], lw=2.0,
+                              label=LABELS[forcing]))
+    ax_a.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, -0.13),
+                ncol=5, fontsize=9, frameon=False, columnspacing=1.6,
+                handlelength=1.8)
 
-    # Section: Observations
-    ax_leg.text(0.05, y_pos, 'Observations', fontsize=9, fontweight='bold',
-                transform=ax_leg.transAxes, va='top')
-    y_pos -= line_height * 0.8
+    # ---- Prepare per-forcing skill / parameter data ----
+    perf = perf_df.copy()
+    perf['_key'] = perf['Forcing'].map(_forcing_key)
+    perf = perf.set_index('_key')
+    param = param_df.copy()
+    param['_key'] = param['Forcing'].map(_forcing_key)
+    param = param.set_index('_key')
 
-    ax_leg.plot([0.08, 0.18], [y_pos, y_pos], color=COLORS['observed'],
-                lw=2.0, transform=ax_leg.transAxes)
-    ax_leg.text(0.22, y_pos, 'SNOTEL', fontsize=8, transform=ax_leg.transAxes,
-                va='center')
-    y_pos -= line_height * 1.2
+    keys = [k for k in REAN4 if k in perf.index]
+    x = np.arange(len(keys))
+    xlabels = [SHORT_LABELS[k] for k in keys]
+    bar_colors = [PAPER_COLORS[k] for k in keys]
 
-    # Section: Reanalysis Products
-    ax_leg.text(0.05, y_pos, 'Reanalysis Products', fontsize=9, fontweight='bold',
-                transform=ax_leg.transAxes, va='top')
-    y_pos -= line_height * 0.8
+    def _style_bottom(ax, letter, title):
+        ax.set_title(title, fontsize=10.5, fontweight='bold', loc='left', pad=8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(xlabels, fontsize=9)
+        for tick, k in zip(ax.get_xticklabels(), keys):
+            tick.set_color(PAPER_COLORS[k])
+            tick.set_fontweight('bold')
+        ax.grid(True, axis='y', alpha=0.25)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.text(-0.14, 1.02, letter, transform=ax.transAxes, fontsize=13,
+                fontweight='bold', va='bottom', ha='right')
 
-    for forcing in REANALYSIS:
-        ax_leg.plot([0.08, 0.18], [y_pos, y_pos], color=COLORS[forcing],
-                    lw=1.3, transform=ax_leg.transAxes)
-        ax_leg.text(0.22, y_pos, LABELS[forcing], fontsize=7.5,
-                    transform=ax_leg.transAxes, va='center')
-        y_pos -= line_height
+    # ---- Panel (b): Skill — calibration vs evaluation ----
+    ax_b = fig.add_subplot(gs[1, 0])
+    cal_kge = [float(perf.loc[k, 'Cal_kge']) for k in keys]
+    eval_kge = [float(perf.loc[k, 'Eval_kge']) for k in keys]
+    w = 0.38
+    for xi, k, cv, ev in zip(x, keys, cal_kge, eval_kge):
+        ax_b.bar(xi - w / 2, cv, w, color=PAPER_COLORS[k], alpha=0.55,
+                 hatch='////', edgecolor='white', linewidth=0.5)
+        ax_b.bar(xi + w / 2, ev, w, color=PAPER_COLORS[k],
+                 edgecolor='white', linewidth=0.5)
+    ax_b.set_ylabel('KGE', fontsize=10)
+    ax_b.set_ylim(0, 1.15)
+    _style_bottom(ax_b, 'b', 'Skill: calibration vs. evaluation')
+    leg_b = [mpatches.Patch(facecolor='0.6', alpha=0.55, hatch='////',
+                            edgecolor='white', label='Calibration'),
+             mpatches.Patch(facecolor='0.6', edgecolor='white', label='Evaluation')]
+    ax_b.legend(handles=leg_b, loc='upper center', ncol=2, fontsize=8,
+                frameon=False, handlelength=1.4, columnspacing=1.0)
 
-    y_pos -= line_height * 0.3
+    # ---- Panel (c): Snowfall-undercatch correction (frozenPrecipMultip) ----
+    ax_c = fig.add_subplot(gs[1, 1])
+    fpm = [float(param.loc[k, 'frozenPrecipMultip']) for k in keys]
+    bars_c = ax_c.bar(x, fpm, 0.6, color=bar_colors, edgecolor='white', linewidth=0.6)
+    ax_c.axhline(1.0, color='0.4', ls='--', lw=1.0, zorder=1)
+    ax_c.text(len(keys) - 0.5, 1.0, 'no correction', ha='right', va='bottom',
+              fontsize=8, color='0.4', fontstyle='italic')
+    for b, v in zip(bars_c, fpm):
+        ax_c.text(b.get_x() + b.get_width() / 2, v + 0.05, f'{v:.2f}',
+                  ha='center', va='bottom', fontsize=8.5, fontweight='bold')
+    ax_c.set_ylabel('frozenPrecipMultip', fontsize=10)
+    ax_c.set_ylim(0, max(fpm) * 1.18)
+    _style_bottom(ax_c, 'c', 'Snowfall-undercatch correction')
 
-    # Section: GDDP-CMIP6 Members
-    ax_leg.text(0.05, y_pos, 'GDDP-CMIP6 Members', fontsize=9, fontweight='bold',
-                transform=ax_leg.transAxes, va='top')
-    y_pos -= line_height * 0.8
+    # ---- Panel (d): Skill transfer (Cal - Eval KGE), lower is better ----
+    ax_d = fig.add_subplot(gs[1, 2])
+    transfer = [c - e for c, e in zip(cal_kge, eval_kge)]
+    ax_d.bar(x, transfer, 0.6, color=bar_colors, edgecolor='white', linewidth=0.6)
+    ax_d.axhline(0, color='black', lw=0.9)
+    ax_d.set_ylabel('Cal – Eval KGE', fontsize=10)
+    _style_bottom(ax_d, 'd', 'Skill transfer (lower is better)')
 
-    # Two columns for GDDP
-    gddp_available = [f for f in GDDP if f in sim_swe]
-    n_gddp = len(gddp_available)
-    col1 = gddp_available[:n_gddp//2 + n_gddp%2]
-    col2 = gddp_available[n_gddp//2 + n_gddp%2:]
-
-    y_start = y_pos
-    for forcing in col1:
-        ax_leg.plot([0.08, 0.15], [y_pos, y_pos], color=COLORS[forcing],
-                    lw=0.9, transform=ax_leg.transAxes)
-        ax_leg.text(0.17, y_pos, SHORT_LABELS[forcing], fontsize=6.5,
-                    transform=ax_leg.transAxes, va='center')
-        y_pos -= line_height * 0.85
-
-    y_pos = y_start
-    for forcing in col2:
-        ax_leg.plot([0.52, 0.59], [y_pos, y_pos], color=COLORS[forcing],
-                    lw=0.9, transform=ax_leg.transAxes)
-        ax_leg.text(0.61, y_pos, SHORT_LABELS[forcing], fontsize=6.5,
-                    transform=ax_leg.transAxes, va='center')
-        y_pos -= line_height * 0.85
-
-    y_pos = min(y_pos, y_start - line_height * 0.85 * len(col1)) - line_height * 0.5
-
-    # Ensemble summary
-    ax_leg.fill_between([0.08, 0.18], [y_pos - 0.015, y_pos - 0.015],
-                        [y_pos + 0.015, y_pos + 0.015],
-                        color=COLORS['gddp_envelope'], alpha=0.5,
-                        transform=ax_leg.transAxes)
-    ax_leg.text(0.22, y_pos, 'Ensemble envelope', fontsize=7,
-                transform=ax_leg.transAxes, va='center')
-    y_pos -= line_height
-
-    ax_leg.plot([0.08, 0.18], [y_pos, y_pos], color=COLORS['gddp_mean'],
-                lw=1.0, ls='--', transform=ax_leg.transAxes)
-    ax_leg.text(0.22, y_pos, 'Ensemble mean', fontsize=7,
-                transform=ax_leg.transAxes, va='center')
-
-    fig.subplots_adjust(left=0.08, right=0.98, bottom=0.08, top=0.95)
-
-    _save(fig, 'fig1_swe_timeseries')
-
-
-# ===================================================================
-# FIGURE 2: Combined Performance & Parameter Analysis
-# ===================================================================
-def figure2_performance_and_parameters(perf_df: pd.DataFrame, param_df: pd.DataFrame):
-    """
-    Combined figure showing the narrative arc:
-    (a) KGE degradation (transferability) - the key finding
-    (b) frozenPrecipMultip vs Eval KGE - mechanism explanation
-    (c) Parameter heatmap - full picture of compensation
-    """
-    from matplotlib.colors import Normalize
-
-    fig = plt.figure(figsize=(11, 7))
-
-    # Layout: top row has (a) degradation bars and (b) scatter
-    # Bottom row has (c) full parameter heatmap
-    gs = gridspec.GridSpec(2, 2, height_ratios=[1, 1.2], width_ratios=[1, 1.2],
-                           hspace=0.35, wspace=0.25)
-
-    # Prepare data
-    df = param_df.copy()
-    df['_key'] = df['Forcing'].map(lambda x: _forcing_key(x))
-    df['_short'] = df['_key'].map(lambda k: SHORT_LABELS.get(k, k))
-    df = df.sort_values('KGE_Degradation', ascending=False, na_position='last')
-
-    # ---- Panel (a): KGE Degradation bars ----
-    ax_a = fig.add_subplot(gs[0, 0])
-    ax_a.set_title('(a) Transferability', fontsize=10, fontweight='bold', loc='left', pad=8)
-
-    degrad_data = []
-    for _, row in df.iterrows():
-        key = row['_key']
-        short = row['_short']
-        deg = row.get('KGE_Degradation', np.nan)
-        if pd.notna(deg):
-            degrad_data.append((short, deg, key))
-
-    bar_labels = [d[0] for d in degrad_data]
-    bar_vals = [d[1] for d in degrad_data]
-    bar_keys = [d[2] for d in degrad_data]
-
-    bar_colors = ['#009E73' if v <= 0 else ('#D55E00' if v > 0.3 else '#E69F00')
-                  for v in bar_vals]
-
-    y_pos = range(len(bar_labels))
-    bars = ax_a.barh(y_pos, bar_vals, color=bar_colors, edgecolor='black',
-                     linewidth=0.4, height=0.7)
-
-    ax_a.set_yticks(y_pos)
-    ax_a.set_yticklabels(bar_labels, fontsize=8)
-    ax_a.set_xlabel('KGE Degradation (Cal – Eval)', fontsize=9)
-    ax_a.axvline(x=0, color='black', lw=1.0)
-    ax_a.grid(True, axis='x', alpha=0.3)
-    ax_a.invert_yaxis()
-    ax_a.set_xlim(-0.5, 1.1)  # Extended to fit +0.89 annotation
-
-    # Value annotations on bars
-    for bar, val, key in zip(bars, bar_vals, bar_keys):
-        x_off = 0.02 if val >= 0 else -0.02
-        ha = 'left' if val >= 0 else 'right'
-        ax_a.text(val + x_off, bar.get_y() + bar.get_height() / 2,
-                  f'{val:+.2f}', ha=ha, va='center', fontsize=6.5, fontweight='bold')
-
-    # ---- Panel (b): frozenPrecipMultip vs Eval KGE ----
-    ax_b = fig.add_subplot(gs[0, 1])
-    ax_b.set_title('(b) Precip. correction vs. eval. skill', fontsize=10, fontweight='bold', loc='left', pad=8)
-
-    scatter_data = []
-    for _, row in df.iterrows():
-        key = row['_key']
-        fpm = row.get('frozenPrecipMultip', np.nan)
-        eval_kge = row.get('Eval_KGE', np.nan)
-        if pd.isna(fpm) or pd.isna(eval_kge):
-            continue
-        scatter_data.append((fpm, eval_kge, row['_short'], key))
-
-    for fpm, eval_kge, short, key in scatter_data:
-        marker = 'o' if key in REANALYSIS else 's'
-        ax_b.scatter(fpm, eval_kge, c=COLORS.get(key, '#888888'), s=100,
-                     marker=marker, edgecolors='black', linewidth=0.6, zorder=5)
-
-    # Final label positions with maximum clarity
-    # Using larger offsets and strategic placement
-    label_config = {
-        # Isolated points - easy placement
-        'CONUS404': (10, 10, 'left'),        # (0.84, 0.68) far left - go RIGHT
-        'ERA5': (10, 8, 'left'),             # (1.71, -0.59) bottom, alone
-        'NorESM2-LM': (8, 8, 'left'),        # (4.63, 0.81) top right, alone
-        'MRI-ESM2-0': (8, -10, 'left'),      # (4.98, 0.69) far right
-        'RDRS': (8, -8, 'left'),             # (4.08, 0.60) right side
-        'CNRM-CM6-1': (8, -10, 'left'),      # (3.01, 0.08) bottom middle
-
-        # Upper cluster (fpm ~2.9-3.2, kge ~0.66-0.87)
-        'AORC': (12, 8, 'left'),             # (2.97, 0.87) top - go UPPER RIGHT
-        'GFDL-ESM4': (-14, 6, 'right'),      # (3.17, 0.72) go left-up
-        'IPSL-CM6A-LR': (-14, 0, 'right'),   # (3.06, 0.66) go STRAIGHT LEFT
-
-        # Middle cluster (fpm ~2.5-4.3, kge ~0.37-0.40)
-        'CanESM5': (-12, 10, 'right'),       # (3.57, 0.40) go up-left
-        'INM-CM5-0': (-12, -8, 'right'),     # (2.56, 0.38) go down-left
-        'ACCESS-CM2': (8, 6, 'left'),        # (4.31, 0.37) go right
-
-        # Lower cluster (fpm ~2.5-3.2, kge ~0.25)
-        'MPI-ESM1-2-HR': (-12, -8, 'right'), # (2.50, 0.25) go left-down
-        'UKESM1-0-LL': (10, -12, 'left'),    # (3.22, 0.26) go RIGHT-DOWN
-    }
-
-    for fpm, eval_kge, short, key in scatter_data:
-        config = label_config.get(short, (10, 0, 'left'))
-        x_off, y_off, ha = config
-
-        ax_b.annotate(short, (fpm, eval_kge),
-                      textcoords='offset points',
-                      xytext=(x_off, y_off),
-                      fontsize=5,
-                      ha=ha,
-                      color='0.25',
-                      arrowprops=dict(arrowstyle='-', color='0.45', lw=0.35,
-                                     shrinkA=0, shrinkB=2))
-
-    ax_b.axhline(0, color='0.5', ls='--', lw=0.5, alpha=0.6)
-    ax_b.set_xlabel('Frozen precipitation multiplier (–)', fontsize=9)
-    ax_b.set_ylabel('Evaluation KGE', fontsize=9)
-    ax_b.grid(True, alpha=0.15)
-    ax_b.set_xlim(0.2, 5.8)
-    ax_b.set_ylim(-0.72, 1.02)
-
-    # ---- Panel (c): Parameter heatmap ----
-    ax_c = fig.add_subplot(gs[1, :])
-    ax_c.set_title('(c) Calibrated parameter values (Z-score normalized)',
-                   fontsize=10, fontweight='bold', loc='left', pad=8)
-
-    param_cols = ['frozenPrecipMultip', 'tempRangeTimestep', 'mw_exp',
-                  'albedoMax', 'albedoMinWinter', 'albedoDecayRate',
-                  'constSnowDen', 'k_snow', 'z0Snow', 'routingGammaScale']
-    param_cols = [p for p in param_cols if p in df.columns]
-
-    param_labels = {
-        'frozenPrecipMultip': 'Precip.\nmultiplier',
-        'tempRangeTimestep': 'Temp.\nrange',
-        'mw_exp': 'Melt\nexp.',
-        'albedoMax': 'Albedo\nmax',
-        'albedoMinWinter': 'Albedo\nmin',
-        'albedoDecayRate': 'Albedo\ndecay',
-        'constSnowDen': 'Snow\ndensity',
-        'k_snow': 'Thermal\ncond.',
-        'z0Snow': 'Roughness',
-        'routingGammaScale': 'Routing\nscale',
-    }
-
-    compensatory = {'frozenPrecipMultip', 'tempRangeTimestep', 'mw_exp'}
-
-    raw_values = df[param_cols].values.astype(float)
-    n_forcings, n_params = raw_values.shape
-
-    col_mean = np.nanmean(raw_values, axis=0)
-    col_std = np.nanstd(raw_values, axis=0)
-    col_std[col_std == 0] = 1.0
-    z_scores = (raw_values - col_mean) / col_std
-
-    vabs = max(np.nanmax(np.abs(z_scores)), 0.5)
-    norm = TwoSlopeNorm(vmin=-vabs, vcenter=0, vmax=vabs)
-    cmap = plt.cm.RdBu_r
-
-    im = ax_c.imshow(z_scores, cmap=cmap, norm=norm, aspect='auto')
-
-    # Annotate with raw values
-    def _fmt_val(v):
-        av = abs(v)
-        if av >= 1e6: return f'{v/1e6:.1f}M'
-        if av >= 1e4: return f'{v/1e3:.0f}k'
-        if av >= 100: return f'{v:.0f}'
-        if av >= 10: return f'{v:.1f}'
-        if av >= 1: return f'{v:.2f}'
-        return f'{v:.3f}'
-
-    for i in range(n_forcings):
-        for j in range(n_params):
-            raw = raw_values[i, j]
-            if np.isnan(raw): continue
-            brightness = np.mean(mpl.colors.to_rgb(cmap(norm(z_scores[i, j]))))
-            tc = 'white' if brightness < 0.45 else 'black'
-            ax_c.text(j, i, _fmt_val(raw), ha='center', va='center',
-                      fontsize=6, color=tc, fontweight='bold')
-
-    ax_c.set_xticks(range(n_params))
-    xlabels = [param_labels.get(p, p) for p in param_cols]
-    ax_c.set_xticklabels(xlabels, fontsize=8, rotation=0, ha='center')
-    ax_c.set_yticks(range(n_forcings))
-    ax_c.set_yticklabels(df['_short'].values, fontsize=8)
-    ax_c.tick_params(length=0)
-
-    # Highlight compensatory columns with box
-    for j, p in enumerate(param_cols):
-        if p in compensatory:
-            rect = plt.Rectangle((j - 0.5, -0.5), 1, n_forcings,
-                                  fill=False, edgecolor='#D55E00', lw=2.0,
-                                  linestyle='-', zorder=10)
-            ax_c.add_patch(rect)
-            ax_c.get_xticklabels()[j].set_color('#D55E00')
-            ax_c.get_xticklabels()[j].set_fontweight('bold')
-
-    cbar = fig.colorbar(im, ax=ax_c, fraction=0.015, pad=0.01, shrink=0.8)
-    cbar.set_label('Z-score', fontsize=8)
-
-    fig.tight_layout()
-    _save(fig, 'fig2_performance_parameters')
+    _save(fig, 'figure_06_swe_forcings')
 
 
 # ===================================================================
@@ -1275,7 +1035,7 @@ def main():
         description='Create publication-quality figures for Section 4.3'
     )
     parser.add_argument('--no-timeseries', action='store_true',
-                        help='Skip figures that require NetCDF data (Fig 1 & S1)')
+                        help='Skip figures that require NetCDF data (Fig 1)')
     args = parser.parse_args()
 
     set_pub_style()
@@ -1293,72 +1053,30 @@ def main():
     print(f"  performance_summary.csv: {len(perf_df)} forcings")
     print(f"  parameter_divergence.csv: {len(param_df)} forcings")
 
-    # --- Figure 2: Combined Performance & Parameters ---
-    print("\nFigure 2: Combined Performance & Parameter Analysis")
-    figure2_performance_and_parameters(perf_df, param_df)
+    # --- Load SWE time series (obs + simulated) for the four reanalysis forcings ---
+    # The paper Fig 6 is a SINGLE 4-panel figure: (a) the SWE time series over
+    # (b) skill, (c) undercatch correction and (d) skill transfer bars. Fig 3
+    # (projections), Fig S1 (soil moisture) and Fig S2 (resolution) are not paper
+    # figures and are no longer generated.
+    print("\nLoading time-series data (NetCDF + observations)...")
 
-    # Note: Figure 3 (projections) will be created after loading time series data
-
-    # --- Figures 1 & S1: require NetCDF time series ---
-    if not args.no_timeseries:
-        print("\nLoading time-series data (NetCDF + observations)...")
-
-        obs_swe = load_observed_swe()
-        if obs_swe is not None:
-            print(f"  SNOTEL SWE: {len(obs_swe)} records")
-        else:
-            print("  WARNING: No SNOTEL SWE data found")
-
-        sim_swe = {}
-        for forcing in ALL_FORCINGS:
-            s = load_simulated_swe(forcing)
-            if s is not None:
-                sim_swe[forcing] = s
-                print(f"  {LABELS.get(forcing, forcing)}: {len(s)} SWE timesteps")
-            else:
-                print(f"  {LABELS.get(forcing, forcing)}: no SWE output found")
-
-        if obs_swe is not None or sim_swe:
-            print("\nFigure 1: SWE Time Series")
-            figure1_swe_timeseries(obs_swe, sim_swe)
-
-            # Figure 3: Merged projection figure
-            print("\nFigure 3: Climate Projections (merged)")
-            figure3_projections_merged(obs_swe, sim_swe)
-        else:
-            print("\nSkipping Figure 1: no SWE data available")
-            # Still create projection figure without historical overlay
-            print("\nFigure 3: Climate Projections (no historical overlay)")
-            figure3_projections_merged(None, None)
-
-        # Soil moisture for supplementary
-        obs_sm = load_observed_sm()
-        if obs_sm is not None:
-            print(f"  ISMN SM: {len(obs_sm)} records")
-        else:
-            print("  No ISMN SM data found")
-
-        sim_sm = {}
-        for forcing in ALL_FORCINGS:
-            s = load_simulated_sm(forcing)
-            if s is not None:
-                sim_sm[forcing] = s
-                print(f"  {LABELS.get(forcing, forcing)}: {len(s)} SM timesteps")
-
-        if obs_sm is not None or sim_sm:
-            print("\nFigure S1: Soil Moisture")
-            figS1_soil_moisture(obs_sm, sim_sm)
-        else:
-            print("\nSkipping Figure S1: no soil moisture data available")
+    obs_swe = load_observed_swe()
+    if obs_swe is not None:
+        print(f"  SNOTEL SWE: {len(obs_swe)} records")
     else:
-        print("\nSkipping Figures 1 & S1 (--no-timeseries)")
-        # Still create projection figure without historical overlay
-        print("\nFigure 3: Climate Projections (no historical overlay)")
-        figure3_projections_merged(None, None)
+        print("  WARNING: No SNOTEL SWE data found")
 
-    # --- Figure S2: Resolution vs Transferability ---
-    print("\nFigure S2: Resolution vs Transferability")
-    figS2_resolution_transferability(perf_df)
+    sim_swe = {}
+    for forcing in REAN4:
+        s = load_simulated_swe(forcing)
+        if s is not None:
+            sim_swe[forcing] = s
+            print(f"  {LABELS.get(forcing, forcing)}: {len(s)} SWE timesteps")
+        else:
+            print(f"  {LABELS.get(forcing, forcing)}: no SWE output found")
+
+    print("\nFigure 6: SWE forcings (single 4-panel figure)")
+    figure_06_swe_forcings(obs_swe, sim_swe, perf_df, param_df)
 
     print("\n" + "=" * 60)
     print("Done! Figures saved to:")

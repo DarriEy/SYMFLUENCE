@@ -503,8 +503,33 @@ def create_iceland_figure():
     norm_elev = mcolors.Normalize(vmin=elev_min, vmax=elev_max)
 
     # Colors
-    river_color = '#b30000'   # Dark red -- contrasts with terrain greens/blues
+    river_color = '#8B0000'   # Dark red -- contrasts with terrain greens/blues
     era5_color = '#E65100'
+
+    # River network styling (paper Fig 3): thin dark-red dendritic lines, NO white
+    # halo, width scaled by Strahler order (thin tributaries, thicker main stems).
+    # Clip to the land polygon for DISPLAY only, so TauDEM's spurious ocean-crossing
+    # reaches — which connect the drainage network across open sea to a common
+    # outlet — do not crisscross the panel. The honest segment count in each panel
+    # label still uses the full network (len(ice_rivers) == 1,895).
+    _land = ice_with_coastal.geometry.union_all().buffer(500)
+    ice_rivers_land = gpd.clip(ice_rivers, _land)
+    _order_lw = {1: 0.15, 2: 0.28, 3: 0.45, 4: 0.70, 5: 1.0}
+
+    def _draw_rivers(ax):
+        if 'strmOrder' in ice_rivers_land.columns:
+            for order, sub in ice_rivers_land.groupby('strmOrder'):
+                sub.plot(ax=ax, color=river_color,
+                         linewidth=_order_lw.get(int(order), 0.30),
+                         alpha=0.92, zorder=5)
+        else:
+            ice_rivers_land.plot(ax=ax, color=river_color, linewidth=0.30,
+                                 alpha=0.92, zorder=5)
+
+    def _draw_era5(ax):
+        # Subtle, thin dashed grid so it does not dominate (paper Fig 3).
+        era5_grid.boundary.plot(ax=ax, color=era5_color, linewidth=0.45,
+                                linestyle='--', alpha=0.40, zorder=1)
 
     # Figure sizing: match Iceland's aspect to eliminate dead space
     # Each panel is ~1.44:1 (w:h). 3 panels with gaps.
@@ -545,13 +570,10 @@ def create_iceland_figure():
 
     # --- Panel (a): River Basin GRUs ---
     ax1 = fig.add_subplot(gs[0, 0])
-    era5_grid.boundary.plot(ax=ax1, color=era5_color, linewidth=1.0,
-                            linestyle='--', alpha=0.6, zorder=1)
+    _draw_era5(ax1)
     ice_elev_no_coastal.plot(ax=ax1, column='elev_mean', cmap=cmap, norm=norm_elev,
                               edgecolor='none', linewidth=0, zorder=2)
-    # Rivers with white halo
-    ice_rivers.plot(ax=ax1, color='white', linewidth=0.7, alpha=0.5, zorder=4)
-    ice_rivers.plot(ax=ax1, color=river_color, linewidth=0.35, alpha=0.9, zorder=5)
+    _draw_rivers(ax1)
     style_ax(ax1)
     ax1.set_title('(a) River Basin GRUs', fontsize=16, fontweight='bold', pad=6)
     ax1.text(0.03, 0.03, f'{len(ice_no_coastal):,} GRUs\n{len(ice_rivers):,} seg',
@@ -561,12 +583,10 @@ def create_iceland_figure():
 
     # --- Panel (b): + Coastal GRUs ---
     ax2 = fig.add_subplot(gs[0, 1])
-    era5_grid.boundary.plot(ax=ax2, color=era5_color, linewidth=1.0,
-                            linestyle='--', alpha=0.6, zorder=1)
+    _draw_era5(ax2)
     ice_elev.plot(ax=ax2, column='elev_mean', cmap=cmap, norm=norm_elev,
                   edgecolor='none', linewidth=0, zorder=2)
-    ice_rivers.plot(ax=ax2, color='white', linewidth=0.7, alpha=0.5, zorder=4)
-    ice_rivers.plot(ax=ax2, color=river_color, linewidth=0.35, alpha=0.9, zorder=5)
+    _draw_rivers(ax2)
     style_ax(ax2)
     ax2.set_title('(b) + Coastal GRUs', fontsize=16, fontweight='bold', pad=6)
     ax2.text(0.03, 0.03, f'{len(ice_with_coastal):,} GRUs\n(+{n_coastal:,} coastal)',
@@ -576,12 +596,10 @@ def create_iceland_figure():
 
     # --- Panel (c): + Elevation HRUs ---
     ax3 = fig.add_subplot(gs[0, 2])
-    era5_grid.boundary.plot(ax=ax3, color=era5_color, linewidth=1.0,
-                            linestyle='--', alpha=0.6, zorder=1)
+    _draw_era5(ax3)
     ice_elev.plot(ax=ax3, column='elev_mean', cmap=cmap, norm=norm_elev,
                   edgecolor='none', linewidth=0, zorder=2)
-    ice_rivers.plot(ax=ax3, color='white', linewidth=0.7, alpha=0.5, zorder=4)
-    ice_rivers.plot(ax=ax3, color=river_color, linewidth=0.35, alpha=0.9, zorder=5)
+    _draw_rivers(ax3)
     style_ax(ax3)
     ax3.set_title('(c) + Elevation HRUs', fontsize=16, fontweight='bold', pad=6)
     ax3.text(0.03, 0.03, f'{len(ice_elev):,} HRUs\n{elev_min:.0f}\u2013{elev_max:.0f} m',
@@ -609,8 +627,8 @@ def create_iceland_figure():
                framealpha=0.95, edgecolor='#ccc', handlelength=1.5,
                columnspacing=1.2)
 
-    fig.savefig(OUTPUT_DIR / "figure_4_1b_iceland.png", dpi=300, facecolor='white', bbox_inches='tight')
-    fig.savefig(OUTPUT_DIR / "figure_4_1b_iceland.pdf", facecolor='white', bbox_inches='tight')
+    fig.savefig(OUTPUT_DIR / "figure_03_iceland_domain.png", dpi=300, facecolor='white', bbox_inches='tight')
+    fig.savefig(OUTPUT_DIR / "figure_03_iceland_domain.pdf", facecolor='white', bbox_inches='tight')
     print("  Saved Iceland figure")
     plt.close(fig)
 
@@ -618,7 +636,7 @@ def create_iceland_figure():
 # =============================================================================
 # FIGURE 3: BOW RIVER
 # =============================================================================
-def create_bow_figure(shp_subdir='bow', out_stem='figure_4_1c_bow'):
+def create_bow_figure(shp_subdir='bow', out_stem='figure_02_bow_discretization'):
     """Create Bow River 3-column figure with all discretization options.
 
     shp_subdir selects the staged shapefile set (see _SHP_MAP). Use 'bow' for the
@@ -1281,12 +1299,11 @@ if __name__ == "__main__":
     print("SYMFLUENCE Paper - Section 4.1: Domain Definition")
     print("=" * 60)
 
-    # Each figure only needs its own reproduction domains; render what is
-    # available and report the rest (e.g. Paradise needs the ERA5 forcing
-    # shapefile produced by the 03_forcing_ensemble ERA5 config).
+    # Paper figures only: Iceland (Fig 3) and Bow (Fig 2). The Paradise
+    # panel (Fig 1) is rendered by a separate standalone script, and the
+    # combined 3-panel composite is not a paper figure; both are skipped here.
     failures = []
-    for fn in (create_paradise_figure, create_iceland_figure,
-               create_bow_figure, create_combined_figure):
+    for fn in (create_iceland_figure, create_bow_figure):
         try:
             fn()
         except Exception as e:  # noqa: BLE001 - keep rendering the other figures
@@ -1295,10 +1312,8 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 60)
     print("Generated figures (unless skipped above):")
-    print("  - figure_4_1a_paradise.png/pdf")
-    print("  - figure_4_1b_iceland.png/pdf")
-    print("  - figure_4_1c_bow.png/pdf")
-    print("  - figure_4_1_combined.png/pdf")
+    print("  - figure_03_iceland_domain.png/pdf")
+    print("  - figure_02_bow_discretization.png/pdf")
     print("=" * 60)
     if failures:
         raise SystemExit(1)
