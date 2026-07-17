@@ -50,9 +50,14 @@ class TUICommands(BaseCommand):
         if config_path:
             BaseCommand._console.indent(f"Preloading config: {config_path}")
 
-        launch_tui(
+        result = launch_tui(
             config_path=config_path,
             demo=demo,
         )
 
-        return ExitCode.SUCCESS
+        # The Agent Command Center exits the TUI with a handoff request; the
+        # exec happens here, after Textual has restored the terminal.
+        from symfluence.agent.handoff import complete_handoff
+
+        code = complete_handoff(result)
+        return code if code is not None else ExitCode.SUCCESS

@@ -654,13 +654,16 @@ For more help on a specific command:
 
         agent_parser = subparsers.add_parser(
             'agent',
-            help='Launch an installed coding-agent CLI, primed with SYMFLUENCE skills',
+            help='The SYMFLUENCE agent: a coding-agent CLI primed with skills, '
+                 'project context, and MCP tools',
             description=(
-                'Hand off to an installed coding-agent CLI (Claude Code, Codex, '
-                'Gemini, ...) primed with the SYMFLUENCE skills. Set the matching '
-                'API key (e.g. ANTHROPIC_API_KEY) and run `symfluence agent launch`. '
-                'Override CLI detection with SYMFLUENCE_AGENT_CLI; skip skill '
-                'materialization with SYMFLUENCE_NO_SKILLS.'
+                'Launch an installed coding-agent CLI (Claude Code, Codex, '
+                'Gemini, ...) primed as the SYMFLUENCE agent: packaged skills, an '
+                'identity block with live project context, the SYMFLUENCE MCP '
+                'server, and specialist subagents. Set the matching API key '
+                '(e.g. ANTHROPIC_API_KEY) and run `symfluence agent launch`. '
+                'Override CLI detection with --cli or SYMFLUENCE_AGENT_CLI; skip '
+                'all priming with --no-skills or SYMFLUENCE_NO_SKILLS.'
             )
         )
         agent_subparsers = agent_parser.add_subparsers(
@@ -673,13 +676,50 @@ For more help on a specific command:
         # agent launch
         launch_parser = agent_subparsers.add_parser(
             'launch',
-            help='Launch the agent (interactive, or one-shot with a PROMPT)'
+            help='Open the Agent Command Center (or hand off directly with '
+                 '--direct / a PROMPT)'
         )
         launch_parser.add_argument('prompt', type=str, nargs='?', default=None,
                                    help='Optional one-shot prompt; omit for interactive mode')
+        launch_parser.add_argument('--cli', type=str, default=None,
+                                   help='Agent CLI to launch (e.g. claude, codex, gemini); '
+                                        'overrides auto-detection and SYMFLUENCE_AGENT_CLI')
+        launch_parser.add_argument('--no-skills', action='store_true',
+                                   help='Launch the bare CLI without any SYMFLUENCE priming')
+        launch_parser.add_argument('--direct', action='store_true',
+                                   help='Skip the Agent Command Center TUI and hand off '
+                                        'to the agent CLI immediately')
         launch_parser.add_argument('extra', nargs=argparse.REMAINDER,
                                    help='Extra args forwarded to the agent CLI (after --)')
         launch_parser.set_defaults(func=AgentCommands.launch)
+
+        # agent list
+        agent_list_parser = agent_subparsers.add_parser(
+            'list',
+            help='Show registered agent CLIs and which one launch would pick'
+        )
+        agent_list_parser.set_defaults(func=AgentCommands.list_clis)
+
+        # agent skills
+        skills_parser = agent_subparsers.add_parser(
+            'skills',
+            help='List the packaged SYMFLUENCE skills exposed to the agent'
+        )
+        skills_parser.set_defaults(func=AgentCommands.skills)
+
+        # agent doctor
+        agent_doctor_parser = agent_subparsers.add_parser(
+            'doctor',
+            help='Diagnose the agent setup (CLIs, keys, skills, MCP server)'
+        )
+        agent_doctor_parser.set_defaults(func=AgentCommands.doctor)
+
+        # agent mcp
+        mcp_parser = agent_subparsers.add_parser(
+            'mcp',
+            help='Serve the SYMFLUENCE MCP server on stdio (used by agent launch)'
+        )
+        mcp_parser.set_defaults(func=AgentCommands.mcp)
 
         # agent start (deprecated alias -> launch, interactive)
         start_parser = agent_subparsers.add_parser(
