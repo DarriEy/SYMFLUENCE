@@ -81,9 +81,8 @@ def get_config_template(template_name: str = 'config_template.yaml') -> Path:
                       Available templates:
                       - config_template.yaml
                       - config_template_comprehensive.yaml
-                      - fluxnet_template.yaml
-                      - camelsspat_template.yaml
-                      - norswe_template.yaml
+                      - config_template_comprehensive_nested.yaml
+                      - config_quickstart_minimal_nested.yaml
 
     Returns:
         Path to the template file
@@ -115,7 +114,8 @@ def get_config_template(template_name: str = 'config_template.yaml') -> Path:
     except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
         # Provide helpful error message with available templates
         available = ['config_template.yaml', 'config_template_comprehensive.yaml',
-                    'fluxnet_template.yaml', 'camelsspat_template.yaml', 'norswe_template.yaml']
+                    'config_template_comprehensive_nested.yaml',
+                    'config_quickstart_minimal_nested.yaml']
         raise FileNotFoundError(
             f"Config template '{template_name}' not found.\n"
             f"Available templates: {', '.join(available)}"
@@ -155,9 +155,8 @@ def list_config_templates() -> list[Path]:
                 known_templates = [
                     'config_template.yaml',
                     'config_template_comprehensive.yaml',
-                    'fluxnet_template.yaml',
-                    'camelsspat_template.yaml',
-                    'norswe_template.yaml'
+                    'config_template_comprehensive_nested.yaml',
+                    'config_quickstart_minimal_nested.yaml'
                 ]
                 for name in known_templates:
                     try:
