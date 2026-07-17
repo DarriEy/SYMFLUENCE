@@ -36,6 +36,7 @@ def _patch_meshflow_network_bug():
     """
     try:
         import numpy as np
+        import meshflow.utility as meshflow_utility
         from meshflow.utility import network as meshflow_network
 
         def _patched_extract_rank_next(seg, ds_seg, outlet_value=-9999):
@@ -122,8 +123,17 @@ def _patch_meshflow_network_bug():
 
             return rank_var, next_var, seg_id, to_segment
 
-        # Apply the patch
+        # Apply the patch to BOTH bindings. meshflow.core calls
+        # ``utility.extract_rank_next`` — a name re-exported into the
+        # ``meshflow.utility`` package via ``from .network import *`` at import
+        # time, which is a SEPARATE reference from ``network.extract_rank_next``.
+        # Patching only the network module leaves core.py calling the original
+        # buggy function (it raises "setting an array element with a sequence"
+        # on any multi-segment river network, e.g. semi-distributed/elevation
+        # domains). Rebind the package-level name as well so the fix actually
+        # takes effect where meshflow.core resolves it.
         meshflow_network.extract_rank_next = _patched_extract_rank_next
+        meshflow_utility.extract_rank_next = _patched_extract_rank_next
 
         # Log that patch was applied
         logger = logging.getLogger(__name__)

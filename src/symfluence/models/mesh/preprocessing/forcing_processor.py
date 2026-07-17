@@ -309,16 +309,44 @@ class MESHForcingProcessor:
     def apply_elevation_lapsing(
         self,
         elevation_info: list,
-        lapse_rate: float = 0.0065
+        lapse_rate: float = 0.0065,
+        precip_lapse_rate: float = 0.0,
+        precip_factor_bounds: tuple = (0.5, 2.5),
+        precip_multiplier: float = 1.0,
     ) -> None:
         """Expand forcing from 1 subbasin to N subbasins with elevation-based lapsing.
 
-        Applies temperature lapse rate and barometric pressure adjustment so each
-        elevation band receives physically consistent forcing.
+        Applies temperature lapse rate, barometric pressure adjustment, and an
+        optional orographic precipitation gradient so each elevation band
+        receives physically consistent forcing.
+
+        Precipitation lapsing addresses a common bias in reanalysis forcing
+        (e.g. ERA5 sampled at the basin-mean elevation): orographic enhancement
+        of precipitation with elevation is unresolved, so high-elevation snow
+        accumulation — and therefore total water yield — is systematically
+        under-estimated in steep mountain basins. Each band is scaled by
+        ``1 + precip_lapse_rate * (band_elev - ref_elev)``, clamped to
+        ``precip_factor_bounds``. With a positive rate and the low-band floor,
+        this both redistributes precipitation toward the cold high bands (better
+        snowmelt timing) and adds net water (closing a volume deficit). A rate of
+        0.0 leaves precipitation replicated unchanged (backwards-compatible).
 
         Args:
             elevation_info: List of dicts with 'elevation' and 'fraction' per band
             lapse_rate: Temperature lapse rate in K/m (default: 0.0065 = standard ELR)
+            precip_lapse_rate: Orographic precip gradient as a fraction of the
+                reference-elevation precip per metre (e.g. 0.0004 ≈ +4%/100 m).
+                Default 0.0 disables precip lapsing.
+            precip_factor_bounds: (min, max) clamp on the per-band precip
+                multiplier, guarding against zero/negative precip at low bands
+                and runaway enhancement at the highest bands.
+            precip_multiplier: Uniform gauge-undercatch correction applied to
+                every band (orthogonal to the orographic gradient, which only
+                redistributes about the reference elevation and is volume-
+                conserving). Default 1.0 leaves total precip volume unchanged.
+
+        The two precip controls compose: the per-band factor is
+        ``precip_multiplier * clip(1 + precip_lapse_rate*(band - ref), bounds)``.
         """
         forcing_nc = self.forcing_dir / "MESH_forcing.nc"
         if not forcing_nc.exists():
@@ -402,8 +430,34 @@ class MESHForcingProcessor:
                                     temp_k = np.full(n_time, 273.15)
                                 exponent = -g * M * dz / (R * temp_k)
                                 expanded[:, i] = (orig[:, 0] * np.exp(exponent)).astype(np.float32)
+                        elif var_name == 'PRE' and (precip_lapse_rate != 0.0
+                                                    or precip_multiplier != 1.0):
+                            # Per-band precip = uniform undercatch multiplier x
+                            # orographic gradient about the reference elevation,
+                            # clamped to precip_factor_bounds. The gradient
+                            # redistributes precip toward cold high bands (mostly as
+                            # snow); the multiplier corrects net reanalysis under-catch.
+                            fmin, fmax = precip_factor_bounds
+                            expanded = np.zeros((n_time, n_bands), dtype=np.float32)
+                            factors = []
+                            for i in range(n_bands):
+                                grad = np.clip(
+                                    1.0 + precip_lapse_rate * (band_elevs[i] - ref_elev),
+                                    fmin, fmax,
+                                )
+                                factor = float(precip_multiplier * grad)
+                                factors.append(factor)
+                                expanded[:, i] = (orig[:, 0] * factor).astype(np.float32)
+                            # Net change in area-weighted precip volume (>1 = added water).
+                            net = float(np.sum(np.array(factors) * band_fracs))
+                            self.logger.info(
+                                f"  PRE lapsing (rate={precip_lapse_rate:g}/m, "
+                                f"mult={precip_multiplier:g}): band factors = "
+                                f"{[f'{f:.2f}x' for f in factors]}, "
+                                f"area-weighted volume x{net:.2f}"
+                            )
                         else:
-                            # QA, UV, PRE, FSIN, FLIN: replicate unchanged
+                            # QA, UV, (PRE when no correction), FSIN, FLIN: replicate unchanged
                             expanded = np.tile(orig, (1, n_bands)).astype(np.float32)
 
                         forcing_vars[var_name] = expanded

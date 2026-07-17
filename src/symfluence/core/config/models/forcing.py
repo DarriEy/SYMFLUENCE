@@ -124,6 +124,14 @@ class ForcingConfig(BaseModel):
     measurement_height: float = Field(default=2.0, alias='FORCING_MEASUREMENT_HEIGHT', gt=0)
     apply_lapse_rate: bool = Field(default=True, alias='APPLY_LAPSE_RATE')
     lapse_rate: float = Field(default=0.0065, alias='LAPSE_RATE')
+    # Orographic precipitation gradient for elevation-banded forcing: fraction of
+    # reference-elevation precip added per metre of elevation (e.g. 0.0004 ≈
+    # +4%/100 m). Default 0.0 leaves precip unchanged. Corrects reanalysis precip
+    # under-catch that starves high-elevation snow accumulation in steep basins.
+    precip_lapse_rate: float = Field(default=0.0, alias='MESH_PRECIP_LAPSE_RATE')
+    # Uniform gauge-undercatch correction applied to every elevation band, on top
+    # of the orographic gradient. Default 1.0 leaves total precip volume unchanged.
+    precip_multiplier: float = Field(default=1.0, alias='MESH_PRECIP_MULTIPLIER', gt=0)
     shape_lat_name: str = Field(default='lat', alias='FORCING_SHAPE_LAT_NAME')
     shape_lon_name: str = Field(default='lon', alias='FORCING_SHAPE_LON_NAME')
     pet_method: PETMethodType = Field(default='oudin', alias='PET_METHOD')
