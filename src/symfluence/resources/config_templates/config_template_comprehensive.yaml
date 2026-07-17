@@ -516,6 +516,20 @@ MESH_HRU_DIM: default
 #   Usage:      6
 MESH_INSTALL_PATH: default
 
+# MESH_PRECIP_LAPSE_RATE
+#   Type:        float
+#   Default:     0.0
+#   Source:      ForcingConfig (forcing.py)
+#   Description: Orographic precip gradient per metre of elevation (0.0004 = +4%/100 m); 0.0 = unchanged
+MESH_PRECIP_LAPSE_RATE: 0.0
+
+# MESH_PRECIP_MULTIPLIER
+#   Type:        float
+#   Default:     1.0
+#   Source:      ForcingConfig (forcing.py)
+#   Description: Uniform gauge-undercatch precip correction for all elevation bands; must be > 0
+MESH_PRECIP_MULTIPLIER: 1.0
+
 # MESH_SPATIAL_MODE
 #   Type:        str
 #   Default:     distributed
@@ -1935,10 +1949,10 @@ CHECKPOINT_INTERVAL: 10
 INITIAL_GUESS: null
 
 # SKIP_WARM_START
-#   Type:        Optional
-#   Default:     None
+#   Type:        Optional[bool]
+#   Default:     None (treated as true — warm start is opt-in)
 #   Source:      OptimizationConfig (optimization.py)
-#   Description: Skip warm-starting from previous best parameters
+#   Description: Skip warm-starting from prior best parameters (seeding from the domain's optimization history makes results machine-dependent); set false to opt in deliberately
 SKIP_WARM_START: null
 
 # PARAMETER_BOUNDS
