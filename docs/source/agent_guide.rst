@@ -44,11 +44,27 @@ API key is only used by the CLI itself, never read or forwarded by SYMFLUENCE.
 Usage
 -----
 
-Interactive session (run from your project directory)::
+Open the Agent Command Center (run from your project directory)::
 
     symfluence agent launch
 
-One-shot prompt (runs once and exits — useful in scripts)::
+This is a dedicated screen in the SYMFLUENCE TUI: it shows the detected
+runtimes (pick one with the arrow keys), the mission context (configs and
+domains found in your directory), the capabilities that will prime the session,
+and a preflight check panel. Press ``l`` to launch, ``p`` for a one-shot
+prompt, ``k`` to toggle priming, ``r`` to refresh. The rest of the TUI
+(dashboard, runs, workflow, calibration) is one keypress away; inside
+``symfluence tui launch`` the same screen is mode ``7``.
+
+The handoff always happens *after* the TUI exits — the screen never runs the
+agent inside itself, which keeps the terminal clean for the host CLI (and
+leaves room to embed the agent in the TUI later).
+
+Hand off immediately without the command center::
+
+    symfluence agent launch --direct
+
+One-shot prompt (always direct; runs once and exits — useful in scripts)::
 
     symfluence agent launch "add an MSWEP forcing data handler"
 
@@ -60,6 +76,9 @@ Pick a specific CLI, or launch it bare without SYMFLUENCE priming::
 Forward extra flags to the underlying CLI after ``--``::
 
     symfluence agent launch -- --model claude-sonnet-4-6
+
+Sessions without a TTY, or installs without the TUI extra (``pip install
+"symfluence[tui]"``), fall back to the direct handoff automatically.
 
 Inspect the setup::
 

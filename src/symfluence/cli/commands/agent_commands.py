@@ -40,20 +40,53 @@ class AgentCommands(BaseCommand):
     @cli_exception_handler
     def launch(args: Namespace) -> int:
         """
-        Execute: symfluence agent launch [PROMPT] [--cli NAME] [--no-skills]
+        Execute: symfluence agent launch [PROMPT] [--cli NAME] [--no-skills] [--direct]
 
-        Launch an installed coding-agent CLI in the current project, primed as
-        the SYMFLUENCE agent. With no prompt, an interactive session starts;
-        with a prompt, the agent runs it once and exits.
+        By default this opens the Agent Command Center — a dedicated screen in
+        the SYMFLUENCE TUI for reviewing runtimes, project context, and
+        preflight checks before handing off to the agent CLI. The handoff
+        itself always happens after the TUI exits.
+
+        Direct handoff (today's immediate exec) happens when any of these hold:
+        a one-shot PROMPT is given, ``--direct`` is passed, the session has no
+        TTY, or the TUI extra (textual) is not installed.
         """
+        import sys
+
         from symfluence.agent import launch_agent
 
-        return launch_agent(
-            prompt=BaseCommand.get_arg(args, 'prompt', None),
-            extra_args=BaseCommand.get_arg(args, 'extra', None),
-            cli=BaseCommand.get_arg(args, 'cli', None),
-            no_skills=BaseCommand.get_arg(args, 'no_skills', False),
-        )
+        prompt = BaseCommand.get_arg(args, 'prompt', None)
+        cli = BaseCommand.get_arg(args, 'cli', None)
+        no_skills = BaseCommand.get_arg(args, 'no_skills', False)
+        extra = BaseCommand.get_arg(args, 'extra', None)
+
+        def direct() -> int:
+            return launch_agent(
+                prompt=prompt, extra_args=extra, cli=cli, no_skills=no_skills,
+            )
+
+        if prompt or BaseCommand.get_arg(args, 'direct', False):
+            return direct()
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            return direct()
+
+        try:
+            from symfluence.tui import launch_tui
+            result = launch_tui(
+                initial_mode='agent',
+                agent_defaults={'cli': cli, 'no_skills': no_skills},
+            )
+        except ImportError:
+            BaseCommand._console.debug(
+                'TUI extra not installed (pip install "symfluence[tui]"); '
+                'handing off directly.'
+            )
+            return direct()
+
+        from symfluence.agent.handoff import complete_handoff
+
+        code = complete_handoff(result)
+        return code if code is not None else ExitCode.SUCCESS
 
     @staticmethod
     @cli_exception_handler
@@ -129,79 +162,20 @@ class AgentCommands(BaseCommand):
         Diagnose the agent setup: CLI detection, API keys, packaged skills and
         subagents, cache directory, MCP server, and project context.
         """
-        from symfluence.agent.launcher import resolve_active
+        from symfluence.agent.diagnostics import FAIL, OK, run_diagnostics
 
         console = BaseCommand._console
-        failures = 0
-
-        def check(ok: bool, label: str, detail: str, warn_only: bool = False) -> None:
-            nonlocal failures
-            if ok:
-                console.indent(f"✓ {label}: {detail}")
-            elif warn_only:
-                console.indent(f"! {label}: {detail}")
-            else:
-                failures += 1
-                console.indent(f"✗ {label}: {detail}")
+        symbols = {OK: '✓', FAIL: '✗'}
 
         console.info("SYMFLUENCE agent doctor")
         console.rule()
 
-        active = resolve_active()
-        check(active is not None, "agent CLI",
-              f"would launch '{active.name}'" if active else "none found on PATH")
-
-        if active:
-            key_ok = not active.env_keys or any(os.environ.get(k) for k in active.env_keys)
-            check(key_ok, "API key",
-                  f"one of {', '.join(active.env_keys)} is set" if key_ok and active.env_keys
-                  else f"none of {', '.join(active.env_keys)} set (saved login may still work)",
-                  warn_only=True)
-
-        try:
-            from symfluence.resources import get_skills_dir
-            skills_dir = get_skills_dir()
-            n = sum(1 for s in skills_dir.iterdir() if (s / 'SKILL.md').is_file())
-            check(n > 0, "skills", f"{n} packaged skill(s)")
-        except FileNotFoundError as e:
-            check(False, "skills", str(e))
-
-        try:
-            from symfluence.resources import get_agents_dir
-            agents_dir = get_agents_dir()
-            n = len(list(agents_dir.glob('*.md')))
-            check(n > 0, "subagents", f"{n} packaged definition(s)")
-        except FileNotFoundError as e:
-            check(False, "subagents", str(e))
-
-        try:
-            from symfluence.resources import agent_cache_root
-            cache = agent_cache_root()
-            cache.mkdir(parents=True, exist_ok=True)
-            probe = cache / '.doctor-probe'
-            probe.write_text('ok', encoding='utf-8')
-            probe.unlink()
-            check(True, "cache dir", str(cache))
-        except OSError as e:
-            check(False, "cache dir", f"not writable: {e}")
-
-        try:
-            from symfluence.agent.mcp_server import TOOLS, handle_message
-            response = handle_message(
-                {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}
-            )
-            ok = bool(response and 'result' in response)
-            check(ok, "MCP server", f"{len(TOOLS)} tool(s) available" if ok else "initialize failed")
-        except Exception as e:
-            check(False, "MCP server", f"{type(e).__name__}: {e}")
-
-        from symfluence.agent.context import detect_project_context
-        context = detect_project_context(Path.cwd())
-        n_configs, n_domains = len(context['configs']), len(context['domains'])
-        check(True, "project context",
-              f"{n_configs} config(s), {n_domains} domain dir(s) detected here")
+        checks = run_diagnostics(Path.cwd())
+        for check in checks:
+            console.indent(f"{symbols.get(check.status, '!')} {check.label}: {check.detail}")
 
         console.rule()
+        failures = sum(1 for c in checks if c.status == FAIL)
         if failures:
             console.error(f"{failures} check(s) failed.")
             return ExitCode.DEPENDENCY_ERROR

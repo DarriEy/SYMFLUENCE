@@ -496,15 +496,25 @@ replaces itself with that agent. See :doc:`agent_guide` for the full walkthrough
 agent launch
 ------------
 
-Launch the agent. With no prompt it starts an interactive session; with a prompt
-it runs once and exits (handy in scripts).
+Open the **Agent Command Center** — a dedicated screen in the SYMFLUENCE TUI
+for reviewing runtimes, project context, capabilities, and preflight checks
+before handing off to the agent CLI. The handoff itself (``l`` to launch,
+``p`` for a one-shot prompt) always happens after the TUI exits and restores
+the terminal.
+
+The direct handoff (immediate exec, no TUI) is used when a one-shot ``PROMPT``
+is given, ``--direct`` is passed, the session has no TTY, or the TUI extra
+(``textual``) is not installed.
 
 .. code-block:: bash
 
-   # Interactive session (run from your project directory)
+   # Open the Agent Command Center (run from your project directory)
    symfluence agent launch
 
-   # One-shot prompt
+   # Hand off to the agent CLI immediately (today's classic behavior)
+   symfluence agent launch --direct
+
+   # One-shot prompt (always direct — handy in scripts)
    symfluence agent launch "add an MSWEP forcing data handler"
 
    # Pick a specific CLI, or launch it bare (no SYMFLUENCE priming)
@@ -516,6 +526,7 @@ it runs once and exits (handy in scripts).
 
 CLI selection and priming can also be controlled by environment variables
 (``SYMFLUENCE_AGENT_CLI``, ``SYMFLUENCE_NO_SKILLS``); see :doc:`agent_guide`.
+The Agent screen is also available inside ``symfluence tui launch`` (key ``7``).
 
 agent list
 ----------

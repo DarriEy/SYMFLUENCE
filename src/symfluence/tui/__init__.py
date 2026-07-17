@@ -14,7 +14,7 @@ Launch: symfluence tui launch
 from __future__ import annotations
 
 
-def launch_tui(config_path=None, demo=None):
+def launch_tui(config_path=None, demo=None, initial_mode=None, agent_defaults=None):
     """
     Build and launch the SYMFLUENCE TUI as an interactive terminal application.
 
@@ -25,6 +25,14 @@ def launch_tui(config_path=None, demo=None):
     Args:
         config_path: Optional path to a YAML config file to preload.
         demo: Optional demo name (e.g. 'bow') to load a built-in config.
+        initial_mode: Optional mode to open on (e.g. 'agent'); default dashboard.
+        agent_defaults: Optional presets for the Agent Command Center
+            (``{'cli': ..., 'no_skills': ...}``).
+
+    Returns:
+        The app's exit result. When the Agent Command Center requests a launch
+        this is an :class:`symfluence.agent.handoff.AgentHandoff` for the
+        caller to complete; otherwise None.
     """
     try:
         import textual  # noqa: F401
@@ -35,8 +43,13 @@ def launch_tui(config_path=None, demo=None):
         ) from None
 
     from .app import SymfluenceTUI
-    app = SymfluenceTUI(config_path=config_path, demo=demo)
-    app.run()
+    app = SymfluenceTUI(
+        config_path=config_path,
+        demo=demo,
+        initial_mode=initial_mode,
+        agent_defaults=agent_defaults,
+    )
+    return app.run()
 
 
 __all__ = ['launch_tui']

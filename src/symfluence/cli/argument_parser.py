@@ -676,7 +676,8 @@ For more help on a specific command:
         # agent launch
         launch_parser = agent_subparsers.add_parser(
             'launch',
-            help='Launch the agent (interactive, or one-shot with a PROMPT)'
+            help='Open the Agent Command Center (or hand off directly with '
+                 '--direct / a PROMPT)'
         )
         launch_parser.add_argument('prompt', type=str, nargs='?', default=None,
                                    help='Optional one-shot prompt; omit for interactive mode')
@@ -685,6 +686,9 @@ For more help on a specific command:
                                         'overrides auto-detection and SYMFLUENCE_AGENT_CLI')
         launch_parser.add_argument('--no-skills', action='store_true',
                                    help='Launch the bare CLI without any SYMFLUENCE priming')
+        launch_parser.add_argument('--direct', action='store_true',
+                                   help='Skip the Agent Command Center TUI and hand off '
+                                        'to the agent CLI immediately')
         launch_parser.add_argument('extra', nargs=argparse.REMAINDER,
                                    help='Extra args forwarded to the agent CLI (after --)')
         launch_parser.set_defaults(func=AgentCommands.launch)

@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `agent skills` (packaged skills), `agent doctor` (full setup diagnosis), and
   `agent mcp` (serve the MCP server on stdio); `agent launch` gains `--cli`
   and `--no-skills`.
+- **Agent Command Center**: `symfluence agent launch` now opens a dedicated
+  Agent screen in the SYMFLUENCE TUI — runtime selector, mission context,
+  capabilities, and preflight checks — and hands off to the chosen agent CLI
+  only after the TUI exits (typed `AgentHandoff` contract, ready for a future
+  embedded agent). `--direct` (or a one-shot prompt, no TTY, or a missing TUI
+  extra) restores the immediate handoff. The screen is also mode `7` inside
+  `symfluence tui launch`.
 
 ---
 

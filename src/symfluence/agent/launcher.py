@@ -101,9 +101,10 @@ def launch_agent(
 
     # Prime the CLI as the SYMFLUENCE agent (skills, identity, MCP, subagents).
     from .priming import prime_launch
-    ctx_args, messages = prime_launch(launcher, Path.cwd(), no_skills=no_skills)
+    workdir = Path.cwd()
+    ctx_args, messages = prime_launch(launcher, workdir, no_skills=no_skills)
     for message in messages:
-        console.info(message)
+        console.debug(message)
 
     if prompt:
         base = launcher.oneshot_argv(prompt)
@@ -111,7 +112,14 @@ def launch_agent(
     else:
         argv = [*launcher.interactive_argv(), *ctx_args, *extra_args]
 
-    console.info(f"Launching {launcher.name} (primed with SYMFLUENCE context).")
+    from .presentation import launch_card
+    primed = not (no_skills or os.environ.get('SYMFLUENCE_NO_SKILLS'))
+    console.print(launch_card(
+        launcher_name=launcher.name,
+        workdir=workdir,
+        interactive=prompt is None,
+        primed=primed,
+    ))
     try:
         # Deliberate process handoff to the resolved agent CLI. argv is built from
         # the launcher registry (not a shell string), so there is no shell-injection

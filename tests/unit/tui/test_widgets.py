@@ -24,7 +24,7 @@ class TestSparklineWidget:
 
         w = SparklineWidget()
         w.set_values([])
-        assert w.content == ""
+        assert str(w.renderable) == ""
 
     def test_single_value(self):
         """Single value renders a single block character."""
@@ -32,7 +32,7 @@ class TestSparklineWidget:
 
         w = SparklineWidget()
         w.set_values([5.0])
-        text = w.content
+        text = str(w.renderable)
         assert len(text) == 1
 
     def test_increasing_values(self):
@@ -42,7 +42,7 @@ class TestSparklineWidget:
         w = SparklineWidget()
         values = list(range(10))
         w.set_values(values)
-        text = w.content
+        text = str(w.renderable)
         assert len(text) == 10
 
         # First char should be lowest block, last should be highest
@@ -55,7 +55,7 @@ class TestSparklineWidget:
 
         w = SparklineWidget()
         w.set_values([3.0] * 20)
-        text = w.content
+        text = str(w.renderable)
         assert len(set(text)) == 1  # All same character
 
     def test_downsampling(self):
@@ -64,7 +64,7 @@ class TestSparklineWidget:
 
         w = SparklineWidget()
         w.set_values(list(range(200)), width=50)
-        text = w.content
+        text = str(w.renderable)
         assert len(text) == 50
 
 
