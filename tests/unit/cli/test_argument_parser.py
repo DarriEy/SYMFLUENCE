@@ -178,19 +178,33 @@ class TestConfigCommands:
 class TestAgentCommands:
     """Test agent category commands."""
 
-    def test_agent_start(self):
-        """Test agent start command."""
+    def test_agent_bare_opens_home(self):
+        """Bare `symfluence agent` routes to the TUI home handler."""
         parser = CLIParser()
-        args = parser.parse_args(['agent', 'start'])
+        args = parser.parse_args(['agent'])
         assert args.category == 'agent'
-        assert args.action == 'start'
+        assert args.func.__name__ == 'home'
 
-    def test_agent_run(self):
-        """Test agent run command."""
+    def test_agent_model(self):
+        """Test agent model command."""
         parser = CLIParser()
-        args = parser.parse_args(['agent', 'run', 'calibrate the model'])
-        assert args.action == 'run'
+        args = parser.parse_args(['agent', 'model', 'calibrate the model'])
+        assert args.action == 'model'
         assert args.prompt == 'calibrate the model'
+
+    def test_agent_code(self):
+        """Test agent code command."""
+        parser = CLIParser()
+        args = parser.parse_args(['agent', 'code', '--direct'])
+        assert args.action == 'code'
+        assert args.direct is True
+
+    def test_agent_mcp_profile(self):
+        """Test agent mcp --mode flag."""
+        parser = CLIParser()
+        args = parser.parse_args(['agent', 'mcp', '--mode', 'model'])
+        assert args.action == 'mcp'
+        assert args.mode == 'model'
 
 
 class TestExampleCommands:

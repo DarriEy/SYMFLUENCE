@@ -51,7 +51,8 @@ def test_claude_priming_wires_all_four_layers(tmp_path):
 
     mcp_path = argv[argv.index('--mcp-config') + 1]
     config = json.loads(open(mcp_path, encoding='utf-8').read())
-    assert config['mcpServers']['symfluence']['args'][-2:] == ['agent', 'mcp']
+    server_args = config['mcpServers']['symfluence']['args']
+    assert server_args[-4:] == ['agent', 'mcp', '--mode', 'code']
 
     agents = json.loads(argv[argv.index('--agents') + 1])
     assert 'calibration-debugger' in agents
@@ -79,7 +80,8 @@ def test_codex_mcp_wired_via_config_overrides(tmp_path):
     args_override = next(
         o for o in overrides if o.startswith('mcp_servers.symfluence.args=')
     )
-    assert json.loads(args_override.split('=', 1)[1])[-2:] == ['agent', 'mcp']
+    server_args = json.loads(args_override.split('=', 1)[1])
+    assert server_args[-4:] == ['agent', 'mcp', '--mode', 'code']
 
 
 def test_cli_without_mcp_flags_gets_manual_hint(tmp_path):
@@ -119,3 +121,47 @@ def test_build_agents_json_parses_packaged_definitions():
     for spec in agents.values():
         assert set(spec) == {'description', 'prompt'}
         assert spec['description'] and spec['prompt']
+
+
+def test_build_agents_json_filters_to_named_subagents():
+    agents = json.loads(priming.build_agents_json(('calibration-debugger',)))
+    assert set(agents) == {'calibration-debugger'}
+    assert priming.build_agents_json(('no-such-subagent',)) is None
+
+
+def test_modelling_mode_primes_operational_subset(tmp_path):
+    from pathlib import Path
+
+    from symfluence.agent.modes import AgentMode
+
+    report = priming.prime_launch(CLAUDE, tmp_path, mode=AgentMode.MODELLING)
+    argv = report.argv
+
+    # Identity carries the modelling rules.
+    identity = argv[argv.index('--append-system-prompt') + 1]
+    assert 'Never modify SYMFLUENCE platform source' in identity
+
+    # Skills cache holds only the modelling subset, in a mode-scoped dir.
+    cache_root = Path(argv[argv.index('--add-dir') + 1])
+    assert cache_root.name == 'model'
+    materialized = sorted(p.name for p in (cache_root / '.claude' / 'skills').iterdir())
+    assert materialized == [
+        'debug-calibration', 'explore-platform', 'run-workflow-locally',
+    ]
+
+    # The MCP server is registered under the modelling profile.
+    config = json.loads(
+        Path(argv[argv.index('--mcp-config') + 1]).read_text(encoding='utf-8'))
+    server_args = config['mcpServers']['symfluence']['args']
+    assert server_args[-2:] == ['--mode', 'model']
+
+
+def test_modes_use_separate_cache_dirs(tmp_path):
+    from symfluence.agent.modes import AgentMode
+
+    model_argv = priming.prime_launch(CLAUDE, tmp_path, mode=AgentMode.MODELLING).argv
+    code_argv = priming.prime_launch(CLAUDE, tmp_path, mode=AgentMode.CODING).argv
+
+    model_dir = model_argv[model_argv.index('--add-dir') + 1]
+    code_dir = code_argv[code_argv.index('--add-dir') + 1]
+    assert model_dir != code_dir

@@ -488,92 +488,95 @@ Agent Commands
 ==============
 
 Launch an installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed as
-the *SYMFLUENCE agent*: packaged skills, an identity block with live project
-context, the SYMFLUENCE MCP server, and specialist subagents. SYMFLUENCE does not
-ship its own language model — it detects an installed agent CLI, primes it, and
-replaces itself with that agent. See :doc:`agent_guide` for the full walkthrough.
+the *SYMFLUENCE agent*, in one of two modes: ``agent model`` (drive experiments
+conversationally) or ``agent code`` (extend the platform). SYMFLUENCE does not
+ship its own language model — it detects an installed agent CLI, primes it with
+that mode's profile (skills, identity with live project context, the SYMFLUENCE
+MCP server, subagents), and replaces itself with that agent. Bare
+``symfluence agent`` opens the TUI agent screen to pick a mode. See
+:doc:`agent_guide` for the full walkthrough.
 
-agent launch
-------------
+agent model
+-----------
 
-Open the **Agent Command Center** — a dedicated screen in the SYMFLUENCE TUI
-for reviewing runtimes, project context, capabilities, and preflight checks
-before handing off to the agent CLI. The handoff itself (``l`` to launch,
-``p`` for a one-shot prompt) always happens after the TUI exits and restores
-the terminal.
-
-The direct handoff (immediate exec, no TUI) is used when a one-shot ``PROMPT``
-is given, ``--direct`` is passed, the session has no TTY, or the TUI extra
-(``textual``) is not installed.
+Start a **modelling session**: configs, runs, calibrations, and results, driven
+conversationally through the workflow tools. Primed with the operational skills
+(``explore-platform``, ``run-workflow-locally``, ``debug-calibration``) and the
+MCP tools; its house rules forbid editing platform source code. Inside the TUI
+this opens the native chat screen when Claude Code is the runtime (headless
+stream-JSON driving); other runtimes get the suspend round-trip with modelling
+priming.
 
 .. code-block:: bash
 
-   # Open the Agent Command Center (run from your project directory)
-   symfluence agent launch
+   # Interactive modelling session (run from your project directory)
+   symfluence agent model
 
-   # Hand off to the agent CLI immediately (today's classic behavior)
-   symfluence agent launch --direct
+   # One-shot prompt (runs once and exits — handy in scripts)
+   symfluence agent model "validate my config and run the next step"
 
-   # One-shot prompt (always direct — handy in scripts)
-   symfluence agent launch "add an MSWEP forcing data handler"
+agent code
+----------
+
+Start a **coding session** in the host coding-agent CLI, primed with every
+packaged skill and subagent. Interactive sessions open the TUI agent screen
+first; the handoff always happens after the TUI exits and restores the
+terminal. A one-shot ``PROMPT``, ``--direct``, a missing TTY, or a missing TUI
+extra (``textual``) hands off immediately.
+
+.. code-block:: bash
+
+   # Interactive coding session (opens the TUI agent screen first)
+   symfluence agent code
+
+   # Hand off to the agent CLI immediately
+   symfluence agent code --direct
+
+   # One-shot prompt
+   symfluence agent code "add an MSWEP forcing data handler"
 
    # Pick a specific CLI, or launch it bare (no SYMFLUENCE priming)
-   symfluence agent launch --cli codex
-   symfluence agent launch --no-skills
+   symfluence agent code --cli codex
+   symfluence agent code --no-skills
 
    # Forward extra flags to the underlying CLI after --
-   symfluence agent launch -- --model claude-sonnet-4-6
+   symfluence agent code -- --model claude-sonnet-4-6
 
 CLI selection and priming can also be controlled by environment variables
 (``SYMFLUENCE_AGENT_CLI``, ``SYMFLUENCE_NO_SKILLS``); see :doc:`agent_guide`.
 The Agent screen is also available inside ``symfluence tui launch`` (key ``7``).
 
-agent list
-----------
-
-Show the registered agent CLIs, which are installed, and which one
-``agent launch`` would pick.
-
-.. code-block:: bash
-
-   symfluence agent list
-
-agent skills
-------------
-
-List the packaged SYMFLUENCE skills exposed to the agent at launch.
-
-.. code-block:: bash
-
-   symfluence agent skills
-
 agent doctor
 ------------
 
-Diagnose the agent setup: CLI detection, API keys, packaged skills and
-subagents, cache directory, MCP server, and detected project context.
+Diagnose the agent setup: detected runtimes (and which is active), API keys,
+per-mode priming, packaged skills and subagents, cache directory, MCP server,
+and detected project context. ``--json`` emits the diagnosis machine-readably.
 
 .. code-block:: bash
 
    symfluence agent doctor
+   symfluence agent doctor --json
 
 agent mcp
 ---------
 
-Serve the SYMFLUENCE MCP server on stdio. ``agent launch`` wires this into the
+Serve the SYMFLUENCE MCP server on stdio. The session verbs wire this into the
 host CLI automatically where supported; it can also be registered manually in
-any MCP-capable tool.
+any MCP-capable tool. ``--mode`` restricts the tool set to one agent mode's
+profile.
 
 .. code-block:: bash
 
    symfluence agent mcp
+   symfluence agent mcp --mode model
 
 Deprecated aliases
 ~~~~~~~~~~~~~~~~~~~
 
-``symfluence agent start`` and ``symfluence agent run PROMPT`` are deprecated aliases
-for ``agent launch`` (interactive and one-shot respectively) and will be removed in a
-future release. Their ``--config`` / ``--verbose`` flags are deprecated and ignored.
+``symfluence agent launch`` is a deprecated alias for ``agent code`` and will be
+removed in a future release. The former ``start``, ``run``, ``list``, and
+``skills`` verbs have been removed (``doctor`` covers the last two).
 
 GUI Commands
 ============

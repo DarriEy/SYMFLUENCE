@@ -229,37 +229,96 @@ DataTable > .datatable--header {
     text-style: none;
 }
 
-/* Agent Command Center */
-#agent-grid {
-    height: 1fr;
+/* Agent home */
+#agent-home {
+    align: center middle;
+    padding: 1 4;
 }
 
-#agent-left, #agent-right {
-    width: 1fr;
-    padding: 0 1;
-}
-
-.agent-panel {
-    border: round #287f95;
-    background: $panel;
-    padding: 1 2;
+#agent-home-title {
+    text-style: bold;
+    width: 64;
     margin: 0 0 1 0;
 }
 
-#agent-runtime-list {
+#agent-mode-list {
+    width: 64;
     height: auto;
-    max-height: 14;
+    border: round #287f95;
+    background: $panel;
+    padding: 1 1;
 }
 
-#agent-preflight {
+#agent-mode-list > .option-list--option-highlighted {
+    background: #287f95 30%;
+}
+
+#agent-config-line, #agent-ready-line {
+    width: 64;
+    margin: 1 0 0 0;
+}
+
+/* Agent details modal */
+#agent-details {
+    width: 72;
+    max-height: 80%;
+    border: round #287f95;
+    background: $panel;
+    padding: 1 2;
+}
+
+/* Modelling chat */
+#chat-body {
     height: 1fr;
 }
 
-#agent-context {
-    height: auto;
-    max-height: 16;
+#chat-log {
+    width: 3fr;
+    padding: 1 2;
 }
 
-#agent-capabilities {
-    height: 1fr;
+#agent-run-status {
+    width: 1fr;
+    min-width: 24;
+    border-left: solid #287f95;
+    padding: 1 2;
+}
+
+#chat-input {
+    dock: bottom;
+    margin: 0 1 1 1;
+}
+
+ChatMessage {
+    margin: 0 0 1 0;
+}
+
+.chat-msg-user {
+    color: $text;
+}
+
+.chat-msg-agent {
+    color: $text;
+}
+
+.chat-msg-system {
+    color: $text-muted;
+}
+
+.tool-card {
+    margin: 0 0 1 2;
+    padding: 0 1;
+    border-left: solid #287f95;
+}
+
+.tool-card.-running {
+    border-left: solid $warning;
+}
+
+.tool-card.-ok {
+    border-left: solid #43d6b5;
+}
+
+.tool-card.-err {
+    border-left: solid $error;
 }

@@ -46,6 +46,13 @@ def run_diagnostics(workdir: Path) -> list[Check]:
             f"one of {keys} is set" if key_ok and active.env_keys
             else f"none of {keys} set (saved login may still work)",
         ))
+        checks.append(Check(
+            OK if active.supports_headless else WARN, 'native chat',
+            f"'{active.name}' supports headless driving"
+            if active.supports_headless
+            else f"'{active.name}' cannot be driven headlessly; modelling "
+                 f"sessions hand off to its own UI",
+        ))
 
     try:
         from symfluence.resources import get_skills_dir

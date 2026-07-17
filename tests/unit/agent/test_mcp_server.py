@@ -90,6 +90,31 @@ def test_non_object_json_gets_error_not_crash():
     assert responses[2]['result'] == {}
 
 
+def test_profile_filter_mechanics():
+    """A restricted tool set hides tools from list and call alike."""
+    restricted = {'validate_config': mcp_server.TOOLS['validate_config']}
+
+    listed = mcp_server.handle_message(_request('tools/list'), restricted)
+    assert [t['name'] for t in listed['result']['tools']] == ['validate_config']
+
+    called = mcp_server.handle_message(
+        _request('tools/call', name='list_capabilities', arguments={}),
+        restricted,
+    )
+    assert 'Unknown tool' in called['error']['message']
+
+
+def test_tools_for_profile_resolves_mode_profiles():
+    # Both current profiles expose every tool (mcp_tools=None); the mechanism
+    # must still resolve them and reject unknown profile names.
+    assert mcp_server.tools_for_profile(None) == mcp_server.TOOLS
+    assert mcp_server.tools_for_profile('model') == mcp_server.TOOLS
+    assert mcp_server.tools_for_profile('code') == mcp_server.TOOLS
+    import pytest
+    with pytest.raises(ValueError):
+        mcp_server.tools_for_profile('bogus')
+
+
 def test_run_workflow_step_output_is_bounded(tmp_path, monkeypatch):
     """Step output is spooled to disk and only the tail is returned."""
     config = tmp_path / 'c.yaml'
@@ -106,3 +131,76 @@ def test_run_workflow_step_output_is_bounded(tmp_path, monkeypatch):
     assert result['ok'] is True
     assert len(result['output']) <= mcp_server._MAX_OUTPUT_CHARS + 1
     assert 'TAIL-MARKER' in result['output']
+
+
+def test_workflow_job_argv_shapes(tmp_path, monkeypatch):
+    config = tmp_path / 'c.yaml'
+    config.write_text('DOMAIN_NAME: x\n', encoding='utf-8')
+    monkeypatch.setattr(mcp_server, '_symfluence_argv', lambda: ['symfluence'])
+
+    argv, label = mcp_server._workflow_job_argv(
+        {'config_path': str(config), 'mode': 'run', 'force_rerun': True})
+    assert argv == ['symfluence', 'workflow', 'run', '--config', str(config),
+                    '--force-rerun']
+    assert label == 'workflow run'
+
+    argv, _ = mcp_server._workflow_job_argv(
+        {'config_path': str(config), 'mode': 'step', 'steps': ['calibrate']})
+    assert argv[:4] == ['symfluence', 'workflow', 'step', 'calibrate']
+
+    argv, _ = mcp_server._workflow_job_argv(
+        {'config_path': str(config), 'mode': 'steps',
+         'steps': ['soil_setup', 'model_run']})
+    assert argv[2:5] == ['steps', 'soil_setup', 'model_run']
+
+    import pytest
+    with pytest.raises(ValueError, match='exactly one'):
+        mcp_server._workflow_job_argv(
+            {'config_path': str(config), 'mode': 'step', 'steps': []})
+    with pytest.raises(ValueError, match='Unknown mode'):
+        mcp_server._workflow_job_argv(
+            {'config_path': str(config), 'mode': 'party'})
+
+
+def test_job_tools_end_to_end_over_jsonrpc(tmp_path, monkeypatch):
+    """start_workflow_job → get_job_status → cancel_job through tools/call."""
+    import sys
+    import time
+
+    monkeypatch.setattr('tempfile.gettempdir', lambda: str(tmp_path / 'cache'))
+    config = tmp_path / 'c.yaml'
+    config.write_text('DOMAIN_NAME: x\n', encoding='utf-8')
+    # 'symfluence workflow run --config ...' becomes a sleeping python child.
+    monkeypatch.setattr(
+        mcp_server, '_symfluence_argv',
+        lambda: [sys.executable, '-c', 'import time; time.sleep(60)', '--'],
+    )
+
+    started = json.loads(mcp_server.handle_message(
+        _request('tools/call', name='start_workflow_job',
+                 arguments={'config_path': str(config), 'mode': 'run'})
+    )['result']['content'][0]['text'])
+    job_id = started['job_id']
+    assert started['pid'] and started['log_path']
+
+    deadline = time.time() + 10
+    state = None
+    while time.time() < deadline:
+        state = json.loads(mcp_server.handle_message(
+            _request('tools/call', name='get_job_status',
+                     arguments={'job_id': job_id})
+        )['result']['content'][0]['text'])
+        if state['state'] == 'running':
+            break
+        time.sleep(0.05)
+    assert state['state'] == 'running'
+
+    cancelled = json.loads(mcp_server.handle_message(
+        _request('tools/call', name='cancel_job', arguments={'job_id': job_id})
+    )['result']['content'][0]['text'])
+    assert cancelled['state'] == 'cancelled'
+
+    listed = json.loads(mcp_server.handle_message(
+        _request('tools/call', name='list_jobs', arguments={})
+    )['result']['content'][0]['text'])
+    assert any(j['job_id'] == job_id for j in listed['jobs'])

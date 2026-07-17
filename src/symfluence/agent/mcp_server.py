@@ -129,9 +129,129 @@ def _tool_run_workflow_step(arguments: dict) -> dict:
     return {'ok': proc.returncode == 0, 'exit_code': proc.returncode, 'output': output}
 
 
+def _workflow_job_argv(arguments: dict) -> tuple[list[str], str]:
+    """Build the ``symfluence workflow ...`` argv for a background job."""
+    path = Path(arguments['config_path'])
+    if not path.is_file():
+        raise ValueError(f"Config file not found: {path}")
+    mode = arguments.get('mode', 'run')
+    steps = arguments.get('steps') or []
+
+    if mode == 'run':
+        verb_argv, label = ['run'], 'workflow run'
+    elif mode == 'resume':
+        verb_argv, label = ['resume'], 'workflow resume'
+    elif mode == 'step':
+        if len(steps) != 1:
+            raise ValueError("mode 'step' needs exactly one entry in 'steps'")
+        verb_argv, label = ['step', steps[0]], f'step {steps[0]}'
+    elif mode == 'steps':
+        if not steps:
+            raise ValueError("mode 'steps' needs at least one entry in 'steps'")
+        verb_argv, label = ['steps', *steps], f"steps {' '.join(steps)}"
+    else:
+        raise ValueError(f"Unknown mode {mode!r}; use run|step|steps|resume")
+
+    argv = [*_symfluence_argv(), 'workflow', *verb_argv, '--config', str(path)]
+    if arguments.get('force_rerun'):
+        argv.append('--force-rerun')
+    return argv, label
+
+
+def _tool_start_workflow_job(arguments: dict) -> dict:
+    """Start a workflow run/step in the background; returns a pollable job."""
+    from . import jobs
+
+    argv, label = _workflow_job_argv(arguments)
+    record = jobs.start_job(argv, description=label)
+    return {
+        'job_id': record['job_id'],
+        'pid': record['pid'],
+        'log_path': record['log_path'],
+        'description': label,
+        'hint': 'Poll with get_job_status; cancel with cancel_job.',
+    }
+
+
+def _tool_get_job_status(arguments: dict) -> dict:
+    """State + log tail of a background job."""
+    from . import jobs
+
+    state = jobs.job_state(arguments['job_id'])
+    state['log_tail'] = jobs.tail_log(
+        arguments['job_id'], int(arguments.get('log_tail_lines', 50)))
+    return state
+
+
+def _tool_cancel_job(arguments: dict) -> dict:
+    """Cancel a background job (TERM, then KILL)."""
+    from . import jobs
+    return jobs.cancel_job(arguments['job_id'])
+
+
+def _tool_list_jobs(arguments: dict) -> dict:
+    """All recorded background jobs, newest first."""
+    from . import jobs
+    return {'jobs': jobs.list_jobs()}
+
+
+def _tool_read_run_log(arguments: dict) -> dict:
+    """Tail (and optionally grep) the newest run log for a config's domain."""
+    from .inspection import read_run_log
+
+    return read_run_log(
+        arguments['config_path'],
+        log_type=arguments.get('log_type', 'general'),
+        tail_lines=int(arguments.get('tail_lines', 100)),
+        grep=arguments.get('grep'),
+    )
+
+
+def _tool_list_domains(arguments: dict) -> dict:
+    """domain_* directories under a data root, with a shape summary."""
+    from .inspection import list_domains
+
+    return list_domains(
+        root_path=arguments.get('root_path'),
+        config_path=arguments.get('config_path'),
+    )
+
+
+def _tool_calibration_status(arguments: dict) -> dict:
+    """Progress of the newest (or named) calibration run."""
+    from .inspection import calibration_status
+
+    return calibration_status(
+        arguments['config_path'], experiment_id=arguments.get('experiment_id'))
+
+
+def _tool_get_results_summary(arguments: dict) -> dict:
+    """Headline metrics and artifact locations for an experiment."""
+    from .inspection import get_results_summary
+
+    return get_results_summary(
+        arguments['config_path'], experiment_id=arguments.get('experiment_id'))
+
+
+def _tool_update_config(arguments: dict) -> dict:
+    """Guarded config edit: validate, back up, apply."""
+    from .inspection import update_config
+
+    return update_config(
+        arguments['config_path'],
+        arguments.get('changes') or {},
+        dry_run=bool(arguments.get('dry_run', False)),
+    )
+
+
 _CONFIG_PATH_PROP = {
     'type': 'string',
     'description': 'Path to the SYMFLUENCE config YAML file.',
+}
+
+_JOB_ID_PROP = {
+    'type': 'string',
+    'description': 'Job id returned by start_workflow_job.',
 }
 
 TOOLS = {
@@ -182,8 +302,9 @@ TOOLS = {
         'handler': _tool_run_workflow_step,
         'description': (
             'Run a single SYMFLUENCE workflow step (see the steps catalog) for '
-            'a config. Long-running: model runs and calibrations can take '
-            'minutes to hours — set timeout_seconds accordingly.'
+            'a config, BLOCKING until it finishes. Prefer start_workflow_job '
+            'for model runs and calibrations — they can take minutes to hours '
+            'and this call holds the connection the whole time.'
         ),
         'inputSchema': {
             'type': 'object',
@@ -205,14 +326,205 @@ TOOLS = {
             'required': ['config_path', 'step'],
         },
     },
+    'start_workflow_job': {
+        'handler': _tool_start_workflow_job,
+        'description': (
+            'Start a workflow execution as a detached background job and '
+            'return immediately with a job_id. The job survives this server; '
+            'poll it with get_job_status, watch read_run_log or '
+            'calibration_status for progress, cancel with cancel_job. Use this '
+            '(not run_workflow_step) for model runs and calibrations.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'mode': {
+                    'type': 'string',
+                    'enum': ['run', 'step', 'steps', 'resume'],
+                    'description': "What to execute: the full pipeline ('run'), "
+                                   "one step ('step'), several steps ('steps'), "
+                                   "or resume a partial run ('resume').",
+                },
+                'steps': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': "Step name(s) for mode 'step'/'steps'.",
+                },
+                'force_rerun': {
+                    'type': 'boolean',
+                    'description': 'Re-run even if stage markers say complete.',
+                },
+            },
+            'required': ['config_path', 'mode'],
+        },
+    },
+    'get_job_status': {
+        'handler': _tool_get_job_status,
+        'description': (
+            'State of a background job (running / succeeded / failed / '
+            'cancelled), its runtime, and the tail of its log.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'job_id': _JOB_ID_PROP,
+                'log_tail_lines': {
+                    'type': 'integer',
+                    'description': 'How many log lines to include (default 50).',
+                },
+            },
+            'required': ['job_id'],
+        },
+    },
+    'cancel_job': {
+        'handler': _tool_cancel_job,
+        'description': 'Cancel a background job: SIGTERM its process group, '
+                       'then SIGKILL if it lingers.',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {'job_id': _JOB_ID_PROP},
+            'required': ['job_id'],
+        },
+    },
+    'list_jobs': {
+        'handler': _tool_list_jobs,
+        'description': 'All recorded background jobs and their states, newest '
+                       'first (useful after a restart when job ids were lost).',
+        'inputSchema': {'type': 'object', 'properties': {}},
+    },
+    'read_run_log': {
+        'handler': _tool_read_run_log,
+        'description': (
+            "Tail the newest SYMFLUENCE run log for a config's domain "
+            "(_workLog_* directory), optionally filtered to lines containing "
+            "a substring. Use while a job runs to watch progress or after a "
+            "failure to find the error."
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'log_type': {
+                    'type': 'string',
+                    'description': "Log family (default 'general').",
+                },
+                'tail_lines': {
+                    'type': 'integer',
+                    'description': 'How many trailing lines to return (default 100).',
+                },
+                'grep': {
+                    'type': 'string',
+                    'description': 'Only lines containing this substring.',
+                },
+            },
+            'required': ['config_path'],
+        },
+    },
+    'list_domains': {
+        'handler': _tool_list_domains,
+        'description': (
+            'List the domain_* directories under a SYMFLUENCE data root '
+            '(from root_path, or the config\'s SYMFLUENCE_DATA_DIR), with '
+            'their experiments and whether simulations/optimization exist.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'root_path': {
+                    'type': 'string',
+                    'description': 'Data root to scan (overrides config_path).',
+                },
+                'config_path': _CONFIG_PATH_PROP,
+            },
+        },
+    },
+    'calibration_status': {
+        'handler': _tool_calibration_status,
+        'description': (
+            'Progress of the newest (or named) calibration run for a '
+            "config's domain: algorithm, iterations so far, best score and "
+            'iteration, whether it is still in progress.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'experiment_id': {
+                    'type': 'string',
+                    'description': 'Pin a specific experiment (default: newest run).',
+                },
+            },
+            'required': ['config_path'],
+        },
+    },
+    'get_results_summary': {
+        'handler': _tool_get_results_summary,
+        'description': (
+            'Headline metrics (KGE/NSE/...) and artifact locations (result '
+            'CSVs, plots) for the newest or named experiment of a config\'s '
+            'domain.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'experiment_id': {
+                    'type': 'string',
+                    'description': 'Pin a specific experiment (default: newest run).',
+                },
+            },
+            'required': ['config_path'],
+        },
+    },
+    'update_config': {
+        'handler': _tool_update_config,
+        'description': (
+            "Change keys in the user's experiment config YAML, safely: the "
+            'edit is validated with the typed config system first, the '
+            'original is backed up next to itself, and comments/ordering are '
+            'preserved. State the exact key changes to the user before '
+            'calling. Set dry_run to preview.'
+        ),
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'config_path': _CONFIG_PATH_PROP,
+                'changes': {
+                    'type': 'object',
+                    'description': 'Mapping of top-level config keys to new values.',
+                },
+                'dry_run': {
+                    'type': 'boolean',
+                    'description': 'Validate and report without writing.',
+                },
+            },
+            'required': ['config_path', 'changes'],
+        },
+    },
 }
+
+
+def tools_for_profile(profile: str | None) -> dict:
+    """The subset of :data:`TOOLS` an agent-mode profile exposes.
+
+    ``profile`` is an :class:`~symfluence.agent.modes.AgentMode` value; None
+    (or a profile that declares no filter) exposes every registered tool.
+    """
+    if profile is None:
+        return TOOLS
+    from .modes import get_profile
+    allowed = get_profile(profile).mcp_tools
+    if allowed is None:
+        return TOOLS
+    return {name: spec for name, spec in TOOLS.items() if name in allowed}
 
 
 # ---------------------------------------------------------------------------
 # JSON-RPC plumbing
 # ---------------------------------------------------------------------------
 
-def _tools_list_result() -> dict:
+def _tools_list_result(tools: dict) -> dict:
     return {
         'tools': [
             {
@@ -220,14 +532,14 @@ def _tools_list_result() -> dict:
                 'description': spec['description'],
                 'inputSchema': spec['inputSchema'],
             }
-            for name, spec in TOOLS.items()
+            for name, spec in tools.items()
         ]
     }
 
 
-def _tools_call_result(params: dict) -> dict:
+def _tools_call_result(params: dict, tools: dict) -> dict:
     name = params.get('name')
-    spec = TOOLS.get(name)
+    spec = tools.get(name)
     if spec is None:
         raise ValueError(f"Unknown tool: {name!r}")
     try:
@@ -250,8 +562,13 @@ def _invalid_request(detail: str) -> dict:
     }
 
 
-def handle_message(message) -> dict | None:
-    """Handle one JSON-RPC message; return the response, or None for notifications."""
+def handle_message(message, tools: dict | None = None) -> dict | None:
+    """Handle one JSON-RPC message; return the response, or None for notifications.
+
+    ``tools`` is the tool set this server instance serves (default: all).
+    """
+    if tools is None:
+        tools = TOOLS
     if not isinstance(message, dict):
         # Valid JSON but not a request object (e.g. a batch array or scalar).
         # Answer in-band — the server must survive anything on stdin.
@@ -274,9 +591,9 @@ def handle_message(message) -> dict | None:
         elif method == 'ping':
             result = {}
         elif method == 'tools/list':
-            result = _tools_list_result()
+            result = _tools_list_result(tools)
         elif method == 'tools/call':
-            result = _tools_call_result(params)
+            result = _tools_call_result(params, tools)
         else:
             return {
                 'jsonrpc': '2.0', 'id': msg_id,
@@ -290,10 +607,15 @@ def handle_message(message) -> dict | None:
     return {'jsonrpc': '2.0', 'id': msg_id, 'result': result}
 
 
-def serve(stdin=None, stdout=None) -> int:
-    """Serve MCP over stdio until EOF. Blocks; used by `symfluence agent mcp`."""
+def serve(stdin=None, stdout=None, profile: str | None = None) -> int:
+    """Serve MCP over stdio until EOF. Blocks; used by `symfluence agent mcp`.
+
+    ``profile`` restricts the tool set to one agent mode's profile
+    (``--profile`` on the CLI); None serves every registered tool.
+    """
     stdin = stdin if stdin is not None else sys.stdin
     stdout = stdout if stdout is not None else sys.stdout
+    tools = tools_for_profile(profile)
 
     for line in stdin:
         line = line.strip()
@@ -307,7 +629,7 @@ def serve(stdin=None, stdout=None) -> int:
                 'error': {'code': -32700, 'message': 'Parse error'},
             }
         else:
-            response = handle_message(message)
+            response = handle_message(message, tools)
         if response is not None:
             stdout.write(json.dumps(response) + '\n')
             stdout.flush()

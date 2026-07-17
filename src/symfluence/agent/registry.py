@@ -41,6 +41,9 @@ class AgentLauncher:
             prints how to register ``symfluence agent mcp`` manually.
         agents_args: argv template (``"{json}"`` placeholder) that defines
             custom subagents. Empty when unsupported.
+        supports_headless: Whether this CLI can be driven headlessly over a
+            structured streaming protocol (the native modelling-chat screen
+            requires it; other CLIs fall back to a regular handoff).
     """
 
     name: str
@@ -51,6 +54,7 @@ class AgentLauncher:
     system_prompt_args: tuple[str, ...] = ()
     mcp_config_args: tuple[str, ...] = ()
     agents_args: tuple[str, ...] = ()
+    supports_headless: bool = False
 
     def interactive_argv(self) -> list[str]:
         """argv for an interactive session."""
@@ -69,6 +73,7 @@ _BUILTINS: tuple[AgentLauncher, ...] = (
         system_prompt_args=('--append-system-prompt', '{prompt}'),
         mcp_config_args=('--mcp-config', '{path}'),
         agents_args=('--agents', '{json}'),
+        supports_headless=True,
     ),
     AgentLauncher(
         name='codex', binary='codex', env_keys=('OPENAI_API_KEY',),
