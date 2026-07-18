@@ -109,13 +109,19 @@ class TestModuleConstants:
 
         assert DEFAULT_B_BOUNDS[0] == -DEFAULT_B_BOUNDS[1]
 
-    def test_default_calibrated_params_length(self):
-        """Should have 14 default calibrated parameters."""
+    def test_default_calibrated_params_nonempty_and_unique(self):
+        """Default calibrated parameters should be a non-empty, duplicate-free list.
+
+        The exact count is a property of the installed jfuse release (14 in
+        0.2.1; dev versions may add parameters), so assert invariants rather
+        than pin the number.
+        """
         from jfuse.calibration.transfer_functions import (
             DEFAULT_CALIBRATED_PARAMS,
         )
 
-        assert len(DEFAULT_CALIBRATED_PARAMS) == 14
+        assert len(DEFAULT_CALIBRATED_PARAMS) > 0
+        assert len(set(DEFAULT_CALIBRATED_PARAMS)) == len(DEFAULT_CALIBRATED_PARAMS)
 
     def test_smooth_frac_is_constant(self):
         """smooth_frac should be mapped to 'constant'."""
@@ -213,18 +219,22 @@ class TestJaxTransferFunctionConfigProperties:
     """Tests for JaxTransferFunctionConfig properties."""
 
     def test_n_calibrated_params(self, tf_config):
-        """Should match the number of calibrated parameters."""
-        assert tf_config.n_calibrated_params == 14
+        """Should match the installed jfuse's default calibrated-param list."""
+        from jfuse.calibration.transfer_functions import (
+            DEFAULT_CALIBRATED_PARAMS,
+        )
+
+        assert tf_config.n_calibrated_params == len(DEFAULT_CALIBRATED_PARAMS)
 
     def test_n_coefficients_is_double_params(self, tf_config):
         """Should have 2 coefficients (a, b) per parameter."""
-        assert tf_config.n_coefficients == 28  # 14 * 2
+        assert tf_config.n_coefficients == 2 * tf_config.n_calibrated_params
 
     def test_coefficient_names_format(self, tf_config):
         """Coefficient names should follow param_a/param_b pattern."""
         names = tf_config.coefficient_names
 
-        assert len(names) == 28
+        assert len(names) == tf_config.n_coefficients
         for i in range(0, len(names), 2):
             assert names[i].endswith('_a')
             assert names[i + 1].endswith('_b')
@@ -233,7 +243,7 @@ class TestJaxTransferFunctionConfigProperties:
         """Should have bounds for each coefficient."""
         bounds = tf_config.coefficient_bounds
 
-        assert len(bounds) == 28
+        assert len(bounds) == tf_config.n_coefficients
 
     def test_coefficient_bounds_are_tuples(self, tf_config):
         """Each bound should be (min, max) tuple."""
@@ -243,7 +253,7 @@ class TestJaxTransferFunctionConfigProperties:
 
     def test_param_indices_shape(self, tf_config):
         """param_indices should have one entry per calibrated param."""
-        assert tf_config.param_indices.shape == (14,)
+        assert tf_config.param_indices.shape == (tf_config.n_calibrated_params,)
 
     def test_param_indices_valid(self, tf_config):
         """Each index should point to a valid PARAM_NAMES position."""
@@ -262,7 +272,7 @@ class TestDefaultCoefficients:
         """Default coefficients should have correct shape."""
         defaults = tf_config.get_default_coefficients()
 
-        assert defaults.shape == (28,)
+        assert defaults.shape == (tf_config.n_coefficients,)
 
     def test_default_b_values_are_zero(self, tf_config):
         """Default b coefficients should all be 0 (uniform params)."""
@@ -292,7 +302,7 @@ class TestJAXArrayAccessors:
         """Attribute matrix should be (n_grus, n_calibrated_params)."""
         attr_jax = tf_config.get_attr_matrix_jax()
 
-        assert attr_jax.shape == (20, 14)
+        assert attr_jax.shape == (20, tf_config.n_calibrated_params)
 
     def test_attr_matrix_normalized(self, tf_config):
         """Attribute matrix values should be in [0, 1] range."""

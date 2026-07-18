@@ -36,7 +36,8 @@ Opt-out environment variables:
 
 | Variable | Effect |
 | --- | --- |
-| `SYMFLUENCE_SKIP_SYSTEM_DEPS=1` | Skip auto-install of NetCDF/HDF5/GDAL system libraries |
+| `SYMFLUENCE_SKIP_SYSTEM_DEPS=1` | Skip the NetCDF/HDF5/GDAL system-library check entirely |
+| `SYMFLUENCE_AUTO_SYSDEPS=1` | Allow the installer to run `sudo apt-get`/`dnf` for missing libraries (default: it prints the command instead; brew/conda/root installs never need this) |
 | `SYMFLUENCE_OPTIONAL_PYTHON=1` | Install the binary bundle only (built-in commands only) |
 
 ### Local Installation
@@ -49,6 +50,11 @@ npm install symfluence
 
 - **Linux**: x86_64 (Ubuntu 22.04+, RHEL 9+, Debian 12+)
 - **macOS**: ARM64 (Apple Silicon M1/M2/M3, macOS 12+)
+- **Windows**: x86_64 (Windows 10+; runtime libraries bundled in the tarball)
+
+Other combinations (Intel macOS, Linux ARM64) have no pre-built bundle — the
+installer fails fast with a clear message; build from source instead
+(`symfluence binary install`).
 
 ## System Requirements
 
@@ -178,7 +184,7 @@ pip uninstall symfluence
    ```bash
    node -e "console.log(process.platform, process.arch)"
    ```
-   Must be `linux x64` or `darwin arm64`
+   Must be `linux x64`, `darwin arm64`, or `win32 x64`
 
 2. **Check internet connection**: Downloads from GitHub Releases
 

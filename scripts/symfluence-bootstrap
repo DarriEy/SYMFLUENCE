@@ -1695,11 +1695,19 @@ else:
         # MESH model support: hydrant (CH-Earth) + meshflow.
         # hydrant must be installed BEFORE meshflow to prevent pip resolving
         # "hydrant" to the wrong PyPI package (an unrelated Kinesis Firehose tool).
+        # Output goes to a log so a failure is diagnosable, not swallowed.
         print_info "Installing MESH model dependencies (hydrant + meshflow)..."
-        $python_cmd -m pip install "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" --quiet 2>/dev/null && \
-        $python_cmd -m pip install "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" --quiet 2>/dev/null && \
-            print_success "MESH dependencies installed" || \
+        local mesh_log
+        mesh_log=$(mktemp -t symfluence-mesh-deps.XXXXXX)
+        if $python_cmd -m pip install "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" >"$mesh_log" 2>&1 && \
+           $python_cmd -m pip install "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" >>"$mesh_log" 2>&1; then
+            print_success "MESH dependencies installed"
+            rm -f "$mesh_log"
+        else
             print_warning "MESH dependency installation failed (MESH model will be unavailable)"
+            print_info "Last lines of the install log (full log: ${mesh_log}):"
+            tail -n 15 "$mesh_log" | sed 's/^/    /'
+        fi
 
         fi  # end of non-pixi (venv/conda) path
 
@@ -1801,16 +1809,25 @@ else:
                 exit 1
             }
         else
+            # Not all-or-nothing: a single tool failing to compile must not
+            # discard an otherwise complete environment. (--paper-repro above
+            # stays strict — a reproducibility bundle is all-or-nothing.)
             print_info "Installing external tools..."
-            "$venv_cli" binary install || {
-                print_error "External tools installation failed"
-                exit 1
-            }
+            if ! "$venv_cli" binary install; then
+                print_warning "Some external tools failed to build."
+                print_info "The Python environment is installed and usable. Inspect and retry with:"
+                print_info "  symfluence binary doctor"
+                print_info "  symfluence binary install <tool>"
+            fi
         fi
         print_info "Validating installation..."
         "$venv_cli" binary validate || {
-            print_error "Binary validation failed"
-            exit 1
+            if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+                # A reproducibility bundle must validate completely.
+                print_error "Binary validation failed"
+                exit 1
+            fi
+            print_warning "Some binaries failed validation; retry individually with: symfluence binary install <tool>"
         }
 
         print_header "Done"
