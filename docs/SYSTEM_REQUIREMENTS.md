@@ -24,7 +24,7 @@ including pre-built binary packages (via npm) and building from source.
 | macOS 12+ (Monterey) | ARM64 (Apple Silicon M1/M2/M3/M4) | Yes | Yes |
 | macOS (Intel) | x86_64 | No | Yes (untested) |
 | Linux (ARM64) | aarch64 | No | Possible (untested) |
-| Windows | x86_64 | No | No (use WSL2) |
+| Windows 10+ | x86_64 | Yes (libraries bundled) | No (use WSL2) |
 
 Pre-built binaries are distributed via npm (`npm install -g symfluence`) and
 require the runtime libraries listed below.

@@ -452,11 +452,19 @@ function detectPackageManager() {
   }
 
   if (process.platform === 'linux') {
+    // As root (e.g. Docker builds) install directly; as a regular user the
+    // command needs sudo, which a postinstall must never invoke on its own —
+    // callers gate on requiresSudo and print the command instead.
+    const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
     if (commandExists('apt-get --version')) {
-      return { name: 'apt', installCmd: 'sudo apt-get install -y', key: 'apt' };
+      return isRoot
+        ? { name: 'apt', installCmd: 'apt-get install -y', key: 'apt' }
+        : { name: 'apt', installCmd: 'sudo apt-get install -y', key: 'apt', requiresSudo: true };
     }
     if (commandExists('dnf --version')) {
-      return { name: 'dnf', installCmd: 'sudo dnf install -y', key: 'dnf' };
+      return isRoot
+        ? { name: 'dnf', installCmd: 'dnf install -y', key: 'dnf' }
+        : { name: 'dnf', installCmd: 'sudo dnf install -y', key: 'dnf', requiresSudo: true };
     }
   }
 
@@ -539,6 +547,16 @@ function tryInstallSystemDeps() {
   // Build install command from the per-manager package names
   const pkgs = missing.map(d => d[pm.key]).join(' ');
   const cmd = `${pm.installCmd} ${pkgs}`;
+
+  // Never run sudo from inside npm install: it surprises users and hangs on
+  // the password prompt in non-interactive shells. Print the exact command
+  // instead, unless the user explicitly opted in.
+  if (pm.requiresSudo && process.env.SYMFLUENCE_AUTO_SYSDEPS !== '1') {
+    console.warn('\n⚠️  Missing system libraries. Install them with:\n');
+    console.warn(`   ${cmd}\n`);
+    console.warn('   (or re-run with SYMFLUENCE_AUTO_SYSDEPS=1 to let the installer run this)\n');
+    return;
+  }
 
   console.log(`   Using ${pm.name}: ${cmd}\n`);
 
