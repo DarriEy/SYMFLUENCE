@@ -39,6 +39,22 @@ if [ ! -f "$SOURCE_DIR/COVERAGE.md" ]; then
     exit 1
 fi
 
+# The manifest records HEAD as the artifact's provenance, so HEAD must be
+# trustworthy: no uncommitted tracked changes, and if the release tag already
+# exists it must point at HEAD.
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)" ]; then
+    echo "Error: repository has uncommitted tracked changes; commit or stash them first" >&2
+    exit 1
+fi
+if git -C "$REPO_ROOT" rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+    TAG_COMMIT="$(git -C "$REPO_ROOT" rev-list -n 1 "$RELEASE_TAG")"
+    HEAD_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+    if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+        echo "Error: tag $RELEASE_TAG exists but does not point at HEAD" >&2
+        exit 1
+    fi
+fi
+
 ARCHIVE_BASENAME="symfluence-paper3-provenance-$RELEASE_TAG"
 ARCHIVE_PATH="$OUTPUT_DIR/$ARCHIVE_BASENAME.tar.gz"
 CHECKSUM_PATH="$ARCHIVE_PATH.sha256"
@@ -53,6 +69,7 @@ STAGE_DIR="$STAGE_PARENT/$ARCHIVE_BASENAME"
 mkdir -p "$STAGE_DIR"
 cp -R "$SOURCE_DIR"/. "$STAGE_DIR"/
 rm -f "$STAGE_DIR/MANIFEST.json"
+find "$STAGE_DIR" -name '.DS_Store' -delete
 
 GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 export STAGE_DIR RELEASE_TAG PACKAGE_VERSION GIT_COMMIT
@@ -66,13 +83,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 root = Path(os.environ["STAGE_DIR"])
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 files = []
 for path in sorted(p for p in root.rglob("*") if p.is_file()):
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
     files.append({
         "path": path.relative_to(root).as_posix(),
         "bytes": path.stat().st_size,
-        "sha256": digest,
+        "sha256": sha256_of(path),
     })
 
 manifest = {
