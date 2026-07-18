@@ -294,3 +294,19 @@ def set_console(new_console: Console) -> None:
     """
     global console
     console = new_console
+
+
+def apply_global_flags(args: Any) -> None:
+    """
+    Apply parsed global CLI flags that affect console behavior.
+
+    Must be called by every CLI entry point right after argument parsing,
+    before any command output. Currently handles ``--quiet/-q`` (suppress
+    the Rich console's informational output; errors still go to stderr,
+    log files are unaffected).
+
+    Args:
+        args: Parsed argparse namespace (any object with a ``quiet`` attr)
+    """
+    if getattr(args, 'quiet', False):
+        console.set_quiet(True)

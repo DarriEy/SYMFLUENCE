@@ -220,3 +220,21 @@ class TestConsoleQuietMode:
             assert console.is_quiet is True
         finally:
             console.set_quiet(original)
+
+    def test_entry_point_quiet_flag_sets_global_console_quiet(self):
+        """main_cli.main() — the installed `symfluence` entry point — must
+        apply --quiet too, not just symfluence.cli.main()."""
+        from symfluence.cli.console import get_console
+        from symfluence.main_cli import main as entry_main
+
+        console = get_console()
+        original = console.is_quiet
+        try:
+            with patch(
+                'symfluence.cli.commands.workflow_commands.WorkflowCommands.list_steps',
+                return_value=0,
+            ), patch('sys.argv', ['symfluence', '--quiet', 'workflow', 'list-steps']):
+                entry_main()
+            assert console.is_quiet is True
+        finally:
+            console.set_quiet(original)
