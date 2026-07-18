@@ -664,7 +664,7 @@ class SubcatchmentProcessor(ConfigMixin):
 
             # Log summary information
             self.logger.info(f"Combined dataset dimensions: {dict(combined_ds.dims)}")
-            self.logger.info(f"Combined dataset variables: {list(combined_ds.data_vars.keys())}")
+            self.logger.debug(f"Combined dataset variables: {list(combined_ds.data_vars.keys())}")
 
             # Also create a simplified streamflow-only file for easier analysis
             if 'q_routed' in combined_ds.data_vars:

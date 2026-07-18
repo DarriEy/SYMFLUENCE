@@ -190,7 +190,7 @@ class ShapefileProcessor(ConfigMixin):
 
         # Verify and find actual field name (may be truncated by shapefile)
         verify_gdf = gpd.read_file(output_path)
-        self.logger.info(f"Fields in saved shapefile: {list(verify_gdf.columns)}")
+        self.logger.debug(f"Fields in saved shapefile: {list(verify_gdf.columns)}")
 
         possible_fields = [col for col in verify_gdf.columns if col.startswith('hru_id')]
         if not possible_fields:

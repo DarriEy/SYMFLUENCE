@@ -320,6 +320,111 @@ class TestWorkflowOrchestratorMarkers:
         assert marker.stage == "define_domain"
 
 
+class TestWorkflowSummaryHonesty:
+    """The end-of-run summary must reflect the true outcome."""
+
+    @staticmethod
+    def _make_orchestrator(tmp_path, **extra_config):
+        managers = {name: MagicMock() for name in
+                    ('project', 'domain', 'data', 'model', 'analysis', 'optimization')}
+        config = SymfluenceConfig.from_minimal(
+            domain_name='summary_test',
+            model='SUMMA',
+            time_start='2010-01-01 00:00',
+            time_end='2010-12-31 23:00',
+            SYMFLUENCE_DATA_DIR=tmp_path,
+            **extra_config,
+        )
+        return WorkflowOrchestrator(managers, config, MagicMock())
+
+    @staticmethod
+    def _logged_messages(mock_logger):
+        calls = []
+        for method in ('info', 'warning', 'error'):
+            calls.extend(str(c.args[0]) for c in getattr(mock_logger, method).call_args_list
+                         if c.args)
+        return calls
+
+    def test_success_run_logs_success_line(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        steps = [WorkflowStep("ok", "ok_cli", MagicMock(), lambda: False, "ok step")]
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        messages = self._logged_messages(orch.logger)
+        assert any('✓ Workflow completed successfully' in m for m in messages)
+        assert not any('✗ Workflow finished with failures' in m for m in messages)
+
+    def test_failed_run_does_not_claim_success(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, STOP_ON_ERROR=False)
+
+        def boom():
+            raise ValueError('exploded')
+
+        steps = [
+            WorkflowStep("bad", "bad_cli", boom, lambda: False, "bad step"),
+            WorkflowStep("ok", "ok_cli", MagicMock(), lambda: False, "ok step"),
+        ]
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        messages = self._logged_messages(orch.logger)
+        assert not any('✓ Workflow completed successfully' in m for m in messages)
+        failure_lines = [m for m in messages
+                         if '✗ Workflow finished with failures' in m]
+        assert failure_lines, "failed run must log the failure summary"
+        assert '1 steps failed' in failure_lines[0]
+
+    def test_failed_run_summary_logged_even_when_stopping(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, STOP_ON_ERROR=True)
+
+        def boom():
+            raise ValueError('exploded')
+
+        steps = [WorkflowStep("bad", "bad_cli", boom, lambda: False, "bad step")]
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            with pytest.raises(ValueError, match='exploded'):
+                orch.run_workflow()
+
+        messages = self._logged_messages(orch.logger)
+        assert any('✗ Workflow finished with failures' in m for m in messages)
+
+    def test_last_step_results_schema(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, STOP_ON_ERROR=False)
+
+        def boom():
+            raise ValueError('exploded')
+
+        steps = [
+            WorkflowStep("ok", "ok_cli", MagicMock(), lambda: False, "ok step"),
+            WorkflowStep("skipme", "skip_cli", MagicMock(), lambda: True, "skipped step"),
+            WorkflowStep("bad", "bad_cli", boom, lambda: False, "bad step"),
+        ]
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_workflow()
+
+        results = orch.last_step_results
+        assert [r['status'] for r in results] == ['completed', 'skipped', 'failed']
+        for entry in results:
+            assert set(entry) >= {'name', 'cli_name', 'description',
+                                  'status', 'duration_s'}
+            assert isinstance(entry['duration_s'], float)
+        assert results[2]['error'] == 'exploded'
+        # NOTE: 'skipme'/'bad' aren't hash-tracked stages, so no markers written
+
+    def test_run_individual_steps_populates_last_step_results(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        steps = [WorkflowStep("one", "one_cli", MagicMock(), lambda: True, "one")]
+        with patch.object(orch, 'define_workflow_steps', return_value=steps):
+            orch.run_individual_steps(["one_cli"])
+
+        assert len(orch.last_step_results) == 1
+        entry = orch.last_step_results[0]
+        assert entry['cli_name'] == 'one_cli'
+        assert entry['status'] == 'completed'
+        assert entry['duration_s'] >= 0.0
+
+
 class TestWorkflowStepsScoping:
     """Tests for config-level WORKFLOW_STEPS run scoping."""
 

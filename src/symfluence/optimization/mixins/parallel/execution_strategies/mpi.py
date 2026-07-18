@@ -310,16 +310,15 @@ from pathlib import Path
 from mpi4py import MPI
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Silence noisy libraries
-for noisy_logger in ['rasterio', 'fiona', 'boto3', 'botocore', 'matplotlib', 'urllib3', 's3transfer']:
-    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
-
 # Add symfluence src to path
 sys.path.insert(0, r"{str(src_path)}")
+
+# Worker logging via the shared protocol helpers ([P##] rank-tagged handler;
+# rebound to the actual rank inside main()).
+from symfluence.core.logging_utils import get_worker_logger, silence_third_party
+
+logger = get_worker_logger(0, level=logging.INFO)
+silence_third_party()
 
 try:
     from {worker_module} import {worker_function}
@@ -330,9 +329,11 @@ except ImportError as e:
 
 def main():
     """MPI worker main function."""
+    global logger
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+    logger = get_worker_logger(rank, level=logging.INFO)
 
     tasks_file = Path(sys.argv[1])
     results_file = Path(sys.argv[2])

@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.logging_utils import log_once
 
 from .task_builder import TaskBuilder
 
@@ -62,6 +63,52 @@ class PopulationEvaluator:
         self.num_processes = num_processes
         self.model_name = model_name
         self.logger = logger or logging.getLogger(__name__)
+        # Occurrence counters for identical task-error messages, so a broken
+        # setup that fails every evaluation logs one ERROR instead of thousands
+        # of identical WARNINGs.
+        self._task_error_counts: Dict[str, int] = {}
+
+    def _log_task_error(self, idx: Any, error: Any, result: Dict) -> None:
+        """
+        Log a worker task error, de-duplicated by exception message.
+
+        The first occurrence of a given message is logged at ERROR (with the
+        worker traceback when the result carries one); identical repeats are
+        logged at DEBUG with an occurrence counter.
+        """
+        error_str = str(error)
+        count = self._task_error_counts.get(error_str, 0) + 1
+        self._task_error_counts[error_str] = count
+
+        truncated = error_str[:500] if len(error_str) > 500 else error_str
+        if count == 1:
+            traceback_str = result.get('traceback')
+            message = f"Task {idx} worker error: {truncated}"
+            if traceback_str:
+                message += f"\n{traceback_str}"
+            self.logger.error(message)
+        else:
+            self.logger.debug(
+                f"Task {idx} worker error (repeat #{count} of identical message): {truncated}"
+            )
+
+    def _log_all_penalty_batch(self, n_results: int, kind: str) -> None:
+        """
+        Emit one actionable ERROR when an entire batch returned only penalty
+        values (first occurrence only; repeats at DEBUG via log_once).
+        """
+        log_once(
+            self.logger,
+            logging.ERROR,
+            key=f'population-all-penalty-{kind}',
+            message=(
+                f"All {n_results} individuals in this population returned penalty "
+                f"{kind}. This indicates a broken model or forcing setup for this "
+                f"run rather than a poor parameter region - check the first task "
+                f"error logged above, and verify the model runs outside calibration "
+                f"before continuing."
+            ),
+        )
 
     def _resolve_worker_function(self) -> Callable:
         """
@@ -115,20 +162,18 @@ class PopulationEvaluator:
             error = result.get('error')
 
             if error:
-                error_str = str(error)
-                self.logger.debug(f"Task {idx} full error: {error_str}")
-                self.logger.warning(
-                    f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}"
-                )
+                self._log_task_error(idx, error, result)
 
             if score is not None and not np.isnan(score):
                 fitness[idx] = score
                 if score != self.DEFAULT_PENALTY_SCORE:
                     valid_count += 1
             else:
-                self.logger.warning(f"Task {idx} returned score={score}")
+                self.logger.debug(f"Task {idx} returned score={score}")
 
         self.logger.debug(f"Batch results: {len(results)} returned, {valid_count} valid scores")
+        if results and valid_count == 0:
+            self._log_all_penalty_batch(len(results), 'scores')
         return fitness
 
     def _extract_objectives(
@@ -164,11 +209,7 @@ class PopulationEvaluator:
             error = result.get('error')
 
             if error:
-                error_str = str(error)
-                self.logger.debug(f"Task {idx} full error: {error_str}")
-                self.logger.warning(
-                    f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}"
-                )
+                self._log_task_error(idx, error, result)
 
             if obj and len(obj) == n_objectives:
                 # Explicit objectives list (SUMMA workers)
@@ -184,7 +225,7 @@ class PopulationEvaluator:
                     extracted.append(float(val) if val is not None else self.DEFAULT_PENALTY_SCORE)
                 objectives[idx] = np.array(extracted, dtype=float)
             else:
-                self.logger.warning(f"Task {idx} returned objectives={obj}")
+                self.logger.debug(f"Task {idx} returned objectives={obj}")
 
             if not np.any(np.isnan(objectives[idx])) and objectives[idx][0] != self.DEFAULT_PENALTY_SCORE:
                 valid_count += 1
@@ -192,6 +233,8 @@ class PopulationEvaluator:
         self.logger.debug(
             f"Batch objectives: {len(results)} returned, {valid_count} valid objective sets"
         )
+        if results and valid_count == 0:
+            self._log_all_penalty_batch(len(results), 'objectives')
         return objectives
 
     def evaluate_solution(
@@ -343,11 +386,7 @@ class PopulationEvaluator:
                 error = result.get('error')
 
                 if error:
-                    error_str = str(error)
-                    self.logger.debug(f"Task {idx} full error: {error_str}")
-                    self.logger.warning(
-                        f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}"
-                    )
+                    self._log_task_error(idx, error, result)
 
                 if score is not None and not np.isnan(score):
                     if idx in trial_indices:

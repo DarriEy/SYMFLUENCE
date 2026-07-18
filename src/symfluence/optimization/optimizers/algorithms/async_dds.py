@@ -241,8 +241,12 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
             record_iteration(batch_num, best_score, params_dict)
             update_best(best_score, params_dict, batch_num)
 
-            if batch_num % 10 == 0 or batch_num == target_batches:
-                log_progress(self.name, batch_num, best_score, improvements, batch_size)
+            # Progress line (tracker throttles emission); each batch is a
+            # generation of batch_size trials.
+            log_progress(
+                self.name, batch_num, best_score, improvements, batch_size,
+                unit='gens', total=target_batches
+            )
 
         self.logger.info("AsyncDDS completed")
         self.logger.info(f"Total evaluations: {total_evaluations}")

@@ -158,8 +158,8 @@ class DEAlgorithm(OptimizationAlgorithm):
             })
             update_best(best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, best_fit, n_improved, pop_size)
+            # Progress line (tracker throttles emission)
+            log_progress(self.name, iteration, best_fit, n_improved, pop_size, unit='evals')
 
         return {
             'best_solution': best_pos,

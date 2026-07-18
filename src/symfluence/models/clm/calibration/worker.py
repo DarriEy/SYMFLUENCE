@@ -22,6 +22,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.logging_utils import log_once
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -125,7 +126,8 @@ class CLMWorker(BaseWorker):
 
             # Reject infeasible parameter combinations early (before file I/O)
             if not self._validate_params(params):
-                self.logger.warning("Parameter combination rejected by feasibility check")
+                log_once(self.logger, logging.WARNING, key='clm-infeasible-params',
+                         message="Parameter combination rejected by feasibility check")
                 return False
 
             # Apply parameters using parameter manager logic
@@ -139,7 +141,8 @@ class CLMWorker(BaseWorker):
 
             for name, value in params.items():
                 if name not in CLM_PARAM_DEFS:
-                    self.logger.warning(f"Unknown CLM param: {name}")
+                    log_once(self.logger, logging.WARNING, key=f'clm-unknown-param-{name}',
+                             message=f"Unknown CLM param: {name}")
                     continue
                 target = CLM_PARAM_DEFS[name][0]
                 if target == 'namelist':
@@ -564,7 +567,7 @@ class CLMWorker(BaseWorker):
                 if h0_count >= expected_h0:
                     if all_done_time is None:
                         all_done_time = time.time()
-                        self.logger.info(
+                        self.logger.debug(
                             f"All {h0_count} h0 files written after "
                             f"{elapsed}s, waiting for clean exit..."
                         )
@@ -628,10 +631,14 @@ class CLMWorker(BaseWorker):
 
             if proc.returncode != 0:
                 if len(hist_files) >= min_hist_files:
-                    self.logger.warning(
-                        f"CLM returned rc={proc.returncode} but "
-                        f"{len(hist_files)} history files exist — "
-                        f"treating as success (ESMF finalization issue)"
+                    log_once(
+                        self.logger, logging.WARNING,
+                        key='clm-esmf-finalization-rc',
+                        message=(
+                            f"CLM returned rc={proc.returncode} but "
+                            f"{len(hist_files)} history files exist — "
+                            f"treating as success (ESMF finalization issue)"
+                        ),
                     )
                 else:
                     # Read stderr from file for error reporting

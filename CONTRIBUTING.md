@@ -182,12 +182,36 @@ git push origin develop
 - Keep functions focused and testable.
 - Prefer explicit over implicit; avoid magic numbers.
 
-### Logging Levels
-A failed operation that the framework recovers from (a model run crashes, a data
-step fails) is logged at `ERROR`, not `CRITICAL`. `CRITICAL` is reserved for the
-single orchestrator-boundary case where the *whole run* is aborting. See
-[ADR-0005](docs/adr/0005-logging-level-policy.md) for the full level policy. Use
-`--debug` to surface `DEBUG`-level detail when diagnosing a run.
+### Logging
+Pick the level by what the reader needs, not by how important the code feels:
+
+- `DEBUG` — diagnostic detail (per-item loop lines, object shapes/dtypes,
+  command lines). Surfaced with `--debug`.
+- `INFO` — milestones: a step started/finished, a summary of a loop. Not
+  per-iteration progress.
+- `WARNING` — recoverable anomaly; degraded but functioning.
+- `ERROR` — an operation failed and the framework recovers/skips and continues.
+  A failed model run or data step is `ERROR`, not `CRITICAL`.
+- `CRITICAL` — reserved for the single orchestrator-boundary case where the
+  *whole run* is aborting.
+
+Two idioms keep logs readable (full conventions in
+[ADR-0005](docs/adr/0005-logging-level-policy.md)):
+
+- **`log_once` for recurring conditions.** If a warning/error can fire every
+  iteration of a hot loop, emit it through
+  `symfluence.core.logging_utils.log_once(logger, level, key, message)` — first
+  occurrence at `level`, repeats at `DEBUG`.
+- **Loop summaries.** Per-item lines go to `DEBUG`; emit one `INFO` summary per
+  loop (e.g. `"89/96 cached, downloading 7"`). Never dump whole lists/shapes
+  above `DEBUG`, and send external-program stdout to a sidecar file with one
+  log line referencing its path.
+
+The shared API (`FILE_FORMAT`, `log_once`, `silence_third_party`,
+`get_worker_logger`) lives in `src/symfluence/core/logging_utils.py`; worker
+subprocesses must use `get_worker_logger` rather than `logging.basicConfig()`.
+Console verbosity is three-state — `--quiet`/`-q` (WARNING+), normal (INFO+),
+`--debug` (DEBUG+) — and the file log always captures everything.
 
 ### Type Checking Notes
 

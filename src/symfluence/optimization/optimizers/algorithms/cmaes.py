@@ -292,8 +292,8 @@ class CMAESAlgorithm(OptimizationAlgorithm):
             record_iteration(generation, best_fit, params_dict, {'sigma': sigma, 'n_improved': n_improved})
             update_best(best_fit, params_dict, generation)
 
-            # Log progress
-            log_progress(self.name, generation, best_fit, n_improved, lambda_)
+            # Progress line (tracker throttles emission)
+            log_progress(self.name, generation, best_fit, n_improved, lambda_, unit='gens')
 
             # Update previous best for next iteration
             prev_best_fit = best_fit

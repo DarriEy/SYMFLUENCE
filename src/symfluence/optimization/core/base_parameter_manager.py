@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:
@@ -246,7 +247,12 @@ class BaseParameterManager(ConfigMixin, ABC):
                 # Linear normalization: (value - min) / (max - min)
                 range_size = bounds['max'] - bounds['min']
                 if range_size == 0:
-                    self.logger.warning(f"Parameter {param_name} has zero range, setting to 0.5")
+                    log_once(
+                        self.logger,
+                        logging.WARNING,
+                        key=f'zero-range-{param_name}',
+                        message=f"Parameter {param_name} has zero range, setting to 0.5",
+                    )
                     normalized[i] = 0.5
                 else:
                     normalized[i] = (value - bounds['min']) / range_size
@@ -278,7 +284,12 @@ class BaseParameterManager(ConfigMixin, ABC):
 
         for i, param_name in enumerate(self.all_param_names):
             if param_name not in self.param_bounds:
-                self.logger.warning(f"No bounds for {param_name}, skipping")
+                log_once(
+                    self.logger,
+                    logging.WARNING,
+                    key=f'no-bounds-{param_name}',
+                    message=f"No bounds for {param_name}, skipping",
+                )
                 continue
 
             bounds = self.param_bounds[param_name]

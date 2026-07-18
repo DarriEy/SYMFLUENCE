@@ -406,6 +406,42 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
 
         self.logger.info(f"Settings backed up to {backup_path}")
 
+    def write_stdout_sidecar(
+        self,
+        prefix: str,
+        stdout: Optional[str],
+        stderr: Optional[str] = None,
+    ) -> Optional[Path]:
+        """
+        Write an external program's stdout/stderr to a sidecar file next to
+        the run outputs, per the logging protocol (external-program output is
+        never re-emitted line-by-line into the main log — one log line
+        references the sidecar path instead).
+
+        Args:
+            prefix: Filename prefix, typically the model name (e.g. 'parflow')
+            stdout: Captured stdout (may be None/empty)
+            stderr: Captured stderr; appended under a '--- stderr ---' marker
+
+        Returns:
+            Path of the sidecar file, or None if it could not be written
+            (the failure is logged at DEBUG; logging must not fail the run).
+        """
+        sidecar = self.output_dir / (
+            f"{prefix}_stdout_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        try:
+            sidecar.write_text(
+                (stdout or '')
+                + (f"\n--- stderr ---\n{stderr}" if stderr else ''),
+                encoding='utf-8',
+            )
+        except OSError as write_exc:
+            self.logger.debug(f"Could not write {prefix} stdout sidecar: {write_exc}")
+            return None
+        self.logger.debug(f"{prefix} stdout/stderr written to {sidecar}")
+        return sidecar
+
     def get_log_path(self, log_subdir: str = "logs") -> Path:
         """
         Get or create log directory path for this model run.

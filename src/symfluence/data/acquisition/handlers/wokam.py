@@ -90,7 +90,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.bbox["lat_max"] + buf_deg,
         )
 
-        self.logger.info("Reading and clipping WOKAM to domain bbox...")
+        self.logger.debug("Reading and clipping WOKAM to domain bbox")
         try:
             gdf = gpd.read_file(global_shp, bbox=domain_box)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -111,18 +111,16 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         gdf.to_file(out_gpkg, driver="GPKG")
 
-        # Log summary
+        # Log summary (one INFO line; per-type breakdown at DEBUG)
         n_polys = len(gdf)
-        if 'ROCK_TYPE' in gdf.columns:
-            rock_counts = gdf['ROCK_TYPE'].value_counts()
-            self.logger.info(f"WOKAM clipped: {n_polys} polygons")
-            for rock_type, count in rock_counts.items():
-                self.logger.info(f"  {rock_type}: {count} polygons")
-        elif 'Type' in gdf.columns:
-            type_counts = gdf['Type'].value_counts()
-            self.logger.info(f"WOKAM clipped: {n_polys} polygons")
-            for t, count in type_counts.items():
-                self.logger.info(f"  {t}: {count} polygons")
+        type_col = next((c for c in ('ROCK_TYPE', 'Type') if c in gdf.columns), None)
+        if type_col is not None:
+            counts = gdf[type_col].value_counts()
+            self.logger.info(
+                f"WOKAM clipped: {n_polys} polygons across {len(counts)} {type_col} classes"
+            )
+            for type_name, count in counts.items():
+                self.logger.debug(f"  {type_name}: {count} polygons")
         else:
             self.logger.info(
                 f"WOKAM clipped: {n_polys} polygons -> {out_gpkg}"
@@ -139,12 +137,12 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
         for search_dir in [cache_dir, karst_dir]:
             # First pass: look specifically for the karst polygon shapefile
             for shp in search_dir.rglob("*karst*poly*.shp"):
-                self.logger.info(f"Using cached WOKAM karst polygons: {shp}")
+                self.logger.debug(f"Using cached WOKAM karst polygons: {shp}")
                 return shp
             # Second pass: any WOKAM/WHYMAP shapefile
             for shp in search_dir.rglob("*.shp"):
                 if 'wokam' in shp.name.lower() or 'karst' in shp.name.lower():
-                    self.logger.info(f"Using cached WOKAM: {shp}")
+                    self.logger.debug(f"Using cached WOKAM: {shp}")
                     return shp
 
         # Download from BGR (retry up to 3 times — BGR often drops connections)
@@ -168,7 +166,7 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
             self.logger.error(f"Failed to download WOKAM after 3 attempts: {last_err}")
             return None
 
-        self.logger.info("Download complete, extracting...")
+        self.logger.debug("Download complete, extracting")
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
                 from symfluence.core.archive_extraction import safe_zip_extract
@@ -182,11 +180,11 @@ class WOKAMAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         # Find extracted karst polygon shapefile
         for shp in cache_dir.rglob("*karst*poly*.shp"):
-            self.logger.info(f"Extracted WOKAM karst polygons: {shp}")
+            self.logger.debug(f"Extracted WOKAM karst polygons: {shp}")
             return shp
         # Fallback to any shapefile
         for shp in cache_dir.rglob("*.shp"):
-            self.logger.info(f"Extracted WOKAM shapefile: {shp}")
+            self.logger.debug(f"Extracted WOKAM shapefile: {shp}")
             return shp
 
         self.logger.error("No shapefile found in extracted archive")

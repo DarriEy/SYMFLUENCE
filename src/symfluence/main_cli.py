@@ -81,6 +81,11 @@ def main():
         parser = CLIParser()
         args = parser.parse_args()
 
+        # Global flags that shape console output (--quiet) must be applied
+        # before any command prints.
+        from symfluence.cli.console import apply_global_flags
+        apply_global_flags(args)
+
         # Execute the command handler
         if hasattr(args, 'func'):
             return args.func(args)

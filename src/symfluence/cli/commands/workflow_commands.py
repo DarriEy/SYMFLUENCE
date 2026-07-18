@@ -60,7 +60,8 @@ class WorkflowCommands(BaseCommand):
             config_overrides=config_overrides,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
-            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False),
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Execute full workflow
@@ -100,7 +101,8 @@ class WorkflowCommands(BaseCommand):
             config_overrides={'FORCE_RUN_ALL_STEPS': True} if force_rerun else None,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
-            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False),
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Run single step
@@ -141,7 +143,8 @@ class WorkflowCommands(BaseCommand):
             config_overrides={'FORCE_RUN_ALL_STEPS': True} if force_rerun else None,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
-            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False),
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Run multiple steps in order
@@ -173,7 +176,8 @@ class WorkflowCommands(BaseCommand):
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
-            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False),
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Show workflow status
@@ -266,7 +270,8 @@ class WorkflowCommands(BaseCommand):
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
             visualize=BaseCommand.get_arg(args, 'visualise', False),
-            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False),
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Run steps from resume point
@@ -309,7 +314,9 @@ class WorkflowCommands(BaseCommand):
         if dry_run:
             BaseCommand._console.indent("(DRY RUN - no files will be deleted)")
 
-        symfluence = SYMFLUENCE(config_path, debug_mode=BaseCommand.get_arg(args, 'debug', False))
+        symfluence = SYMFLUENCE(config_path,
+                                debug_mode=BaseCommand.get_arg(args, 'debug', False),
+                                quiet_mode=BaseCommand.get_arg(args, 'quiet', False))
 
         if hasattr(symfluence, 'clean_workflow_files'):
             symfluence.clean_workflow_files(level=level, dry_run=dry_run)
@@ -364,7 +371,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            diagnostic=True  # Always enable diagnostic mode for this command
+            diagnostic=True,  # Always enable diagnostic mode for this command
+            quiet_mode=BaseCommand.get_arg(args, 'quiet', False)
         )
 
         # Run diagnostics

@@ -147,6 +147,7 @@ class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
             log_initial_population(self.name, n_initial, best_fit)
 
         # Main BO loop
+        n_improvements = 0
         for iteration in range(1, self.max_iterations + 1):
             # Convert to arrays
             X = np.array(X_observed)
@@ -171,6 +172,7 @@ class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
             if next_fitness > best_fit:
                 best_fit = next_fitness
                 best_pos = next_point.copy()
+                n_improvements += 1
 
             # Record iteration
             params_dict = denormalize_params(best_pos)
@@ -180,8 +182,13 @@ class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
             )
             update_best(best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, best_fit, 1, 1)
+            # Progress line (tracker throttles emission); Improved counts
+            # cumulative accepted improvements over evaluations so far.
+            log_progress(
+                self.name, iteration, best_fit,
+                n_improved=n_improvements, pop_size=iteration,
+                unit='evals'
+            )
 
         self.logger.info(f"Bayesian Optimization complete: {len(y_observed)} evaluations")
 

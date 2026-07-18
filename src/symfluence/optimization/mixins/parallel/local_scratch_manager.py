@@ -146,14 +146,14 @@ class LocalScratchManager(ConfigMixin):
         try:
             num_nodes = int(num_nodes)
             if num_nodes > 1:
-                self.logger.info(
+                self.logger.debug(
                     f"Rank {self.mpi_rank}: Job spans {num_nodes} nodes. "
                     f"Using local scratch on node {self.node_name}"
                 )
         except ValueError:
             pass
 
-        self.logger.info(
+        self.logger.debug(
             f"Rank {self.mpi_rank}: SLURM environment detected: "
             f"TMPDIR={slurm_tmpdir}, JOB_ID={slurm_job_id}, NODE={self.node_name}"
         )
@@ -171,11 +171,11 @@ class LocalScratchManager(ConfigMixin):
         # Store original for reference
         self.original_data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
 
-        self.logger.info(f"Rank {self.mpi_rank} on {self.node_name}:")
-        self.logger.info(f"  Scratch root: {self.scratch_root}")
-        self.logger.info(f"  Scratch data dir: {self.scratch_data_dir}")
-        self.logger.info(f"  Scratch project dir: {self.scratch_project_dir}")
-        self.logger.info(f"  Original project dir (for staging): {self.original_project_dir}")
+        self.logger.debug(f"Rank {self.mpi_rank} on {self.node_name}:")
+        self.logger.debug(f"  Scratch root: {self.scratch_root}")
+        self.logger.debug(f"  Scratch data dir: {self.scratch_data_dir}")
+        self.logger.debug(f"  Scratch project dir: {self.scratch_project_dir}")
+        self.logger.debug(f"  Original project dir (for staging): {self.original_project_dir}")
 
     def _needs_routing(self) -> bool:
         """
@@ -223,15 +223,15 @@ class LocalScratchManager(ConfigMixin):
             return True
 
         try:
-            self.logger.info(f"{'='*60}")
-            self.logger.info(f"Rank {self.mpi_rank}: Setting up local scratch on {self.node_name}")
-            self.logger.info(f"{'='*60}")
+            self.logger.debug(f"{'='*60}")
+            self.logger.debug(f"Rank {self.mpi_rank}: Setting up local scratch on {self.node_name}")
+            self.logger.debug(f"{'='*60}")
 
             # Check if we've already set up scratch for this rank
             # (useful when multiple workers share the same rank on a node)
             setup_marker = self.scratch_project_dir / ".scratch_setup_complete"
             if setup_marker.exists():
-                self.logger.info(
+                self.logger.debug(
                     f"Rank {self.mpi_rank}: Scratch already set up on {self.node_name}, skipping"
                 )
                 return True
@@ -248,7 +248,7 @@ class LocalScratchManager(ConfigMixin):
             if self._needs_routing():
                 self._copy_mizuroute_settings_to_scratch()
             else:
-                self.logger.info(f"Rank {self.mpi_rank}: Routing not needed - skipping mizuRoute settings copy")
+                self.logger.debug(f"Rank {self.mpi_rank}: Routing not needed - skipping mizuRoute settings copy")
 
             # Update configuration files with scratch paths
             self._update_file_paths_for_scratch()
@@ -269,7 +269,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _create_scratch_directories(self) -> None:
         """Create necessary directory structure in scratch space."""
-        self.logger.info(f"Rank {self.mpi_rank}: Creating scratch directories on {self.node_name}...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Creating scratch directories on {self.node_name}...")
 
         # Create main directories
         directories = [
@@ -291,7 +291,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _copy_settings_to_scratch(self) -> None:
         """Copy SUMMA settings to scratch."""
-        self.logger.info(f"Rank {self.mpi_rank}: Copying SUMMA settings to scratch on {self.node_name}...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Copying SUMMA settings to scratch on {self.node_name}...")
 
         source_settings = self.original_project_dir / "settings" / "SUMMA"
         dest_settings = self.scratch_project_dir / "settings" / "SUMMA"
@@ -301,7 +301,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _copy_forcing_to_scratch(self) -> None:
         """Copy forcing data to scratch."""
-        self.logger.info(f"Rank {self.mpi_rank}: Copying forcing data to scratch on {self.node_name}...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Copying forcing data to scratch on {self.node_name}...")
 
         source_forcing = resolve_data_subdir(self.original_project_dir, 'forcing') / "SUMMA_input"
         dest_forcing = resolve_data_subdir(self.scratch_project_dir, 'forcing') / "SUMMA_input"
@@ -311,7 +311,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _copy_observations_to_scratch(self) -> None:
         """Copy observation data to scratch."""
-        self.logger.info(f"Rank {self.mpi_rank}: Copying observation data to scratch on {self.node_name}...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Copying observation data to scratch on {self.node_name}...")
 
         source_obs = resolve_data_subdir(self.original_project_dir, 'observations') / "streamflow" / "preprocessed"
         dest_obs = resolve_data_subdir(self.scratch_project_dir, 'observations') / "streamflow" / "preprocessed"
@@ -324,7 +324,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _copy_mizuroute_settings_to_scratch(self) -> None:
         """Copy mizuRoute settings to scratch."""
-        self.logger.info(f"Rank {self.mpi_rank}: Copying mizuRoute settings to scratch on {self.node_name}...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Copying mizuRoute settings to scratch on {self.node_name}...")
 
         source_mizu = self.original_project_dir / "settings" / "mizuRoute"
         dest_mizu = self.scratch_project_dir / "settings" / "mizuRoute"
@@ -402,7 +402,7 @@ class LocalScratchManager(ConfigMixin):
 
     def _update_file_paths_for_scratch(self) -> None:
         """Update file paths in configuration files to point to scratch."""
-        self.logger.info(f"Rank {self.mpi_rank}: Updating file paths for scratch space...")
+        self.logger.debug(f"Rank {self.mpi_rank}: Updating file paths for scratch space...")
 
         # Update fileManager.txt if it exists
         file_manager = self.scratch_project_dir / "settings" / "SUMMA" / "fileManager.txt"
@@ -506,11 +506,11 @@ class LocalScratchManager(ConfigMixin):
         if not self.use_scratch:
             return
 
-        self.logger.info(f"{'='*60}")
-        self.logger.info(f"Rank {self.mpi_rank}: Staging results back from {self.node_name}")
-        self.logger.info(f"  Source (scratch): {self.scratch_project_dir}")
-        self.logger.info(f"  Destination (original): {self.original_project_dir}")
-        self.logger.info(f"{'='*60}")
+        self.logger.debug(f"{'='*60}")
+        self.logger.debug(f"Rank {self.mpi_rank}: Staging results back from {self.node_name}")
+        self.logger.debug(f"  Source (scratch): {self.scratch_project_dir}")
+        self.logger.debug(f"  Destination (original): {self.original_project_dir}")
+        self.logger.debug(f"{'='*60}")
 
         try:
             # Stage simulation results (the main outputs)
@@ -523,7 +523,7 @@ class LocalScratchManager(ConfigMixin):
             self._stage_work_logs_fixed()
 
             self.logger.info(f"Rank {self.mpi_rank}: Results staged successfully to: {self.original_project_dir}")
-            self.logger.info(f"{'='*60}")
+            self.logger.debug(f"{'='*60}")
 
         except (OSError, IOError, PermissionError) as e:
             self.logger.error(f"Rank {self.mpi_rank}: Error staging results back: {str(e)}")
@@ -561,19 +561,19 @@ class LocalScratchManager(ConfigMixin):
                 # Check if this is a parallel_proc_XX directory
                 if item.name.startswith("parallel_proc_"):
                     # Stage the entire parallel_proc directory
-                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self.logger.debug(f"Rank {self.mpi_rank}: Staging {item.name}")
                     self._rsync_directory(item, dest_item)
                     items_staged += 1
 
                 elif item.name in ["SUMMA", "mizuRoute", "settings", "logs"]:
                     # Stage standard directories
-                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self.logger.debug(f"Rank {self.mpi_rank}: Staging {item.name}")
                     self._rsync_directory(item, dest_item)
                     items_staged += 1
 
                 else:
                     # Stage any other directories
-                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self.logger.debug(f"Rank {self.mpi_rank}: Staging {item.name}")
                     self._rsync_directory(item, dest_item)
                     items_staged += 1
 
@@ -594,7 +594,7 @@ class LocalScratchManager(ConfigMixin):
         dest_opt = self.original_project_dir / "optimization"
 
         if scratch_opt.exists() and any(scratch_opt.iterdir()):
-            self.logger.info(f"Rank {self.mpi_rank}: Staging optimization results")
+            self.logger.debug(f"Rank {self.mpi_rank}: Staging optimization results")
 
             # Create destination
             dest_opt.mkdir(parents=True, exist_ok=True)
@@ -608,9 +608,9 @@ class LocalScratchManager(ConfigMixin):
                 elif item.is_file():
                     shutil.copy2(item, dest_item)
 
-            self.logger.info(f"Rank {self.mpi_rank}: Optimization results staged to {dest_opt}")
+            self.logger.debug(f"Rank {self.mpi_rank}: Optimization results staged to {dest_opt}")
         else:
-            self.logger.info(f"Rank {self.mpi_rank}: No optimization results to stage")
+            self.logger.debug(f"Rank {self.mpi_rank}: No optimization results to stage")
 
     def _stage_work_logs_fixed(self) -> None:
         """
@@ -622,7 +622,7 @@ class LocalScratchManager(ConfigMixin):
         dest_log = self.original_project_dir / f"_workLog_domain_{self.domain_name}"
 
         if work_log_dir.exists() and any(work_log_dir.iterdir()):
-            self.logger.info(f"Rank {self.mpi_rank}: Staging work logs")
+            self.logger.debug(f"Rank {self.mpi_rank}: Staging work logs")
             self._rsync_directory(work_log_dir, dest_log)
         else:
             self.logger.debug(f"Rank {self.mpi_rank}: No work logs to stage")
@@ -669,7 +669,7 @@ class LocalScratchManager(ConfigMixin):
         if not self.use_scratch:
             return
 
-        self.logger.info(f"Rank {self.mpi_rank}: Scratch space will be automatically cleaned by SLURM")
+        self.logger.debug(f"Rank {self.mpi_rank}: Scratch space will be automatically cleaned by SLURM")
         # SLURM_TMPDIR is automatically cleaned up by SLURM after job completion
         # So we don't need to do anything here
 
@@ -694,10 +694,10 @@ class LocalScratchManager(ConfigMixin):
 
             # Only rank 0 on each node does the setup
             if node_rank == 0:
-                self.logger.info(f"Rank {self.mpi_rank}: Primary rank on {self.node_name}, setting up scratch")
+                self.logger.debug(f"Rank {self.mpi_rank}: Primary rank on {self.node_name}, setting up scratch")
                 success = self.setup_scratch_space()
             else:
-                self.logger.info(f"Rank {self.mpi_rank}: Secondary rank on {self.node_name}, waiting for scratch setup")
+                self.logger.debug(f"Rank {self.mpi_rank}: Secondary rank on {self.node_name}, waiting for scratch setup")
                 success = None
 
             # Broadcast success status to all ranks on the node
@@ -713,5 +713,5 @@ class LocalScratchManager(ConfigMixin):
             node_comm.Free()
 
         except ImportError:
-            self.logger.info(f"Rank {self.mpi_rank}: mpi4py not available, each rank will set up its own scratch")
+            self.logger.debug(f"Rank {self.mpi_rank}: mpi4py not available, each rank will set up its own scratch")
             self.setup_scratch_space()

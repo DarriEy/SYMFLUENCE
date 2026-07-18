@@ -208,7 +208,7 @@ class SYMFLUENCE:
     pour point setup, SLURM job submission, and comprehensive workflow management.
     """
 
-    def __init__(self, config_input: Union[Path, str, SymfluenceConfig], config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False, diagnostic: bool = False):
+    def __init__(self, config_input: Union[Path, str, SymfluenceConfig], config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False, diagnostic: bool = False, quiet_mode: bool = False):
         """
         Initialize the SYMFLUENCE system with configuration and CLI options.
 
@@ -218,8 +218,11 @@ class SYMFLUENCE:
             debug_mode: Whether to enable debug mode
             visualize: Whether to enable visualization
             diagnostic: Whether to enable diagnostic plots for workflow validation
+            quiet_mode: Suppress console INFO logging (console at WARNING;
+                the file log is unaffected). Ignored when debug_mode is set.
         """
         self.debug_mode = debug_mode
+        self.quiet_mode = quiet_mode
         self.visualize = visualize
         self.diagnostic = diagnostic
         self.config_overrides = config_overrides or {}
@@ -244,7 +247,8 @@ class SYMFLUENCE:
             self.config['LOG_LEVEL'] = 'DEBUG'
 
         # Initialize logging
-        self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode)
+        self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode,
+                                              quiet_mode=quiet_mode)
         self.logger = self.logging_manager.logger
 
         self.logger.info("SYMFLUENCE initialized")
@@ -295,9 +299,7 @@ class SYMFLUENCE:
     def run_workflow(self, force_run: Optional[bool] = None) -> None:
         """Execute the complete SYMFLUENCE workflow (CLI wrapper)."""
         start = datetime.now()
-        steps_completed: List[Any] = []
         errors: List[Any] = []
-        warns: List[Any] = []
 
         try:
             self.logger.info("Starting complete SYMFLUENCE workflow execution")
@@ -311,7 +313,6 @@ class SYMFLUENCE:
 
             # Collect status information
             status_info = self.workflow_orchestrator.get_workflow_status()
-            steps_completed = [s for s in status_info['step_details'] if s['complete']]
             status = "completed" if status_info['total_steps'] == status_info['completed_steps'] else "partial"
 
             self.logger.info("Complete SYMFLUENCE workflow execution completed")
@@ -330,13 +331,17 @@ class SYMFLUENCE:
         finally:
             end = datetime.now()
             elapsed_s = (end - start).total_seconds()
-            # Call with the expected signature:
+            # Per-step results (name/cli_name/description/status/duration_s)
+            # tracked by the orchestrator during execution — accurate even
+            # when a failing step aborted the run.
+            step_results = list(
+                getattr(self.workflow_orchestrator, 'last_step_results', [])
+            )
             self.logging_manager.create_run_summary(
-                steps_completed=steps_completed,
-                errors=errors,
-                warnings=warns,
+                steps=step_results,
                 execution_time=elapsed_s,
                 status=status,
+                errors=errors,
             )
             # Write provenance manifest
             finalize_provenance(self.provenance, status,
@@ -357,35 +362,37 @@ class SYMFLUENCE:
             step_names: List of step names to execute (e.g., ['setup_project', 'calibrate_model'])
         """
         start = datetime.now()
-        steps_completed: List[Any] = []
         errors: List[Any] = []
-        warns: List[Any] = []
-
-        status = "completed"
 
         try:
             continue_on_error = self.config_overrides.get("continue_on_error", False)
 
             # Execute individual steps via orchestrator
-            results = self.workflow_orchestrator.run_individual_steps(step_names, continue_on_error)
-
-            # Process results for summary
-            for res in results:
-                if res['success']:
-                    steps_completed.append({"cli": res['cli'], "fn": res['fn']})
-                else:
-                    errors.append({"step": res['cli'], "error": res['error']})
-                    status = "partial" if steps_completed else "failed"
+            self.workflow_orchestrator.run_individual_steps(step_names, continue_on_error)
 
         finally:
             end = datetime.now()
             elapsed_s = (end - start).total_seconds()
+            # Per-step results tracked by the orchestrator (accurate even
+            # when a failing step raised out of the loop).
+            step_results = list(
+                getattr(self.workflow_orchestrator, 'last_step_results', [])
+            )
+            failed = [s for s in step_results if s.get('status') == 'failed']
+            succeeded = [s for s in step_results if s.get('status') == 'completed']
+            errors = [{"step": s.get('cli_name'), "error": s.get('error', '')}
+                      for s in failed]
+            if not failed:
+                status = "completed"
+            elif succeeded:
+                status = "partial"
+            else:
+                status = "failed"
             self.logging_manager.create_run_summary(
-                steps_completed=steps_completed,
-                errors=errors,
-                warnings=warns,
+                steps=step_results,
                 execution_time=elapsed_s,
                 status=status,
+                errors=errors,
             )
             # Write provenance manifest
             finalize_provenance(self.provenance, status,

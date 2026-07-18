@@ -411,7 +411,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 temp_mean = ds['temp'].mean(dim='hru')
                 pet_base = self._calculate_pet(temp_mean, mean_lat, pet_method)
                 pet = pet_base.broadcast_like(ds['temp'])
-                self.logger.info(f"Calculated distributed PET (single centroid) with shape: {pet.shape}")
+                self.logger.debug(f"Calculated distributed PET (single centroid) with shape: {pet.shape}")
             else:
                 pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
 

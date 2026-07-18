@@ -5,6 +5,15 @@
 Evaluation Metrics Tracker
 
 Tracks crash rates and logs optimization progress in a consistent format.
+
+Progress-line schema (fixed — every field always present)::
+
+    [P##] {ALG} {i}/{max} {unit} ({pct}%) | Best: {score} | \
+Improved: {a}/{b} | Crashes: {c}/{d} | Elapsed: {t}
+
+where ``unit`` is one of :data:`EvaluationMetricsTracker.VALID_UNITS`
+(``evals``, ``gens``, ``epochs``, ``loops``) and the leading ``[P##]``
+worker/context tag is rendered only when one is provided.
 """
 from __future__ import annotations
 
@@ -21,22 +30,34 @@ class EvaluationMetricsTracker:
     from algorithm execution logic.
 
     Args:
-        max_iterations: Total iterations for progress reporting
+        max_iterations: Total iterations for progress reporting (default
+            denominator; individual calls may override via ``total``)
         logger: Logger instance
         elapsed_time_fn: Callable returning formatted elapsed time string
+        log_interval: Emit a progress line every ``log_interval`` iterations
+            (the final iteration is always emitted)
+        worker_tag: Optional worker/context tag (e.g. ``'P03'``) rendered as
+            a ``[P03]`` prefix on every progress line
     """
 
     PENALTY_SCORE = ModelDefaults.PENALTY_SCORE
+
+    #: Allowed values for the ``unit`` field of the progress line.
+    VALID_UNITS = ('evals', 'gens', 'epochs', 'loops')
 
     def __init__(
         self,
         max_iterations: int,
         logger: logging.Logger,
-        elapsed_time_fn: Callable[[], str]
+        elapsed_time_fn: Callable[[], str],
+        log_interval: int = 10,
+        worker_tag: Optional[str] = None,
     ):
         self.max_iterations = max_iterations
         self.logger = logger
         self._elapsed_time_fn = elapsed_time_fn
+        self.log_interval = max(1, int(log_interval))
+        self.worker_tag = worker_tag
 
         # Crash-rate counters
         self._total_evaluations: int = 0
@@ -95,36 +116,73 @@ class EvaluationMetricsTracker:
         secondary_label: Optional[str] = None,
         n_improved: Optional[int] = None,
         population_size: Optional[int] = None,
-        crash_stats: Optional[Dict[str, Any]] = None
+        crash_stats: Optional[Dict[str, Any]] = None,
+        unit: str = 'evals',
+        total: Optional[int] = None,
+        force: bool = False,
     ) -> None:
-        """Log optimization progress in consistent format.
+        """Log optimization progress in a fixed, comparable schema.
 
-        Format: "{ALG} {iter}/{max} ({%}) | Best: {score} | ... | Elapsed: {time}"
+        Format (all fields always present)::
+
+            [P##] {ALG} {i}/{max} {unit} ({pct}%) | Best: {score} | \
+Improved: {a}/{b} | Crashes: {c}/{d} | Elapsed: {t}
+
+        Emission is throttled to every ``log_interval`` iterations; the
+        final iteration (``iteration >= total``) is always emitted, and
+        ``force=True`` bypasses the throttle.
+
+        Args:
+            algorithm_name: Algorithm display name (e.g. 'DDS', 'CMA-ES')
+            iteration: Current progress count, in ``unit`` units
+            best_score: Best fitness score so far
+            secondary_score: Optional extra objective value (multi-objective)
+            secondary_label: Label for ``secondary_score``
+            n_improved: Numerator of the Improved field (algorithm-defined,
+                e.g. individuals that improved this generation); '-' if None
+            population_size: Denominator of the Improved field; '-' if None
+            crash_stats: Crash statistics dict; defaults to this tracker's
+                own counters when omitted
+            unit: One of :data:`VALID_UNITS` ('evals', 'gens', 'epochs',
+                'loops') — what ``iteration``/``total`` count
+            total: Denominator for progress; defaults to ``max_iterations``
+            force: Emit even when the throttle would suppress this iteration
         """
-        progress_pct = (iteration / self.max_iterations) * 100
+        total_ref = total if total is not None else self.max_iterations
+        if not force and iteration % self.log_interval != 0 and iteration < total_ref:
+            return
+
+        if unit not in self.VALID_UNITS:
+            unit = 'evals'
+
+        progress_pct = (iteration / total_ref) * 100 if total_ref else 0.0
         elapsed = self._elapsed_time_fn()
 
         msg_parts = [
-            f"{algorithm_name} {iteration}/{self.max_iterations} ({progress_pct:.0f}%)",
-            f"Best: {best_score:.4f}"
+            f"{algorithm_name} {iteration}/{total_ref} {unit} ({progress_pct:.0f}%)",
+            f"Best: {best_score:.4f}",
         ]
 
         if secondary_score is not None:
             label = secondary_label or "Secondary"
             msg_parts.append(f"{label}: {secondary_score:.4f}")
 
-        if n_improved is not None and population_size is not None:
-            msg_parts.append(f"Improved: {n_improved}/{population_size}")
+        improved_num = '-' if n_improved is None else str(int(n_improved))
+        improved_den = '-' if population_size is None else str(int(population_size))
+        msg_parts.append(f"Improved: {improved_num}/{improved_den}")
 
-        if crash_stats and crash_stats.get('total_evaluations', 0) > 0:
-            msg_parts.append(
-                f"Crashes: {crash_stats['crash_count']}/{crash_stats['total_evaluations']} "
-                f"({crash_stats['crash_rate']:.1%})"
-            )
+        stats = crash_stats if crash_stats is not None else self.get_crash_stats()
+        msg_parts.append(
+            f"Crashes: {stats.get('crash_count', 0)}/{stats.get('total_evaluations', 0)}"
+        )
 
         msg_parts.append(f"Elapsed: {elapsed}")
 
-        self.logger.info(" | ".join(msg_parts))
+        message = " | ".join(msg_parts)
+        if self.worker_tag:
+            message = f"[{self.worker_tag}] {message}"
+
+        self.logger.info(message)
 
     def log_initial_population(
         self,
@@ -139,7 +197,10 @@ class EvaluationMetricsTracker:
             population_size: Population size
             best_score: Best score from initial evaluation
         """
-        self.logger.info(
+        message = (
             f"{algorithm_name} initial population ({population_size} individuals) "
             f"complete | Best score: {best_score:.4f}"
         )
+        if self.worker_tag:
+            message = f"[{self.worker_tag}] {message}"
+        self.logger.info(message)

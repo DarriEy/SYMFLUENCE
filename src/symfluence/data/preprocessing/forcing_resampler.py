@@ -244,6 +244,11 @@ class _ParallelWorker:
         from symfluence.core.hdf5_safety import apply_worker_environment
         apply_worker_environment()
 
+        # Cap noisy third-party loggers (spawned workers do not inherit the
+        # parent's logging configuration)
+        from symfluence.core.logging_utils import silence_third_party
+        silence_third_party()
+
         # Create a minimal logger for the worker
         self._logger = logging.getLogger(f"forcing_worker_{mp.current_process().pid}")
         self._logger.setLevel(logging.WARNING)  # Reduce noise in parallel workers
@@ -296,10 +301,8 @@ class _ParallelWorker:
             file, self.remap_file, output_file, worker_id, overwrite=True
         )
 
-# Suppress verbose easmore logging
-logging.getLogger('easymore').setLevel(logging.WARNING)
-logging.getLogger('easymorepy').setLevel(logging.WARNING)
-
+# easymore/easymorepy logger suppression lives in the shared table in
+# symfluence.core.logging_utils (applied by setup_logging and worker inits).
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='easymore')
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='easymore')
 

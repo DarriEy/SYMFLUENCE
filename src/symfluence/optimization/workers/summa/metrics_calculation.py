@@ -12,12 +12,14 @@ in worker processes, supporting multi-target optimization.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import (
     kge as calc_kge,
@@ -169,9 +171,11 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                 return geom_area
 
             except ImportError:
-                logger.warning("geopandas not available for area calculation")
+                log_once(logger, logging.WARNING, key='area-geopandas-unavailable',
+                         message="geopandas not available for area calculation")
             except (ValueError, KeyError, FileNotFoundError) as e:
-                logger.warning(f"Error reading basin shapefile: {str(e)}")
+                log_once(logger, logging.WARNING, key='area-basin-shp-error',
+                         message=f"Error reading basin shapefile: {str(e)}")
 
         # Priority 3: Try catchment shapefile
         catchment_path = project_dir / "shapefiles" / "catchment"
@@ -190,13 +194,16 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                         return total_area
 
             except (ValueError, KeyError, FileNotFoundError) as e:
-                logger.warning(f"Error reading catchment shapefile: {str(e)}")
+                log_once(logger, logging.WARNING, key='area-catchment-shp-error',
+                         message=f"Error reading catchment shapefile: {str(e)}")
 
     except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
-        logger.warning(f"Could not calculate catchment area: {str(e)}")
+        log_once(logger, logging.WARNING, key='area-calc-error',
+                 message=f"Could not calculate catchment area: {str(e)}")
 
     # Fallback
-    logger.warning("Using default catchment area: 1,000,000 m²")
+    log_once(logger, logging.WARNING, key='area-default',
+             message="Using default catchment area: 1,000,000 m²")
     return 1e6
 
 
@@ -259,7 +266,8 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             target = MultivariateTarget(config, project_dir, logger)
         else:
             # Default to streamflow
-            logger.warning(f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
+            log_once(logger, logging.WARNING, key=f'unknown-opt-target-{optimization_target}',
+                     message=f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
             target = StreamflowTarget(config, project_dir, logger)
 
         # Validate mizuRoute output exists when routing is required for streamflow
@@ -319,13 +327,21 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             logger.debug(f"Metrics calculated successfully: {list(metrics.keys())}")
             return metrics
         else:
-            logger.warning("Calibration target returned empty metrics")
+            log_once(logger, logging.WARNING, key='empty-target-metrics',
+                     message="Calibration target returned empty metrics")
             return None
 
     except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         import traceback
-        logger.error(f"Error calculating metrics with calibration target: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        # First occurrence carries the traceback at ERROR; identical repeats
+        # (same exception message every evaluation) drop to DEBUG.
+        log_once(
+            logger, logging.ERROR, key=f'target-metrics-error-{e}',
+            message=(
+                f"Error calculating metrics with calibration target: {str(e)}\n"
+                f"{traceback.format_exc()}"
+            ),
+        )
         return None
 
 
@@ -863,5 +879,6 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
         return [obj1, obj2]
 
     except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
-        logger.warning(f"Multi-target objective calculation failed: {e}")
+        log_once(logger, logging.WARNING, key='multi-target-objective-failed',
+                 message=f"Multi-target objective calculation failed: {e}")
         return [-1.0, -1.0]

@@ -35,19 +35,20 @@ from symfluence.core.mixins.project import resolve_data_subdir
 
 from .shapefile_manager import ShapefileManager
 
-# Suppress verbose easymore logging
-logging.getLogger('easymore').setLevel(logging.WARNING)
-
 
 def _init_worker_pool():
     """
     Initialize worker process for multiprocessing pool.
 
     This function is called once per worker process when the pool is created.
-    It configures HDF5/netCDF4 thread safety to prevent segmentation faults.
+    It configures HDF5/netCDF4 thread safety to prevent segmentation faults
+    and caps noisy third-party loggers (spawned workers do not inherit the
+    parent's logging configuration).
     """
     from symfluence.core.hdf5_safety import apply_worker_environment
+    from symfluence.core.logging_utils import silence_third_party
     apply_worker_environment()
+    silence_third_party()
 
 
 def _create_easymore_instance():

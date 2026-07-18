@@ -216,7 +216,7 @@ class ERA5Handler(BaseDatasetHandler):
                     lat = src[source_name_lat].values
                     lon = src[source_name_lon].values
 
-                self.logger.info(f"ERA5 dimensions: lat={lat.shape}, lon={lon.shape}")
+                self.logger.debug(f"ERA5 dimensions: lat={lat.shape}, lon={lon.shape}")
 
                 # Check for empty dimensions
                 if lat.size == 0 or lon.size == 0:

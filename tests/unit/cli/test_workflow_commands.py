@@ -37,6 +37,43 @@ class TestWorkflowRun:
         mock_instance.run_workflow.assert_called_once()
 
     @patch('symfluence.SYMFLUENCE')
+    def test_run_passes_quiet_mode(self, mock_symfluence_class, temp_config_dir):
+        """--quiet is plumbed through to the SYMFLUENCE system."""
+        config_file = temp_config_dir / "config_files" / "config_template.yaml"
+        mock_symfluence_class.return_value = MagicMock()
+
+        args = Namespace(
+            config=str(config_file),
+            debug=False,
+            visualise=False,
+            profile=False,
+            quiet=True,
+        )
+
+        result = WorkflowCommands.run(args)
+
+        assert result == ExitCode.SUCCESS
+        assert mock_symfluence_class.call_args.kwargs['quiet_mode'] is True
+
+    @patch('symfluence.SYMFLUENCE')
+    def test_run_quiet_defaults_false(self, mock_symfluence_class, temp_config_dir):
+        """Without --quiet the system is constructed with quiet_mode=False."""
+        config_file = temp_config_dir / "config_files" / "config_template.yaml"
+        mock_symfluence_class.return_value = MagicMock()
+
+        args = Namespace(
+            config=str(config_file),
+            debug=False,
+            visualise=False,
+            profile=False,
+        )
+
+        result = WorkflowCommands.run(args)
+
+        assert result == ExitCode.SUCCESS
+        assert mock_symfluence_class.call_args.kwargs['quiet_mode'] is False
+
+    @patch('symfluence.SYMFLUENCE')
     def test_run_missing_config(self, mock_symfluence_class):
         """Test workflow run with missing config file."""
         args = Namespace(

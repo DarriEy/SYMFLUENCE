@@ -35,7 +35,7 @@ model_manifest(
     runner=MyModelRunner,            # the runner class (or pass a dotted path)
     runner_method="run",             # method on runner to call; default "run"
     preprocessor=MyModelPreProcessor,
-    postprocessor=MyModelPostprocessor,
+    postprocessor=MyModelPostProcessor,
     config_adapter=MyModelConfigAdapter,
     result_extractor=MyModelResultExtractor,
     plotter=MyModelPlotter,                       # optional
@@ -180,17 +180,17 @@ and `extract_streamflow() -> Optional[Path]`. Writes to
 `project_dir/results/{experiment_id}_results.csv` and a CF NetCDF in
 `data/model_output/`.
 
-**Most models should subclass `StandardModelPostprocessor`**
+**Most models should subclass `StandardModelPostProcessor`**
 (`models/base/standard_postprocessor.py`) and just set class attributes:
 ```python
-class MyModelPostprocessor(StandardModelPostprocessor):
+class MyModelPostProcessor(StandardModelPostProcessor):
     model_name = "MYMODEL"
     output_file_pattern = "{domain}_{experiment}_output.nc"
     streamflow_variable = "discharge"
     streamflow_unit = "mm_per_day"   # or "cms"
     netcdf_selections = {"hru": 0}
 ```
-Use `RoutedModelPostprocessor` if the model's streamflow comes from mizuRoute
+Use `RoutedModelPostProcessor` if the model's streamflow comes from mizuRoute
 (`IRFroutedRunoff`, reach selection via `SIM_REACH_ID`). Helpers:
 `convert_mm_per_day_to_cms`, `get_catchment_area_km2`, `read_netcdf_streamflow`,
 `save_streamflow_to_results`.
@@ -250,7 +250,7 @@ results/{experiment_id}_results.csv       standardized streamflow
 resources/base_settings/{MODEL}/          template config files (in package)
 optimization/.../process_N/{settings,simulations}/{MODEL}/   calibration workers
 ```
-Classes: `{Model}Runner`, `{Model}PreProcessor`, `{Model}Postprocessor`,
+Classes: `{Model}Runner`, `{Model}PreProcessor`, `{Model}PostProcessor`,
 `{Model}ConfigAdapter`, `{Model}ResultExtractor`, `{Model}Worker`,
 `{Model}ParameterManager`. Class var `MODEL_NAME = "MYMODEL"` on runner &
 preprocessor. SPDX header on every file. Lazy-import heavy deps (torch, rpy2,
@@ -266,7 +266,7 @@ xarray) inside methods. Line length 120, Python 3.11+.
 3. Implement the runner (`_build_command` for subprocess models; in-process
    `run()` otherwise), preprocessor (`run_preprocessing` →
    `run_preprocessing_template` + hooks), postprocessor (subclass
-   `StandardModelPostprocessor`).
+   `StandardModelPostProcessor`).
 4. Add base-settings templates under `resources/base_settings/<MODEL>/`.
 5. **Expose `register()` in the package and add a `symfluence_<name>` entry point
    to `pyproject.toml`** (§2) — for an external plugin, declare it in the plugin's

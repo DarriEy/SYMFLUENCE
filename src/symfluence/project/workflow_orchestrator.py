@@ -104,12 +104,46 @@ class WorkflowOrchestrator(ConfigMixin):
         self.provenance = provenance
         self.domain_name = self.config.domain.name
         self.experiment_id = self.config.domain.experiment_id
+        # Per-step results of the most recent run_workflow /
+        # run_individual_steps call, in the run-summary step schema
+        # {name, cli_name, description, status, duration_s[, error]}.
+        # Updated as steps finish so it stays accurate even when a failing
+        # step aborts the run (STOP_ON_ERROR).
+        self.last_step_results: List[Dict[str, Any]] = []
 
         data_dir = self.config.system.data_dir
         if not data_dir:
             raise KeyError("system.data_dir not configured")
 
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
+
+    def _record_step_result(self, step: WorkflowStep, status: str,
+                            duration_s: float = 0.0,
+                            error: Optional[str] = None) -> None:
+        """Append a step outcome to ``last_step_results`` (run-summary schema)."""
+        entry: Dict[str, Any] = {
+            'name': step.name,
+            'cli_name': step.cli_name,
+            'description': step.description,
+            'status': status,
+            'duration_s': round(duration_s, 3),
+        }
+        if error is not None:
+            entry['error'] = error
+        self.last_step_results.append(entry)
+
+    def _log_completion(self, success: bool, message: str,
+                        duration: Optional[float] = None) -> None:
+        """Log a step end line, via the LoggingManager when available."""
+        if self.logging_manager:
+            self.logging_manager.log_completion(
+                success=success, message=message, duration=duration
+            )
+        elif success:
+            suffix = f" (Duration: {duration:.2f}s)" if duration is not None else ""
+            self.logger.info(f"✓ Completed: {message}{suffix}")
+        else:
+            self.logger.error(f"✗ Failed: {message}")
 
     @staticmethod
     def _normalize_config_list(value: Any) -> List[str]:
@@ -431,6 +465,7 @@ class WorkflowOrchestrator(ConfigMixin):
         completed_steps = 0
         skipped_steps = 0
         failed_steps = 0
+        self.last_step_results = []
 
         # Clear all markers when force-running the entire workflow
         if force_run:
@@ -487,17 +522,10 @@ class WorkflowOrchestrator(ConfigMixin):
                     if sections:
                         write_marker(self.project_dir, step_name, current_hash)
 
-                    # FIXED: Use log_completion() instead of non-existent format_step_completion()
-                    if self.logging_manager:
-                        self.logging_manager.log_completion(
-                            success=True,
-                            message=step.description,
-                            duration=duration
-                        )
-                    else:
-                        self.logger.info(f"✓ Completed: {step_name} (Duration: {duration:.2f}s)")
+                    self._log_completion(True, step.description, duration)
 
                     completed_steps += 1
+                    self._record_step_result(step, 'completed', duration)
                     record_step(self.provenance, step_name, duration)
                 else:
                     # Log skip
@@ -507,64 +535,94 @@ class WorkflowOrchestrator(ConfigMixin):
                         self.logger.info(f"→ Skipping: {step_name} (Output already exists)")
 
                     skipped_steps += 1
+                    self._record_step_result(step, 'skipped')
                     record_step(self.provenance, step_name, 0.0, status="skipped")
 
             except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 # Log failure
-                if self.logging_manager:
-                    self.logging_manager.log_completion(
-                        success=False,
-                        message=f"{step.description}: {str(e)}"
-                    )
-                else:
-                    self.logger.error(f"✗ Failed: {step_name}")
-                    self.logger.error(f"Error: {str(e)}")
+                self._log_completion(False, f"{step.description}: {str(e)}")
 
                 failed_steps += 1
+                self._record_step_result(step, 'failed', error=str(e))
                 record_step(self.provenance, step_name, 0.0, status="failed", error=str(e))
 
                 # Decide whether to continue or stop
                 if self.config.system.stop_on_error:
                     self.logger.error("Workflow stopped due to error (STOP_ON_ERROR=True)")
+                    self._log_workflow_summary(
+                        start_time, total_steps, completed_steps,
+                        skipped_steps, failed_steps,
+                    )
                     raise
                 else:
                     self.logger.warning("Continuing despite error (STOP_ON_ERROR=False)")
             except Exception as e:  # noqa: BLE001 — must-not-raise contract
-                if self.logging_manager:
-                    self.logging_manager.log_completion(
-                        success=False,
-                        message=f"{step.description}: Unexpected error: {str(e)}"
-                    )
+                self._log_completion(False, f"{step.description}: Unexpected error: {str(e)}")
                 self.logger.exception(f"Unexpected failure in workflow step '{step_name}'")
 
                 failed_steps += 1
+                self._record_step_result(step, 'failed', error=str(e))
                 record_step(self.provenance, step_name, 0.0, status="failed", error=str(e))
 
                 if self.config.system.stop_on_error:
                     self.logger.error("Workflow stopped due to unexpected error (STOP_ON_ERROR=True)")
+                    self._log_workflow_summary(
+                        start_time, total_steps, completed_steps,
+                        skipped_steps, failed_steps,
+                    )
                     raise
                 self.logger.warning("Continuing despite unexpected error (STOP_ON_ERROR=False)")
 
-        # Summary report
-        end_time = datetime.now()
-        total_duration = end_time - start_time
+        # Summary report (single multi-line record, honest about failures)
+        self._log_workflow_summary(
+            start_time, total_steps, completed_steps, skipped_steps, failed_steps
+        )
 
-        # FIXED: Use direct logging instead of non-existent format_section_header()
-        self.logger.info("\n" + "=" * 60)
-        self.logger.info("WORKFLOW SUMMARY")
-        self.logger.info("=" * 60)
+    def _log_workflow_summary(self, start_time: datetime, total_steps: int,
+                              completed_steps: int, skipped_steps: int,
+                              failed_steps: int) -> None:
+        """Emit the end-of-workflow summary as one failure-aware log record.
 
-        self.logger.info(f"Total execution time: {total_duration}")
-        self.logger.info(f"Steps completed: {completed_steps}/{total_steps}")
-        self.logger.info(f"Steps skipped: {skipped_steps}")
+        Reports the true outcome: '✓ Workflow completed successfully' only
+        when no step failed, otherwise '✗ Workflow finished with failures'
+        with the failed-step and logged-error counts. Warning/error totals
+        come from the LoggingManager's CountingHandler (actual log records).
+        """
+        total_duration = datetime.now() - start_time
+        counts = (self.logging_manager.log_counts if self.logging_manager
+                  else {'warnings': 0, 'errors': 0})
 
         if failed_steps > 0:
-            self.logger.warning(f"Steps failed: {failed_steps}")
-            self.logger.warning("Workflow completed with errors")
+            status_line = (
+                f"✗ Workflow finished with failures "
+                f"({failed_steps} steps failed, {counts['errors']} errors logged)"
+            )
         else:
-            self.logger.info("✓ Workflow completed successfully")
+            status_line = "✓ Workflow completed successfully"
 
-        self.logger.info("═" * 60)
+        lines = [
+            "",
+            "=" * 60,
+            "WORKFLOW SUMMARY",
+            "=" * 60,
+            f"Total execution time: {total_duration}",
+            f"Steps: {completed_steps} completed, {skipped_steps} skipped, "
+            f"{failed_steps} failed (of {total_steps})",
+            f"Warnings logged: {counts['warnings']} | Errors logged: {counts['errors']}",
+        ]
+        log_file = getattr(self.logging_manager, 'log_file', None)
+        if log_file:
+            lines.append(f"Log file: {log_file}")
+        log_dir = getattr(self.logging_manager, 'log_dir', None)
+        if log_dir:
+            lines.append(f"Run summary / manifest dir: {log_dir}")
+        lines.extend([status_line, "=" * 60])
+
+        message = "\n".join(lines)
+        if failed_steps > 0:
+            self.logger.error(message)
+        else:
+            self.logger.info(message)
 
     def validate_workflow_prerequisites(self) -> bool:
         """
@@ -612,6 +670,7 @@ class WorkflowOrchestrator(ConfigMixin):
         cli_to_step = {step.cli_name: step for step in workflow_steps}
 
         results: List[Dict[str, Any]] = []
+        self.last_step_results = []
 
         self.logger.info(f"Starting individual step execution: {', '.join(step_names)}")
 
@@ -627,6 +686,10 @@ class WorkflowOrchestrator(ConfigMixin):
                 if self.logging_manager:
                     self.logging_manager.log_completion(False, message)
                 results.append({"cli": cli_name, "fn": None, "success": False, "error": message})
+                self.last_step_results.append({
+                    'name': cli_name, 'cli_name': cli_name, 'description': '',
+                    'status': 'failed', 'duration_s': 0.0, 'error': message,
+                })
                 if not continue_on_error:
                     raise ValueError(message)
                 continue
@@ -651,21 +714,19 @@ class WorkflowOrchestrator(ConfigMixin):
                     current_hash = compute_stage_hash(self._config, step.name)
                     write_marker(self.project_dir, step.name, current_hash)
 
-                if self.logging_manager:
-                    self.logging_manager.log_completion(True, step.description, duration)
-                else:
-                    self.logger.info(f"✓ Completed step: {cli_name}")
+                self._log_completion(True, step.description, duration)
 
                 results.append({"cli": cli_name, "fn": step.name, "success": True, "duration": duration})
+                self._record_step_result(step, 'completed', duration)
                 record_step(self.provenance, step.name, duration)
 
             except (SYMFLUENCEError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as e:
                 self.logger.error(f"Step '{cli_name}' failed: {e}")
 
-                if self.logging_manager:
-                    self.logging_manager.log_completion(False, f"{step.description}: {str(e)}")
+                self._log_completion(False, f"{step.description}: {str(e)}")
 
                 results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
+                self._record_step_result(step, 'failed', error=str(e))
                 record_step(self.provenance, step.name, 0.0, status="failed", error=str(e))
 
                 if not continue_on_error:
@@ -673,10 +734,10 @@ class WorkflowOrchestrator(ConfigMixin):
             except Exception as e:  # noqa: BLE001 — must-not-raise contract
                 self.logger.exception(f"Unexpected failure in step '{cli_name}'")
 
-                if self.logging_manager:
-                    self.logging_manager.log_completion(False, f"{step.description}: Unexpected error: {str(e)}")
+                self._log_completion(False, f"{step.description}: Unexpected error: {str(e)}")
 
                 results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
+                self._record_step_result(step, 'failed', error=str(e))
                 record_step(self.provenance, step.name, 0.0, status="failed", error=str(e))
 
                 if not continue_on_error:

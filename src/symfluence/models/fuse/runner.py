@@ -21,6 +21,7 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError, symfluence_error_handler
+from symfluence.core.logging_utils import log_once
 from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
@@ -210,7 +211,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
         ds_renamed = ds_loaded.rename({actual_var: target_var})
         ds_renamed.to_netcdf(file_path)
-        self.logger.info(f"Renamed FUSE variable {actual_var} → {target_var} for mizuRoute")
+        self.logger.debug(f"Renamed FUSE variable {actual_var} → {target_var} for mizuRoute")
 
     def _convert_routing_units_for_mizuroute(self, dataset: xr.Dataset) -> bool:
         """Convert routed runoff units from mm/day to m/s when required."""
@@ -311,7 +312,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         def_file = fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc"
         if target != def_file and not def_file.exists():
             shutil.copy2(target, def_file)
-            self.logger.info(f"Created runs_def file: {def_file}")
+            self.logger.debug(f"Created runs_def file: {def_file}")
 
     def run_fuse(self) -> Optional[Path]:
         """
@@ -527,9 +528,14 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                     try:
                         log_content = log_file.read_text(encoding='utf-8', errors='replace')
                         if 'NetCDF:' in log_content:
-                            nc_lines = [l.strip() for l in log_content.splitlines() if 'NetCDF:' in l]
-                            self.logger.error(
-                                f"FUSE NetCDF error (exit code 0): {'; '.join(nc_lines[:3])}"
+                            nc_first = next(
+                                (l.strip() for l in log_content.splitlines() if 'NetCDF:' in l), ''
+                            )
+                            log_once(
+                                self.logger, logging.ERROR,
+                                f"fuse-distributed-netcdf:{nc_first}",
+                                f"FUSE NetCDF error (exit code 0): {nc_first}; "
+                                f"full output: {log_file}",
                             )
                             # If run_def failed with NC error, retry with run_pre
                             if mode == 'run_def' and para_def_path.exists():
@@ -537,13 +543,14 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                                 return self._execute_fuse_distributed()
                             return False
                         if 'STOP' in log_content:
-                            stop_lines = [
-                                line.strip() for line in log_content.splitlines()
-                                if 'STOP' in line
-                            ]
-                            self.logger.error(
-                                f"FUSE log contains STOP statement(s) indicating Fortran-level failure: "
-                                f"{'; '.join(stop_lines[:5])}"
+                            stop_first = next(
+                                (line.strip() for line in log_content.splitlines() if 'STOP' in line), ''
+                            )
+                            log_once(
+                                self.logger, logging.ERROR,
+                                f"fuse-distributed-stop:{stop_first}",
+                                f"FUSE Fortran STOP (exit code 0): {stop_first}; "
+                                f"full output: {log_file}",
                             )
                             return False
                     except OSError:
@@ -630,7 +637,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         # before crashing, so the file may exist but contain no time steps)
         best_needs_copy = not best_file.exists() or best_file.stat().st_size < 1024
         if source_file and best_needs_copy:
-            self.logger.info(f"Copying {source_file.name} to {best_file.name} for compatibility")
+            self.logger.debug(f"Copying {source_file.name} to {best_file.name} for compatibility")
             shutil.copy2(source_file, best_file)
 
         return best_file if best_file.exists() else (source_file or def_file)
@@ -704,7 +711,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             #    back to _runs_def.nc since that's what the control file names.
             write_target = out_dir / f"{base}_runs_def.nc"
             mizu_ds.to_netcdf(write_target, format="NETCDF4")
-            self.logger.info(f"Converted FUSE output → mizuRoute format: {write_target}")
+            self.logger.debug(f"Converted FUSE output → mizuRoute format: {write_target}")
             return True
 
         except (FileNotFoundError, OSError, ValueError, KeyError) as e:
@@ -854,7 +861,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             if default_params.exists():
                 # Use module-level shutil import (already imported at top of file)
                 shutil.copy2(default_params, best_params)
-                self.logger.info("Copied default parameters to best parameters file for snow optimization")
+                self.logger.debug("Copied default parameters to best parameters file for snow optimization")
             else:
                 self.logger.warning("Default parameter file not found - snow optimization may fail")
 
@@ -949,7 +956,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             with open(constraints_file, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
-            self.logger.info(f"Added elevation params to constraints: N_BANDS={n_bands}, "
+            self.logger.debug(f"Added elevation params to constraints: N_BANDS={n_bands}, "
                            f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
             return True
 
@@ -1018,7 +1025,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                     constraints_path = self.forcing_fuse_path.parent.parent / 'settings' / 'FUSE' / 'fuse_zConstraints_snow.txt'
                     constraint_defaults = parse_fuse_constraints_defaults(constraints_path)
                     if constraint_defaults:
-                        self.logger.info(f"Loaded {len(constraint_defaults)} defaults from constraints file")
+                        self.logger.debug(f"Loaded {len(constraint_defaults)} defaults from constraints file")
 
                     for var in ds.data_vars:
                         if var in constraint_defaults:
@@ -1077,7 +1084,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             from symfluence.models.fuse.calibration.parameter_application import compute_derived_parameters
             compute_derived_parameters(para_def_path, self.logger)
 
-            self.logger.info(
+            self.logger.debug(
                 f"Fixed para_def.nc: N_BANDS={n_bands}, Z_FORCING={z_forcing:.1f}, "
                 f"MAXTENS_1={maxwatr_1 * fracten:.1f}, MAXFREE_1={maxwatr_1 * (1.0 - fracten):.1f}"
             )
@@ -1146,7 +1153,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             )
             new_ds.to_netcdf(para_sce_path, mode='w')
 
-            self.logger.info(f"Fixed elevation band params in para_sce.nc: N_BANDS={n_bands}, "
+            self.logger.debug(f"Fixed elevation band params in para_sce.nc: N_BANDS={n_bands}, "
                            f"Z_FORCING={z_forcing:.1f}, Z_MID01={mean_elevs[0]:.1f}, AF01={area_fracs[0]:.3f}")
             return True
 
@@ -1226,7 +1233,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             with open(fm_path, 'w', encoding='utf-8') as f:
                 f.writelines(updated_lines)
 
-            self.logger.info(
+            self.logger.debug(
                 f"Updated file manager ({fm_path.name}): "
                 f"OUTPUT_PATH={output_path}, INPUT_PATH={input_path_str}, "
                 f"FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}"
@@ -1259,7 +1266,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                         patched.append(ln)
                 with open(fm_path, 'w', encoding='utf-8') as f:
                     f.writelines(patched)
-                self.logger.info("Brute-force path replacement applied to file manager")
+                self.logger.debug("Brute-force path replacement applied to file manager")
 
             return True
 
@@ -1326,7 +1333,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 check=False,  # Don't raise, we'll return boolean
                 success_message="FUSE execution completed"
             )
-            self.logger.info(f"FUSE return code: {result.return_code}")
+            self.logger.debug(f"FUSE return code: {result.return_code}")
 
             # Check log for silent failures (FUSE returns exit 0 on Fortran STOP
             # and NetCDF errors on macOS)
@@ -1334,22 +1341,33 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 try:
                     log_content = log_file.read_text(encoding='utf-8', errors='replace')
                     if 'NetCDF:' in log_content:
-                        nc_lines = [l.strip() for l in log_content.splitlines() if 'NetCDF:' in l]
-                        self.logger.error(
-                            f"FUSE NetCDF error (exit code 0): {'; '.join(nc_lines[:3])}"
+                        nc_first = next(
+                            (l.strip() for l in log_content.splitlines() if 'NetCDF:' in l), ''
+                        )
+                        log_once(
+                            self.logger, logging.ERROR,
+                            f"fuse-netcdf:{nc_first}",
+                            f"FUSE NetCDF error (exit code 0): {nc_first}; "
+                            f"full output: {log_file}",
                         )
                         return False
                     # Check for Fortran STOP statements. Exclude SCE's normal
                     # completion messages ("SEARCH WAS STOPPED AT", "KSTOP")
                     # which contain STOP as a substring but are not errors.
                     import re
-                    stop_lines = [
-                        l.strip() for l in log_content.splitlines()
-                        if re.search(r'\bSTOP\b', l) and 'STOPPED' not in l and 'KSTOP' not in l
-                    ]
-                    if stop_lines:
-                        self.logger.error(
-                            f"FUSE Fortran STOP (exit code 0): {'; '.join(stop_lines[:3])}"
+                    stop_first = next(
+                        (
+                            l.strip() for l in log_content.splitlines()
+                            if re.search(r'\bSTOP\b', l) and 'STOPPED' not in l and 'KSTOP' not in l
+                        ),
+                        None,
+                    )
+                    if stop_first is not None:
+                        log_once(
+                            self.logger, logging.ERROR,
+                            f"fuse-stop:{stop_first}",
+                            f"FUSE Fortran STOP (exit code 0): {stop_first}; "
+                            f"full output: {log_file}",
                         )
                         return False
                 except OSError:
@@ -1395,7 +1413,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 # Save processed output
                 processed_file = self.output_path / f"{self.experiment_id}_states.nc"
                 ds.to_netcdf(processed_file)
-                self.logger.info(f"Processed state variables saved to: {processed_file}")
+                self.logger.debug(f"Processed state variables saved to: {processed_file}")
 
 
     def _recover_para_def_from_cwd(self, fuse_id: str, expected_path: Path) -> Path:
@@ -1463,7 +1481,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         try:
             # Check if this is a snow optimization case
             if self._is_snow_optimization():
-                self.logger.info("Snow optimization detected - copying default to best parameters")
+                self.logger.debug("Snow optimization detected - copying default to best parameters")
                 self._copy_default_to_best_params()
 
             fuse_id = self._get_fuse_file_id()
@@ -1549,7 +1567,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
     def backup_run_files(self):
         """Backup important run files for reproducibility."""
-        self.logger.info("Backing up run files")
+        self.logger.debug("Backing up run files")
 
         backup_dir = self.output_path / 'run_settings'
         backup_dir.mkdir(exist_ok=True)
@@ -1563,4 +1581,4 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
         for file in files_to_backup:
             if file.exists():
                 shutil.copy2(file, backup_dir / file.name)
-                self.logger.info(f"Backed up {file.name}")
+                self.logger.debug(f"Backed up {file.name}")

@@ -23,6 +23,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.mixins.logging import _class_logger_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +54,8 @@ class DatasetAlignmentManager:
             logger: Logger instance (creates default if None)
             fill_value: Value to use when padding is needed
         """
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
         self.fill_value = fill_value
 
     def find_common_time_period(

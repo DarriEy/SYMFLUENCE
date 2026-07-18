@@ -315,14 +315,15 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info(f"{desc}: {len(tasks)} tasks (serial)")
             for name, func in tasks:
                 try:
-                    self.logger.info(f"Starting: {name}")
+                    self.logger.debug(f"Starting: {name}")
                     results[name] = func()
-                    self.logger.info(f"Completed: {name}")
+                    self.logger.debug(f"Completed: {name}")
                 except (OSError, FileNotFoundError, KeyError, ValueError,
                         TypeError, RuntimeError, ImportError,
                         AttributeError, IndexError) as exc:
                     results[name] = exc
                     self.logger.warning(f"Failed: {name}: {exc}")
+            self._log_task_summary(desc, results)
             return results
 
         self.logger.info(
@@ -332,21 +333,31 @@ class AcquisitionService(ConfigurableMixin):
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_name: Dict[concurrent.futures.Future, str] = {}
             for name, func in tasks:
-                self.logger.info(f"Submitting: {name}")
+                self.logger.debug(f"Submitting: {name}")
                 future_to_name[executor.submit(func)] = name
 
             for future in concurrent.futures.as_completed(future_to_name):
                 name = future_to_name[future]
                 try:
                     results[name] = future.result()
-                    self.logger.info(f"Completed: {name}")
+                    self.logger.debug(f"Completed: {name}")
                 except (OSError, FileNotFoundError, KeyError, ValueError,
                         TypeError, RuntimeError, ImportError,
                         AttributeError, IndexError) as exc:
                     results[name] = exc
                     self.logger.warning(f"Failed: {name}: {exc}")
 
+        self._log_task_summary(desc, results)
         return results
+
+    def _log_task_summary(self, desc: str, results: Dict[str, Any]) -> None:
+        """Log a one-line INFO summary of a task batch (failures already warned)."""
+        n_failed = sum(1 for value in results.values() if isinstance(value, Exception))
+        n_ok = len(results) - n_failed
+        if n_failed:
+            self.logger.info(f"{desc}: {n_ok}/{len(results)} tasks succeeded, {n_failed} failed")
+        else:
+            self.logger.info(f"{desc}: all {len(results)} tasks completed")
 
     def acquire_attributes(self):
         """Acquire geospatial attributes including DEM, soil, and land cover data."""

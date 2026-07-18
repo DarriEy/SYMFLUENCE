@@ -42,7 +42,11 @@ that affect only supported operations are explicitly identified below.
      - Path to configuration file (default: ./config.yaml;
        override with SYMFLUENCE_DEFAULT_CONFIG)
    * - ``--debug``
-     - Enable debug output and stack traces
+     - Enable debug output and stack traces (console shows DEBUG-level detail)
+   * - ``--quiet, -q``
+     - Suppress console INFO output; warnings and errors are still shown, and
+       the file log is unaffected. Console verbosity is three-state:
+       quiet (WARNING+), normal (INFO+), debug (DEBUG+)
    * - ``--visualise / --visualize``
      - Enable visualization during workflow execution
    * - ``--diagnostic``

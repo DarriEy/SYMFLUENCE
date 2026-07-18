@@ -191,7 +191,7 @@ class CARRAHandler(BaseDatasetHandler):
                 lats = ds.latitude.values
                 lons = ds.longitude.values
 
-            self.logger.info(f"CARRA dimensions: lat={lats.shape}, lon={lons.shape}")
+            self.logger.debug(f"CARRA dimensions: lat={lats.shape}, lon={lons.shape}")
             self.logger.info(f"CARRA lat range: {lats.min():.4f} to {lats.max():.4f}")
             self.logger.info(f"CARRA lon range: {lons.min():.4f} to {lons.max():.4f}")
 

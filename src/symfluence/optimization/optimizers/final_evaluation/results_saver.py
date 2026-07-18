@@ -153,24 +153,26 @@ class FinalResultsSaver:
             calib_metrics: Calibration period metrics
             eval_metrics: Evaluation period metrics
         """
-        self.logger.info("=" * 60)
-        self.logger.info("FINAL EVALUATION RESULTS")
-        self.logger.info("=" * 60)
+        lines = ["=" * 60, "FINAL EVALUATION RESULTS", "=" * 60]
 
         # Calibration period
         if calib_metrics:
-            self.logger.info("CALIBRATION PERIOD PERFORMANCE:")
+            lines.append("CALIBRATION PERIOD PERFORMANCE:")
             for metric, value in sorted(calib_metrics.items()):
                 if value is not None and not np.isnan(value):
-                    self.logger.info(f"   {metric}: {value:.6f}")
+                    lines.append(f"   {metric}: {value:.6f}")
 
         # Evaluation period
         if eval_metrics:
-            self.logger.info("EVALUATION PERIOD PERFORMANCE:")
+            lines.append("EVALUATION PERIOD PERFORMANCE:")
             for metric, value in sorted(eval_metrics.items()):
                 if value is not None and not np.isnan(value):
-                    self.logger.info(f"   {metric}: {value:.6f}")
+                    lines.append(f"   {metric}: {value:.6f}")
         else:
-            self.logger.info("EVALUATION PERIOD: No evaluation period configured")
+            lines.append("EVALUATION PERIOD: No evaluation period configured")
 
-        self.logger.info("=" * 60)
+        lines.append("=" * 60)
+
+        # One multi-line record keeps the banner intact while emitting a
+        # single log record instead of one per metric.
+        self.logger.info("\n".join(lines))

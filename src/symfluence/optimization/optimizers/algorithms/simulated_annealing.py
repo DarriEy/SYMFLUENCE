@@ -221,7 +221,12 @@ class SimulatedAnnealingAlgorithm(OptimizationAlgorithm):
             update_best(best_fit, params_dict, iteration)
 
             # Log progress
-            log_progress(self.name, iteration, best_fit, n_accepted_iter, steps_per_temp)
+            # Progress line (tracker throttles emission); Improved counts
+            # accepted moves at this temperature level.
+            log_progress(
+                self.name, iteration, best_fit, n_accepted_iter, steps_per_temp,
+                unit='loops'
+            )
 
             # Check if frozen
             if temperature < final_temp:

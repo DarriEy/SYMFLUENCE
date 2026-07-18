@@ -37,6 +37,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -300,7 +301,12 @@ class InMemoryModelWorker(BaseWorker):
                         elif std_name in ds.variables:
                             self._forcing[std_name] = ds[std_name].values.flatten()
                         else:
-                            self.logger.warning(f"Variable {var_name} not found in {nc_file}")
+                            log_once(
+                                self.logger,
+                                logging.WARNING,
+                                key=f'forcing-var-missing-{nc_file}-{var_name}',
+                                message=f"Variable {var_name} not found in {nc_file}",
+                            )
                             continue
 
                     if 'time' in ds.coords:
@@ -312,7 +318,12 @@ class InMemoryModelWorker(BaseWorker):
                         self.logger.debug(f"Loaded forcing from {nc_file}")
                         return True
                 except (OSError, RuntimeError, KeyError) as e:
-                    self.logger.warning(f"Error loading {nc_file}: {e}")
+                    log_once(
+                        self.logger,
+                        logging.WARNING,
+                        key=f'forcing-load-error-{nc_file}',
+                        message=f"Error loading {nc_file}: {e}",
+                    )
 
         # Try CSV
         csv_patterns = [
@@ -341,9 +352,25 @@ class InMemoryModelWorker(BaseWorker):
                         self.logger.debug(f"Loaded forcing from {csv_file}")
                         return True
                 except (FileNotFoundError, ValueError, KeyError) as e:
-                    self.logger.warning(f"Error loading {csv_file}: {e}")
+                    log_once(
+                        self.logger,
+                        logging.WARNING,
+                        key=f'forcing-load-error-{csv_file}',
+                        message=f"Error loading {csv_file}: {e}",
+                    )
 
-        self.logger.error(f"No forcing file found in {forcing_dir}")
+        # Static misconfiguration: the same directory is missing on every
+        # evaluation, so emit the ERROR once and demote repeats to DEBUG.
+        log_once(
+            self.logger,
+            logging.ERROR,
+            key=f'no-forcing-{forcing_dir}',
+            message=(
+                f"No forcing file found in {forcing_dir} - "
+                f"all evaluations from this worker will return the penalty score "
+                f"until the forcing data is provided"
+            ),
+        )
         return False
 
     def _load_observations(self, task: Optional[WorkerTask] = None) -> bool:
@@ -385,7 +412,7 @@ class InMemoryModelWorker(BaseWorker):
                     if len(obs_cms) > 1:
                         time_diff = obs_cms.index[1] - obs_cms.index[0]
                         if time_diff < pd.Timedelta(days=1):
-                            self.logger.info(f"Resampling observations from {time_diff} to daily")
+                            self.logger.debug(f"Resampling observations from {time_diff} to daily")
                             obs_cms = obs_cms.resample('D').mean().dropna()
 
                     # Convert m³/s to mm/day
@@ -397,7 +424,7 @@ class InMemoryModelWorker(BaseWorker):
                         forcing_dates = pd.to_datetime(self._time_index).normalize()
                         obs_aligned = obs_mm_day.reindex(forcing_dates)
                         n_valid = (~obs_aligned.isna()).sum()
-                        self.logger.info(f"Aligned observations: {n_valid}/{len(forcing_dates)} valid")
+                        self.logger.debug(f"Aligned observations: {n_valid}/{len(forcing_dates)} valid")
                         self._observations = obs_aligned.values
                     else:
                         self._observations = obs_mm_day.values
@@ -406,9 +433,19 @@ class InMemoryModelWorker(BaseWorker):
                     return True
 
                 except (FileNotFoundError, ValueError, KeyError) as e:
-                    self.logger.warning(f"Error loading {obs_file}: {e}")
+                    log_once(
+                        self.logger,
+                        logging.WARNING,
+                        key=f'obs-load-error-{obs_file}',
+                        message=f"Error loading {obs_file}: {e}",
+                    )
 
-        self.logger.warning("No observation file found")
+        log_once(
+            self.logger,
+            logging.WARNING,
+            key='no-observation-file',
+            message="No observation file found",
+        )
         return False
 
     # =========================================================================

@@ -502,18 +502,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mpi_persistent_worker")
 
-for noisy in (
-    'rasterio', 'fiona', 'boto3', 'botocore',
-    'matplotlib', 'urllib3', 's3transfer',
-):
-    logging.getLogger(noisy).setLevel(logging.WARNING)
-
 _rank = "?"
 
 # ------------------------------------------------------------------
 # Path setup & imports (happens ONCE)
 # ------------------------------------------------------------------
 sys.path.insert(0, r"{str(src_path)}")
+
+from symfluence.core.logging_utils import silence_third_party
+silence_third_party()
 
 from mpi4py import MPI
 
