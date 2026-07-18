@@ -51,9 +51,8 @@ function main() {
     console.log(`Removed ${removed} symfluence shim(s) from ${binDir}`);
   }
 
-  // The pixi-managed Python env lives inside this package's dist/ and is
-  // removed with it. An ambient pip/uv install of the Python package is not
-  // ours to delete — detect it and point the user at the right command.
+  // An ambient pip/uv install of the Python package is not ours to delete —
+  // detect it and point the user at the right command.
   for (const py of ['python3', 'python']) {
     try {
       execSync(`${py} -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });

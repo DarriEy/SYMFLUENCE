@@ -117,31 +117,12 @@ function parseCliVersion(output) {
 
 /**
  * Locate the Python symfluence entry-point.
- * Tries, in order: pixi-managed python, python3/python -m symfluence, bare
- * `symfluence` on PATH (skipping *this* script to avoid infinite recursion).
+ * Tries, in order: python3/python -m symfluence, then a bare `symfluence`
+ * on PATH (skipping *this* script to avoid infinite recursion).
  * @returns {{ exe: string, args: string[], version: string|null } | null}
  */
 function findPythonCli() {
-  // 1. Try pixi-managed Python (preferred — guaranteed correct env, no HDF5 ABI conflicts)
-  const pixiEnvPaths = [
-    path.join(pkgRoot, 'dist', '.pixi', 'envs', 'default'),
-    path.join(pkgRoot, '.pixi', 'envs', 'default'),
-  ];
-  for (const envPath of pixiEnvPaths) {
-    const candidate = process.platform === 'win32'
-      ? path.join(envPath, 'python.exe')
-      : path.join(envPath, 'bin', 'python3');
-    if (fs.existsSync(candidate)) {
-      try {
-        // stdio array keeps probe stderr (tracebacks, import warnings) off the terminal
-        const out = execSync(`"${candidate}" -m symfluence --version`,
-          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
-        return { exe: candidate, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
-      } catch { /* pixi env exists but symfluence not installed — fall through */ }
-    }
-  }
-
-  // 2. Try `python -m symfluence` and `python3 -m symfluence`
+  // 1. Try `python -m symfluence` and `python3 -m symfluence`
   for (const py of ['python3', 'python']) {
     try {
       const out = execSync(`${py} -m symfluence --version`,
@@ -152,7 +133,7 @@ function findPythonCli() {
     }
   }
 
-  // 3. Try a bare `symfluence` on PATH that is NOT this wrapper
+  // 2. Try a bare `symfluence` on PATH that is NOT this wrapper
   const thisScript = fs.realpathSync(__filename);
   try {
     const resolved = execSync('which symfluence', { encoding: 'utf8', timeout: 5000 }).trim();

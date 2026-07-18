@@ -35,6 +35,9 @@ After installation, install external model binaries:
 symfluence binary install
 ```
 
+For the PyTorch-based features (LSTM/GNN models, differentiable coupling), add
+the ML extra: `pip install "symfluence[ml]"`.
+
 For the other install methods — npm, Docker, source/development setup, HPC modules — see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
 ---

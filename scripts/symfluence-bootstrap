@@ -1831,12 +1831,11 @@ else:
     local symfluence_cli=""
 
     if symfluence_cli=$(find_cli_candidate "${symfluence_dir}/venv/${VENV_BIN}/symfluence"); then
-        print_info "Using venv CLI: ${symfluence_cli}"
+        :
     elif symfluence_cli=$(find_cli_candidate "${symfluence_dir}/.venv/${VENV_BIN}/symfluence"); then
-        print_info "Using .venv CLI: ${symfluence_cli}"
+        :
     elif command -v symfluence >/dev/null 2>&1; then
         symfluence_cli="$(command -v symfluence)"
-        print_info "Using system CLI: ${symfluence_cli}"
     fi
 
     if [[ -z "$symfluence_cli" ]]; then
@@ -1845,22 +1844,9 @@ else:
         exit 1
     fi
 
-    # Change to SYMFLUENCE directory
-    if [[ "$symfluence_dir" != "." && -d "$symfluence_dir" ]]; then
-        cd "$symfluence_dir" || {
-            print_error "Failed to change to directory: $symfluence_dir"
-            exit 1
-        }
-        print_info "Changed directory to: $(pwd)"
-    fi
-
-    # Debug output
-    print_info "Launching SYMFLUENCE..."
-    print_info "  CLI: ${symfluence_cli}"
-    print_info "  Args: $*"
-    print_info "  Working dir: $(pwd)"
-
-    # Execute (replace current process with CLI)
+    # Launch from the caller's working directory: relative paths (e.g.
+    # `--config ./my.yaml`) must resolve where the user ran the command,
+    # not against the repo root. A clean launch is silent, like any binary.
     exec "$symfluence_cli" "$@"
 }
 

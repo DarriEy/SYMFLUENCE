@@ -70,7 +70,6 @@
     "dist/",
     "install.js",
     "uninstall.js",
-    "pixi.toml",
     "README.md"
   ]
 }

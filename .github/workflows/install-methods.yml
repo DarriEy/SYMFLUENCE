@@ -131,10 +131,8 @@ jobs:
               ;;
             npm)
               # Meta-installer path: postinstall downloads the released binary
-              # bundle and pip-installs the version-pinned Python package. Skip
-              # pixi so the pip fallback lands on this job's ambient Python,
-              # which the smoke test then imports from.
-              export SYMFLUENCE_SKIP_PIXI=1
+              # bundle and pip-installs the version-pinned Python package onto
+              # this job's ambient Python, which the smoke test then imports from.
               npm install -g ./npm
               ;;
             source)

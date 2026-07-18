@@ -25,15 +25,17 @@ This will:
 2. Extract them to your global npm directory
 3. Make the `symfluence` command available
 4. Install the SYMFLUENCE Python package automatically, pinned to the same
-   version as the npm package — preferring a pixi-managed environment, and
-   falling back to `uv`/`pip3`/`pip` if pixi is unavailable
+   version as the npm package (via `uv`, `pip3`, or `pip` — whichever is found)
 5. Verify the installed Python CLI version matches the npm package
 
-No separate `pip install symfluence` is needed. Opt-out environment variables:
+No separate `pip install symfluence` is needed. For the PyTorch-based
+features (LSTM/GNN models, differentiable coupling), add the ML extra
+afterwards: `pip install "symfluence[ml]"`.
+
+Opt-out environment variables:
 
 | Variable | Effect |
 | --- | --- |
-| `SYMFLUENCE_SKIP_PIXI=1` | Skip the pixi environment, use system pip directly |
 | `SYMFLUENCE_SKIP_SYSTEM_DEPS=1` | Skip auto-install of NetCDF/HDF5/GDAL system libraries |
 | `SYMFLUENCE_OPTIONAL_PYTHON=1` | Install the binary bundle only (built-in commands only) |
 
@@ -152,8 +154,7 @@ npm update -g symfluence
 ```
 
 This re-runs the installer: binaries are replaced with the new release and
-the Python package is upgraded to the matching pinned version (the pixi
-environment is rebuilt; a pip fallback install is upgraded in place).
+the Python package is upgraded in place to the matching pinned version.
 
 ## Uninstalling
 
@@ -161,10 +162,9 @@ environment is rebuilt; a pip fallback install is upgraded in place).
 npm uninstall -g symfluence
 ```
 
-This removes the binaries, the tool shims, and the pixi-managed Python
-environment (it lives inside the package directory). If the Python package
-was installed with system pip/uv (the fallback path), remove it separately —
-the uninstaller prints a reminder when it detects one:
+This removes the binaries and the tool shims. The Python package installed
+with system pip/uv is not removed — remove it separately; the uninstaller
+prints a reminder when it detects one:
 
 ```bash
 pip uninstall symfluence
