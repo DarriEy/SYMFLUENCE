@@ -11,7 +11,7 @@ by the CLI without loading pandas, xarray, etc.
 """
 from __future__ import annotations
 
-from typing import Dict
+from symfluence.cli.services.build_snippet_catalog import BuildSnippetCatalog
 
 
 def get_common_build_environment() -> str:
@@ -1428,21 +1428,21 @@ detect_or_build_flex
     '''.strip()
 
 
-def get_all_snippets() -> Dict[str, str]:
+def get_all_snippets() -> dict[str, str]:
     """
     Return all snippets as a dictionary for easy access.
 
     Returns:
         Dictionary mapping snippet names to their shell script content.
     """
-    return {
-        'common_env': get_common_build_environment(),
-        'netcdf_detect': get_netcdf_detection(),
-        'hdf5_detect': get_hdf5_detection(),
-        'netcdf_lib_detect': get_netcdf_lib_detection(),
-        'safe_build_path': get_safe_build_path(),
-        'geos_proj_detect': get_geos_proj_detection(),
-        'udunits2_detect_build': get_udunits2_detection_and_build(),
-        'bison_detect_build': get_bison_detection_and_build(),
-        'flex_detect_build': get_flex_detection_and_build(),
-    }
+    return BuildSnippetCatalog({
+        'common_env': get_common_build_environment,
+        'netcdf_detect': get_netcdf_detection,
+        'hdf5_detect': get_hdf5_detection,
+        'netcdf_lib_detect': get_netcdf_lib_detection,
+        'safe_build_path': get_safe_build_path,
+        'geos_proj_detect': get_geos_proj_detection,
+        'udunits2_detect_build': get_udunits2_detection_and_build,
+        'bison_detect_build': get_bison_detection_and_build,
+        'flex_detect_build': get_flex_detection_and_build,
+    }).render()
