@@ -215,10 +215,6 @@ function assertInstallTooling() {
         : '   Install it via your package manager (e.g. apt-get install tar).\n')
     );
   }
-  // curl is only needed for the optional pixi download; note it but don't fail.
-  if (process.platform !== 'win32' && !commandExists('curl --version')) {
-    console.log('   Note: curl not found — the optional pixi bootstrap will be skipped.');
-  }
 }
 
 /**
@@ -310,7 +306,7 @@ function unresolvedLibraries(binary, distLibDir) {
  * (or HDF5) soname the host doesn't provide, and a host glibc older than the
  * binaries were built against — at install time with actionable guidance,
  * instead of as an opaque loader error on first model run. Non-fatal: the npm
- * shim's built-in commands still work, and pixi/system-dep install may yet
+ * shim's built-in commands still work, and the system-dep install may yet
  * provide the missing libraries.
  */
 function verifyBundledBinaries(distDir) {
@@ -345,7 +341,6 @@ function verifyBundledBinaries(distDir) {
       '\n   This is usually a libnetcdff/HDF5 soname that differs across distros.\n' +
       '   Fixes (any one):\n' +
       '     • Install the matching dev packages (e.g. apt-get install libnetcdff-dev libhdf5-dev),\n' +
-      '     • or use the pixi-managed environment (do NOT set SYMFLUENCE_SKIP_PIXI=1),\n' +
       '     • or build from source: symfluence binary install\n'
     );
   }
@@ -369,8 +364,8 @@ function verifyBundledBinaries(distDir) {
       console.warn(
         `\n⚠️  Host glibc ${host.join('.')} is older than the binaries' baseline ` +
         `(glibc ${required.join('.')}).\n` +
-        '   The pre-built Linux binaries will fail to load. Use a newer distro,\n' +
-        '   the pixi environment, or build from source: symfluence binary install\n'
+        '   The pre-built Linux binaries will fail to load. Use a newer distro\n' +
+        '   or build from source: symfluence binary install\n'
       );
     } else if (host && required) {
       console.log(`   glibc ${host.join('.')} ≥ required ${required.join('.')} ✓`);
@@ -557,188 +552,6 @@ function tryInstallSystemDeps() {
 }
 
 /**
- * Platform-specific pixi download URL suffix.
- * @returns {string|null} e.g. 'x86_64-unknown-linux-musl' or null if unsupported
- */
-function pixiPlatformSuffix() {
-  const arch = process.arch; // 'x64', 'arm64'
-  const plat = process.platform; // 'darwin', 'linux', 'win32'
-  const map = {
-    'darwin-arm64':  'aarch64-apple-darwin',
-    'darwin-x64':    'x86_64-apple-darwin',
-    'linux-x64':     'x86_64-unknown-linux-musl',
-    'linux-arm64':   'aarch64-unknown-linux-musl',
-    'win32-x64':     'x86_64-pc-windows-msvc',
-  };
-  return map[`${plat}-${arch}`] || null;
-}
-
-/**
- * Locate an existing pixi binary on PATH, or download one into distDir/bin.
- * @param {string} distDir - The dist directory to place the binary in
- * @returns {string|null} Path to pixi binary, or null on failure
- */
-function findOrInstallPixi(distDir) {
-  // 1. Check PATH for existing pixi
-  try {
-    const pixiPath = execSync('which pixi 2>/dev/null || where pixi 2>NUL', {
-      encoding: 'utf8', timeout: 5000,
-    }).trim().split('\n')[0];
-    if (pixiPath) {
-      console.log(`   Found pixi on PATH: ${pixiPath}`);
-      return pixiPath;
-    }
-  } catch { /* not on PATH */ }
-
-  // 2. Check common install location
-  const homePixi = path.join(process.env.HOME || process.env.USERPROFILE || '', '.pixi', 'bin',
-    process.platform === 'win32' ? 'pixi.exe' : 'pixi');
-  if (fs.existsSync(homePixi)) {
-    console.log(`   Found pixi at: ${homePixi}`);
-    return homePixi;
-  }
-
-  // 3. Download pixi binary
-  const suffix = pixiPlatformSuffix();
-  if (!suffix) {
-    console.log('   Unsupported platform for pixi auto-download');
-    return null;
-  }
-
-  const ext = process.platform === 'win32' ? '.exe' : '';
-  const binDir = path.join(distDir, 'bin');
-  const pixiDest = path.join(binDir, `pixi${ext}`);
-
-  console.log('   Downloading pixi...');
-  try {
-    if (!fs.existsSync(binDir)) {
-      fs.mkdirSync(binDir, { recursive: true });
-    }
-    const archiveExt = process.platform === 'win32' ? 'zip' : 'tar.gz';
-    const url = `https://github.com/prefix-dev/pixi/releases/latest/download/pixi-${suffix}.${archiveExt}`;
-    const archivePath = path.join(distDir, `pixi-download.${archiveExt}`);
-
-    // Download
-    execSync(`curl -fsSL -o "${archivePath}" "${url}"`, { stdio: 'pipe', timeout: 120000 });
-
-    // Extract
-    if (archiveExt === 'tar.gz') {
-      execSync(`tar -xzf "${archivePath}" -C "${binDir}" pixi`, { stdio: 'pipe', timeout: 30000 });
-    } else {
-      execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${binDir}' -Force"`, {
-        stdio: 'pipe', timeout: 30000,
-      });
-    }
-
-    // Cleanup archive
-    if (fs.existsSync(archivePath)) {
-      fs.unlinkSync(archivePath);
-    }
-
-    // Make executable
-    if (process.platform !== 'win32') {
-      fs.chmodSync(pixiDest, 0o755);
-    }
-
-    if (fs.existsSync(pixiDest)) {
-      console.log(`   Downloaded pixi to: ${pixiDest}`);
-      return pixiDest;
-    }
-  } catch (err) {
-    console.log(`   Could not download pixi: ${err.message}`);
-  }
-
-  return null;
-}
-
-/**
- * Try to bootstrap a pixi-managed Python environment (preferred path).
- * Copies pixi.toml into distDir, runs pixi install, then pip installs symfluence.
- * @param {string} distDir - The dist directory
- * @returns {boolean} true if pixi environment is ready
- */
-function tryPixiBootstrap(distDir) {
-  // Allow opt-out
-  if (process.env.SYMFLUENCE_SKIP_PIXI === '1') {
-    console.log('\n📦 Skipping pixi bootstrap (SYMFLUENCE_SKIP_PIXI=1)\n');
-    return false;
-  }
-
-  console.log('\n🔧 Attempting pixi-managed environment (preferred)...\n');
-
-  // Find or install pixi
-  const pixiCmd = findOrInstallPixi(distDir);
-  if (!pixiCmd) {
-    console.log('   pixi not available, falling back to pip\n');
-    return false;
-  }
-
-  // Copy pixi.toml to dist directory
-  const srcPixiToml = path.join(__dirname, 'pixi.toml');
-  const rootPixiToml = path.join(__dirname, '..', 'pixi.toml');
-  const destPixiToml = path.join(distDir, 'pixi.toml');
-
-  let pixiTomlSource = null;
-  if (fs.existsSync(srcPixiToml)) {
-    pixiTomlSource = srcPixiToml;
-  } else if (fs.existsSync(rootPixiToml)) {
-    pixiTomlSource = rootPixiToml;
-  }
-
-  if (!pixiTomlSource) {
-    console.log('   pixi.toml not found, falling back to pip\n');
-    return false;
-  }
-
-  try {
-    fs.copyFileSync(pixiTomlSource, destPixiToml);
-  } catch (err) {
-    console.log(`   Could not copy pixi.toml: ${err.message}\n`);
-    return false;
-  }
-
-  // Run pixi install
-  console.log('   Running pixi install (this may take a few minutes)...');
-  try {
-    execSync(`"${pixiCmd}" install --manifest-path "${destPixiToml}"`, {
-      stdio: 'inherit',
-      timeout: 600000,  // 10 minutes
-      cwd: distDir,
-    });
-  } catch (err) {
-    console.warn(`\n⚠️  pixi install failed: ${err.message}`);
-    console.log('   Falling back to pip\n');
-    return false;
-  }
-
-  // Install symfluence into pixi env — pinned so the Python package matches
-  // this npm release; fall back to latest if the pinned version is not yet
-  // on PyPI (npm and PyPI publish from the same tag but land asynchronously).
-  console.log('   Installing symfluence Python package into pixi environment...');
-  let pixiPipOk = false;
-  for (const spec of [`symfluence==${PACKAGE_VERSION}`, 'symfluence']) {
-    try {
-      execSync(`"${pixiCmd}" run --manifest-path "${destPixiToml}" pip install --upgrade "${spec}"`, {
-        stdio: 'inherit',
-        timeout: 120000,
-        cwd: distDir,
-      });
-      pixiPipOk = true;
-      break;
-    } catch (err) {
-      console.warn(`\n⚠️  pip install ${spec} in pixi env failed: ${err.message}`);
-    }
-  }
-  if (!pixiPipOk) {
-    console.log('   Falling back to system pip\n');
-    return false;
-  }
-
-  console.log('\n✅ pixi environment ready (shared libhdf5, no ABI conflicts)\n');
-  return true;
-}
-
-/**
  * Install the SYMFLUENCE Python package.
  *
  * Tries uv, pip3, pip in order. Fails the postinstall (exit 1) if none
@@ -811,12 +624,7 @@ function tryInstallPython() {
  * still landing, and the runtime wrapper warns on every skewed invocation.
  */
 function verifyPythonVersion(distDir) {
-  const candidates = [];
-  const pixiPython = process.platform === 'win32'
-    ? path.join(distDir, '.pixi', 'envs', 'default', 'python.exe')
-    : path.join(distDir, '.pixi', 'envs', 'default', 'bin', 'python3');
-  if (fs.existsSync(pixiPython)) candidates.push(`"${pixiPython}"`);
-  candidates.push('python3', 'python');
+  const candidates = ['python3', 'python'];
 
   for (const py of candidates) {
     let out;
@@ -904,14 +712,9 @@ async function install() {
     // Surface distro-portability issues (soname / glibc) now, not at first run.
     verifyBundledBinaries(distDir);
 
-    // Try pixi-managed Python environment (preferred — single libhdf5)
-    const pixiOk = tryPixiBootstrap(distDir);
-
-    if (!pixiOk) {
-      // Fallback: system deps + pip (existing behavior, unchanged)
-      tryInstallSystemDeps();
-      tryInstallPython();
-    }
+    // Install system libraries and the Python package (uv/pip3/pip)
+    tryInstallSystemDeps();
+    tryInstallPython();
 
     if (process.env.SYMFLUENCE_OPTIONAL_PYTHON !== '1') {
       verifyPythonVersion(distDir);

@@ -187,7 +187,6 @@ jobs:
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
-      SYMFLUENCE_SKIP_PIXI: "1"
 
     steps:
       - name: Free up disk space (Linux)
@@ -533,7 +532,6 @@ jobs:
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
-      SYMFLUENCE_SKIP_PIXI: "1"
 
     steps:
       - name: Free up disk space (Linux)

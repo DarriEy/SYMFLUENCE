@@ -31,6 +31,20 @@ Quick Install
    GDAL) do not yet ship wheels for Python 3.14+. If you are on 3.14, create a
    3.11 or 3.12 environment instead (``python3.11 -m venv venv``).
 
+**Optional extras**
+
+The base install stays lean (~1 GB smaller than with the ML stack). Add
+extras for optional feature sets:
+
+.. code-block:: bash
+
+   pip install "symfluence[ml]"    # PyTorch stack: LSTM and GNN models, dCoupler differentiable coupling
+   pip install "symfluence[jax]"   # JAX conceptual models (Snow-17, SAC-SMA, HBV, ...) and autodiff calibration
+   pip install "symfluence[gdal]"  # GDAL Python bindings (a system GDAL install is auto-detected otherwise)
+
+Without ``[ml]``, selecting ``HYDROLOGICAL_MODEL: LSTM`` or ``GNN`` fails with
+an actionable install hint; everything else works.
+
 **Option 2: npm (bundled pre-built binaries)**
 
 .. code-block:: bash

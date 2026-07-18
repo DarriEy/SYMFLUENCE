@@ -9,7 +9,7 @@ name: npm bundle - multi-distro validation
 # Fortran binaries actually load. This workflow is that validation.
 #
 # For each distro it does a clean `npm install -g symfluence@<version>` with the
-# Python/pixi/system-dep paths disabled (SYMFLUENCE_OPTIONAL_PYTHON / SKIP_PIXI /
+# Python/system-dep paths disabled (SYMFLUENCE_OPTIONAL_PYTHON /
 # SKIP_SYSTEM_DEPS), so it tests ONLY the bundled binary tarball — then asserts,
 # per distro, that summa/mizuroute/fuse resolve their shared libraries
 # (LD_LIBRARY_PATH includes dist/lib, as the runtime wrapper sets it) and that
@@ -84,11 +84,10 @@ jobs:
 
       - name: Install symfluence from npm (binary tarball only)
         env:
-          # Test ONLY the bundled binary tarball — skip the heavy Python/pixi
-          # paths and the apt/dnf auto-install of runtime libs, so a clean pass
+          # Test ONLY the bundled binary tarball — skip the heavy Python
+          # path and the apt/dnf auto-install of runtime libs, so a clean pass
           # means the tarball is self-contained on this distro.
           SYMFLUENCE_OPTIONAL_PYTHON: '1'
-          SYMFLUENCE_SKIP_PIXI: '1'
           SYMFLUENCE_SKIP_SYSTEM_DEPS: '1'
         run: |
           set -e
