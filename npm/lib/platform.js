@@ -26,7 +26,7 @@ function getPlatform() {
       `Unsupported platform: ${name} (${platform} ${arch})\n` +
       `Pre-built binaries are available for: Linux x86_64, macOS Apple Silicon, Windows x86_64\n` +
       `You can build from source instead: symfluence binary install\n` +
-      `See: https://github.com/DarriEy/SYMFLUENCE/blob/main/docs/SYSTEM_REQUIREMENTS.md`
+      `See: https://github.com/symfluence-org/SYMFLUENCE/blob/main/docs/SYSTEM_REQUIREMENTS.md`
     );
   }
 

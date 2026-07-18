@@ -93,7 +93,7 @@ class ProjectCommands(BaseCommand):
             domain_dir = init_manager.create_scaffold(config)
             BaseCommand._console.success(f"Created project structure at: {domain_dir}")
         else:
-            BaseCommand._console.info(f"To create project structure, run: symfluence setup_project --config {written_path}")
+            BaseCommand._console.info(f"To create project structure, run: symfluence workflow step setup_project --config {written_path}")
 
         return ExitCode.SUCCESS
 

@@ -108,9 +108,15 @@ class NotebookService(BaseService):
             self._console.error(f"'examples/' directory not found at: {examples_root}")
             return 2
 
-        primary_matches = sorted(examples_root.rglob(f"{prefix}_*.ipynb"))
+        def _real_notebooks(pattern: str) -> list[Path]:
+            return sorted(
+                nb for nb in examples_root.rglob(pattern)
+                if ".ipynb_checkpoints" not in nb.parts
+            )
+
+        primary_matches = _real_notebooks(f"{prefix}_*.ipynb")
         fallback_matches = (
-            [] if primary_matches else sorted(examples_root.rglob(f"{prefix}*.ipynb"))
+            [] if primary_matches else _real_notebooks(f"{prefix}*.ipynb")
         )
         matches = primary_matches or fallback_matches
         if not matches:
@@ -192,7 +198,10 @@ class NotebookService(BaseService):
             self._console.error(f"'examples/' directory not found at: {examples_root}")
             return []
 
-        notebooks = sorted(examples_root.rglob("*.ipynb"))
+        notebooks = sorted(
+            nb for nb in examples_root.rglob("*.ipynb")
+            if ".ipynb_checkpoints" not in nb.parts
+        )
 
         self._console.info(f"Found {len(notebooks)} example notebooks:")
         for nb in notebooks:

@@ -35,19 +35,20 @@ Installation and Environment
 
   .. code-block:: bash
 
-     source .venv/bin/activate
+     source venv/bin/activate
 
 **Missing libraries**
 - Verify GDAL, NetCDF, and HDF5 are installed and accessible.
 - Check ``which gdalinfo`` and ``ldd <libnetcdf.so>`` on Linux.
+- For GDAL/NetCDF/HDF5 build and version problems, see :doc:`installation`.
 
 **Version conflicts**
-- Use Python 3.11. Other versions are not guaranteed to be supported.
+- Use Python 3.11–3.13. Other versions are not supported.
 - Reinstall dependencies cleanly:
 
   .. code-block:: bash
 
-     rm -rf .venv
+     rm -rf venv
      ./scripts/symfluence-bootstrap --install
 
 ---
@@ -246,21 +247,9 @@ Performance Issues
 Platform-Specific Issues
 ------------------------
 
-**macOS**
-- Install Xcode Command Line Tools: ``xcode-select --install``
-- Use Homebrew for dependencies: ``brew install gdal netcdf hdf5``
-- For Apple Silicon (M1/M2/M3), ensure arm64 compatible packages
-
-**Linux**
-- Install build essentials: ``sudo apt-get install build-essential gfortran``
-- Verify shared library paths: ``ldconfig -p | grep netcdf``
-- Check for conflicting conda environments
-
-**HPC Clusters**
-- Load required modules before running (see :doc:`installation` for cluster-specific recipes)
-- Request appropriate resources in SLURM script
-- Use cluster-optimized Python and library builds
-- Check filesystem quotas and permissions
+Platform prerequisites and GDAL/NetCDF/HDF5 fixes for macOS, Linux, and HPC
+clusters are covered in :doc:`installation`. For HPC, load your site's modules
+before running (cluster-specific recipes are listed there too).
 
 ---
 
@@ -345,18 +334,14 @@ Diagnostic Commands
    symfluence workflow step acquire_forcings --config my_config.yaml
 
    # Test model preprocessing
-   symfluence workflow step preprocess_models --config my_config.yaml
+   symfluence workflow step model_specific_preprocessing --config my_config.yaml
 
 ---
 
 Tips for Successful Runs
 -------------------------
 
-1. **Start small**: Test with a small domain and short time period first
-2. **Validate early**: Use ``config validate`` before running workflows
-3. **Check logs frequently**: Monitor ``_workLog_*/`` for progress and errors
-4. **Test incrementally**: Run individual workflow steps before full workflow
-5. **Keep backups**: Save working configurations for reference
-6. **Use version control**: Track configuration changes with git
-7. **Document changes**: Comment custom modifications in configuration files
-8. **Test on HPC**: Start with small jobs to verify cluster setup
+1. **Start small**: test with a small domain and a short time period first
+2. **Validate early**: run ``config validate`` before running workflows
+3. **Test incrementally**: run individual workflow steps before the full workflow
+4. **Check the logs**: ``_workLog_*/`` records progress and errors for every run

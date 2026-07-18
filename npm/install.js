@@ -135,15 +135,21 @@ async function verifyChecksum(file, checksumUrl) {
     const actualHash = hash.digest('hex');
 
     if (expectedHash.toLowerCase() !== actualHash.toLowerCase()) {
+      // A real mismatch means a corrupted or tampered download — never proceed.
       throw new Error(
-        'Checksum mismatch! File may be corrupted.\n' +
+        'Checksum mismatch! File may be corrupted or tampered with.\n' +
         `  Expected: ${expectedHash}\n` +
-        `  Actual:   ${actualHash}`
+        `  Actual:   ${actualHash}\n` +
+        '  Delete the download and re-run the install.'
       );
     }
 
     console.log('✅ Checksum verified');
   } catch (err) {
+    if (err.message.startsWith('Checksum mismatch')) {
+      throw err;
+    }
+    // Only tolerate failure to *fetch* the checksum file (offline mirror, etc.)
     console.warn('⚠️  Could not verify checksum:', err.message);
     console.warn('   Proceeding anyway, but installation may be corrupted...');
   }

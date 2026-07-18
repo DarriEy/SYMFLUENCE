@@ -195,7 +195,11 @@ class InitializationService(BaseService):
                     missing_config_names.append('FORCING_DATASET')
                 raise ValueError(
                     "Config validation failed:\n" +
-                    "\n".join(f"  - Missing required field: {f}" for f in missing_config_names)
+                    "\n".join(f"  - Missing required field: {f}" for f in missing_config_names) +
+                    "\n\nStart from a preset (e.g. 'symfluence project init bow-river';"
+                    " see 'symfluence project list-presets'),\n"
+                    "or pass --domain and --forcing:"
+                    " 'symfluence project init --domain MyBasin --forcing ERA5'"
                 )
 
         # Step 1: Load base template

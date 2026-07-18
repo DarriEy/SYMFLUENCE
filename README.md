@@ -2,7 +2,7 @@
 **SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration**
 
 [![PyPI version](https://badge.fury.io/py/symfluence.svg)](https://badge.fury.io/py/symfluence)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11–3.13](https://img.shields.io/badge/python-3.11--3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-brightgreen)](https://symfluence.readthedocs.io)
 [![CI](https://github.com/symfluence-org/SYMFLUENCE/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/symfluence-org/SYMFLUENCE/actions/workflows/ci.yml?query=branch%3Amain)
@@ -35,47 +35,33 @@ After installation, install external model binaries:
 symfluence binary install
 ```
 
-For development setup (editable install / bootstrap) and all other install methods — Docker, conda, npm, uv, HPC modules — see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
+For the other install methods — npm, Docker, source/development setup, HPC modules — see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
 ---
 
 ## Quick Start
 
-### Basic CLI Usage
 ```bash
-# Show options
-symfluence --help
+# Create a configuration from a built-in preset
+symfluence project init bow-river
 
-# Run full workflow
-symfluence workflow run --config my_config.yaml
+# Validate it
+symfluence config validate --config config_Bow_at_Banff.yaml
 
-# Run specific steps
-symfluence workflow steps setup_project calibrate_model
+# Run the full workflow
+symfluence workflow run --config config_Bow_at_Banff.yaml
+```
 
-# Define domain from pour point
+`symfluence project list-presets` lists the built-in presets. To start from your
+own gauge location instead:
+
+```bash
 symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition delineate
-
-# Check workflow status
-symfluence workflow status
-
-# Validate configuration
-symfluence config validate --config my_config.yaml
 ```
 
-### First Project
-```bash
-# Initialize project from template
-symfluence project init
-
-# Or copy template manually
-cp src/symfluence/resources/config_templates/config_template.yaml my_project.yaml
-
-# Run setup
-symfluence workflow step setup_project --config my_project.yaml
-
-# Run full workflow
-symfluence workflow run --config my_project.yaml
-```
+Run `symfluence --help` for the full command surface, or see the
+[getting started guide](https://symfluence.readthedocs.io/en/latest/getting_started.html)
+for a complete walkthrough.
 
 ---
 

@@ -79,7 +79,10 @@ class ExampleCommands(BaseCommand):
 
         if examples_dir.exists():
             # Find all notebook files
-            notebooks = sorted(examples_dir.rglob('*.ipynb'))
+            notebooks = sorted(
+                nb for nb in examples_dir.rglob('*.ipynb')
+                if '.ipynb_checkpoints' not in nb.parts
+            )
 
             if notebooks:
                 for i, notebook in enumerate(notebooks, 1):

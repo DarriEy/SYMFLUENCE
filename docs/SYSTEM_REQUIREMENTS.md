@@ -11,7 +11,7 @@ including pre-built binary packages (via npm) and building from source.
 
 ## Python
 
-- **Version**: Python 3.11 or later
+- **Version**: Python 3.11–3.13 (3.14+ not yet supported — geospatial dependencies lack wheels)
 - **Package manager**: pip, uv, pipx, or conda
 
 ---
