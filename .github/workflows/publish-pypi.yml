@@ -6,8 +6,9 @@
 #
 # Job graph:
 #   build (version check + python -m build + twine check)
-#     ├── [tag push] → publish-testpypi → verify-testpypi → publish-pypi → verify-pypi
-#     └── [dispatch]  → dry-run (inspect artifacts only)
+#     ├── paper-acceptance → [tag push] publish-pypi → verify-pypi
+#     ├── [tag push] publish-testpypi (best-effort staging)
+#     └── [dispatch] dry-run (acceptance also runs; no publication)
 #
 # ============================================================================
 # ONE-TIME SETUP REQUIRED (before first release)
@@ -120,6 +121,54 @@ jobs:
           path: dist/
           retention-days: 30
 
+  # ==========================================================================
+  # Paper release acceptance
+  # ==========================================================================
+  paper-acceptance:
+    name: Paper Release Acceptance
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev cdo
+
+      - name: Download built artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install built wheel and acceptance dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          WHEEL=$(find dist -name 'symfluence-*.whl' -print -quit)
+          pip install "${WHEEL}[test]"
+
+      - name: Prove imports resolve to the installed wheel
+        run: |
+          cd /tmp
+          python -c "import pathlib, symfluence; p=pathlib.Path(symfluence.__file__).resolve(); assert 'site-packages' in str(p), p; print(p)"
+
+      - name: Validate paper configs, workflow, and figure generation
+        run: |
+          cd /tmp
+          pytest -q -c /dev/null --rootdir="$GITHUB_WORKSPACE" \
+            -o "markers=paper_release: paper release acceptance" \
+            -m paper_release "$GITHUB_WORKSPACE/tests/release/test_paper_release_acceptance.py"
+
   # ===========================================================================
   # Publish to TestPyPI
   # ===========================================================================
@@ -155,7 +204,7 @@ jobs:
   # ===========================================================================
   publish-pypi:
     name: Publish to PyPI
-    needs: [build]
+    needs: [build, paper-acceptance]
     if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     timeout-minutes: 10

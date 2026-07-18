@@ -99,7 +99,7 @@ done
 Run configs within one experiment sequentially — they share a domain, and
 completed steps (downloads, preprocessing) are reused via stage markers, so
 only the first config pays the acquisition cost. Different experiments can run
-concurrently, except 02/05/12 which share the Bow lumped ERA5 domain.
+concurrently, except 02 and 05, which share the Bow lumped ERA5 domain.
 
 Rough costs (Apple M3 Pro): domain definitions minutes each once attribute
 data is cached (first config per region pays the downloads); one calibration
@@ -137,3 +137,23 @@ version-specific research artifact.
 Maintainers create the archive with
 `scripts/create_paper_provenance_bundle.sh`; see the provenance README for the
 expected layout and release procedure.
+
+## 6. Figure reproducibility scope
+
+The experiment configurations reproduce the numerical workflows behind the
+paper. Figure production has three explicitly different support levels:
+
+- **Fully automated from experiment outputs:** Figures 1–3, 6–8, and 11 have
+  staged plotting code. Figure 8 is exercised by the paper-release acceptance
+  test using deterministic fixture data.
+- **Automated with archived or separately staged inputs:** Figure 4 needs the
+  pipeline-analysis JSON; Figure 9's staged code covers the HBV-by-algorithm
+  slice but not the complete multi-model panel; Figure 10's domain panel needs
+  the satellite subsets identified by `P3_MULTIVAR_ASSETS_DIR`.
+- **Conceptual/manual:** Figure 5 is a framework schematic and has no
+  data-driven plotting program.
+
+The exact script, input, and current readiness of every figure are listed in
+[`plotting/README.md`](plotting/README.md). A figure is not claimed as fully
+reproducible unless all of its inputs and generation code are publicly
+available.
