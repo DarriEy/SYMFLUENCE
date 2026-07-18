@@ -705,16 +705,25 @@ function tryPixiBootstrap(distDir) {
     return false;
   }
 
-  // Install symfluence into pixi env
+  // Install symfluence into pixi env — pinned so the Python package matches
+  // this npm release; fall back to latest if the pinned version is not yet
+  // on PyPI (npm and PyPI publish from the same tag but land asynchronously).
   console.log('   Installing symfluence Python package into pixi environment...');
-  try {
-    execSync(`"${pixiCmd}" run --manifest-path "${destPixiToml}" pip install symfluence`, {
-      stdio: 'inherit',
-      timeout: 120000,
-      cwd: distDir,
-    });
-  } catch (err) {
-    console.warn(`\n⚠️  pip install in pixi env failed: ${err.message}`);
+  let pixiPipOk = false;
+  for (const spec of [`symfluence==${PACKAGE_VERSION}`, 'symfluence']) {
+    try {
+      execSync(`"${pixiCmd}" run --manifest-path "${destPixiToml}" pip install --upgrade "${spec}"`, {
+        stdio: 'inherit',
+        timeout: 120000,
+        cwd: distDir,
+      });
+      pixiPipOk = true;
+      break;
+    } catch (err) {
+      console.warn(`\n⚠️  pip install ${spec} in pixi env failed: ${err.message}`);
+    }
+  }
+  if (!pixiPipOk) {
     console.log('   Falling back to system pip\n');
     return false;
   }
@@ -738,10 +747,15 @@ function tryPixiBootstrap(distDir) {
 function tryInstallPython() {
   console.log('\n🐍 Installing SYMFLUENCE Python package...\n');
 
+  // Pinned first so the Python package matches this npm release; fall back to
+  // latest if the pinned version is not yet on PyPI (npm and PyPI publish from
+  // the same tag but land asynchronously).
+  const specs = [`symfluence==${PACKAGE_VERSION}`, 'symfluence'];
+
   const strategies = [
-    { check: 'uv --version', install: 'uv pip install symfluence', label: 'uv' },
-    { check: 'pip3 --version', install: 'pip3 install symfluence', label: 'pip3' },
-    { check: 'pip --version', install: 'pip install symfluence', label: 'pip' },
+    { check: 'uv --version', install: 'uv pip install --upgrade', label: 'uv' },
+    { check: 'pip3 --version', install: 'pip3 install --upgrade', label: 'pip3' },
+    { check: 'pip --version', install: 'pip install --upgrade', label: 'pip' },
   ];
 
   for (const { check, install, label } of strategies) {
@@ -751,16 +765,18 @@ function tryInstallPython() {
       continue; // tool not available
     }
 
-    try {
-      console.log(`   Using ${label}...`);
-      // 10 min: heavy scientific stack (torch, geopandas, etc.) can exceed
-      // the previous 120 s budget on slow networks or under emulation.
-      execSync(install, { stdio: 'inherit', timeout: 600000 });
-      console.log(`\n✅ Python package installed via ${label}`);
-      return;
-    } catch (err) {
-      console.warn(`\n⚠️  ${label} install failed: ${err.message}`);
-      // try next strategy
+    for (const spec of specs) {
+      try {
+        console.log(`   Using ${label} (${spec})...`);
+        // 10 min: heavy scientific stack (torch, geopandas, etc.) can exceed
+        // the previous 120 s budget on slow networks or under emulation.
+        execSync(`${install} "${spec}"`, { stdio: 'inherit', timeout: 600000 });
+        console.log(`\n✅ Python package installed via ${label}`);
+        return;
+      } catch (err) {
+        console.warn(`\n⚠️  ${label} install of ${spec} failed: ${err.message}`);
+        // try next spec, then next strategy
+      }
     }
   }
 
@@ -780,6 +796,44 @@ function tryInstallPython() {
 
   console.error(message);
   process.exit(1);
+}
+
+/**
+ * Post-install check: confirm the Python CLI resolves and report whether its
+ * version matches this npm release. Non-fatal — the unpinned fallback can
+ * legitimately install a different version while a tag's PyPI publish is
+ * still landing, and the runtime wrapper warns on every skewed invocation.
+ */
+function verifyPythonVersion(distDir) {
+  const candidates = [];
+  const pixiPython = process.platform === 'win32'
+    ? path.join(distDir, '.pixi', 'envs', 'default', 'python.exe')
+    : path.join(distDir, '.pixi', 'envs', 'default', 'bin', 'python3');
+  if (fs.existsSync(pixiPython)) candidates.push(`"${pixiPython}"`);
+  candidates.push('python3', 'python');
+
+  for (const py of candidates) {
+    let out;
+    try {
+      // stdio array keeps probe stderr (tracebacks, import warnings) out of the install log
+      out = execSync(`${py} -m symfluence --version`,
+        { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      continue; // try next interpreter
+    }
+    const m = out.match(/(\d+\.\d+\.\d+)/);
+    const version = m ? m[1] : null;
+    if (version === PACKAGE_VERSION) {
+      console.log(`\n✅ Python package ${version} matches the npm package`);
+    } else {
+      console.warn(
+        `\n⚠️  Python package reports ${version || 'an unknown version'}, npm package is ${PACKAGE_VERSION}.\n` +
+        `   Sync manually with: pip install --upgrade "symfluence==${PACKAGE_VERSION}"`
+      );
+    }
+    return;
+  }
+  console.warn('\n⚠️  Could not verify the installed Python package version.');
 }
 
 /**
@@ -853,6 +907,10 @@ async function install() {
       tryInstallPython();
     }
 
+    if (process.env.SYMFLUENCE_OPTIONAL_PYTHON !== '1') {
+      verifyPythonVersion(distDir);
+    }
+
     // Display installation info
     console.log('\n╔════════════════════════════════════════════╗');
     console.log('║   🎉 Installation Complete!                ║');
@@ -918,4 +976,5 @@ module.exports = {
   requiredGlibcVersion,
   unresolvedLibraries,
   verifyBundledBinaries,
+  verifyPythonVersion,
 };

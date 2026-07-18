@@ -86,6 +86,10 @@ function handleBuiltin(args) {
     const cli = findPythonCli();
     if (cli) {
       console.log(`\nPython CLI:       ${cli.exe} ${cli.args.join(' ')}`);
+      if (cli.version) {
+        const skew = cli.version !== pkgJson.version ? `  (⚠️  npm wrapper is ${pkgJson.version})` : '';
+        console.log(`Python version:   ${cli.version}${skew}`);
+      }
     } else {
       console.log('\nPython CLI:       not found');
       console.log('  Install with: pip install symfluence');
@@ -102,10 +106,20 @@ function handleBuiltin(args) {
 // =========================================================================
 
 /**
+ * Extract the version from CLI output like "SYMFLUENCE 0.9.2".
+ * @param {string} output
+ * @returns {string|null}
+ */
+function parseCliVersion(output) {
+  const m = String(output).match(/(\d+\.\d+\.\d+)/);
+  return m ? m[1] : null;
+}
+
+/**
  * Locate the Python symfluence entry-point.
- * Tries, in order: python -m symfluence, python3 -m symfluence, bare `symfluence`
- * on PATH (skipping *this* script to avoid infinite recursion).
- * @returns {{ exe: string, args: string[] } | null}
+ * Tries, in order: pixi-managed python, python3/python -m symfluence, bare
+ * `symfluence` on PATH (skipping *this* script to avoid infinite recursion).
+ * @returns {{ exe: string, args: string[], version: string|null } | null}
  */
 function findPythonCli() {
   // 1. Try pixi-managed Python (preferred — guaranteed correct env, no HDF5 ABI conflicts)
@@ -119,8 +133,10 @@ function findPythonCli() {
       : path.join(envPath, 'bin', 'python3');
     if (fs.existsSync(candidate)) {
       try {
-        execSync(`"${candidate}" -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });
-        return { exe: candidate, args: ['-m', 'symfluence'] };
+        // stdio array keeps probe stderr (tracebacks, import warnings) off the terminal
+        const out = execSync(`"${candidate}" -m symfluence --version`,
+          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+        return { exe: candidate, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
       } catch { /* pixi env exists but symfluence not installed — fall through */ }
     }
   }
@@ -128,8 +144,9 @@ function findPythonCli() {
   // 2. Try `python -m symfluence` and `python3 -m symfluence`
   for (const py of ['python3', 'python']) {
     try {
-      execSync(`${py} -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });
-      return { exe: py, args: ['-m', 'symfluence'] };
+      const out = execSync(`${py} -m symfluence --version`,
+        { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+      return { exe: py, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
     } catch {
       // not available
     }
@@ -140,7 +157,12 @@ function findPythonCli() {
   try {
     const resolved = execSync('which symfluence', { encoding: 'utf8', timeout: 5000 }).trim();
     if (resolved && fs.realpathSync(resolved) !== thisScript) {
-      return { exe: resolved, args: [] };
+      let version = null;
+      try {
+        version = parseCliVersion(execSync(`"${resolved}" --version`,
+          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }));
+      } catch { /* version unknown — still usable */ }
+      return { exe: resolved, args: [], version };
     }
   } catch {
     // not found
@@ -169,6 +191,16 @@ function main() {
       'Then re-run your command.'
     );
     process.exit(1);
+  }
+
+  // Warn (don't block) when the Python package has drifted from this wrapper —
+  // npm and PyPI publish in lockstep, so a mismatch usually means an old pip
+  // install survived an npm upgrade.
+  if (cli.version && cli.version !== pkgJson.version) {
+    console.error(
+      `Warning: npm wrapper ${pkgJson.version} is forwarding to Python CLI ${cli.version}.\n` +
+      `         Sync with: pip install --upgrade "symfluence==${pkgJson.version}"`
+    );
   }
 
   // Prepend npm dist/bin so the Python CLI can find npm-shipped binaries

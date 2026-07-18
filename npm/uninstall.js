@@ -50,6 +50,20 @@ function main() {
   if (removed > 0) {
     console.log(`Removed ${removed} symfluence shim(s) from ${binDir}`);
   }
+
+  // The pixi-managed Python env lives inside this package's dist/ and is
+  // removed with it. An ambient pip/uv install of the Python package is not
+  // ours to delete — detect it and point the user at the right command.
+  for (const py of ['python3', 'python']) {
+    try {
+      execSync(`${py} -m symfluence --version`, { stdio: 'ignore', timeout: 10000 });
+      console.log('Note: the SYMFLUENCE Python package is still installed in your Python');
+      console.log('environment. Remove it separately with: pip uninstall symfluence');
+      break;
+    } catch {
+      // not present under this interpreter
+    }
+  }
 }
 
 main();

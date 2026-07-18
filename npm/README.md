@@ -24,6 +24,18 @@ This will:
 1. Download platform-specific pre-compiled binaries (~50-100 MB)
 2. Extract them to your global npm directory
 3. Make the `symfluence` command available
+4. Install the SYMFLUENCE Python package automatically, pinned to the same
+   version as the npm package — preferring a pixi-managed environment, and
+   falling back to `uv`/`pip3`/`pip` if pixi is unavailable
+5. Verify the installed Python CLI version matches the npm package
+
+No separate `pip install symfluence` is needed. Opt-out environment variables:
+
+| Variable | Effect |
+| --- | --- |
+| `SYMFLUENCE_SKIP_PIXI=1` | Skip the pixi environment, use system pip directly |
+| `SYMFLUENCE_SKIP_SYSTEM_DEPS=1` | Skip auto-install of NetCDF/HDF5/GDAL system libraries |
+| `SYMFLUENCE_OPTIONAL_PYTHON=1` | Install the binary bundle only (built-in commands only) |
 
 ### Local Installation
 
@@ -100,9 +112,14 @@ $(npm root -g)/symfluence/dist/bin/summa --version
 
 #### Option 3: Use with SYMFLUENCE Python Package
 
+The Python package is installed automatically by `npm install` (see above),
+and the `symfluence` command forwards all non-built-in commands to it with
+the npm-shipped binaries already on PATH. Manual setup is only needed if you
+opted out with `SYMFLUENCE_OPTIONAL_PYTHON=1`:
+
 ```bash
-# Install Python package
-pip install symfluence
+# Install Python package manually (match the npm package version)
+pip install "symfluence==$(symfluence version)"
 
 # Configure to use npm-installed binaries
 export SYMFLUENCE_DATA="$(npm root -g)/symfluence/dist"
@@ -117,10 +134,40 @@ symfluence path
 ## Commands
 
 ```bash
-symfluence info       # Show installation info and available tools
+symfluence info       # Show installation info, available tools, Python CLI version
 symfluence version    # Show version
 symfluence path       # Show binary directory path
 symfluence help       # Show help
+```
+
+All other commands (`workflow`, `binary`, ...) are forwarded to the Python
+CLI. If the Python package version ever drifts from the npm package (e.g. an
+old pip install survived an npm upgrade), every forwarded command prints a
+warning with the exact command to re-sync.
+
+## Upgrading
+
+```bash
+npm update -g symfluence
+```
+
+This re-runs the installer: binaries are replaced with the new release and
+the Python package is upgraded to the matching pinned version (the pixi
+environment is rebuilt; a pip fallback install is upgraded in place).
+
+## Uninstalling
+
+```bash
+npm uninstall -g symfluence
+```
+
+This removes the binaries, the tool shims, and the pixi-managed Python
+environment (it lives inside the package directory). If the Python package
+was installed with system pip/uv (the fallback path), remove it separately —
+the uninstaller prints a reminder when it detects one:
+
+```bash
+pip uninstall symfluence
 ```
 
 ## Troubleshooting
