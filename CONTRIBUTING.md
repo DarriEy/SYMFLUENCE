@@ -17,7 +17,8 @@ We welcome all contributions — from bug fixes and documentation improvements t
    ```bash
    ./scripts/symfluence-bootstrap --install
    ```
-   This will create and manage a `venv/` directory automatically.
+   This will create and manage a `venv/` directory automatically, then build
+   the external model binaries (the first run can take a long time).
    If you prefer manual setup:
    ```bash
    python -m venv venv
@@ -27,7 +28,9 @@ We welcome all contributions — from bug fixes and documentation improvements t
 
 3. **Verify installation**
    ```bash
-   ./scripts/symfluence-bootstrap --help
+   source venv/bin/activate
+   symfluence --version
+   symfluence binary doctor
    ```
 
 ---

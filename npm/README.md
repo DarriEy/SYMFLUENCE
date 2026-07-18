@@ -230,7 +230,6 @@ npm publish
 
 - **Repository**: https://github.com/symfluence-org/SYMFLUENCE
 - **System Requirements**: [docs/SYSTEM_REQUIREMENTS.md](https://github.com/symfluence-org/SYMFLUENCE/blob/main/docs/SYSTEM_REQUIREMENTS.md)
-- **Dynamic Linking Strategy**: [docs/DYNAMIC_LINKING_STRATEGY.md](https://github.com/symfluence-org/SYMFLUENCE/blob/main/docs/DYNAMIC_LINKING_STRATEGY.md)
 - **Issues**: https://github.com/symfluence-org/SYMFLUENCE/issues
 
 ## License

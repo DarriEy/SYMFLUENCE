@@ -208,6 +208,15 @@ Clean intermediate or output files.
 
    symfluence workflow clean --level all --dry-run
 
+workflow diagnose
+-----------------
+
+Run diagnostic plots on existing workflow outputs.
+
+.. code-block:: bash
+
+   symfluence workflow diagnose [--config CONFIG]
+
 Project Commands
 ================
 
@@ -350,6 +359,20 @@ Run comprehensive system diagnostics.
 .. code-block:: bash
 
    symfluence binary doctor
+
+binary install-sysdeps
+----------------------
+
+Install system dependencies (compilers, libraries) for the current platform.
+
+.. code-block:: bash
+
+   symfluence binary install-sysdeps [--tool TOOL] [--dry-run]
+
+**Options:**
+
+- ``--tool``: Install deps for a specific tool only (e.g. summa, fuse)
+- ``--dry-run``: Show install commands without executing them
 
 binary info
 -----------

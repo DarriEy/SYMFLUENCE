@@ -1,69 +1,47 @@
 Examples
 ========
 
-Overview
---------
-This section introduces complete, ready-to-run examples that demonstrate SYMFLUENCE's full range of workflows — from point-scale validation to large-domain modeling.
-Each example includes configuration templates, Jupyter notebooks, and batch scripts located in the ``examples/`` directory.
+Ready-to-run examples — configuration, Jupyter notebook, and optional SLURM
+script — live in the ``examples/`` directory of the repository. They progress
+from simple to advanced:
 
----
-
-Tutorial Structure
-------------------
-The examples are organized progressively to guide users from simple to advanced workflows:
-
-1. **Point Scale (01)** — Snow and energy balance validation (SNOTEL, FLUXNET)
-2. **Basin Scale (02)** — Bow River case studies (lumped, semi-distributed, elevation-based)
-3. **Regional and Continental (03)** — Iceland and North America workflows
-4. **Workshops (04)** — Guided hands-on exercises (Logan River, Provo River)
-
-Each directory contains a configuration file, notebook, and optional SLURM script.
-
----
+1. **Point scale (01)** — snow and energy balance validation (SNOTEL, FLUXNET)
+2. **Basin scale (02)** — Bow River case studies (lumped, semi-distributed, distributed)
+3. **Regional and continental (03)** — Iceland and North America workflows
+4. **Workshops (04)** — guided hands-on exercises (Logan River, Provo River)
 
 Running the Examples
 --------------------
-1. Install SYMFLUENCE and activate your environment:
-   .. code-block:: bash
 
-      ./scripts/symfluence-bootstrap --install
-      source venv/bin/activate
+The examples require a source checkout (they are not shipped with the pip
+package):
 
-2. Launch an example directly from the CLI:
-   .. code-block:: bash
+.. code-block:: bash
 
-      symfluence example launch 2b
+   git clone https://github.com/symfluence-org/SYMFLUENCE.git
+   cd SYMFLUENCE
+   ./scripts/symfluence-bootstrap --install
 
-   Or navigate to the example directory manually:
-   .. code-block:: bash
+From the repository root, list and launch notebooks by ID:
 
-      cd examples/02_watershed_modelling/
-      jupyter notebook 02b_basin_semi_distributed.ipynb
+.. code-block:: bash
 
-3. Run the notebook or script as described inside.
+   symfluence example list
+   symfluence example launch 02b
 
----
+Or open one directly:
 
-Learning Path
--------------
-- **Start simple:** ``01a_point_scale_snotel.ipynb`` — understand configuration and validation
-- **Progress spatially:** ``02a–02c`` — from lumped to elevation-band modeling
-- **Scale up:** ``03a–03b`` — regional and continental workflows
-- **Workshop practice:** ``04a–04b`` — guided hands-on exercises
+.. code-block:: bash
 
----
+   cd examples/02_watershed_modelling/
+   jupyter lab 02b_basin_semi_distributed.ipynb
 
-Best Practices
---------------
-- Always validate configuration before execution.
-- Follow the order: setup → run → evaluate.
-- Use logs and plots to verify intermediate outputs.
-- Adapt example configurations for your domain and models.
-
----
+Start with ``01a_point_scale_snotel.ipynb`` to learn configuration and
+validation, then work upward. Each notebook explains its own workflow.
 
 References
 ----------
+
 - Example notebooks: `examples/ <https://github.com/symfluence-org/SYMFLUENCE/tree/main/examples>`_
 - Configuration templates: `config_templates/ <https://github.com/symfluence-org/SYMFLUENCE/tree/main/src/symfluence/resources/config_templates>`_
-- :doc:`configuration` — Configuration reference
+- :doc:`configuration` — configuration reference
