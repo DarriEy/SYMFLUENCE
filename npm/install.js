@@ -815,7 +815,9 @@ function verifyPythonVersion(distDir) {
   for (const py of candidates) {
     let out;
     try {
-      out = execSync(`${py} -m symfluence --version`, { encoding: 'utf8', timeout: 15000 });
+      // stdio array keeps probe stderr (tracebacks, import warnings) out of the install log
+      out = execSync(`${py} -m symfluence --version`,
+        { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] });
     } catch {
       continue; // try next interpreter
     }

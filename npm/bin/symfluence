@@ -133,7 +133,9 @@ function findPythonCli() {
       : path.join(envPath, 'bin', 'python3');
     if (fs.existsSync(candidate)) {
       try {
-        const out = execSync(`"${candidate}" -m symfluence --version`, { encoding: 'utf8', timeout: 10000 });
+        // stdio array keeps probe stderr (tracebacks, import warnings) off the terminal
+        const out = execSync(`"${candidate}" -m symfluence --version`,
+          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
         return { exe: candidate, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
       } catch { /* pixi env exists but symfluence not installed — fall through */ }
     }
@@ -142,7 +144,8 @@ function findPythonCli() {
   // 2. Try `python -m symfluence` and `python3 -m symfluence`
   for (const py of ['python3', 'python']) {
     try {
-      const out = execSync(`${py} -m symfluence --version`, { encoding: 'utf8', timeout: 10000 });
+      const out = execSync(`${py} -m symfluence --version`,
+        { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
       return { exe: py, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
     } catch {
       // not available
@@ -156,7 +159,8 @@ function findPythonCli() {
     if (resolved && fs.realpathSync(resolved) !== thisScript) {
       let version = null;
       try {
-        version = parseCliVersion(execSync(`"${resolved}" --version`, { encoding: 'utf8', timeout: 10000 }));
+        version = parseCliVersion(execSync(`"${resolved}" --version`,
+          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }));
       } catch { /* version unknown — still usable */ }
       return { exe: resolved, args: [], version };
     }
