@@ -26,6 +26,56 @@ from .cf_conventions import CANONICAL_FORCING
 
 logger = logging.getLogger(__name__)
 
+# Deltas within this tolerance (seconds) of each other count as one cadence.
+_CADENCE_TOLERANCE_S = 1.0
+
+
+def _has_datetime_axis(ds: xr.Dataset) -> bool:
+    """Report whether *ds* has a datetime64 time axis long enough to measure."""
+    return (
+        'time' in ds
+        and ds['time'].size > 1
+        and np.issubdtype(np.asarray(ds['time'].values).dtype, np.datetime64)
+    )
+
+
+def validated_timestep_seconds(times: np.ndarray, context: str = 'forcing') -> float:
+    """Infer the cadence (seconds) from a full time axis, refusing irregular ones.
+
+    The whole axis is checked — not just the first pair of timestamps — because a
+    single leading delta cannot distinguish an hourly axis from one with a gap
+    ([00:00, 01:00, 04:00] is not hourly). An axis that is non-monotonic, has
+    duplicate timestamps, or mixes different deltas would silently corrupt
+    accumulated precipitation and timestep counts downstream, so it is rejected.
+
+    Args:
+        times: datetime64 time coordinate values (size >= 2).
+        context: label for error messages (e.g. the source file).
+
+    Returns:
+        The constant timestep in seconds.
+
+    Raises:
+        ValueError: if the axis is non-monotonic, has duplicates, or is irregular.
+    """
+    deltas = np.diff(times) / np.timedelta64(1, 's')
+    if np.any(deltas <= 0):
+        bad = int(np.argmax(deltas <= 0))
+        raise ValueError(
+            f"Time axis of {context} is not strictly increasing at index {bad + 1} "
+            f"({times[bad]} -> {times[bad + 1]}): duplicate or out-of-order timestamps. "
+            "Fix or regenerate the forcing store before using it."
+        )
+    if float(deltas.max() - deltas.min()) > _CADENCE_TOLERANCE_S:
+        bad = int(np.argmax(np.abs(deltas - deltas[0]) > _CADENCE_TOLERANCE_S))
+        raise ValueError(
+            f"Time axis of {context} is irregular: steps range from {deltas.min():.0f} s "
+            f"to {deltas.max():.0f} s (first differing interval at {times[bad]} -> "
+            f"{times[bad + 1]}). Refusing to treat it as a fixed cadence — gaps would "
+            "silently distort accumulated forcing. Regularize the axis or rebuild the store."
+        )
+    return float(np.median(deltas))
+
 
 def open_canonical_forcing(
     forcing_files: Union[Path, List[Path]],
@@ -52,7 +102,9 @@ def open_canonical_forcing(
             ds = xr.open_mfdataset(files, combine='by_coords', data_vars='minimal',
                                    coords='minimal', compat='override')
         except (ValueError, OSError):
-            ds = xr.concat([xr.open_dataset(f) for f in sorted(files)], dim='time')
+            # Filename sort order need not be chronological; sort the axis so
+            # the regularity validation below sees the true cadence.
+            ds = xr.concat([xr.open_dataset(f) for f in sorted(files)], dim='time').sortby('time')
 
     # Resolve each canonical variable, coalescing across every spelling present.
     # A partially-regenerated store can carry more than one spelling of the same
@@ -78,22 +130,44 @@ def open_canonical_forcing(
         if primary != canonical:
             ds = ds.rename({primary: canonical})
 
-    # Declared timestep wins; otherwise infer from the time axis.
+    # The measured axis is authoritative: validate the whole axis and cross-check
+    # any declared attribute against it rather than trusting metadata blindly.
+    # Non-datetime64 axes (cftime calendars, undecoded numerics) can't be
+    # validated this way and fall back to the declared attribute.
     ts = ds.attrs.get('timestep_seconds')
-    if ts is None and 'time' in ds and ds['time'].size > 1:
-        ts = float(np.diff(ds['time'].values[:2])[0] / np.timedelta64(1, 's'))
+    if _has_datetime_axis(ds):
+        measured = validated_timestep_seconds(
+            ds['time'].values, context=', '.join(f.name for f in files[:3])
+        )
+        if ts is not None and abs(float(ts) - measured) > _CADENCE_TOLERANCE_S:
+            logger.warning(
+                "Declared timestep_seconds=%s disagrees with the time axis (%.0f s); "
+                "using the measured cadence", ts, measured,
+            )
+        ts = measured
     if ts is not None:
         ds.attrs['timestep_seconds'] = float(ts)
     return ds
 
 
 def forcing_timestep_seconds(ds: xr.Dataset, default: float = 3600.0) -> float:
-    """Return the canonical forcing timestep in seconds (declared or inferred)."""
+    """Return the canonical forcing timestep in seconds (measured or declared).
+
+    The full time axis, when present, is validated and wins over the declared
+    ``timestep_seconds`` attribute — a stale or wrong attribute must not let an
+    irregular or coarser axis masquerade as the declared cadence.
+    """
     ts = ds.attrs.get('timestep_seconds')
+    if _has_datetime_axis(ds):
+        measured = validated_timestep_seconds(ds['time'].values)
+        if ts is not None and abs(float(ts) - measured) > _CADENCE_TOLERANCE_S:
+            logger.warning(
+                "Declared timestep_seconds=%s disagrees with the time axis (%.0f s); "
+                "using the measured cadence", ts, measured,
+            )
+        return measured
     if ts is not None:
         return float(ts)
-    if 'time' in ds and ds['time'].size > 1:
-        return float(np.diff(ds['time'].values[:2])[0] / np.timedelta64(1, 's'))
     return default
 
 

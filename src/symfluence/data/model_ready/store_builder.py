@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
+from symfluence.core.mixins.project import resolve_data_subdir
+
 from .attributes_builder import AttributesNetCDFBuilder
 from .forcings_builder import ForcingsStoreBuilder
 from .observations_builder import ObservationsNetCDFBuilder
@@ -22,6 +24,19 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _is_valid_netcdf(path: Path) -> bool:
+    """Report whether *path* is an openable NetCDF file with any content."""
+    try:
+        import netCDF4  # noqa: N813
+    except ImportError:
+        return path.stat().st_size > 0
+    try:
+        with netCDF4.Dataset(str(path), 'r') as ds:
+            return bool(ds.groups or ds.variables)
+    except OSError:
+        return False
 
 
 class ModelReadyStoreBuilder:
@@ -67,12 +82,29 @@ class ModelReadyStoreBuilder:
         """Build forcings, observations, and attributes stores."""
         logger.info("Building model-ready data store for %s", self.domain_name)
 
-        self.build_forcings()
+        forcings = self.build_forcings()
         self._compute_climate_statistics()
-        self.build_observations()
-        self.build_attributes()
+        observations = self.build_observations()
+        attributes = self.build_attributes()
 
-        logger.info("Model-ready data store build complete")
+        # Report what was actually materialized — a builder returning None means
+        # its section was skipped or produced nothing, not that it succeeded.
+        outcomes = ', '.join(
+            f"{name}={'built' if result is not None else 'skipped'}"
+            for name, result in (
+                ('forcings', forcings),
+                ('observations', observations),
+                ('attributes', attributes),
+            )
+        )
+        if self.is_store_complete():
+            logger.info("Model-ready data store build complete (%s)", outcomes)
+        else:
+            logger.warning(
+                "Model-ready data store is INCOMPLETE after build (%s); "
+                "the build step will re-run on the next workflow invocation",
+                outcomes,
+            )
 
     def _cfg(self, key: str, default=None):
         """Get config value from typed config or legacy dict."""
@@ -247,17 +279,41 @@ class ModelReadyStoreBuilder:
         return builder.build()
 
     def is_store_complete(self) -> bool:
-        """Check if all available data has been materialized."""
+        """Check whether every section the source inputs call for is materialized.
+
+        The contract is source-driven, not existence-driven: an empty
+        ``data/model_ready`` directory (created unconditionally at project init)
+        is never complete, and a store that materialized only part of the
+        basin-averaged forcing must report incomplete so the build re-runs.
+        Observations and attributes are content-dependent (their builders may
+        legitimately produce nothing), so they are required only to be *valid*
+        when present — but at least one section must actually exist.
+        """
         store_dir = self.project_dir / 'data' / 'model_ready'
         if not store_dir.exists():
             return False
 
-        has_forcings = any((store_dir / 'forcings').glob('*.nc')) if (store_dir / 'forcings').exists() else False
-        has_obs = (store_dir / 'observations' / f'{self.domain_name}_observations.nc').exists()
-        has_attrs = (store_dir / 'attributes' / f'{self.domain_name}_attributes.nc').exists()
+        # Forcings: every basin-averaged source file must be present in the store.
+        forcing_src = resolve_data_subdir(self.project_dir, 'forcing') / 'basin_averaged_data'
+        src_names = {p.name for p in forcing_src.glob('*.nc')} if forcing_src.exists() else set()
+        forcings_dir = store_dir / 'forcings'
+        store_names = {p.name for p in forcings_dir.glob('*.nc')} if forcings_dir.exists() else set()
+        if not src_names <= store_names:
+            missing = sorted(src_names - store_names)
+            logger.debug(
+                "Model-ready store incomplete: %d forcing file(s) not materialized (e.g. %s)",
+                len(missing), missing[:3],
+            )
+            return False
 
-        # Consider complete if at least forcings are present (obs/attrs optional)
-        return has_forcings or has_obs or has_attrs
+        obs_path = store_dir / 'observations' / f'{self.domain_name}_observations.nc'
+        attrs_path = store_dir / 'attributes' / f'{self.domain_name}_attributes.nc'
+        for path in (obs_path, attrs_path):
+            if path.exists() and not _is_valid_netcdf(path):
+                logger.debug("Model-ready store incomplete: %s is not a readable NetCDF", path)
+                return False
+
+        return bool(src_names) or obs_path.exists() or attrs_path.exists()
 
     def migrate_from_legacy(self) -> None:
         """Build model-ready store from existing legacy domain directory."""

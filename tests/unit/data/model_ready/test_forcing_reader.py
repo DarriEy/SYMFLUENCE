@@ -172,6 +172,51 @@ def test_resample_interpolates_state_variables():
     assert not np.isnan(temps).any()
 
 
+def test_irregular_axis_is_rejected(tmp_path):
+    """[00:00, 01:00, 04:00] must not be declared a 3600 s cadence."""
+    times = pd.DatetimeIndex(["2020-01-01 00:00", "2020-01-01 01:00", "2020-01-01 04:00"])
+    ds = xr.Dataset({"pptrate": ("time", np.ones(3))}, coords={"time": times})
+    path = tmp_path / "gappy.nc"
+    ds.to_netcdf(path)
+
+    with pytest.raises(ValueError, match="irregular"):
+        open_canonical_forcing(path)
+
+
+def test_declared_timestep_does_not_mask_irregular_axis(tmp_path):
+    """A declared timestep_seconds attribute must not bypass axis validation."""
+    times = pd.DatetimeIndex(["2020-01-01 00:00", "2020-01-01 01:00", "2020-01-01 04:00"])
+    ds = xr.Dataset({"pptrate": ("time", np.ones(3))}, coords={"time": times})
+    ds.attrs["timestep_seconds"] = 3600.0
+    with pytest.raises(ValueError, match="irregular"):
+        forcing_timestep_seconds(ds)
+
+
+def test_declared_timestep_cross_checked_against_axis():
+    """A wrong declared attribute loses to the measured cadence."""
+    times = pd.date_range("2020-01-01", periods=5, freq="D")
+    ds = xr.Dataset({"pptrate": ("time", np.ones(5))}, coords={"time": times})
+    ds.attrs["timestep_seconds"] = 3600.0  # lies: the axis is daily
+    assert forcing_timestep_seconds(ds) == pytest.approx(86400.0)
+
+
+def test_duplicate_timestamps_are_rejected(tmp_path):
+    times = pd.DatetimeIndex(["2020-01-01 00:00", "2020-01-01 00:00", "2020-01-01 01:00"])
+    ds = xr.Dataset({"pptrate": ("time", np.ones(3))}, coords={"time": times})
+    path = tmp_path / "dupes.nc"
+    ds.to_netcdf(path)
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        open_canonical_forcing(path)
+
+
+def test_resample_refuses_irregular_source():
+    times = pd.DatetimeIndex(["2020-01-01 00:00", "2020-01-01 01:00", "2020-01-01 04:00"])
+    ds = _forcing(times, np.ones(3) * 1e-4, np.full(3, 283.15))
+    with pytest.raises(ValueError, match="irregular"):
+        resample_canonical_forcing(ds, 3600)
+
+
 def test_resample_daily_to_hourly_conserves_precip():
     times = pd.date_range("2020-01-01", periods=3, freq="D")
     rate = 1e-4

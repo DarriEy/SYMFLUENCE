@@ -287,13 +287,11 @@ class StreamflowEvaluator(ModelEvaluator):
 
                 result = cast(pd.Series, var.to_pandas())
 
-                # Check units and convert if needed
-                units = ds[var_name].attrs.get('units', 'unknown')
+                units = ds[var_name].attrs.get('units', '').strip()
                 if 'm3/s' in units or 'm³/s' in units or 'm^3/s' in units:
-                    # Already in m³/s
                     self.logger.debug("FUSE output already in m³/s")
                     return result
-                elif 'mm' in units or units == 'unknown':
+                if 'mm' in units and ('day' in units or units.rstrip(')').endswith(('/d', 'd-1'))):
                     # mm/day → m³/s: multiply by area_m² / (1000 * 86400)
                     catchment_area = self._get_catchment_area()
                     result = result * catchment_area / 1000.0 / 86400.0
@@ -302,10 +300,22 @@ class StreamflowEvaluator(ModelEvaluator):
                         f"(area={catchment_area/1e6:.1f} km²)"
                     )
                     return result
-                else:
-                    # Assume per-unit-area depth rate, scale by catchment area
+                if not units and var_name in ('q_routed', 'q_instnt'):
+                    # FUSE's native discharge variables are mm/day by definition;
+                    # tolerate a missing units attribute for them, but loudly.
+                    self.logger.warning(
+                        "FUSE variable %s has no units attribute; assuming the "
+                        "FUSE-native mm/day convention", var_name,
+                    )
                     catchment_area = self._get_catchment_area()
-                    return result * catchment_area
+                    return result * catchment_area / 1000.0 / 86400.0
+                from symfluence.core.exceptions import EvaluationError
+                raise EvaluationError(
+                    f"Unrecognized streamflow units {units!r} on FUSE variable "
+                    f"'{var_name}' in {sim_file.name}. Expected m³/s or mm/day. "
+                    "Set a correct 'units' attribute on the variable — guessing a "
+                    "conversion here would silently rescale the simulated flow."
+                )
 
             raise ValueError("No suitable streamflow variable found in FUSE output")
 

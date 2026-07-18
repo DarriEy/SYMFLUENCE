@@ -161,15 +161,25 @@ class ForcingsStoreBuilder:
                 logger.debug("Symlinked %s -> %s", src_file.name, dst)
 
     def _forcing_timestep_seconds(self, nc_files: list) -> Optional[float]:
-        """Determine the forcing timestep (seconds) from a file's time axis."""
+        """Determine the forcing timestep (seconds) from a file's time axis.
+
+        Validates the file's entire axis, not just the first interval: writing a
+        ``timestep_seconds`` attribute derived from an irregular axis would let
+        downstream resampling declare gappy forcing "regular" and skip fixing it.
+        Returns ``None`` (no attribute written) when no file has a regular axis.
+        """
         try:
-            import numpy as np
             import xarray as xr
+
+            from .forcing_reader import _has_datetime_axis, validated_timestep_seconds
             for f in nc_files:
                 with xr.open_dataset(f) as ds:
-                    if 'time' in ds and ds['time'].size > 1:
-                        dt = np.diff(ds['time'].values[:2])[0]
-                        return float(dt / np.timedelta64(1, 's'))
+                    if _has_datetime_axis(ds):
+                        try:
+                            return validated_timestep_seconds(ds['time'].values, context=Path(f).name)
+                        except ValueError as e:
+                            logger.warning("Not writing timestep_seconds: %s", e)
+                            return None
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
             logger.warning("Could not determine forcing timestep: %s", e, exc_info=True)
         return None

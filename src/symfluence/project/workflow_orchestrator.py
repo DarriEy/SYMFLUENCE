@@ -186,6 +186,22 @@ class WorkflowOrchestrator(ConfigMixin):
         """Return True when any candidate output exists for an observation family."""
         return any(path.exists() for path in self._observation_output_paths().get(family, []))
 
+    def _check_model_ready_store_complete(self) -> bool:
+        """Check the model-ready store against its source-driven contract.
+
+        Bare directory existence is not enough: project initialization creates
+        ``data/model_ready`` unconditionally, which used to make this step count
+        as complete forever even when nothing was ever materialized.
+        """
+        from symfluence.data.model_ready.store_builder import ModelReadyStoreBuilder
+
+        builder = ModelReadyStoreBuilder(
+            project_dir=self.project_dir,
+            domain_name=self.config.domain.name or 'domain',
+            config=self.config,
+        )
+        return builder.is_store_complete()
+
     def _check_observed_data_exists(self) -> bool:
         """
         Check if required observed data files exist based on configuration.
@@ -335,7 +351,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 name="build_model_ready_store",
                 cli_name="build_model_ready_store",
                 func=self.managers['data'].build_model_ready_store,
-                check_func=lambda: (self.project_dir / "data" / "model_ready").exists(),
+                check_func=self._check_model_ready_store_complete,
                 description="Building model-ready data store"
             ),
 

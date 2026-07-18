@@ -37,9 +37,30 @@ def _clean_data(
     observed: Union[np.ndarray, pd.Series],
     simulated: Union[np.ndarray, pd.Series],
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Clean and align observed and simulated data by removing NaN values."""
-    obs = np.array(observed)
-    sim = np.array(simulated)
+    """Clean and align observed and simulated data by removing NaN values.
+
+    When both inputs are pandas Series they are paired by index label (inner
+    join), not by position — two equal-length series covering shifted periods
+    must be compared only over their overlap, never element-by-element. Arrays
+    and mixed Series/array inputs keep positional pairing.
+
+    Raises:
+        ValueError: if either Series carries duplicate index labels, which make
+            label-based alignment ambiguous.
+    """
+    if isinstance(observed, pd.Series) and isinstance(simulated, pd.Series):
+        if observed.index.has_duplicates or simulated.index.has_duplicates:
+            raise ValueError(
+                "Cannot align observed and simulated series: duplicate index "
+                "labels present. De-duplicate the time index before computing metrics."
+            )
+        if not observed.index.equals(simulated.index):
+            aligned = pd.concat([observed, simulated], axis=1, join='inner')
+            observed = aligned.iloc[:, 0]
+            simulated = aligned.iloc[:, 1]
+
+    obs = np.asarray(observed, dtype=float)
+    sim = np.asarray(simulated, dtype=float)
 
     valid_mask = ~(np.isnan(obs) | np.isnan(sim))
     return obs[valid_mask], sim[valid_mask]

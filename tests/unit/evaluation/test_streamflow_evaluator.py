@@ -233,6 +233,66 @@ class TestExtractSummaStreamflow:
         assert len(result) == 100
 
 
+class TestExtractFuseStreamflow:
+    """FUSE extraction must never guess a unit conversion silently."""
+
+    @staticmethod
+    def _write_fuse(tmp_path, values, units=None, var_name='q_routed'):
+        ds = xr.Dataset({
+            var_name: (['time'], np.asarray(values, dtype=float)),
+        }, coords={'time': pd.date_range('2010-01-01', periods=len(values))})
+        if units is not None:
+            ds[var_name].attrs['units'] = units
+        path = tmp_path / 'fuse_output.nc'
+        ds.to_netcdf(path)
+        return path
+
+    def test_m3s_units_pass_through(self, streamflow_evaluator, tmp_path):
+        path = self._write_fuse(tmp_path, [5.0, 6.0], units='m3/s')
+        result = streamflow_evaluator._extract_fuse_streamflow(path)
+        assert result.tolist() == [5.0, 6.0]
+
+    def test_mm_per_day_is_converted_with_area(self, streamflow_evaluator, tmp_path):
+        streamflow_evaluator.config_dict = {'FIXED_CATCHMENT_AREA': 8.64e7}
+        path = self._write_fuse(tmp_path, [1.0], units='mm/day')
+        result = streamflow_evaluator._extract_fuse_streamflow(path)
+        # 1 mm/day over 86.4 km² -> 1 m³/s
+        assert result.iloc[0] == pytest.approx(1.0)
+
+    def test_unrecognized_units_raise(self, streamflow_evaluator, tmp_path):
+        from symfluence.core.exceptions import EvaluationError
+        path = self._write_fuse(tmp_path, [1.0, 2.0], units='furlongs/fortnight')
+        with pytest.raises(EvaluationError, match="Unrecognized streamflow units"):
+            streamflow_evaluator._extract_fuse_streamflow(path)
+
+    def test_mm_per_hour_raises_instead_of_daily_conversion(
+        self, streamflow_evaluator, tmp_path
+    ):
+        """'mm' alone used to route into the mm/day branch; mm/h must not."""
+        from symfluence.core.exceptions import EvaluationError
+        path = self._write_fuse(tmp_path, [1.0], units='mm/h')
+        with pytest.raises(EvaluationError, match="Unrecognized streamflow units"):
+            streamflow_evaluator._extract_fuse_streamflow(path)
+
+    def test_missing_units_on_native_variable_warns_and_converts(
+        self, streamflow_evaluator, tmp_path, caplog
+    ):
+        streamflow_evaluator.config_dict = {'FIXED_CATCHMENT_AREA': 8.64e7}
+        path = self._write_fuse(tmp_path, [1.0], units=None, var_name='q_routed')
+        with caplog.at_level('WARNING'):
+            result = streamflow_evaluator._extract_fuse_streamflow(path)
+        assert result.iloc[0] == pytest.approx(1.0)
+        assert any('no units attribute' in r.message for r in caplog.records)
+
+    def test_missing_units_on_generic_variable_raises(
+        self, streamflow_evaluator, tmp_path
+    ):
+        from symfluence.core.exceptions import EvaluationError
+        path = self._write_fuse(tmp_path, [1.0], units=None, var_name='total_discharge')
+        with pytest.raises(EvaluationError, match="Unrecognized streamflow units"):
+            streamflow_evaluator._extract_fuse_streamflow(path)
+
+
 class TestGetCatchmentArea:
     """Test catchment area determination."""
 
