@@ -98,28 +98,34 @@ HPC and Cluster Use
 
 Logging and Debugging
 ---------------------
-All major steps produce detailed logs stored in ``_workLog_<domain_name>/``.
+All major steps log into a single run log stored in ``_workLog_<domain_name>/``.
 
 **Log files**
-- ``system.log`` — Overall workflow progress and manager operations
-- ``model_run.log`` — Model execution output and errors
-- ``calibration.log`` — Optimization progress and parameter trials
-- ``data_acquisition.log`` — Forcing and attribute data downloads
 
-**Increasing verbosity**
+- ``symfluence_<domain>_<experiment_id>_<timestamp>.log`` — the complete run
+  log (workflow progress, model execution, calibration, data acquisition).
+  The file log always captures everything regardless of console verbosity.
+- ``run_summary_<timestamp>.json`` — machine-readable run summary
+  (schema version 2) with per-step status and duration, plus error/warning
+  totals counted from the actual log records.
+- External-tool sidecar logs (e.g. ``fuse_distributed_run.log``) — raw
+  stdout/stderr of external model executables, written next to the model
+  output; the run log contains one line referencing each sidecar path.
 
-Set log level in your configuration:
+**Adjusting verbosity**
+
+Console verbosity is three-state: ``--quiet``/``-q`` (warnings and errors
+only), normal (INFO), and ``--debug`` (full diagnostic detail):
+
+.. code-block:: bash
+
+   symfluence workflow run --config my_config.yaml --debug
+
+The base log level can also be set in your configuration:
 
 .. code-block:: yaml
 
    LOG_LEVEL: DEBUG  # Options: DEBUG, INFO, WARNING, ERROR
-
-Or use environment variable:
-
-.. code-block:: bash
-
-   export SYMFLUENCE_LOG_LEVEL=DEBUG
-   symfluence workflow run --config my_config.yaml
 
 **Common debugging steps**
 
