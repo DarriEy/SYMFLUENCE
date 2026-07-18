@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 import xarray as xr
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.mixins.logging import _class_logger_name
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -67,7 +68,8 @@ class ForcingAdapter(ConfigMixin, ABC):
             logger: Optional logger instance
         """
         self.config = config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
 
     @abstractmethod
     def get_variable_mapping(self) -> Dict[str, str]:

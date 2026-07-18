@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_ngen_bounds
@@ -347,9 +348,10 @@ class NgenParameterManager(BaseParameterManager):
         for param_name, expected_value in param_dict.items():
             # Check if parameter appears in file
             if param_name in content or param_name.replace('_', '.') in content:
-                self.logger.info(f"✓ Parameter {param_name} found in config")
+                self.logger.debug(f"Parameter {param_name} found in config")
             else:
-                self.logger.error(f"✗ Parameter {param_name} NOT found in config")
+                log_once(self.logger, logging.ERROR, key=f'ngen-param-not-found-{param_name}',
+                          message=f"Parameter {param_name} NOT found in config")
                 all_found = False
 
         return all_found
@@ -419,7 +421,8 @@ class NgenParameterManager(BaseParameterManager):
                         cfg[k] = v
                         updated += 1
                     else:
-                        self.logger.warning(f"CFE parameter {k} not found in JSON config")
+                        log_once(self.logger, logging.WARNING, key=f'ngen-cfe-json-missing-{k}',
+                                 message=f"CFE parameter {k} not found in JSON config")
                 with open(self.cfe_config, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2)
                 self.logger.debug(f"Updated CFE JSON with {updated} parameters")
@@ -542,7 +545,8 @@ class NgenParameterManager(BaseParameterManager):
             # Warn about any requested params we couldn't find in the BMI file
             for p in params:
                 if p not in updated and p in keymap:
-                    self.logger.warning(f"CFE parameter {p} not found in BMI config {path.name}")
+                    log_once(self.logger, logging.WARNING, key=f'ngen-cfe-bmi-missing-{p}',
+                             message=f"CFE parameter {p} not found in BMI config {path.name}")
 
             path.write_text("\n".join(lines) + "\n", encoding='utf-8')
             self.logger.debug(f"Updated CFE BMI text ({path.name}) with {len(updated)} parameters")
@@ -593,7 +597,8 @@ class NgenParameterManager(BaseParameterManager):
                 cfg[key] = value
                 updated += 1
             else:
-                self.logger.warning(f"NOAH parameter {key} not in JSON config")
+                log_once(self.logger, logging.WARNING, key=f'ngen-noah-json-missing-{key}',
+                         message=f"NOAH parameter {key} not in JSON config")
 
         with open(self.noah_config, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=2)
@@ -664,8 +669,10 @@ class NgenParameterManager(BaseParameterManager):
             if updated:
                 updated_inputs += 1
             else:
-                self.logger.warning(
-                    f"NOAH param {param_name} ({section}.{key}) not found in {input_file.name}"
+                log_once(
+                    self.logger, logging.WARNING,
+                    key=f'ngen-noah-input-missing-{param_name}',
+                    message=f"NOAH param {param_name} ({section}.{key}) not found in {input_file.name}",
                 )
 
         if updated_inputs > 0:
@@ -806,8 +813,10 @@ class NgenParameterManager(BaseParameterManager):
             if self._edit_noah_tbl_value(table_path, variable, col, params[param_name], isltyp):
                 updated_tbls += 1
             else:
-                self.logger.warning(
-                    f"NOAH TBL param {param_name} ({fname}:{variable}[{col}]) not found/updated"
+                log_once(
+                    self.logger, logging.WARNING,
+                    key=f'ngen-noah-tbl-missing-{param_name}',
+                    message=f"NOAH TBL param {param_name} ({fname}:{variable}[{col}]) not found/updated",
                 )
 
         if updated_tbls > 0:
@@ -832,7 +841,8 @@ class NgenParameterManager(BaseParameterManager):
                         cfg[k] = v
                         up += 1
                     else:
-                        self.logger.warning(f"PET parameter {k} not in JSON config")
+                        log_once(self.logger, logging.WARNING, key=f'ngen-pet-json-missing-{k}',
+                                 message=f"PET parameter {k} not in JSON config")
                 with open(self.pet_config, 'w', encoding='utf-8') as f:
                     json.dump(cfg, f, indent=2)
                 self.logger.debug(f"Updated PET JSON with {up} parameter(s)")
@@ -929,7 +939,8 @@ class NgenParameterManager(BaseParameterManager):
 
             for p in params:
                 if p in keymap and p not in updated:
-                    self.logger.warning(f"PET parameter {p} not found in {path.name}")
+                    log_once(self.logger, logging.WARNING, key=f'ngen-pet-missing-{p}',
+                             message=f"PET parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')
@@ -982,7 +993,8 @@ class NgenParameterManager(BaseParameterManager):
 
             for p in params:
                 if p in keymap and p not in updated:
-                    self.logger.warning(f"TOPMODEL parameter {p} not found in {path.name}")
+                    log_once(self.logger, logging.WARNING, key=f'ngen-topmodel-missing-{p}',
+                             message=f"TOPMODEL parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')
@@ -1039,7 +1051,8 @@ class NgenParameterManager(BaseParameterManager):
 
             for p in params:
                 if p.lower() not in updated:
-                    self.logger.warning(f"SAC-SMA parameter {p} not found in {path.name}")
+                    log_once(self.logger, logging.WARNING, key=f'ngen-sacsma-missing-{p}',
+                             message=f"SAC-SMA parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')
@@ -1130,7 +1143,8 @@ class NgenParameterManager(BaseParameterManager):
 
             for p in params:
                 if p.lower() not in updated:
-                    self.logger.warning(f"Snow-17 parameter {p} not found in {path.name}")
+                    log_once(self.logger, logging.WARNING, key=f'ngen-snow17-missing-{p}',
+                             message=f"Snow-17 parameter {p} not found in {path.name}")
 
             if updated:
                 path.write_text("\n".join(lines) + "\n", encoding='utf-8')

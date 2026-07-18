@@ -79,7 +79,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         for name, path in self._ngen_lib_paths.items():
             exists = path.exists()
             self._available_modules[name] = exists
-            self.logger.info(f"Module {name} path: {path} (exists={exists})")
+            self.logger.debug(f"Module {name} path: {path} (exists={exists})")
             if not exists:
                 self.logger.warning(f"NGEN module library missing for {name}: {path}")
 
@@ -155,15 +155,20 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         else:
             self._noah_et_fallback = None
 
-        # Log module configuration
-        self.logger.info("NGEN module configuration:")
-        self.logger.info(f"  SLOTH: {'ENABLED' if self._include_sloth else 'DISABLED'}")
-        self.logger.info(f"  PET: {'ENABLED' if self._include_pet else 'DISABLED'}")
-        self.logger.info(f"  NOAH-OWP: {'ENABLED' if self._include_noah else 'DISABLED'}")
-        self.logger.info(f"  CFE: {'ENABLED' if self._include_cfe else 'DISABLED'}")
-        self.logger.info(f"  TOPMODEL: {'ENABLED' if self._include_topmodel else 'DISABLED'}")
-        self.logger.info(f"  SAC-SMA: {'ENABLED' if self._include_sacsma else 'DISABLED'}")
-        self.logger.info(f"  Snow-17: {'ENABLED' if self._include_snow17 else 'DISABLED'}")
+        # Log module configuration (one INFO summary; full table at DEBUG)
+        module_states = {
+            'SLOTH': self._include_sloth,
+            'PET': self._include_pet,
+            'NOAH-OWP': self._include_noah,
+            'CFE': self._include_cfe,
+            'TOPMODEL': self._include_topmodel,
+            'SAC-SMA': self._include_sacsma,
+            'Snow-17': self._include_snow17,
+        }
+        enabled = [name for name, on in module_states.items() if on]
+        self.logger.info(f"NGEN modules enabled: {', '.join(enabled) if enabled else 'none'}")
+        for name, on in module_states.items():
+            self.logger.debug(f"  {name}: {'ENABLED' if on else 'DISABLED'}")
 
     def _validate_module_exclusivity(self):
         """Validate that mutually exclusive modules are not both enabled.
@@ -236,10 +241,10 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     else:
                         all_found = False
                 if all_found:
-                    self.logger.info(f"Resolved NGEN libraries from npm bundle: {npm_lib_dir}")
+                    self.logger.debug(f"Resolved NGEN libraries from npm bundle: {npm_lib_dir}")
                     return npm_paths
                 else:
-                    self.logger.info("npm bundle found but missing some NGEN libraries, falling back")
+                    self.logger.debug("npm bundle found but missing some NGEN libraries, falling back")
 
         # --- 2. Resolve from install path (explicit or default fallback) ---
         if install_path == 'default':
@@ -251,7 +256,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             else:
                 ngen_base = p
 
-        self.logger.info(f"Resolved NGEN_BASE to: {ngen_base}")
+        self.logger.debug(f"Resolved NGEN_BASE to: {ngen_base}")
 
         # Check both ngen_base/extern and ngen_base/cmake_build/extern
         paths = {}
@@ -294,7 +299,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not self._include_noah:
             return
 
-        self.logger.info("Copying Noah-OWP parameter tables")
+        self.logger.debug("Copying Noah-OWP parameter tables")
         from symfluence.resources import get_base_settings_dir
 
         try:
@@ -438,7 +443,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             - Terminal nexuses (outlets) have empty 'toid' and type='poi'
             - Internal nexuses have toid pointing to downstream waterbody
         """
-        self.logger.info("Creating nexus GeoJSON")
+        self.logger.debug("Creating nexus GeoJSON")
         river_network_file = self.get_river_network_path()
         if not river_network_file.exists():
             return self._create_simple_nexus()
@@ -596,7 +601,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if 'air_temperature' in forcing_data:
             temp_mean = float(forcing_data['air_temperature'].mean())
             if temp_mean < UnitDetectionThresholds.TEMP_KELVIN_VS_CELSIUS:
-                self.logger.info("Converting temperature from °C to K (+273.15)")
+                self.logger.debug("Converting temperature from °C to K (+273.15)")
                 forcing_data['air_temperature'] = forcing_data['air_temperature'] + 273.15
             else:
                 self.logger.debug(f"Temperature appears to be in K (mean={temp_mean:.1f})")
@@ -608,10 +613,10 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             precip_max = float(forcing_data['precipitation_flux'].max())
 
             if 'mm/day' in precip_units or 'mm day' in precip_units or 'mm d-1' in precip_units:
-                self.logger.info("Converting precipitation from mm/day to kg m⁻² s⁻¹ (÷86400)")
+                self.logger.debug("Converting precipitation from mm/day to kg m⁻² s⁻¹ (÷86400)")
                 forcing_data['precipitation_flux'] = forcing_data['precipitation_flux'] / 86400.0
             elif 'mm/h' in precip_units or 'mm h-1' in precip_units or ('mm' in precip_units and 'hour' in precip_units):
-                self.logger.info("Converting precipitation from mm/hour to kg m⁻² s⁻¹ (÷3600)")
+                self.logger.debug("Converting precipitation from mm/hour to kg m⁻² s⁻¹ (÷3600)")
                 forcing_data['precipitation_flux'] = forcing_data['precipitation_flux'] / 3600.0
             elif precip_mean > 0.1 or precip_max > 1.0:
                 # Heuristic: if values are large, likely mm/day not mm/s
@@ -634,11 +639,11 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             if 'hpa' in pres_units or (pres_mean > 100 and pres_mean < 2000):
                 # Likely hPa (typical range 950-1050 hPa)
-                self.logger.info("Converting pressure from hPa to Pa (×100)")
+                self.logger.debug("Converting pressure from hPa to Pa (×100)")
                 forcing_data['surface_air_pressure'] = forcing_data['surface_air_pressure'] * 100.0
             elif 'kpa' in pres_units or (pres_mean > 10 and pres_mean < 200):
                 # Likely kPa (typical range 95-105 kPa)
-                self.logger.info("Converting pressure from kPa to Pa (×1000)")
+                self.logger.debug("Converting pressure from kPa to Pa (×1000)")
                 forcing_data['surface_air_pressure'] = forcing_data['surface_air_pressure'] * 1000.0
             elif pres_mean > 50000 and pres_mean < 110000:
                 self.logger.debug(f"Pressure appears to be in Pa (mean={pres_mean:.0f})")
@@ -662,7 +667,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             )
 
             if is_g_per_kg or hum_max > 1.0:
-                self.logger.info("Converting specific humidity from g/kg to kg/kg (÷1000)")
+                self.logger.debug("Converting specific humidity from g/kg to kg/kg (÷1000)")
                 forcing_data['specific_humidity'] = forcing_data['specific_humidity'] / 1000.0
             else:
                 self.logger.debug(f"Specific humidity appears to be in kg/kg (units='{hum_units}', max={hum_max:.6f})")
@@ -756,7 +761,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             # Define resampling strategy for each variable
             resample_dict = {}
-            for var in forcing_data.data_vars:
+            for var in map(str, forcing_data.data_vars):
                 if var in ['precipitation_flux', 'pptrate_depth']:
                     continue  # Handle precipitation separately
                 elif var in ['surface_downwelling_shortwave_flux', 'surface_downwelling_longwave_flux']:
@@ -781,7 +786,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
             forcing_data = forcing_data_resampled
             self._forcing_time_step_size_override = 3600
-            self.logger.info("Used mass-conserving resampling: sum for precipitation, mean for other variables")
+            self.logger.debug("Used mass-conserving resampling: sum for precipitation, mean for other variables")
 
         # NGEN requires forcing data beyond the configured end_time to complete the simulation
         # Extend end_time by 4 forcing timesteps to provide necessary lookahead data
@@ -829,7 +834,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if padding_data:
                 padding_ds = xr.concat(padding_data, dim='time')
                 forcing_data = xr.concat([forcing_data, padding_ds], dim='time')
-                self.logger.info(f"Added {len(padding_times)} padding timesteps in lookahead buffer")
+                self.logger.debug(f"Added {len(padding_times)} padding timesteps in lookahead buffer")
 
         ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
         output_file = self.forcing_dir / "forcing.nc"
@@ -916,7 +921,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not csv_dir.exists():
             raise ModelExecutionError(f"Failed to create directory: {csv_dir}")
 
-        self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
+        self.logger.debug(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
 
         # Variable mapping from ERA5/internal names to BMI standard names for NGEN
@@ -1065,7 +1070,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # For lumped domains (single nexus), t-route is optional but we still create config
         if num_nexuses == 1:
-            self.logger.info("Lumped domain detected (single nexus). T-route will pass through single outlet.")
+            self.logger.debug("Lumped domain detected (single nexus). T-route will pass through single outlet.")
 
         # Get time parameters
         start_time = self.time_start or '2000-01-01 00:00'
@@ -1170,7 +1175,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             self.logger.warning("numpy not available, skipping topology file creation")
             return None
 
-        self.logger.info("Creating t-route network topology file with channel geometry")
+        self.logger.debug("Creating t-route network topology file with channel geometry")
         river_network_file = self.get_river_network_path()
 
         if not river_network_file.exists():
@@ -1292,7 +1297,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Save as GeoJSON for standalone use
         geojson_file = self.setup_dir / 'troute_flowlines.geojson'
         flowlines_gdf.to_file(geojson_file, driver='GeoJSON')
-        self.logger.info("Created " + str(len(flowlines_gdf)) + " records")
+        self.logger.debug("Created " + str(len(flowlines_gdf)) + " records")
 
         # Create hydrofabric GeoPackage with separate flowpaths and flowpath_attributes layers
         # T-Route HYFeaturesNetwork expects these as separate layers that get merged
@@ -1331,7 +1336,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     nexus_gdf = gpd.read_file(nexus_file)
                     nexus_gdf.to_file(gpkg_file, layer='nexus', driver='GPKG', mode='a')
 
-                self.logger.info(f"T-route hydrofabric GeoPackage created: {gpkg_file}")
+                self.logger.debug(f"T-route hydrofabric GeoPackage created: {gpkg_file}")
                 self.logger.debug("  Layers: flowpaths, flowpath_attributes, divides" +
                                   (", nexus" if nexus_file.exists() else ""))
             else:

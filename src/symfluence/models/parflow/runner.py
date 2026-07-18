@@ -181,27 +181,15 @@ class ParFlowRunner(BaseModelRunner):
                 timeout=timeout,
             )
 
-            if result.stdout:
-                logger.debug(f"ParFlow stdout: {result.stdout[-2000:]}")
-            if result.stderr:
-                logger.debug(f"ParFlow stderr: {result.stderr[-2000:]}")
+            stdout_log = self.write_stdout_sidecar(
+                'parflow', result.stdout, result.stderr
+            )
 
             if result.returncode != 0:
-                logger.error(f"ParFlow execution returned code {result.returncode}")
                 logger.error(
-                    f"stderr: {result.stderr[-2000:] if result.stderr else 'none'}"
+                    f"ParFlow failed (exit {result.returncode}); "
+                    f"full output: {stdout_log or '(sidecar unavailable)'}"
                 )
-                # Check for ParFlow log file
-                log_file = self.output_dir / f"{runname}.out.log"
-                if log_file.exists():
-                    log_content = log_file.read_text()
-                    error_lines = [
-                        ln for ln in log_content.splitlines()
-                        if 'error' in ln.lower() or 'failed' in ln.lower()
-                    ]
-                    if error_lines:
-                        logger.error(f"ParFlow log errors: {error_lines[-5:]}")
-
                 raise ModelExecutionError(
                     f"ParFlow execution failed with return code {result.returncode}"
                 )

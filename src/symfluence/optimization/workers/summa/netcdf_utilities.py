@@ -23,6 +23,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.logging_utils import log_once
+
 # Module-level logger for standalone function calls
 _logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
             # File is automatically closed and changes are saved
 
         if logger:
-            logger.info(f"Fixed time precision in-place: {input_file.name}")
+            logger.debug(f"Fixed time precision in-place: {input_file.name}")
 
     except (OSError, RuntimeError, KeyError, ValueError) as e:
         if logger:
@@ -205,7 +207,8 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
                 try:
                     os.unlink(temp_file)
                 except OSError as cleanup_err:
-                    log.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
+                    log_once(log, logging.WARNING, key=f'summa-temp-cleanup-{temp_file}',
+                              message=f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
     except (OSError, RuntimeError, KeyError, ValueError) as e:
@@ -223,7 +226,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             return False
 
         summa_file = timestep_files[0]
-        logger.info(f"Converting SUMMA file: {summa_file}")
+        logger.debug(f"Converting SUMMA file: {summa_file}")
 
         # Load topology to get HRU information
         mizuroute_settings_dir = Path(task_data['mizuroute_settings_dir'])
@@ -239,14 +242,15 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             n_hrus = len(hru_ids)
             lumped_gru_id = 1  # Use ID=1 for consistency
 
-            logger.info(f"Creating single lumped GRU (ID={lumped_gru_id}) for {n_hrus} HRUs in topology")
+            logger.debug(f"Creating single lumped GRU (ID={lumped_gru_id}) for {n_hrus} HRUs in topology")
 
         # Ensure the original file is writable
         try:
             if os.name != 'nt':
                 os.chmod(summa_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
         except (OSError, RuntimeError, KeyError, ValueError) as e:
-            logger.warning(f"Could not change file permissions: {str(e)}")
+            log_once(logger, logging.WARNING, key='summa-chmod-failed',
+                           message=f"Could not change file permissions: {str(e)}")
 
         # Load and convert SUMMA output
         summa_ds = None
@@ -266,14 +270,14 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             source_var = None
             if routing_var in summa_ds:
                 source_var = routing_var
-                logger.info(f"Using configured routing variable: {routing_var}")
+                logger.debug(f"Using configured routing variable: {routing_var}")
             else:
                 # Try fallback variables
                 fallback_vars = ['averageRoutedRunoff', 'basin__TotalRunoff', 'scalarTotalRunoff']
                 for var in fallback_vars:
                     if var in summa_ds:
                         source_var = var
-                        logger.info(f"Routing variable {routing_var} not found, using: {source_var}")
+                        logger.debug(f"Routing variable {routing_var} not found, using: {source_var}")
                         break
 
             if source_var is None:
@@ -309,7 +313,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             if len(runoff_data.shape) == 2:
                 if runoff_data.shape[1] > 1:
                     runoff_data = runoff_data.mean(axis=1)
-                    logger.info(f"Used mean across {var_data.shape[1]} spatial elements")
+                    logger.debug(f"Used mean across {var_data.shape[1]} spatial elements")
                 else:
                     runoff_data = runoff_data[:, 0]
             else:
@@ -361,11 +365,11 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             shutil.move(str(temp_file), str(routing_file))
             temp_file = None
 
-            logger.info(f"Successfully wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
+            logger.debug(f"Successfully wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
 
             # CRITICAL: Now fix time precision for mizuRoute compatibility on the ROUTING file
             fix_summa_time_precision(routing_file)
-            logger.info("Fixed time precision in routing file for mizuRoute compatibility")
+            logger.debug("Fixed time precision in routing file for mizuRoute compatibility")
 
             # Update mizuroute.control to point fname_qsim at the routing file
             control_file = mizuroute_settings_dir / 'mizuroute.control'
@@ -378,7 +382,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
                     else:
                         new_lines.append(line)
                 control_file.write_text("".join(new_lines), encoding='utf-8')
-                logger.info(f"Updated mizuroute.control fname_qsim -> {routing_file.name}")
+                logger.debug(f"Updated mizuroute.control fname_qsim -> {routing_file.name}")
 
             return True
 
@@ -387,7 +391,8 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
                 try:
                     temp_file.unlink()
                 except OSError as cleanup_err:
-                    logger.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
+                    log_once(logger, logging.WARNING, key=f'summa-temp-cleanup-{temp_file}',
+                              message=f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
     except (OSError, RuntimeError, KeyError, ValueError) as e:

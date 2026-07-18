@@ -167,7 +167,7 @@ class ShapefileManager(ConfigMixin):
         try:
             gdf = gpd.read_file(shapefile_path)
             self.logger.info(f"Checking HRU ID uniqueness in {shapefile_path.name}")
-            self.logger.info(f"Available fields: {list(gdf.columns)}")
+            self.logger.debug(f"Available fields: {list(gdf.columns)}")
 
             if hru_id_field not in gdf.columns:
                 raise ValueError(f"HRU ID field '{hru_id_field}' not found in shapefile")

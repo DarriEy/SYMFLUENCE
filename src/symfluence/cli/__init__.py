@@ -16,6 +16,11 @@ def main():
     parser = CLIParser()
     args = parser.parse_args()
 
+    # Global flags that shape console output (--quiet) must be applied
+    # before any command prints.
+    from .console import apply_global_flags
+    apply_global_flags(args)
+
     if hasattr(args, 'func'):
         try:
             return args.func(args)

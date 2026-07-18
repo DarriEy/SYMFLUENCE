@@ -20,6 +20,7 @@ import numpy as np
 
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import RetryExhaustedError
+from symfluence.core.mixins.logging import _class_logger_name
 from symfluence.evaluation.metric_transformer import MetricTransformer
 
 logger = logging.getLogger(__name__)
@@ -325,7 +326,8 @@ class BaseWorker(ABC):
             logger: Logger instance
         """
         self.config = config or {}
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.logger = logger or logging.getLogger(
+            _class_logger_name(self.__class__))
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         """Get config value from the worker's config dict.

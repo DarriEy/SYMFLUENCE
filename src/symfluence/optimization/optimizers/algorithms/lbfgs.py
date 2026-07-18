@@ -211,13 +211,15 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             epsilon=gradient_epsilon
         )
 
-        self.logger.info(f"Starting L-BFGS optimization with {n_params} parameters")
-        self.logger.info(f"  Steps: {steps}, LR: {lr}, History size: {history_size}")
-        self.logger.info(f"  Gradient method: {gradient_method}")
+        self.logger.info(
+            f"Starting L-BFGS optimization with {n_params} parameters "
+            f"({steps} epochs, gradients: {gradient_method})"
+        )
+        self.logger.debug(f"L-BFGS hyperparameters: lr={lr}, history_size={history_size}")
         if use_native:
-            self.logger.info("  Using native gradients (~2 evals/step)")
+            self.logger.debug("Using native gradients (~2 evals/step)")
         else:
-            self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
+            self.logger.debug(f"Using finite differences ({2*n_params + 1} evals/step)")
 
         # Initialize at midpoint of normalized space
         x = np.full(n_params, 0.5)
@@ -238,6 +240,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         # Track best (reported in fitness / maximization terms)
         best_x = x.copy()
         best_fitness = float('-inf')
+        n_improvements = 0
 
         # Initial minimization-space objective and gradient
         g, grad = eval_min(x)
@@ -250,6 +253,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             if fitness > best_fitness:
                 best_fitness = fitness
                 best_x = x.copy()
+                n_improvements += 1
 
             # Record iteration
             params_dict = denormalize_params(best_x)
@@ -296,9 +300,12 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             g = g_new
             grad = grad_new
 
-            # Log progress
-            if step % 10 == 0:
-                log_progress(self.name, step, best_fitness)
+            # Progress line (tracker throttles emission)
+            log_progress(
+                self.name, step + 1, best_fitness,
+                n_improved=n_improvements, pop_size=step + 1,
+                unit='epochs', total=steps
+            )
 
             # Check convergence
             if np.linalg.norm(grad) < 1e-6:

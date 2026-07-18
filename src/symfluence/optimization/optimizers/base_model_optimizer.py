@@ -798,14 +798,17 @@ class BaseModelOptimizer(
         secondary_label: Optional[str] = None,
         n_improved: Optional[int] = None,
         population_size: Optional[int] = None,
-        crash_stats: Optional[Dict[str, Any]] = None
+        crash_stats: Optional[Dict[str, Any]] = None,
+        unit: str = 'evals',
+        total: Optional[int] = None,
+        force: bool = False
     ) -> None:
         """Log optimization progress. Delegates to EvaluationMetricsTracker."""
         self._metrics_tracker.log_iteration_progress(
             algorithm_name, iteration, best_score,
             secondary_score=secondary_score, secondary_label=secondary_label,
             n_improved=n_improved, population_size=population_size,
-            crash_stats=crash_stats
+            crash_stats=crash_stats, unit=unit, total=total, force=force
         )
 
     def log_initial_population(
@@ -1105,12 +1108,14 @@ class BaseModelOptimizer(
         def update_best(score, params, iteration):
             self.update_best(score, params, iteration)
 
-        def log_progress(alg_name, iteration, best_score, n_improved=None, pop_size=None, secondary_score=None, secondary_label=None):
+        def log_progress(alg_name, iteration, best_score, n_improved=None, pop_size=None,
+                         secondary_score=None, secondary_label=None, unit='evals',
+                         total=None, force=False):
             self.log_iteration_progress(
                 alg_name, iteration, best_score,
                 secondary_score=secondary_score, secondary_label=secondary_label,
                 n_improved=n_improved, population_size=pop_size,
-                crash_stats=self.get_crash_stats()
+                unit=unit, total=total, force=force
             )
 
         callbacks = {

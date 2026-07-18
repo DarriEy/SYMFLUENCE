@@ -134,16 +134,22 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # Load forcing data — store-first (model_ready/forcings), else legacy.
         forcing_path = self.forcing_basin_path
-        self.logger.info(f"Looking for forcing files in: {forcing_path}")
+        self.logger.debug(f"Looking for forcing files in: {forcing_path}")
 
         # Check if directory exists
         if not forcing_path.exists():
             self.logger.error(f"Forcing path does not exist: {forcing_path}")
-        else:
-            self.logger.info(f"Directory exists. Contents: {list(forcing_path.glob('*'))}")
 
         forcing_files = glob.glob(str(forcing_path / '*.nc'))
-        self.logger.info(f"Found forcing files: {forcing_files}")
+        self.logger.info(f"Found {len(forcing_files)} forcing files in {forcing_path}")
+        if forcing_files:
+            preview = [Path(f).name for f in sorted(forcing_files)[:5]]
+            more = len(forcing_files) - len(preview)
+            self.logger.debug(
+                "Forcing files: %s%s",
+                ", ".join(preview),
+                f" ... and {more} more" if more > 0 else "",
+            )
 
         if not forcing_files:
             raise FileNotFoundError(f"No forcing files found in {forcing_path}")
@@ -225,10 +231,10 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         forcing_df = forcing_df.loc[pd.IndexSlice[start_date:end_date, :], :]
         streamflow_df = streamflow_df.loc[start_date:end_date]
 
-        self.logger.info(f"Loaded forcing data with shape: {forcing_df.shape}")
-        self.logger.info(f"Loaded streamflow data with shape: {streamflow_df.shape}")
+        self.logger.debug(f"Loaded forcing data with shape: {forcing_df.shape}")
+        self.logger.debug(f"Loaded streamflow data with shape: {streamflow_df.shape}")
         if not snow_df.empty:
-            self.logger.info(f"Loaded snow data with shape: {snow_df.shape}")
+            self.logger.debug(f"Loaded snow data with shape: {snow_df.shape}")
 
         return forcing_df, streamflow_df, snow_df
 
@@ -374,7 +380,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
             X_tensor = torch.FloatTensor(np.array(X)).to(self.device) # (B, T, N, F)
             y_tensor = torch.FloatTensor(np.array(y)).to(self.device) # (B, N, O)
 
-        self.logger.info(f"Preprocessed data shape: X: {X_tensor.shape}, y: {y_tensor.shape}")
+        self.logger.debug(f"Preprocessed data shape: X: {X_tensor.shape}, y: {y_tensor.shape}")
         return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), features_avg, hru_ids
 
     def set_scalers(self, feature_scaler, target_scaler, output_size, target_names):

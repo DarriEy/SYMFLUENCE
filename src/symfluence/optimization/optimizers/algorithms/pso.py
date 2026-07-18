@@ -105,7 +105,7 @@ class PSOAlgorithm(OptimizationAlgorithm):
             self.logger.warning(f"PSO coefficients may cause instability: {warning}")
 
         # Initialize swarm
-        self.logger.info(f"Evaluating initial population ({n_particles} particles)...")
+        self.logger.debug(f"Evaluating initial population ({n_particles} particles)...")
         positions = np.random.uniform(0, 1, (n_particles, n_params))
         velocities = np.random.uniform(-v_max, v_max, (n_particles, n_params))
 
@@ -209,8 +209,8 @@ class PSOAlgorithm(OptimizationAlgorithm):
             })
             update_best(global_best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, global_best_fit, n_improved, n_particles)
+            # Progress line (tracker throttles emission)
+            log_progress(self.name, iteration, global_best_fit, n_improved, n_particles, unit='evals')
 
         return {
             'best_solution': global_best_pos,

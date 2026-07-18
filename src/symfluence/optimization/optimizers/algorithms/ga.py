@@ -193,8 +193,8 @@ class GAAlgorithm(OptimizationAlgorithm):
             record_iteration(iteration, best_fit, params_dict)
             update_best(best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, best_fit, n_improved, pop_size)
+            # Progress line (tracker throttles emission)
+            log_progress(self.name, iteration, best_fit, n_improved, pop_size, unit='gens')
 
             # Update previous best for next iteration
             prev_best_fit = best_fit

@@ -538,6 +538,213 @@ class TestNgenWorkerContract:
 
 
 # ============================================================================
+# Config-access API contract tests (regression: silent calibration voiding)
+# ============================================================================
+
+def _make_minimal_worker(config, logger=None):
+    """Create a minimal concrete BaseWorker for API-contract tests."""
+    from symfluence.optimization.workers import BaseWorker
+
+    class _MinimalWorker(BaseWorker):
+        def apply_parameters(self, params, settings_dir, **kwargs):
+            return True
+
+        def run_model(self, config, settings_dir, output_dir, **kwargs):
+            return True
+
+        def calculate_metrics(self, output_dir, config, **kwargs):
+            return {'KGE': 1.0}
+
+    return _MinimalWorker(config=config, logger=logger)
+
+
+class TestWorkerConfigAccessContract:
+    """Pin the config-access API that worker subclasses (incl. external
+    plugins jxaj/jsacsma/jhbv) rely on.
+
+    Regression: commit c46b94b0 migrated worker call sites to
+    ``self._get_config_value(...)`` (the ConfigMixin pattern) while BaseWorker
+    only provided ``_cfg()``. Every evaluation of the Xinanjiang, SAC-SMA and
+    HBV workers then died with AttributeError, and the optimizers absorbed
+    the failures as penalty scores — whole calibration runs were silently
+    voided. ``_get_config_value`` now lives on BaseWorker (677b4f56); these
+    tests fail loudly if either accessor is renamed or removed again.
+    """
+
+    def test_base_worker_provides_cfg(self, base_worker_config):
+        worker = _make_minimal_worker(base_worker_config)
+        assert worker._cfg('DOMAIN_NAME') == 'test_domain'
+        assert worker._cfg('NOT_A_KEY', 'fallback') == 'fallback'
+
+    def test_base_worker_provides_get_config_value(self, base_worker_config):
+        """Exercise the exact call shape from the archived failures."""
+        worker = _make_minimal_worker(base_worker_config)
+
+        # Typed accessor fails on a flat dict config -> dict_key fallback
+        domain_name = worker._get_config_value(
+            lambda: worker.config.domain.name,
+            default='domain',
+            dict_key='DOMAIN_NAME',
+        )
+        assert domain_name == 'test_domain'
+
+        # Neither accessor nor key resolves -> default
+        assert worker._get_config_value(
+            lambda: worker.config.domain.name,
+            default='domain',
+            dict_key='MISSING_KEY',
+        ) == 'domain'
+
+    def test_get_config_value_prefers_typed_accessor(self, base_worker_config):
+        worker = _make_minimal_worker(base_worker_config)
+        assert worker._get_config_value(
+            lambda: 'typed_value', default='d', dict_key='DOMAIN_NAME'
+        ) == 'typed_value'
+
+    def test_inmemory_worker_inherits_config_access(self):
+        from symfluence.optimization.workers import InMemoryModelWorker
+        for accessor in ('_cfg', '_get_config_value'):
+            assert hasattr(InMemoryModelWorker, accessor), (
+                f"InMemoryModelWorker lost '{accessor}' — external plugin "
+                f"workers (jxaj/jsacsma/jhbv) call it on every evaluation"
+            )
+
+    # Conceptual-model plugin workers, exercised through the exact code path
+    # that raised AttributeError in the archived logs (initialize ->
+    # _load_forcing -> _get_config_value). Skipped when a plugin package is
+    # not installed.
+    PLUGIN_WORKERS = [
+        ('jxaj.calibration.worker', 'XinanjiangWorker'),
+        ('jsacsma.calibration.worker', 'SacSmaWorker'),
+        ('jhbv.calibration.worker', 'HBVWorker'),
+    ]
+
+    @pytest.mark.parametrize('module_path,class_name', PLUGIN_WORKERS)
+    def test_plugin_worker_initialize_path_has_no_stale_api(
+        self, module_path, class_name, tmp_path, base_worker_config, test_logger
+    ):
+        mod = pytest.importorskip(module_path)
+        worker_cls = getattr(mod, class_name)
+        worker = worker_cls(config=dict(base_worker_config), logger=test_logger)
+
+        # The archived-log call shape must resolve on the instance
+        assert worker._get_config_value(
+            lambda: worker.config.domain.name,
+            default='domain',
+            dict_key='DOMAIN_NAME',
+        ) == 'test_domain'
+
+        from symfluence.optimization.workers.base_worker import WorkerTask
+        task = WorkerTask(
+            params={},
+            config=dict(base_worker_config),
+            settings_dir=tmp_path / 'settings',
+            output_dir=tmp_path / 'output',
+            proc_id=0,
+            individual_id=0,
+        )
+        # No forcing data exists, so initialization must fail *gracefully*
+        # (return False). With the stale API it raised AttributeError instead;
+        # InMemoryModelWorker.initialize() does not catch AttributeError, so
+        # this call reproduces the archived failure exactly.
+        try:
+            assert worker.initialize(task) is False
+        except AttributeError as exc:  # pragma: no cover - regression guard
+            pytest.fail(f"{class_name} uses a stale worker API: {exc}")
+
+
+class TestWorkerStaleApiSweep:
+    """AST sweep: every ``self.method(...)`` call in every in-repo model
+    worker must resolve somewhere in the class MRO.
+
+    This is the test that would have caught the c46b94b0 drift (call sites
+    codemodded to helpers that never existed on the worker hierarchy).
+    """
+
+    def test_no_unresolved_self_method_calls(self):
+        import ast
+        import importlib
+        import inspect
+
+        import symfluence
+
+        src_root = Path(symfluence.__file__).parent
+        worker_files = sorted(src_root.glob('models/*/calibration/worker.py'))
+        assert worker_files, "no model worker files found — glob out of date?"
+
+        problems = []
+        swept = 0
+        for wf in worker_files:
+            rel = wf.relative_to(src_root.parent)
+            modname = str(rel.with_suffix('')).replace('/', '.').replace('\\', '.')
+            try:
+                mod = importlib.import_module(modname)
+            except Exception:  # noqa: BLE001 — optional heavy deps (torch, jax...)
+                continue
+
+            tree = ast.parse(wf.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                cls = getattr(mod, node.name, None)
+                if cls is None or not inspect.isclass(cls):
+                    continue
+                swept += 1
+                assigned = self._self_attribute_assignments(cls, tree=node)
+                for sub in ast.walk(node):
+                    if (
+                        isinstance(sub, ast.Call)
+                        and isinstance(sub.func, ast.Attribute)
+                        and isinstance(sub.func.value, ast.Name)
+                        and sub.func.value.id == 'self'
+                    ):
+                        name = sub.func.attr
+                        if not hasattr(cls, name) and name not in assigned:
+                            problems.append(
+                                f"{rel}:{sub.lineno} {node.name}.{name}()"
+                            )
+
+        assert swept > 0, "no worker classes were importable — sweep is inert"
+        assert not problems, (
+            "Stale worker API — self.method(...) calls that resolve nowhere "
+            "in the MRO (this is how the Xinanjiang/SAC-SMA/HBV calibrations "
+            "were silently voided):\n  " + "\n  ".join(problems)
+        )
+
+    @staticmethod
+    def _self_attribute_assignments(cls, tree):
+        """Collect names assigned to ``self.<name>`` in the class body and in
+        the source of every base class (instance attributes are invisible to
+        ``hasattr`` on the class object)."""
+        import ast
+        import inspect
+
+        trees = [tree]
+        for base in cls.__mro__[1:]:
+            try:
+                trees.append(ast.parse(inspect.getsource(base)))
+            except (OSError, TypeError, SyntaxError, IndentationError):
+                continue
+
+        assigned = set()
+        for t in trees:
+            for sub in ast.walk(t):
+                if isinstance(sub, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                    targets = (
+                        sub.targets if isinstance(sub, ast.Assign) else [sub.target]
+                    )
+                    for target in targets:
+                        for tt in ast.walk(target):
+                            if (
+                                isinstance(tt, ast.Attribute)
+                                and isinstance(tt.value, ast.Name)
+                                and tt.value.id == 'self'
+                            ):
+                                assigned.add(tt.attr)
+        return assigned
+
+
+# ============================================================================
 # Legacy compatibility contract tests
 # ============================================================================
 

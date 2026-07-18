@@ -187,3 +187,33 @@ class TestRunParallelTasks:
         # Should not error even though max_workers > len(tasks)
         results = svc._run_parallel_tasks(tasks, desc="capped")
         assert len(results) == 2
+
+
+class TestTaskSummaryLogging:
+    """The per-task Starting/Completed lines are DEBUG; one INFO summary remains."""
+
+    def test_summary_all_completed(self, caplog):
+        svc = _make_service(max_workers=1)
+        tasks = [("a", lambda: 1), ("b", lambda: 2)]
+        with caplog.at_level(logging.DEBUG, logger="test_parallel"):
+            svc._run_parallel_tasks(tasks, desc="batch")
+
+        infos = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert any("batch: all 2 tasks completed" in r.getMessage() for r in infos)
+        # Per-task progress is demoted to DEBUG
+        per_task = [r for r in caplog.records if r.getMessage().startswith(("Starting:", "Completed:"))]
+        assert per_task, "expected per-task records to still exist"
+        assert all(r.levelno == logging.DEBUG for r in per_task)
+
+    def test_summary_reports_failures(self, caplog):
+        svc = _make_service(max_workers=1)
+
+        def _fail():
+            raise ValueError("boom")
+
+        tasks = [("ok", lambda: 1), ("bad", _fail)]
+        with caplog.at_level(logging.DEBUG, logger="test_parallel"):
+            svc._run_parallel_tasks(tasks, desc="batch")
+
+        infos = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert any("batch: 1/2 tasks succeeded, 1 failed" in r.getMessage() for r in infos)

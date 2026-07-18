@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
@@ -189,7 +190,8 @@ def _copy_parameter_file(
         shutil.copy2(param_file_src, param_file_dst)
         log.debug(f"FUSE para_def copied (not symlinked): {param_file_dst.name}")
     else:
-        log.warning(f"FUSE para_def source not found: {param_file_src}")
+        log_once(log, logging.WARNING, key=f'fuse-paradef-missing-{param_file_src}',
+                 message=f"FUSE para_def source not found: {param_file_src}")
 
 
 def _ensure_config_files(
@@ -209,13 +211,15 @@ def _ensure_config_files(
     if (project_settings_dir / actual_decisions_file).exists():
         config_files.append(actual_decisions_file)
     else:
-        log.warning(f"Decisions file {actual_decisions_file} not found in {project_settings_dir}")
+        log_once(log, logging.WARNING, key=f'fuse-decisions-missing-{actual_decisions_file}',
+                    message=f"Decisions file {actual_decisions_file} not found in {project_settings_dir}")
         try:
             decisions = list(project_settings_dir.glob("fuse_zDecisions_*.txt"))
             if decisions:
                 actual_decisions_file = decisions[0].name
                 config_files.append(actual_decisions_file)
-                log.warning(f"Using fallback decisions file: {actual_decisions_file}")
+                log_once(log, logging.WARNING, key=f'fuse-decisions-fallback-{actual_decisions_file}',
+                         message=f"Using fallback decisions file: {actual_decisions_file}")
         except Exception as e:  # noqa: BLE001 — calibration resilience
             log.warning(f"Error searching for decisions files: {e}", exc_info=True)
 
@@ -225,7 +229,8 @@ def _ensure_config_files(
             src_path = project_settings_dir / cfg_file
             if src_path.exists():
                 input_files.append((src_path, cfg_file))
-                log.warning(f"Restoring missing config file: {cfg_file}")
+                log_once(log, logging.WARNING, key=f'fuse-restore-config-{cfg_file}',
+                         message=f"Restoring missing config file: {cfg_file}")
             else:
                 log.error(f"Source config file not found: {src_path}")
 
@@ -415,7 +420,8 @@ def execute_fuse(
             stale_runs.unlink()
             log.debug(f"Removed stale output: {stale_runs.name}")
         except OSError as e:
-            log.warning(f"Could not remove stale output {stale_runs.name}: {e}")
+            log_once(log, logging.WARNING, key=f'fuse-stale-runs-{stale_runs.name}',
+                     message=f"Could not remove stale output {stale_runs.name}: {e}")
 
     # In run_def mode, FUSE also recreates para_def.nc from the constraints
     # file. Remove the stale one so FUSE creates it fresh in its native
@@ -425,7 +431,8 @@ def execute_fuse(
             expected_para_def.unlink()
             log.debug(f"Removed stale para_def for run_def: {expected_para_def.name}")
         except OSError as e:
-            log.warning(f"Could not remove stale para_def {expected_para_def.name}: {e}")
+            log_once(log, logging.WARNING, key=f'fuse-stale-paradef-{expected_para_def.name}',
+                     message=f"Could not remove stale para_def {expected_para_def.name}: {e}")
 
     env = _build_fuse_library_env(fuse_exe)
 

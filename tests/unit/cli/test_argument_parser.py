@@ -69,6 +69,26 @@ class TestGlobalOptions:
         args = CLIParser().parse_args(['agent', 'launch', 'prompt', '--', '--debug'])
         assert args.extra == ['--debug']
 
+    @pytest.mark.parametrize('argv', [
+        ['--quiet', 'workflow', 'run'],
+        ['-q', 'workflow', 'run'],
+        ['workflow', 'run', '--quiet'],
+        ['workflow', 'run', '-q'],
+    ])
+    def test_quiet_option_is_global_and_position_independent(self, argv):
+        args = CLIParser().parse_args(argv)
+        assert args.quiet is True
+
+    def test_quiet_defaults_to_absent(self):
+        args = CLIParser().parse_args(['workflow', 'run'])
+        assert getattr(args, 'quiet', False) is False
+
+    def test_quiet_does_not_collide_with_subcommand_verbose(self):
+        """binary validate keeps its own --verbose; --quiet stays global."""
+        args = CLIParser().parse_args(['binary', 'validate', '--verbose', '-q'])
+        assert args.verbose is True
+        assert args.quiet is True
+
 
 class TestWorkflowCommands:
     """Test workflow category commands."""

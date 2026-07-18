@@ -261,7 +261,7 @@ class CERRAHandler(BaseDatasetHandler):
                     else:
                         raise KeyError("Longitude coordinate not found in CERRA file")
 
-            self.logger.info(f"CERRA grid dimensions: lat={lats.shape}, lon={lons.shape}")
+            self.logger.debug(f"CERRA grid dimensions: lat={lats.shape}, lon={lons.shape}")
 
             # Get HRU bounding box for spatial filtering
             # Read the HRU shapefile to get its extent

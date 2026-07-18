@@ -224,16 +224,37 @@ def _discover_plugins() -> None:
             if ep.value.startswith("symfluence.models."):
                 in_tree_loaded += 1
         except ImportError as exc:
-            # A missing import almost always means an optional dependency isn't
-            # installed (e.g. an MPI/GPU model on a laptop). Keep this quiet —
-            # the same models were debug-logged by the old import loop — so it
-            # doesn't drown the logs on every `import symfluence`.
-            logger.debug(
-                "Plugin %r (%s) not loaded — optional dependency missing: %s",
-                ep.name,
-                ep.value,
-                exc,
-            )
+            missing_module = getattr(exc, "name", None) or ""
+            if (
+                isinstance(exc, ModuleNotFoundError)
+                and missing_module.partition(".")[0] not in ("", "symfluence")
+            ):
+                # A missing *third-party* module almost always means an optional
+                # dependency isn't installed (e.g. an MPI/GPU model on a
+                # laptop). Keep this quiet — the same models were debug-logged
+                # by the old import loop — so it doesn't drown the logs on
+                # every `import symfluence`.
+                logger.debug(
+                    "Plugin %r (%s) not loaded — optional dependency missing: %s",
+                    ep.name,
+                    ep.value,
+                    exc,
+                )
+            else:
+                # Any other ImportError (e.g. "cannot import name ... from
+                # symfluence...") means the installed plugin was built against
+                # a different SYMFLUENCE API. Burying this at DEBUG as an
+                # "optional dependency" silently removes the plugin's models
+                # from the registry, so calibration runs fail later with an
+                # unhelpful "unknown model" error. Warn loudly instead.
+                logger.warning(
+                    "Plugin %r (%s) is incompatible with this SYMFLUENCE "
+                    "version (%s). Its models will be unavailable — upgrade "
+                    "the plugin package to a compatible release.",
+                    ep.name,
+                    ep.value,
+                    exc,
+                )
         except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
             logger.warning(
                 "Failed to load symfluence plugin %r (%s); skipping.",

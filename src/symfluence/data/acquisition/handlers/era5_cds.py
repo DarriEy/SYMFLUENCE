@@ -167,7 +167,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
             }
 
             # Download both products using mixin's retry logic
-            self.logger.info(f"Downloading ERA5 analysis data for {year}-{month:02d}...")
+            self.logger.debug(f"Downloading ERA5 analysis data for {year}-{month:02d}")
             self.execute_with_retry(
                 lambda: c.retrieve('reanalysis-era5-single-levels', analysis_request, str(analysis_file)),
                 max_retries=3,
@@ -175,7 +175,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
                 retry_condition=self.is_retryable_cds_error
             )
 
-            self.logger.info(f"Downloading ERA5 forecast data for {year}-{month:02d}...")
+            self.logger.debug(f"Downloading ERA5 forecast data for {year}-{month:02d}")
             self.execute_with_retry(
                 lambda: c.retrieve('reanalysis-era5-single-levels', forecast_request, str(forecast_file)),
                 max_retries=3,
@@ -191,7 +191,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
             chunk_file = output_dir / f"{self.domain_name}_era5_cds_processed_{year}{month:02d}_temp.nc"
             _safe_to_netcdf(ds_chunk, chunk_file, logger=self.logger)
 
-            self.logger.info(f"✓ Processed ERA5 chunk for {year}-{month:02d}")
+            self.logger.debug(f"Processed ERA5 chunk for {year}-{month:02d}")
             return chunk_file
 
         finally:
@@ -226,19 +226,19 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
 
             # Handle ensemble members if present (forecast file)
             if 'number' in dsf.dims:
-                self.logger.info("Ensemble data detected. Selecting first member.")
+                self.logger.debug("Ensemble data detected. Selecting first member.")
                 dsf = dsf.isel(number=0)
 
             # Sort by time
             dsa = dsa.sortby('time')
             dsf = dsf.sortby('time')
 
-            self.logger.info(f"Analysis variables: {list(dsa.data_vars)}")
-            self.logger.info(f"Forecast variables: {list(dsf.data_vars)}")
+            self.logger.debug(f"Analysis variables: {list(dsa.data_vars)}")
+            self.logger.debug(f"Forecast variables: {list(dsf.data_vars)}")
 
             # Merge analysis and forecast (inner join on time)
             dsm = xr.merge([dsa, dsf], join='inner')
-            self.logger.info(f"Merged variables: {list(dsm.data_vars)}")
+            self.logger.debug(f"Merged variables: {list(dsm.data_vars)}")
 
             # Now process variables (rename, convert units, derive, etc.)
             dsm = era5_to_summa_schema(dsm, source='cds', logger=self.logger)

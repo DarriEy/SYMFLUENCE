@@ -296,7 +296,7 @@ def check_cloud_access_availability(dataset_name: str, logger) -> bool:
         ...     downloader = CloudForcingDownloader(config, logger)
     """
     if AcquisitionRegistry.is_registered(dataset_name):
-        logger.info(f"✓ {dataset_name} supports cloud data access")
+        logger.debug(f"{dataset_name} supports cloud data access")
         return True
     else:
         logger.warning(f"✗ {dataset_name} does not support cloud access.")

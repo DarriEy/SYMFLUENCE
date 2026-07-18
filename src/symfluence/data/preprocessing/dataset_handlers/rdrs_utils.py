@@ -389,7 +389,7 @@ class RDRSHandler(BaseDatasetHandler):
                 rlat, rlon = ds.rlat.values, ds.rlon.values
                 lat, lon = ds.lat.values, ds.lon.values
 
-            self.logger.info(f"RDRS dimensions: rlat={rlat.shape}, rlon={rlon.shape}")
+            self.logger.debug(f"RDRS dimensions: rlat={rlat.shape}, rlon={rlon.shape}")
 
             # Create grid cells
             geometries, ids, lats, lons = [], [], [], []

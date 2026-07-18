@@ -113,7 +113,7 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
             default=False,
             dict_key="FORCE_DOWNLOAD",
         ):
-            self.logger.info(f"HydroLAKES data already exists: {out_gpkg}")
+            self.logger.debug(f"HydroLAKES data already exists: {out_gpkg}")
             return lake_dir
 
         self.logger.info("Starting HydroLAKES v1.0 acquisition")
@@ -137,7 +137,7 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
             self.bbox["lat_max"] + buf_deg,
         )
 
-        self.logger.info("Reading and clipping HydroLAKES to domain bbox...")
+        self.logger.debug("Reading and clipping HydroLAKES to domain bbox")
         lakes_gdf = gpd.read_file(global_shp, bbox=domain_box)
 
         if lakes_gdf is None or len(lakes_gdf) == 0:
@@ -175,19 +175,20 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
 
         # Check for existing shapefile in cache
         for shp in cache_dir.glob("HydroLAKES_polys_v10*.shp"):
-            self.logger.info(f"Using cached HydroLAKES: {shp}")
+            self.logger.debug(f"Using cached HydroLAKES: {shp}")
             return shp
 
         # Also check common user-download locations
         for search_dir in [lake_dir, cache_dir.parent]:
             for shp in search_dir.glob("**/HydroLAKES*.shp"):
-                self.logger.info(f"Found local HydroLAKES: {shp}")
+                self.logger.debug(f"Found local HydroLAKES: {shp}")
                 return shp
 
         # Download from HydroSHEDS
         zip_path = cache_dir / "HydroLAKES_polys_v10_shp.zip"
-        self.logger.info(f"Downloading HydroLAKES v1.0 from {HYDROLAKES_URL}")
-        self.logger.info("This is a ~470 MB download and may take several minutes...")
+        self.logger.info(
+            f"Downloading HydroLAKES v1.0 (~470 MB, may take several minutes) from {HYDROLAKES_URL}"
+        )
 
         try:
             resp = self.session.get(HYDROLAKES_URL, stream=True, timeout=600)
@@ -202,9 +203,9 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
                         downloaded += len(chunk)
                         if total > 0 and downloaded % (50 << 20) == 0:
                             pct = downloaded / total * 100
-                            self.logger.info(f"  Download progress: {pct:.0f}%")
+                            self.logger.debug(f"Download progress: {pct:.0f}%")
 
-            self.logger.info("Download complete, extracting...")
+            self.logger.debug("Download complete, extracting")
 
             # Extract shapefile components
             with zipfile.ZipFile(zip_path, "r") as zf:
@@ -216,7 +217,7 @@ class HydroLAKESAcquirer(BaseAcquisitionHandler):
 
             # Find extracted shapefile
             for shp in cache_dir.rglob("HydroLAKES_polys_v10*.shp"):
-                self.logger.info(f"Extracted HydroLAKES shapefile: {shp}")
+                self.logger.debug(f"Extracted HydroLAKES shapefile: {shp}")
                 return shp
 
             self.logger.error("No shapefile found in extracted archive")

@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import xarray as xr
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
@@ -330,7 +331,8 @@ class FUSEParameterManager(BaseParameterManager):
                 return self._get_default_initial_values()
 
             if not self.param_file_path.exists():
-                self.logger.warning(f"FUSE parameter file not found: {self.param_file_path}")
+                log_once(self.logger, logging.WARNING, key=f'fuse-param-file-missing-{self.param_file_path}',
+                        message=f"FUSE parameter file not found: {self.param_file_path}")
                 return self._get_default_initial_values()
 
             with xr.open_dataset(self.param_file_path) as ds:
@@ -340,7 +342,8 @@ class FUSEParameterManager(BaseParameterManager):
                         # Get the parameter value (assuming parameter set 0)
                         params[param_name] = float(ds[param_name].isel(par=0).values)
                     else:
-                        self.logger.warning(f"Parameter {param_name} not found in file")
+                        log_once(self.logger, logging.WARNING, key=f'fuse-param-missing-{param_name}',
+                                 message=f"Parameter {param_name} not found in file")
                         # Use default value from bounds
                         bounds = self.param_bounds.get(param_name, {'min': 0.1, 'max': 10.0})
                         params[param_name] = (bounds['min'] + bounds['max']) / 2

@@ -206,6 +206,67 @@ class TestRunHistoryService:
         runs = svc.list_runs()
         assert runs[0].timestamp == datetime(2025, 6, 1, 12, 0, 0)
 
+    def test_parse_schema_v2_summary(self, tmp_path):
+        """Schema-v2 summaries (fixed step entries, counted totals) parse."""
+        from symfluence.tui.services.run_history import RunHistoryService
+
+        domain = tmp_path / "domain_v2"
+        domain.mkdir()
+        log_dir = domain / "_workLog_v2"
+        log_dir.mkdir()
+
+        summary = {
+            "schema_version": 2,
+            "timestamp": "2026-07-17T10:00:00",
+            "domain": "v2",
+            "experiment_id": "exp_v2",
+            "status": "partial",
+            "execution_time_seconds": 42.5,
+            "steps": [
+                {"name": "setup_project", "cli_name": "setup_project",
+                 "description": "Setup", "status": "completed", "duration_s": 1.2},
+                {"name": "define_domain", "cli_name": "define_domain",
+                 "description": "Define", "status": "skipped", "duration_s": 0.0},
+                {"name": "run_models", "cli_name": "run_model",
+                 "description": "Run", "status": "failed", "duration_s": 0.0,
+                 "error": "no executable"},
+            ],
+            "total_steps": 3,
+            "steps_completed": 1,
+            "steps_skipped": 1,
+            "steps_failed": 1,
+            "total_errors": 7,
+            "total_warnings": 12,
+            "recent_errors": ["no executable"],
+            "workflow_errors": [{"step": "run_model", "error": "no executable"}],
+            "debug_mode": False,
+            "log_file": str(log_dir / "symfluence_v2_exp_v2_20260717_100000.log"),
+            "run_manifest": str(log_dir / "run_manifest.json"),
+            "configuration": {
+                "hydrological_model": "SUMMA",
+                "domain_definition_method": "lumped",
+                "optimization_algorithm": "dds",
+                "force_run_all": False,
+            },
+        }
+        (log_dir / "run_summary_20260717_100000.json").write_text(json.dumps(summary))
+
+        svc = RunHistoryService(domain)
+        runs = svc.list_runs()
+
+        assert len(runs) == 1
+        run = runs[0]
+        assert run.status == "partial"
+        assert run.steps_completed == ["setup_project"]
+        assert run.total_steps == 1
+        # Real counted totals from the log, not len() of exception lists
+        assert run.total_errors == 7
+        assert run.total_warnings == 12
+        assert {"step": "run_model", "error": "no executable"} in run.errors
+        assert "no executable" in run.errors
+        assert run.model == "SUMMA"
+        assert run.algorithm == "dds"
+
 
 # ============================================================================
 # WorkflowService

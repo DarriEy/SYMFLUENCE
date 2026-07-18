@@ -215,7 +215,7 @@ class ModelExecutor(ConfigMixin):
                 hru_ids = topo_ds['hruId'].values
                 n_hrus = len(hru_ids)
                 lumped_gru_id = 1
-                self.logger.info(f"Creating single lumped GRU (ID={lumped_gru_id}) for {n_hrus} HRUs in topology")
+                self.logger.debug(f"Creating single lumped GRU (ID={lumped_gru_id}) for {n_hrus} HRUs in topology")
 
             # Find SUMMA timestep file
             timestep_files = list(summa_dir.glob("*timestep.nc"))
@@ -260,7 +260,7 @@ class ModelExecutor(ConfigMixin):
                 if len(runoff_data.shape) == 2:
                     if runoff_data.shape[1] > 1:
                         runoff_data = runoff_data.mean(axis=1)
-                        self.logger.info(f"Used mean across {var_data.shape[1]} spatial elements")
+                        self.logger.debug(f"Used mean across {var_data.shape[1]} spatial elements")
                     else:
                         runoff_data = runoff_data[:, 0]
                 else:
@@ -280,7 +280,7 @@ class ModelExecutor(ConfigMixin):
             routing_file = summa_file.parent / f"{summa_file.stem}_for_routing.nc"
             mizuForcing.to_netcdf(routing_file, format='NETCDF4')
             mizuForcing.close()
-            self.logger.info(f"Wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
+            self.logger.debug(f"Wrote routing forcing to {routing_file.name} (original SUMMA output preserved)")
 
             # Fix time precision for mizuRoute compatibility on the routing file
             fix_summa_time_precision(routing_file)

@@ -122,8 +122,10 @@ def test_default_path_takes_legacy_branch_even_when_handler_registered(tmp_path)
         processor.process_streamflow_data()
 
     get_handler.assert_not_called()
-    info_messages = [str(call.args[0]) for call in logger.info.call_args_list]
-    assert any('USGS streamflow data handled by formalized observation handler' in m for m in info_messages)
+    # The dispatch note is per-item detail: emitted at DEBUG per the logging
+    # level policy (ADR 0005), never at INFO.
+    debug_messages = [str(call.args[0]) for call in logger.debug.call_args_list]
+    assert any('USGS streamflow data handled by formalized observation handler' in m for m in debug_messages)
     logger.error.assert_not_called()
 
 

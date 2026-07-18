@@ -87,7 +87,13 @@ class RunHistoryService:
 
     @staticmethod
     def _parse_summary(path: Path) -> Optional[RunSummary]:
-        """Parse a run_summary JSON into a RunSummary dataclass."""
+        """Parse a run_summary JSON into a RunSummary dataclass.
+
+        Supports both the current schema (version 2: fixed ``steps`` entries
+        ``{name, cli_name, description, status, duration_s}`` with counted
+        ``total_errors``/``total_warnings``) and the legacy schema (a
+        ``steps_completed`` list of strings or ``{cli, fn}`` dicts).
+        """
         try:
             with open(path, encoding='utf-8') as f:
                 data = json.load(f)
@@ -100,14 +106,30 @@ class RunHistoryService:
                 except (ValueError, TypeError):
                     pass
 
-            steps = data.get("steps_completed", [])
-            # Steps may be dicts with 'cli' key or plain strings
-            step_names = []
-            for s in steps:
-                if isinstance(s, dict):
-                    step_names.append(s.get("cli", s.get("name", str(s))))
-                else:
-                    step_names.append(str(s))
+            if "steps" in data:
+                # Schema v2: fixed step entries with a status vocabulary
+                step_names = [
+                    str(s.get("cli_name") or s.get("name", ""))
+                    for s in data.get("steps") or []
+                    if isinstance(s, dict) and s.get("status") == "completed"
+                ]
+                completed_count = data.get("steps_completed", len(step_names))
+                # Workflow-level exceptions plus the counted recent log errors
+                errors = list(data.get("workflow_errors") or [])
+                errors.extend(str(m) for m in data.get("recent_errors") or [])
+                # v2 counts warnings but does not retain their messages
+                warnings = []
+            else:
+                # Legacy schema: steps_completed as strings or {cli, fn} dicts
+                step_names = []
+                for s in data.get("steps_completed", []):
+                    if isinstance(s, dict):
+                        step_names.append(s.get("cli", s.get("name", str(s))))
+                    else:
+                        step_names.append(str(s))
+                completed_count = data.get("total_steps_completed", len(step_names))
+                errors = data.get("errors", [])
+                warnings = data.get("warnings", [])
 
             config = data.get("configuration", {})
 
@@ -119,10 +141,10 @@ class RunHistoryService:
                 status=data.get("status", "unknown"),
                 execution_time=data.get("execution_time_seconds", 0.0),
                 steps_completed=step_names,
-                total_steps=data.get("total_steps_completed", len(step_names)),
-                errors=data.get("errors", []),
+                total_steps=completed_count,
+                errors=errors,
                 total_errors=data.get("total_errors", 0),
-                warnings=data.get("warnings", []),
+                warnings=warnings,
                 total_warnings=data.get("total_warnings", 0),
                 model=config.get("hydrological_model", ""),
                 algorithm=config.get("optimization_algorithm", ""),

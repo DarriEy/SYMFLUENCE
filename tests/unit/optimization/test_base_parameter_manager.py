@@ -287,6 +287,64 @@ class TestDenormalization:
         assert params['param1'] <= 10.0
         assert params['param2'] >= -5.0
 
+    def test_denormalize_missing_bounds_warns_once_then_debug(
+        self, config, logger, settings_dir, caplog
+    ):
+        """'No bounds for X, skipping' is WARNING once, DEBUG on repeats."""
+        manager = ConcreteParameterManager(
+            config, logger, settings_dir,
+            param_names=['param1', 'unbounded'],
+            param_bounds={'param1': {'min': 0.0, 'max': 10.0}}
+        )
+        normalized = np.array([0.5, 0.5])
+
+        with caplog.at_level(logging.DEBUG):
+            first = manager.denormalize_parameters(normalized)
+            second = manager.denormalize_parameters(normalized)
+
+        assert 'unbounded' not in first and 'unbounded' not in second
+
+        no_bounds_records = [
+            r for r in caplog.records if 'No bounds for unbounded' in r.message
+        ]
+        assert [r.levelno for r in no_bounds_records] == [logging.WARNING, logging.DEBUG]
+
+    def test_denormalize_missing_bounds_key_is_per_parameter(
+        self, config, logger, settings_dir, caplog
+    ):
+        """Each missing parameter gets its own first-occurrence WARNING."""
+        manager = ConcreteParameterManager(
+            config, logger, settings_dir,
+            param_names=['nb1', 'nb2'],
+            param_bounds={}
+        )
+
+        with caplog.at_level(logging.WARNING):
+            manager.denormalize_parameters(np.array([0.5, 0.5]))
+
+        warned = {r.message for r in caplog.records if r.levelno == logging.WARNING}
+        assert 'No bounds for nb1, skipping' in warned
+        assert 'No bounds for nb2, skipping' in warned
+
+    def test_normalize_zero_range_warns_once_then_debug(
+        self, config, logger, settings_dir, caplog
+    ):
+        """Zero-range warning is de-duplicated across repeated calls."""
+        manager = ConcreteParameterManager(
+            config, logger, settings_dir,
+            param_names=['constant'],
+            param_bounds={'constant': {'min': 5.0, 'max': 5.0}}
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            manager.normalize_parameters({'constant': 5.0})
+            manager.normalize_parameters({'constant': 5.0})
+
+        zero_range_records = [
+            r for r in caplog.records if 'zero range' in r.message.lower()
+        ]
+        assert [r.levelno for r in zero_range_records] == [logging.WARNING, logging.DEBUG]
+
     def test_denormalize_calls_format_hook(self, config, logger, settings_dir):
         """Test that denormalization calls _format_parameter_value hook."""
         class CustomManager(ConcreteParameterManager):

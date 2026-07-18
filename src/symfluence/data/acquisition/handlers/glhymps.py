@@ -109,7 +109,7 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
             self.bbox["lat_max"] + buf_deg,
         )
 
-        self.logger.info("Reading and clipping GLHYMPS to domain bbox...")
+        self.logger.debug("Reading and clipping GLHYMPS to domain bbox")
 
         # GLHYMPS uses Cylindrical Equal Area projection — transform bbox to source CRS
         src_crs = gpd.read_file(global_shp, rows=0).crs
@@ -139,11 +139,11 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
 
         gdf.to_file(out_gpkg, driver="GPKG")
 
-        # Log summary
+        # Log summary (one INFO line; per-column stats at DEBUG)
         n_polys = len(gdf)
         for col in ['Porosity', 'logK_Ice']:
             if col in gdf.columns:
-                self.logger.info(
+                self.logger.debug(
                     f"  {col}: mean={gdf[col].mean():.4f}, "
                     f"range=[{gdf[col].min():.4f}, {gdf[col].max():.4f}]"
                 )
@@ -159,12 +159,12 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
         # Check for existing shapefile
         for shp in cache_dir.rglob("*.shp"):
             if 'glhymps' in shp.name.lower() or 'GLHYMPS' in shp.name:
-                self.logger.info(f"Using cached GLHYMPS: {shp}")
+                self.logger.debug(f"Using cached GLHYMPS: {shp}")
                 return shp
 
         for shp in glhymps_dir.rglob("*.shp"):
             if 'glhymps' in shp.name.lower() or 'GLHYMPS' in shp.name:
-                self.logger.info(f"Found local GLHYMPS: {shp}")
+                self.logger.debug(f"Found local GLHYMPS: {shp}")
                 return shp
 
         # Try each source until one works
@@ -193,7 +193,7 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
                         )
                         continue
 
-                self.logger.info("Download complete, extracting...")
+                self.logger.debug("Download complete, extracting")
                 with zipfile.ZipFile(zip_path, 'r') as zf:
                     from symfluence.core.archive_extraction import safe_zip_extract
                     safe_zip_extract(zf, cache_dir)
@@ -202,12 +202,12 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
 
                 for shp in cache_dir.rglob("*.shp"):
                     if 'glhymps' in shp.name.lower() or 'GLHYMPS' in shp.name:
-                        self.logger.info(f"Extracted GLHYMPS shapefile: {shp}")
+                        self.logger.debug(f"Extracted GLHYMPS shapefile: {shp}")
                         return shp
 
                 # Bundle may contain GLHYMPS in a subdirectory
                 for shp in cache_dir.rglob("*.shp"):
-                    self.logger.info(f"Extracted shapefile: {shp}")
+                    self.logger.debug(f"Extracted shapefile: {shp}")
                     return shp
 
                 self.logger.warning("No shapefile found in archive")
@@ -233,7 +233,7 @@ class GLHYMPSAcquirer(BaseAcquisitionHandler):
                     session=session, timeout=600,
                 )
                 if gpkg_path.exists() and gpkg_path.stat().st_size > 10000:
-                    self.logger.info(f"Downloaded CONUS GLHYMPS: {gpkg_path}")
+                    self.logger.debug(f"Downloaded CONUS GLHYMPS: {gpkg_path}")
                     return gpkg_path
             except Exception as e:  # noqa: BLE001
                 self.logger.warning(f"CONUS fallback failed: {e}")

@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.logging_utils import get_worker_logger
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -100,8 +101,9 @@ class SUMMAWorker(BaseWorker):
             if 'params' not in task_data:
                 task_data['params'] = params
 
-            internal_logger = logging.getLogger('summa_worker_apply')
-            internal_logger.setLevel(logging.WARNING)
+            # Worker logger at the root's effective level (no hard-coded
+            # WARNING gate — that used to hide parameter-application detail)
+            internal_logger = get_worker_logger(int(task_data.get('proc_id', 0) or 0))
 
             debug_info = {'stage': 'apply_parameters', 'files_checked': [], 'errors': []}
 
@@ -202,9 +204,9 @@ class SUMMAWorker(BaseWorker):
             summa_dir = output_dir
             sim_dir = kwargs.get('sim_dir', output_dir)
 
-            # Create minimal logger
-            internal_logger = logging.getLogger('summa_worker_run')
-            internal_logger.setLevel(logging.WARNING)
+            # Worker logger at the root's effective level (no hard-coded
+            # WARNING gate — that used to hide model-run detail)
+            internal_logger = get_worker_logger(int(kwargs.get('proc_id', 0) or 0))
 
             debug_info = {
                 'stage': 'model_run',

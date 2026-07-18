@@ -287,7 +287,7 @@ class DREAMAlgorithm(OptimizationAlgorithm):
             update_best(best_fit, params_dict, iteration)
 
             # Log progress
-            log_progress(self.name, iteration, best_fit, n_accepted, n_chains)
+            log_progress(self.name, iteration, best_fit, n_accepted, n_chains, unit='gens')
 
             # Convergence check via Gelman-Rubin diagnostic (simplified)
             # R-hat < 1.1 indicates approximate convergence of chains

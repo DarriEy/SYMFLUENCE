@@ -79,12 +79,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calibrations are reproducible regardless of machine history.
 
 ### Changed
+- **Logging-protocol overhaul** (ADR-0005 enforcement, from an audit of the
+  paper-run log corpus where WARNING+ERROR lines outnumbered INFO 1.85:1):
+  - One shared protocol module (`core/logging_utils.py`): canonical file
+    format (~46% smaller lines: `TIME LEVEL [logger] message`, filename
+    `symfluence_{domain}_{experiment_id}_{ts}.log`), `log_once` de-duplicated
+    emission, a single third-party suppression table, and one
+    `get_worker_logger` bootstrap replacing four bespoke worker setups.
+  - Milestone-level INFO everywhere: per-item/per-chunk loops now emit one
+    summary line with per-item detail at DEBUG (an ERA5 96-chunk resume drops
+    from ~190 INFO lines to 3); hot-loop conditions that produced tens of
+    thousands of repeated WARNING/ERROR lines emit once and demote to DEBUG;
+    external-model stdout goes to sidecar files referenced by one log line.
+  - Comparable calibration progress: every optimizer emits the fixed schema
+    `{ALG} {i}/{max} {unit} ({pct}%) | Best | Improved | Crashes | Elapsed`
+    with explicit units (evals/gens/epochs/loops) and `[P##]` worker tags;
+    GLUE and NSGA-II now stream progress.
+  - Honest run reporting: `✗ Failed` completions on failed steps,
+    failure-aware workflow end block, `run_summary.json` schema v2 with
+    error/warning totals counted from actual log records, per-step
+    status+duration aligned with the run manifest.
+  - Global `--quiet/-q` flag (console WARNING+; file log unaffected);
+    `--debug` unchanged and dominant.
+  - `setup_logging` is idempotent per (domain, experiment id) — re-use no
+    longer re-opens a new log file per facade construction.
 - **Agent verb consolidation**: `agent launch` is deprecated (alias for
   `agent code`, to be removed after one release); the already-deprecated
   `agent start`/`agent run` and the `agent list`/`agent skills` verbs are
   removed (`agent doctor` covers the last two).
 
 ### Fixed
+- **Stale plugins no longer vanish silently**: a plugin whose `register()`
+  fails on SYMFLUENCE API drift (e.g. importing a removed alias) now logs a
+  WARNING naming the incompatible package instead of disappearing from the
+  registry at DEBUG level; a worker-contract test sweep (AST-resolved method
+  calls on every in-repo worker class) guards against the API-drift class of
+  calibration-voiding AttributeErrors observed in the paper-run logs.
 - **Review follow-ups to the agent interface and CLI option handling** (#300,
   #299): `--dry-run binary <tool>` now previews instead of executing; global
   option normalization no longer steals host-CLI flags from agent-session
