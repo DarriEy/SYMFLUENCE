@@ -14,10 +14,14 @@ symfluence workflow run --config <config.yaml>
 ### 1.1 Install everything
 
 ```bash
-git clone -b develop https://github.com/symfluence-org/SYMFLUENCE.git
+git clone -b <paper-release-tag> https://github.com/symfluence-org/SYMFLUENCE.git
 cd SYMFLUENCE
 ./scripts/symfluence-bootstrap --paper-repro
 ```
+
+Replace ``<paper-release-tag>`` with the version named in the paper's software
+citation. Using that tag, rather than the moving ``develop`` branch, fixes the
+code and configurations to the archived paper release.
 
 That one command creates the Python environment, installs SYMFLUENCE and all
 its models (including the JAX-native ones), sets up GDAL/R/NetCDF, and compiles
@@ -123,7 +127,13 @@ Issues: https://github.com/symfluence-org/SYMFLUENCE/issues
 
 ## 5. Provenance
 
-`experiment_logs/` holds the curated logs, frozen resolved configs, and
-run manifests (git commit, package versions, platform) of the runs behind the
-paper's figures; `experiment_logs/COVERAGE.md` maps each log to its
-experiment. The shipped configs are kept aligned to those frozen records.
+The repository tracks the provenance inventory and retrieval instructions in
+[`provenance/`](provenance/). The larger bundle of curated logs, frozen
+resolved configs, run manifests, and reference metrics is distributed as a
+versioned GitHub Release asset and archived with the paper's Zenodo record.
+This keeps generated logs out of Git while retaining a checksummed,
+version-specific research artifact.
+
+Maintainers create the archive with
+`scripts/create_paper_provenance_bundle.sh`; see the provenance README for the
+expected layout and release procedure.
