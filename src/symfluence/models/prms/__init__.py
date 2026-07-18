@@ -75,11 +75,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import PRMSConfigAdapter
-from .extractor import PRMSResultExtractor
-from .postprocessor import PRMSPostProcessor
-from .preprocessor import PRMSPreProcessor
-from .runner import PRMSRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'PRMSPreProcessor': ('.preprocessor', 'PRMSPreProcessor'),
+    'PRMSRunner': ('.runner', 'PRMSRunner'),
+    'PRMSResultExtractor': ('.extractor', 'PRMSResultExtractor'),
+    'PRMSPostProcessor': ('.postprocessor', 'PRMSPostProcessor'),
+    'PRMSModelOptimizer': ('.calibration', 'PRMSModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for PRMS module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['PRMSConfigAdapter'])
+
 
 __all__ = [
     "PRMSPreProcessor",
@@ -89,23 +110,36 @@ __all__ = [
     "PRMSConfigAdapter",
 ]
 
-# Register all PRMS components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import PRMSConfigAdapter
 
 
 def register() -> None:
-    """Register PRMS components with the unified registry."""
+    """Register PRMS components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "PRMS",
-        preprocessor=PRMSPreProcessor,
-        runner=PRMSRunner,
-        result_extractor=PRMSResultExtractor,
         config_adapter=PRMSConfigAdapter,
         build_instructions_module="symfluence.models.prms.build_instructions",
     )
+    base = 'symfluence.models.prms'
+    R.preprocessors.add_lazy("PRMS", f"{base}.preprocessor.PRMSPreProcessor")
+    R.runners.add_lazy("PRMS", f"{base}.runner.PRMSRunner")
+    R.postprocessors.add_lazy("PRMS", f"{base}.postprocessor.PRMSPostProcessor")
+    R.result_extractors.add_lazy("PRMS", f"{base}.extractor.PRMSResultExtractor")
+    R.optimizers.add_lazy("PRMS", f"{base}.calibration.optimizer.PRMSModelOptimizer")
+    R.workers.add_lazy("PRMS", f"{base}.calibration.worker.PRMSWorker")
+    R.parameter_managers.add_lazy("PRMS", f"{base}.calibration.parameter_manager.PRMSParameterManager")
 
-# Register calibration components
-try:
-    from .calibration import PRMSModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import PRMSModelOptimizer
+    from .extractor import PRMSResultExtractor
+    from .postprocessor import PRMSPostProcessor
+    from .preprocessor import PRMSPreProcessor
+    from .runner import PRMSRunner

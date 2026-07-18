@@ -73,11 +73,34 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .config_generator import NgenConfigGenerator
-from .postprocessor import NgenPostProcessor
-from .preprocessor import NgenPreProcessor
-from .runner import NgenRunner
-from .visualizer import visualize_ngen
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution, extraction, and plotting classes pull the
+# geospatial/matplotlib stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'NgenConfigGenerator': ('.config_generator', 'NgenConfigGenerator'),
+    'NgenPostProcessor': ('.postprocessor', 'NgenPostProcessor'),
+    'NgenPreProcessor': ('.preprocessor', 'NgenPreProcessor'),
+    'NgenRunner': ('.runner', 'NgenRunner'),
+    'visualize_ngen': ('.visualizer', 'visualize_ngen'),
+    'NGENResultExtractor': ('.extractor', 'NGENResultExtractor'),
+    'NGENPlotter': ('.plotter', 'NGENPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for NGEN module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['NgenConfigAdapter'])
+
 
 __all__ = [
     'NgenPreProcessor',
@@ -91,16 +114,34 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import NgenConfigAdapter
-from .extractor import NGENResultExtractor
-from .plotter import NGENPlotter
 
 
 def register() -> None:
-    """Register NGEN components with the unified registry."""
+    """Register NGEN components with the unified registry.
+
+    Execution, extraction, and plotting classes are registered lazily —
+    imported on first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "NGEN",
         config_adapter=NgenConfigAdapter,
-        result_extractor=NGENResultExtractor,
-        plotter=NGENPlotter,
         build_instructions_module="symfluence.models.ngen.build_instructions",
     )
+    base = 'symfluence.models.ngen'
+    R.preprocessors.add_lazy("NGEN", f"{base}.preprocessor.NgenPreProcessor")
+    R.runners.add_lazy("NGEN", f"{base}.runner.NgenRunner", runner_method='run_ngen')
+    R.postprocessors.add_lazy("NGEN", f"{base}.postprocessor.NgenPostProcessor")
+    R.visualizers.add_lazy("NGEN", f"{base}.visualizer.visualize_ngen")
+    R.result_extractors.add_lazy("NGEN", f"{base}.extractor.NGENResultExtractor")
+    R.plotters.add_lazy("NGEN", f"{base}.plotter.NGENPlotter")
+
+
+if TYPE_CHECKING:
+    from .config_generator import NgenConfigGenerator
+    from .extractor import NGENResultExtractor
+    from .plotter import NGENPlotter
+    from .postprocessor import NgenPostProcessor
+    from .preprocessor import NgenPreProcessor
+    from .runner import NgenRunner
+    from .visualizer import visualize_ngen

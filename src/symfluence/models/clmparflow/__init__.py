@@ -41,12 +41,33 @@ References:
 """
 from __future__ import annotations
 
-from .config import CLMParFlowConfigAdapter
-from .extractor import CLMParFlowResultExtractor
-from .plotter import CLMParFlowPlotter
-from .postprocessor import CLMParFlowPostProcessor
-from .preprocessor import CLMParFlowPreProcessor
-from .runner import CLMParFlowRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks (and the sibling parflow package via the extractor)
+# and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'CLMParFlowPreProcessor': ('.preprocessor', 'CLMParFlowPreProcessor'),
+    'CLMParFlowRunner': ('.runner', 'CLMParFlowRunner'),
+    'CLMParFlowResultExtractor': ('.extractor', 'CLMParFlowResultExtractor'),
+    'CLMParFlowPostProcessor': ('.postprocessor', 'CLMParFlowPostProcessor'),
+    'CLMParFlowPlotter': ('.plotter', 'CLMParFlowPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for CLMParFlow module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['CLMParFlowConfigAdapter'])
+
 
 __all__ = [
     "CLMParFlowPreProcessor",
@@ -57,17 +78,37 @@ __all__ = [
     "CLMParFlowPlotter",
 ]
 
-# Register CLMParFlow config adapter via unified registry
-# Note: preprocessor, runner, extractor, postprocessor are registered via
-# decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
+
+from .config import CLMParFlowConfigAdapter
 
 
 def register() -> None:
-    """Register CLMPARFLOW components with the unified registry."""
+    """Register CLMPARFLOW components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "CLMPARFLOW",
         config_adapter=CLMParFlowConfigAdapter,
-        plotter=CLMParFlowPlotter,
         build_instructions_module="symfluence.models.clmparflow.build_instructions",
     )
+    base = 'symfluence.models.clmparflow'
+    R.preprocessors.add_lazy("CLMPARFLOW", f"{base}.preprocessor.CLMParFlowPreProcessor")
+    R.runners.add_lazy("CLMPARFLOW", f"{base}.runner.CLMParFlowRunner", runner_method="run_clmparflow")
+    R.postprocessors.add_lazy("CLMPARFLOW", f"{base}.postprocessor.CLMParFlowPostProcessor")
+    R.result_extractors.add_lazy("CLMPARFLOW", f"{base}.extractor.CLMParFlowResultExtractor")
+    R.plotters.add_lazy("CLMPARFLOW", f"{base}.plotter.CLMParFlowPlotter")
+    R.optimizers.add_lazy("CLMPARFLOW", f"{base}.calibration.optimizer.CLMParFlowModelOptimizer")
+    R.workers.add_lazy("CLMPARFLOW", f"{base}.calibration.worker.CLMParFlowWorker")
+    R.parameter_managers.add_lazy("CLMPARFLOW", f"{base}.calibration.parameter_manager.CLMParFlowParameterManager")
+
+
+if TYPE_CHECKING:
+    from .extractor import CLMParFlowResultExtractor
+    from .plotter import CLMParFlowPlotter
+    from .postprocessor import CLMParFlowPostProcessor
+    from .preprocessor import CLMParFlowPreProcessor
+    from .runner import CLMParFlowRunner

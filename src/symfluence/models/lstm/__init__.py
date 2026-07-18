@@ -49,28 +49,28 @@ from symfluence.core.registry import model_manifest
 
 from .config import LSTMConfigAdapter
 from .extractor import LSTMResultExtractor
-from .plotter import LSTMPlotter
 
 
 def register() -> None:
     """Register LSTM components with the unified registry.
 
-    The execution classes (preprocessor/runner/postprocessor) import PyTorch,
-    so they are registered lazily: registration at ``import symfluence`` must
-    not pull torch. They are imported on first registry access — i.e. when an
-    LSTM workflow actually runs.
+    The execution classes (preprocessor/runner/postprocessor) import PyTorch
+    and the plotter imports the reporting/matplotlib stack, so they are
+    registered lazily: registration at ``import symfluence`` must not pull
+    them. They are imported on first registry access — i.e. when an LSTM
+    workflow actually runs.
     """
     from symfluence.core.registries import Registries as R
     model_manifest(
         "LSTM",
         config_adapter=LSTMConfigAdapter,
         result_extractor=LSTMResultExtractor,
-        plotter=LSTMPlotter,
     )
     base = 'symfluence.models.lstm'
     R.preprocessors.add_lazy("LSTM", f"{base}.preprocessor.LSTMPreProcessor")
     R.runners.add_lazy("LSTM", f"{base}.runner.LSTMRunner")
     R.postprocessors.add_lazy("LSTM", f"{base}.postprocessor.LSTMPostProcessor")
+    R.plotters.add_lazy("LSTM", f"{base}.plotter.LSTMPlotter")
 
 
 if TYPE_CHECKING:

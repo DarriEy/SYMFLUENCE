@@ -71,11 +71,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import MHMConfigAdapter
-from .extractor import MHMResultExtractor
-from .postprocessor import MHMPostProcessor
-from .preprocessor import MHMPreProcessor
-from .runner import MHMRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'MHMPreProcessor': ('.preprocessor', 'MHMPreProcessor'),
+    'MHMRunner': ('.runner', 'MHMRunner'),
+    'MHMResultExtractor': ('.extractor', 'MHMResultExtractor'),
+    'MHMPostProcessor': ('.postprocessor', 'MHMPostProcessor'),
+    'MHMModelOptimizer': ('.calibration', 'MHMModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for mHM module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['MHMConfigAdapter'])
+
 
 __all__ = [
     "MHMPreProcessor",
@@ -85,23 +106,36 @@ __all__ = [
     "MHMConfigAdapter",
 ]
 
-# Register all MHM components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import MHMConfigAdapter
 
 
 def register() -> None:
-    """Register MHM components with the unified registry."""
+    """Register MHM components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "MHM",
-        preprocessor=MHMPreProcessor,
-        runner=MHMRunner,
-        result_extractor=MHMResultExtractor,
         config_adapter=MHMConfigAdapter,
         build_instructions_module="symfluence.models.mhm.build_instructions",
     )
+    base = 'symfluence.models.mhm'
+    R.preprocessors.add_lazy("MHM", f"{base}.preprocessor.MHMPreProcessor")
+    R.runners.add_lazy("MHM", f"{base}.runner.MHMRunner")
+    R.postprocessors.add_lazy("MHM", f"{base}.postprocessor.MHMPostProcessor")
+    R.result_extractors.add_lazy("MHM", f"{base}.extractor.MHMResultExtractor")
+    R.optimizers.add_lazy("MHM", f"{base}.calibration.optimizer.MHMModelOptimizer")
+    R.workers.add_lazy("MHM", f"{base}.calibration.worker.MHMWorker")
+    R.parameter_managers.add_lazy("MHM", f"{base}.calibration.parameter_manager.MHMParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import MHMModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import MHMModelOptimizer
+    from .extractor import MHMResultExtractor
+    from .postprocessor import MHMPostProcessor
+    from .preprocessor import MHMPreProcessor
+    from .runner import MHMRunner

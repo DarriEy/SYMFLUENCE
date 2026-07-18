@@ -64,10 +64,32 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .postprocessor import MESHPostProcessor
-from .preprocessor import MESHPreProcessor
-from .runner import MESHRunner
-from .visualizer import visualize_mesh
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and extraction classes pull the
+# geospatial/observation stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'MESHPostProcessor': ('.postprocessor', 'MESHPostProcessor'),
+    'MESHPreProcessor': ('.preprocessor', 'MESHPreProcessor'),
+    'MESHRunner': ('.runner', 'MESHRunner'),
+    'visualize_mesh': ('.visualizer', 'visualize_mesh'),
+    'MESHResultExtractor': ('.extractor', 'MESHResultExtractor'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for MESH module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['MESHConfigAdapter'])
+
 
 __all__ = [
     'MESHPreProcessor',
@@ -80,14 +102,31 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import MESHConfigAdapter
-from .extractor import MESHResultExtractor
 
 
 def register() -> None:
-    """Register MESH components with the unified registry."""
+    """Register MESH components with the unified registry.
+
+    Execution and extraction classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "MESH",
         config_adapter=MESHConfigAdapter,
-        result_extractor=MESHResultExtractor,
         build_instructions_module="symfluence.models.mesh.build_instructions",
     )
+    base = 'symfluence.models.mesh'
+    R.preprocessors.add_lazy("MESH", f"{base}.preprocessor.MESHPreProcessor")
+    R.runners.add_lazy("MESH", f"{base}.runner.MESHRunner", runner_method='run_mesh')
+    R.postprocessors.add_lazy("MESH", f"{base}.postprocessor.MESHPostProcessor")
+    R.visualizers.add_lazy("MESH", f"{base}.visualizer.visualize_mesh")
+    R.result_extractors.add_lazy("MESH", f"{base}.extractor.MESHResultExtractor")
+
+
+if TYPE_CHECKING:
+    from .extractor import MESHResultExtractor
+    from .postprocessor import MESHPostProcessor
+    from .preprocessor import MESHPreProcessor
+    from .runner import MESHRunner
+    from .visualizer import visualize_mesh

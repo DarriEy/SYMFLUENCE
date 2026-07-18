@@ -29,34 +29,41 @@ References:
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
-# Import SYMFLUENCE integration components
+# Import SYMFLUENCE integration components (config layer only — the
+# execution/calibration classes are imported lazily below).
 try:
     from .config import IGNACIOConfig
 except ImportError as e:
     logger.debug(f"Could not import IGNACIOConfig: {e}")
 
-try:
-    from .runner import IGNACIORunner
-except ImportError as e:
-    logger.debug(f"Could not import IGNACIORunner: {e}")
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'IGNACIORunner': ('.runner', 'IGNACIORunner'),
+    'IGNACIOPreProcessor': ('.preprocessor', 'IGNACIOPreProcessor'),
+    'IGNACIOPostProcessor': ('.postprocessor', 'IGNACIOPostProcessor'),
+    'IGNACIOResultExtractor': ('.extractor', 'IGNACIOResultExtractor'),
+    'IGNACIOModelOptimizer': ('.calibration', 'IGNACIOModelOptimizer'),
+}
 
-try:
-    from .preprocessor import IGNACIOPreProcessor
-except ImportError as e:
-    logger.debug(f"Could not import IGNACIOPreProcessor: {e}")
 
-try:
-    from .postprocessor import IGNACIOPostProcessor
-except ImportError as e:
-    logger.debug(f"Could not import IGNACIOPostProcessor: {e}")
+def __getattr__(name: str):
+    """Lazy import handler for IGNACIO module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-try:
-    from .extractor import IGNACIOResultExtractor
-except ImportError as e:
-    logger.debug(f"Could not import IGNACIOResultExtractor: {e}")
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['IGNACIOConfig'])
+
 
 __all__ = [
     "IGNACIOConfig",
@@ -67,20 +74,34 @@ __all__ = [
 ]
 
 def register() -> None:
-    """Register IGNACIO components with the unified registry."""
+    """Register IGNACIO components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
     try:
+        from symfluence.core.registries import Registries as R
         from symfluence.core.registry import model_manifest
 
         model_manifest(
             "IGNACIO",
-            result_extractor=IGNACIOResultExtractor,
             build_instructions_module="symfluence.models.ignacio.build_instructions",
         )
+        base = 'symfluence.models.ignacio'
+        R.preprocessors.add_lazy("IGNACIO", f"{base}.preprocessor.IGNACIOPreProcessor")
+        R.runners.add_lazy("IGNACIO", f"{base}.runner.IGNACIORunner")
+        R.postprocessors.add_lazy("IGNACIO", f"{base}.postprocessor.IGNACIOPostProcessor")
+        R.result_extractors.add_lazy("IGNACIO", f"{base}.extractor.IGNACIOResultExtractor")
+        R.optimizers.add_lazy("IGNACIO", f"{base}.calibration.optimizer.IGNACIOModelOptimizer")
+        R.workers.add_lazy("IGNACIO", f"{base}.calibration.worker.IGNACIOWorker")
+        R.parameter_managers.add_lazy("IGNACIO", f"{base}.calibration.parameter_manager.IGNACIOParameterManager")
     except Exception:  # noqa: BLE001 — optional dependency
         pass
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import IGNACIOModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import IGNACIOModelOptimizer
+    from .extractor import IGNACIOResultExtractor
+    from .postprocessor import IGNACIOPostProcessor
+    from .preprocessor import IGNACIOPreProcessor
+    from .runner import IGNACIORunner

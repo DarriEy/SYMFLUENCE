@@ -76,14 +76,37 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .attributes_manager import SummaAttributesManager
-from .config_manager import SummaConfigManager
-from .forcing_processor import SummaForcingProcessor
-from .postprocessor import SUMMAPostProcessor
-from .preprocessor import SummaPreProcessor
-from .runner import SummaRunner
-from .structure_analyzer import SummaStructureAnalyzer
-from .visualizer import visualize_summa
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution, analysis, and plotting classes pull the
+# geospatial/matplotlib stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'SummaAttributesManager': ('.attributes_manager', 'SummaAttributesManager'),
+    'SummaConfigManager': ('.config_manager', 'SummaConfigManager'),
+    'SummaForcingProcessor': ('.forcing_processor', 'SummaForcingProcessor'),
+    'SUMMAPostProcessor': ('.postprocessor', 'SUMMAPostProcessor'),
+    'SummaPreProcessor': ('.preprocessor', 'SummaPreProcessor'),
+    'SummaRunner': ('.runner', 'SummaRunner'),
+    'SummaStructureAnalyzer': ('.structure_analyzer', 'SummaStructureAnalyzer'),
+    'visualize_summa': ('.visualizer', 'visualize_summa'),
+    'SUMMAResultExtractor': ('.extractor', 'SUMMAResultExtractor'),
+    'SUMMAPlotter': ('.plotter', 'SUMMAPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for SUMMA module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['SUMMAConfigAdapter'])
+
 
 __all__ = [
     'SummaPreProcessor',
@@ -99,17 +122,39 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import SUMMAConfigAdapter
-from .extractor import SUMMAResultExtractor
-from .plotter import SUMMAPlotter
 
 
 def register() -> None:
-    """Register SUMMA components with the unified registry."""
+    """Register SUMMA components with the unified registry.
+
+    Execution, extraction, analysis, and plotting classes are registered
+    lazily — imported on first registry access rather than at
+    plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "SUMMA",
         config_adapter=SUMMAConfigAdapter,
-        result_extractor=SUMMAResultExtractor,
-        decision_analyzer=SummaStructureAnalyzer,
-        plotter=SUMMAPlotter,
         build_instructions_module="symfluence.models.summa.build_instructions",
     )
+    base = 'symfluence.models.summa'
+    R.preprocessors.add_lazy("SUMMA", f"{base}.preprocessor.SummaPreProcessor")
+    R.runners.add_lazy("SUMMA", f"{base}.runner.SummaRunner", runner_method='run_summa')
+    R.postprocessors.add_lazy("SUMMA", f"{base}.postprocessor.SUMMAPostProcessor")
+    R.visualizers.add_lazy("SUMMA", f"{base}.visualizer.visualize_summa")
+    R.result_extractors.add_lazy("SUMMA", f"{base}.extractor.SUMMAResultExtractor")
+    R.decision_analyzers.add_lazy("SUMMA", f"{base}.structure_analyzer.SummaStructureAnalyzer")
+    R.plotters.add_lazy("SUMMA", f"{base}.plotter.SUMMAPlotter")
+
+
+if TYPE_CHECKING:
+    from .attributes_manager import SummaAttributesManager
+    from .config_manager import SummaConfigManager
+    from .extractor import SUMMAResultExtractor
+    from .forcing_processor import SummaForcingProcessor
+    from .plotter import SUMMAPlotter
+    from .postprocessor import SUMMAPostProcessor
+    from .preprocessor import SummaPreProcessor
+    from .runner import SummaRunner
+    from .structure_analyzer import SummaStructureAnalyzer
+    from .visualizer import visualize_summa

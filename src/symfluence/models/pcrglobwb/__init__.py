@@ -4,11 +4,32 @@
 """PCR-GLOBWB 2.0 Global Distributed Hydrological Model."""
 from __future__ import annotations
 
-from .config import PCRGLOBWBConfigAdapter
-from .extractor import PCRGLOBWBResultExtractor
-from .postprocessor import PCRGLOBWBPostProcessor
-from .preprocessor import PCRGLOBWBPreProcessor
-from .runner import PCRGLOBWBRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'PCRGLOBWBPreProcessor': ('.preprocessor', 'PCRGLOBWBPreProcessor'),
+    'PCRGLOBWBRunner': ('.runner', 'PCRGLOBWBRunner'),
+    'PCRGLOBWBResultExtractor': ('.extractor', 'PCRGLOBWBResultExtractor'),
+    'PCRGLOBWBPostProcessor': ('.postprocessor', 'PCRGLOBWBPostProcessor'),
+    'PCRGLOBWBModelOptimizer': ('.calibration', 'PCRGLOBWBModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for PCR-GLOBWB module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['PCRGLOBWBConfigAdapter'])
+
 
 __all__ = [
     "PCRGLOBWBPreProcessor",
@@ -20,20 +41,34 @@ __all__ = [
 
 from symfluence.core.registry import model_manifest
 
+from .config import PCRGLOBWBConfigAdapter
+
 
 def register() -> None:
-    """Register PCRGLOBWB components with the unified registry."""
+    """Register PCRGLOBWB components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "PCRGLOBWB",
-        preprocessor=PCRGLOBWBPreProcessor,
-        runner=PCRGLOBWBRunner,
-        postprocessor=PCRGLOBWBPostProcessor,
-        result_extractor=PCRGLOBWBResultExtractor,
         config_adapter=PCRGLOBWBConfigAdapter,
         build_instructions_module="symfluence.models.pcrglobwb.build_instructions",
     )
+    base = 'symfluence.models.pcrglobwb'
+    R.preprocessors.add_lazy("PCRGLOBWB", f"{base}.preprocessor.PCRGLOBWBPreProcessor")
+    R.runners.add_lazy("PCRGLOBWB", f"{base}.runner.PCRGLOBWBRunner")
+    R.postprocessors.add_lazy("PCRGLOBWB", f"{base}.postprocessor.PCRGLOBWBPostProcessor")
+    R.result_extractors.add_lazy("PCRGLOBWB", f"{base}.extractor.PCRGLOBWBResultExtractor")
+    R.optimizers.add_lazy("PCRGLOBWB", f"{base}.calibration.optimizer.PCRGLOBWBModelOptimizer")
+    R.workers.add_lazy("PCRGLOBWB", f"{base}.calibration.worker.PCRGLOBWBWorker")
+    R.parameter_managers.add_lazy("PCRGLOBWB", f"{base}.calibration.parameter_manager.PCRGLOBWBParameterManager")
 
-try:
-    from .calibration import PCRGLOBWBModelOptimizer  # noqa: F401
-except ImportError:
-    pass
+
+if TYPE_CHECKING:
+    from .calibration import PCRGLOBWBModelOptimizer
+    from .extractor import PCRGLOBWBResultExtractor
+    from .postprocessor import PCRGLOBWBPostProcessor
+    from .preprocessor import PCRGLOBWBPreProcessor
+    from .runner import PCRGLOBWBRunner

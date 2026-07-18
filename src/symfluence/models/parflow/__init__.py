@@ -37,12 +37,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import ParFlowConfigAdapter
-from .extractor import ParFlowResultExtractor
-from .plotter import ParFlowPlotter
-from .postprocessor import ParFlowPostProcessor
-from .preprocessor import ParFlowPreProcessor
-from .runner import ParFlowRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'ParFlowPreProcessor': ('.preprocessor', 'ParFlowPreProcessor'),
+    'ParFlowRunner': ('.runner', 'ParFlowRunner'),
+    'ParFlowResultExtractor': ('.extractor', 'ParFlowResultExtractor'),
+    'ParFlowPostProcessor': ('.postprocessor', 'ParFlowPostProcessor'),
+    'ParFlowPlotter': ('.plotter', 'ParFlowPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for ParFlow module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['ParFlowConfigAdapter'])
+
 
 __all__ = [
     "ParFlowPreProcessor",
@@ -53,17 +73,37 @@ __all__ = [
     "ParFlowPlotter",
 ]
 
-# Register ParFlow config adapter via unified registry
-# Note: preprocessor, runner, extractor, postprocessor are registered via
-# decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
+
+from .config import ParFlowConfigAdapter
 
 
 def register() -> None:
-    """Register PARFLOW components with the unified registry."""
+    """Register PARFLOW components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "PARFLOW",
         config_adapter=ParFlowConfigAdapter,
-        plotter=ParFlowPlotter,
         build_instructions_module="symfluence.models.parflow.build_instructions",
     )
+    base = 'symfluence.models.parflow'
+    R.preprocessors.add_lazy("PARFLOW", f"{base}.preprocessor.ParFlowPreProcessor")
+    R.runners.add_lazy("PARFLOW", f"{base}.runner.ParFlowRunner", runner_method="run_parflow")
+    R.postprocessors.add_lazy("PARFLOW", f"{base}.postprocessor.ParFlowPostProcessor")
+    R.result_extractors.add_lazy("PARFLOW", f"{base}.extractor.ParFlowResultExtractor")
+    R.plotters.add_lazy("PARFLOW", f"{base}.plotter.ParFlowPlotter")
+    R.optimizers.add_lazy("PARFLOW", f"{base}.calibration.optimizer.ParFlowModelOptimizer")
+    R.workers.add_lazy("PARFLOW", f"{base}.calibration.worker.ParFlowWorker")
+    R.parameter_managers.add_lazy("PARFLOW", f"{base}.calibration.parameter_manager.ParFlowParameterManager")
+
+
+if TYPE_CHECKING:
+    from .extractor import ParFlowResultExtractor
+    from .plotter import ParFlowPlotter
+    from .postprocessor import ParFlowPostProcessor
+    from .preprocessor import ParFlowPreProcessor
+    from .runner import ParFlowRunner

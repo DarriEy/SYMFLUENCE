@@ -67,10 +67,32 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .postprocessor import GRPostProcessor
-from .preprocessor import GRPreProcessor
-from .runner import GRRunner
-from .visualizer import visualize_gr
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and extraction classes pull the
+# geospatial/observation stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'GRPostProcessor': ('.postprocessor', 'GRPostProcessor'),
+    'GRPreProcessor': ('.preprocessor', 'GRPreProcessor'),
+    'GRRunner': ('.runner', 'GRRunner'),
+    'visualize_gr': ('.visualizer', 'visualize_gr'),
+    'GRResultExtractor': ('.extractor', 'GRResultExtractor'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for GR module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['GRConfigAdapter'])
+
 
 __all__ = [
     'GRPreProcessor',
@@ -84,13 +106,30 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import GRConfigAdapter
-from .extractor import GRResultExtractor
 
 
 def register() -> None:
-    """Register GR components with the unified registry."""
+    """Register GR components with the unified registry.
+
+    Execution and extraction classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "GR",
         config_adapter=GRConfigAdapter,
-        result_extractor=GRResultExtractor,
     )
+    base = 'symfluence.models.gr'
+    R.preprocessors.add_lazy("GR", f"{base}.preprocessor.GRPreProcessor")
+    R.runners.add_lazy("GR", f"{base}.runner.GRRunner", runner_method='run_gr')
+    R.postprocessors.add_lazy("GR", f"{base}.postprocessor.GRPostProcessor")
+    R.visualizers.add_lazy("GR", f"{base}.visualizer.visualize_gr")
+    R.result_extractors.add_lazy("GR", f"{base}.extractor.GRResultExtractor")
+
+
+if TYPE_CHECKING:
+    from .extractor import GRResultExtractor
+    from .postprocessor import GRPostProcessor
+    from .preprocessor import GRPreProcessor
+    from .runner import GRRunner
+    from .visualizer import visualize_gr

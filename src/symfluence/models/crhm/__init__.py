@@ -68,11 +68,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import CRHMConfigAdapter
-from .extractor import CRHMResultExtractor
-from .postprocessor import CRHMPostProcessor
-from .preprocessor import CRHMPreProcessor
-from .runner import CRHMRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'CRHMPreProcessor': ('.preprocessor', 'CRHMPreProcessor'),
+    'CRHMRunner': ('.runner', 'CRHMRunner'),
+    'CRHMResultExtractor': ('.extractor', 'CRHMResultExtractor'),
+    'CRHMPostProcessor': ('.postprocessor', 'CRHMPostProcessor'),
+    'CRHMModelOptimizer': ('.calibration', 'CRHMModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for CRHM module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['CRHMConfigAdapter'])
+
 
 __all__ = [
     "CRHMPreProcessor",
@@ -82,23 +103,36 @@ __all__ = [
     "CRHMConfigAdapter",
 ]
 
-# Register all CRHM components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import CRHMConfigAdapter
 
 
 def register() -> None:
-    """Register CRHM components with the unified registry."""
+    """Register CRHM components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "CRHM",
-        preprocessor=CRHMPreProcessor,
-        runner=CRHMRunner,
-        result_extractor=CRHMResultExtractor,
         config_adapter=CRHMConfigAdapter,
         build_instructions_module="symfluence.models.crhm.build_instructions",
     )
+    base = 'symfluence.models.crhm'
+    R.preprocessors.add_lazy("CRHM", f"{base}.preprocessor.CRHMPreProcessor")
+    R.runners.add_lazy("CRHM", f"{base}.runner.CRHMRunner")
+    R.postprocessors.add_lazy("CRHM", f"{base}.postprocessor.CRHMPostProcessor")
+    R.result_extractors.add_lazy("CRHM", f"{base}.extractor.CRHMResultExtractor")
+    R.optimizers.add_lazy("CRHM", f"{base}.calibration.optimizer.CRHMModelOptimizer")
+    R.workers.add_lazy("CRHM", f"{base}.calibration.worker.CRHMWorker")
+    R.parameter_managers.add_lazy("CRHM", f"{base}.calibration.parameter_manager.CRHMParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import CRHMModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import CRHMModelOptimizer
+    from .extractor import CRHMResultExtractor
+    from .postprocessor import CRHMPostProcessor
+    from .preprocessor import CRHMPreProcessor
+    from .runner import CRHMRunner

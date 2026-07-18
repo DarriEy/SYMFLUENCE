@@ -67,9 +67,34 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .mixins import MizuRouteConfigMixin
-from .preprocessor import MizuRoutePreProcessor
-from .runner import MizuRouteRunner
+
+# Lazy import mapping — execution and extraction classes pull the
+# geospatial/netCDF stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'MizuRoutePreProcessor': ('.preprocessor', 'MizuRoutePreProcessor'),
+    'MizuRouteRunner': ('.runner', 'MizuRouteRunner'),
+    'MizuRouteResultExtractor': ('.extractor', 'MizuRouteResultExtractor'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for mizuRoute module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(
+        list(_LAZY_IMPORTS.keys()) + ['MizuRouteConfigMixin', 'MizuRouteConfigAdapter']
+    )
+
 
 __all__ = [
     'MizuRoutePreProcessor',
@@ -81,17 +106,27 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import MizuRouteConfigAdapter
-from .extractor import MizuRouteResultExtractor
 
 
 def register() -> None:
-    """Register MIZUROUTE components with the unified registry."""
+    """Register MIZUROUTE components with the unified registry.
+
+    Execution and extraction classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "MIZUROUTE",
         config_adapter=MizuRouteConfigAdapter,
-        result_extractor=MizuRouteResultExtractor,
-        preprocessor=MizuRoutePreProcessor,
-        runner=MizuRouteRunner,
-        runner_method="run_mizuroute",
         build_instructions_module="symfluence.models.mizuroute.build_instructions",
     )
+    base = 'symfluence.models.mizuroute'
+    R.preprocessors.add_lazy("MIZUROUTE", f"{base}.preprocessor.MizuRoutePreProcessor")
+    R.runners.add_lazy("MIZUROUTE", f"{base}.runner.MizuRouteRunner", runner_method='run_mizuroute')
+    R.result_extractors.add_lazy("MIZUROUTE", f"{base}.extractor.MizuRouteResultExtractor")
+
+
+if TYPE_CHECKING:
+    from .extractor import MizuRouteResultExtractor
+    from .preprocessor import MizuRoutePreProcessor
+    from .runner import MizuRouteRunner
