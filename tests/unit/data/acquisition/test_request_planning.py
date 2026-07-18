@@ -16,6 +16,8 @@ def test_expected_forcing_times_uses_dataset_resolution() -> None:
 def test_expected_forcing_times_skips_unknown_or_invalid_windows() -> None:
     assert expected_forcing_times("era5", "2020-01-01", "2020-01-02") is None
     assert expected_forcing_times("carra", "2020-01-02", "2020-01-01") is None
+    assert expected_forcing_times("carra", "not-a-date", "2020-01-02") is None
+    assert expected_forcing_times("carra", None, "2020-01-02") is None
 
 
 def test_dataset_variables_override_defaults() -> None:

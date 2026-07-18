@@ -16,7 +16,10 @@ def expected_forcing_times(dataset: str, start: Any, end: Any) -> pd.DatetimeInd
     if hours is None:
         return None
 
-    parsed_start, parsed_end = pd.to_datetime(start), pd.to_datetime(end)
+    try:
+        parsed_start, parsed_end = pd.to_datetime(start), pd.to_datetime(end)
+    except (ValueError, TypeError):
+        return None
     if pd.isna(parsed_start) or pd.isna(parsed_end) or parsed_end < parsed_start:
         return None
     return pd.date_range(parsed_start, parsed_end, freq=f"{hours}h")

@@ -17,6 +17,14 @@ def test_adjust_end_time_for_forcing(timestep: int, expected: str) -> None:
     assert adjust_end_time_for_forcing("2020-01-01 23:00", timestep) == expected
 
 
+@pytest.mark.parametrize(
+    ("timestep", "expected"),
+    [(5400, "2020-01-01 22:00"), (9000, "2020-01-01 20:00")],
+)
+def test_non_integer_hour_timesteps_round_to_whole_last_hour(timestep: int, expected: str) -> None:
+    assert adjust_end_time_for_forcing("2020-01-01 23:00", timestep) == expected
+
+
 def test_subhourly_end_time_is_unchanged() -> None:
     assert adjust_end_time_for_forcing("2020-01-01 23:45", 900) == "2020-01-01 23:45"
 

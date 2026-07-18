@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from symfluence.core.exceptions import FileOperationError
+from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing
 
 if TYPE_CHECKING:
     pass
@@ -291,17 +292,10 @@ class SUMMAOptimizerMixin:
                         spinup_start = datetime.strptime(spinup_dates[0], '%Y-%m-%d').replace(hour=1, minute=0)
 
                         forcing_timestep_seconds = self._get_config_value_safe('FORCING_TIME_STEP_SIZE', 3600)
-                        if forcing_timestep_seconds >= 3600:
-                            forcing_timestep_hours = forcing_timestep_seconds / 3600
-                            last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
-                            if last_hour < 0:
-                                last_hour = 0
-                            cal_end = datetime.strptime(cal_dates[1], '%Y-%m-%d').replace(hour=int(last_hour), minute=0)
-                        else:
-                            cal_end = datetime.strptime(cal_dates[1], '%Y-%m-%d').replace(hour=23, minute=0)
+                        cal_end_day = datetime.strptime(cal_dates[1], '%Y-%m-%d').strftime('%Y-%m-%d')
 
                         sim_start = spinup_start.strftime('%Y-%m-%d %H:%M')
-                        sim_end = cal_end.strftime('%Y-%m-%d %H:%M')
+                        sim_end = adjust_end_time_for_forcing(f'{cal_end_day} 23:00', forcing_timestep_seconds)
 
                         self.logger.info(f"Using spinup + calibration period: {sim_start} to {sim_end}")
                         return sim_start, sim_end
@@ -338,21 +332,15 @@ class SUMMAOptimizerMixin:
         """Adjust end time to align with forcing data timestep."""
         try:
             forcing_timestep_seconds = self._get_config_value_safe('FORCING_TIME_STEP_SIZE', 3600)
-
-            if forcing_timestep_seconds >= 3600:
-                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
-                forcing_timestep_hours = forcing_timestep_seconds / 3600
-                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
-                if last_hour < 0:
-                    last_hour = 0
-
-                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
-                    end_time = end_time.replace(hour=int(last_hour), minute=0)
-                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
-                    self.logger.info(f"Adjusted end time from {end_time_str} to {adjusted_str} for {forcing_timestep_hours}h forcing")
-                    return adjusted_str
-
-            return end_time_str
+            adjusted = adjust_end_time_for_forcing(end_time_str, forcing_timestep_seconds)
+            if adjusted != end_time_str:
+                self.logger.info(
+                    "Adjusted end time from %s to %s for %sh forcing",
+                    end_time_str,
+                    adjusted,
+                    forcing_timestep_seconds / 3600,
+                )
+            return adjusted
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.warning(f"Could not adjust end time: {e}", exc_info=True)

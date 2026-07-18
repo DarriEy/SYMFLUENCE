@@ -683,8 +683,8 @@ class AcquisitionService(ConfigurableMixin):
         gistool_runner.execute_gistool_command(gistool_command)
 
     def _expected_forcing_times(self, dataset: str) -> Optional[pd.DatetimeIndex]:
-        start = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START'))
-        end = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END'))
+        start = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
+        end = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
         return expected_forcing_times(dataset, start, end)
 
     def _cached_forcing_has_expected_times(

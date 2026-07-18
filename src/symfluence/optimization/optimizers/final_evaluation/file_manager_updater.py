@@ -9,11 +9,11 @@ Handles updates to SUMMA file manager for final evaluation.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing
 
 
 class FileManagerUpdater(ConfigMixin):
@@ -161,25 +161,15 @@ class FileManagerUpdater(ConfigMixin):
         """
         try:
             forcing_timestep_seconds = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
-
-            if forcing_timestep_seconds >= 3600:  # Hourly or coarser
-                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
-
-                forcing_timestep_hours = forcing_timestep_seconds / 3600
-                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
-                if last_hour < 0:
-                    last_hour = 0
-
-                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
-                    end_time = end_time.replace(hour=int(last_hour), minute=0)
-                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
-                    self.logger.info(
-                        f"Adjusted end time from {end_time_str} to {adjusted_str} "
-                        f"for {forcing_timestep_hours}h forcing"
-                    )
-                    return adjusted_str
-
-            return end_time_str
+            adjusted = adjust_end_time_for_forcing(end_time_str, forcing_timestep_seconds)
+            if adjusted != end_time_str:
+                self.logger.info(
+                    "Adjusted end time from %s to %s for %sh forcing",
+                    end_time_str,
+                    adjusted,
+                    forcing_timestep_seconds / 3600,
+                )
+            return adjusted
 
         except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.warning(f"Could not adjust end time: {e}")
