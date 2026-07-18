@@ -552,7 +552,9 @@ SYMFLUENCE follows semantic versioning (MAJOR.MINOR.PATCH):
 
 **Creating a Release**
 
-1. Update version in ``pyproject.toml``
+1. Run ``scripts/bump_version.sh 0.X.0``. The authoritative version is
+   ``src/symfluence/symfluence_version.py``; the script also synchronizes the
+   npm package metadata.
 2. Update CHANGELOG.md
 3. Create release branch: ``git checkout -b release/v0.X.0``
 4. Run full test suite

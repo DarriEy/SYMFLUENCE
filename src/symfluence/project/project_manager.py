@@ -71,7 +71,7 @@ class ProjectManager(ConfigurableMixin):
         Set up the project directory structure.
 
         Creates the main project directory and all required subdirectories.
-        Project layout (canonical, post-2026):
+        Project layout (canonical, post-2026)::
 
             {project_dir}/
               shapefiles/{pour_point, catchment, river_network, river_basins}/

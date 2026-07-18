@@ -7,7 +7,7 @@ build:
 
 sphinx:
   configuration: docs/source/conf.py
-  fail_on_warning: false
+  fail_on_warning: true
 
 # Only install documentation dependencies, NOT the full package
 # The package has native dependencies (GDAL) that aren't available on RTD

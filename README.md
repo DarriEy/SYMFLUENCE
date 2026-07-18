@@ -5,8 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-brightgreen)](https://symfluence.readthedocs.io)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/symfluence-org/SYMFLUENCE/ci.yml?branch=main)](https://github.com/symfluence-org/SYMFLUENCE/actions)
-[![Tests](https://img.shields.io/badge/tests-passing-green)](https://github.com/symfluence-org/SYMFLUENCE/actions)
+[![CI](https://github.com/symfluence-org/SYMFLUENCE/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/symfluence-org/SYMFLUENCE/actions/workflows/ci.yml?query=branch%3Amain)
 
 ---
 

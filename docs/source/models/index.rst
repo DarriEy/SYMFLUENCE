@@ -57,6 +57,8 @@ Models with explicit representation of physical processes.
    model_mesh
    model_hype
    model_rhessys
+   model_cwatm
+   model_noahmp
 
 ----
 

@@ -14,10 +14,14 @@ symfluence workflow run --config <config.yaml>
 ### 1.1 Install everything
 
 ```bash
-git clone -b develop https://github.com/symfluence-org/SYMFLUENCE.git
+git clone -b <paper-release-tag> https://github.com/symfluence-org/SYMFLUENCE.git
 cd SYMFLUENCE
 ./scripts/symfluence-bootstrap --paper-repro
 ```
+
+Replace ``<paper-release-tag>`` with the version named in the paper's software
+citation. Using that tag, rather than the moving ``develop`` branch, fixes the
+code and configurations to the archived paper release.
 
 That one command creates the Python environment, installs SYMFLUENCE and all
 its models (including the JAX-native ones), sets up GDAL/R/NetCDF, and compiles
@@ -95,7 +99,7 @@ done
 Run configs within one experiment sequentially — they share a domain, and
 completed steps (downloads, preprocessing) are reused via stage markers, so
 only the first config pays the acquisition cost. Different experiments can run
-concurrently, except 02/05/12 which share the Bow lumped ERA5 domain.
+concurrently, except 02 and 05, which share the Bow lumped ERA5 domain.
 
 Rough costs (Apple M3 Pro): domain definitions minutes each once attribute
 data is cached (first config per region pays the downloads); one calibration
@@ -123,7 +127,33 @@ Issues: https://github.com/symfluence-org/SYMFLUENCE/issues
 
 ## 5. Provenance
 
-`experiment_logs/` holds the curated logs, frozen resolved configs, and
-run manifests (git commit, package versions, platform) of the runs behind the
-paper's figures; `experiment_logs/COVERAGE.md` maps each log to its
-experiment. The shipped configs are kept aligned to those frozen records.
+The repository tracks the provenance inventory and retrieval instructions in
+[`provenance/`](provenance/). The larger bundle of curated logs, frozen
+resolved configs, run manifests, and reference metrics is distributed as a
+versioned GitHub Release asset and archived with the paper's Zenodo record.
+This keeps generated logs out of Git while retaining a checksummed,
+version-specific research artifact.
+
+Maintainers create the archive with
+`scripts/create_paper_provenance_bundle.sh`; see the provenance README for the
+expected layout and release procedure.
+
+## 6. Figure reproducibility scope
+
+The experiment configurations reproduce the numerical workflows behind the
+paper. Figure production has three explicitly different support levels:
+
+- **Fully automated from experiment outputs:** Figures 1–3, 6–8, and 11 have
+  staged plotting code. Figure 8 is exercised by the paper-release acceptance
+  test using deterministic fixture data.
+- **Automated with archived or separately staged inputs:** Figure 4 needs the
+  pipeline-analysis JSON; Figure 9's staged code covers the HBV-by-algorithm
+  slice but not the complete multi-model panel; Figure 10's domain panel needs
+  the satellite subsets identified by `P3_MULTIVAR_ASSETS_DIR`.
+- **Conceptual/manual:** Figure 5 is a framework schematic and has no
+  data-driven plotting program.
+
+The exact script, input, and current readiness of every figure are listed in
+[`plotting/README.md`](plotting/README.md). A figure is not claimed as fully
+reproducible unless all of its inputs and generation code are publicly
+available.

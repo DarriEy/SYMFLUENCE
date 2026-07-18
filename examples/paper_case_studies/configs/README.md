@@ -21,10 +21,8 @@ symfluence workflow run --config <config.yaml>
 | [`04_calibration_ensemble/`](04_calibration_ensemble/) | §4.2.3 | Fig 9 | 130 | 10 min – 2 h each |
 | [`05_benchmarking/`](05_benchmarking/) | §4.2.2 | Fig 8 | 1 | ~15 min |
 | [`06_multivariate_evaluation/`](06_multivariate_evaluation/) | §4.2.4 | Fig 10 | 4 | 2–4 h each |
-| [`07_data_pipeline/`](07_data_pipeline/) | §2.2 | Fig 4 | 3 | 0.5–2 h each |
+| [`07_data_pipeline/`](07_data_pipeline/) | §2.2 | Fig 4 | 1 | 0.5–2 h |
 | [`08_parallel_scaling/`](08_parallel_scaling/) | §5 | Fig 11 | 14 | laptop: minutes–hours; 20 configs need an HPC cluster |
-
-keeps the original gaps.
 
 ## Config anatomy
 
