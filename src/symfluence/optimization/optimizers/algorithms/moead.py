@@ -232,7 +232,7 @@ class MOEADAlgorithm(OptimizationAlgorithm):
             update_best(best_fit, params_dict, iteration)
 
             # Log progress
-            log_progress(self.name, iteration, best_fit, n_improved, pop_size)
+            log_progress(self.name, iteration, best_fit, n_improved, pop_size, unit='gens')
 
         return {
             'best_solution': best_pos,
@@ -399,7 +399,7 @@ class MOEADAlgorithm(OptimizationAlgorithm):
             update_best(best_fit, params_dict, iteration)
 
             # Log progress
-            log_progress(self.name, iteration, best_fit, n_improved, actual_pop_size)
+            log_progress(self.name, iteration, best_fit, n_improved, actual_pop_size, unit='gens')
 
         # Extract Pareto front from archive
         pareto_solutions = np.array([x for x, _ in archive])

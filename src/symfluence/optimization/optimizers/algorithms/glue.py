@@ -174,21 +174,18 @@ class GLUEAlgorithm(OptimizationAlgorithm):
             )
             update_best(best_fit, params_dict, batch + 1)
 
-            # Log progress (don't pass n_behavioral as n_improved - it's a different metric)
-            # GLUE tracks "behavioral" samples (above threshold), not "improvements"
-            # The detailed behavioral stats are logged separately below
+            # Progress line (tracker throttles emission). GLUE has no notion of
+            # "improvement", so the Improved field carries behavioral/total —
+            # the closest comparable acceptance metric.
             log_progress(
-                self.name, batch + 1, best_fit
+                self.name, len(all_fitness), best_fit,
+                n_improved=n_behavioral, pop_size=len(all_fitness),
+                unit='evals', total=n_samples
             )
-
-            # Log GLUE-specific behavioral statistics
-            behavioral_pct = 100 * n_behavioral / len(all_fitness) if all_fitness else 0
-            if batch % 10 == 0 or batch == n_batches - 1:
-                self.logger.info(
-                    f"GLUE batch {batch + 1}/{n_batches} | "
-                    f"Behavioral: {n_behavioral}/{len(all_fitness)} ({behavioral_pct:.1f}%) | "
-                    f"Best: {best_fit:.4f}"
-                )
+            self.logger.debug(
+                f"GLUE batch {batch + 1}/{n_batches}: "
+                f"{n_behavioral}/{len(all_fitness)} behavioral samples"
+            )
 
         # Convert to arrays
         samples_array = np.array(all_samples)

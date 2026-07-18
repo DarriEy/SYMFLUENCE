@@ -16,6 +16,12 @@ def main():
     parser = CLIParser()
     args = parser.parse_args()
 
+    # Global --quiet/-q: silence the Rich console's informational output
+    # (errors still print to stderr; log files are unaffected).
+    if getattr(args, 'quiet', False):
+        from .console import get_console
+        get_console().set_quiet(True)
+
     if hasattr(args, 'func'):
         try:
             return args.func(args)

@@ -16,6 +16,7 @@ import re
 import sys
 import tempfile
 import warnings
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -51,11 +52,65 @@ warnings.filterwarnings('ignore',
 
 
 # Idempotence state for setup_logging(): the (domain, experiment_id) the
-# process-wide 'symfluence' logger is currently configured for, and the log
-# file that configuration writes to. A re-setup with the same key reuses the
-# existing handlers instead of clearing them and opening a new file.
+# process-wide 'symfluence' logger is currently configured for, the log
+# file that configuration writes to, and the counting handler attached to
+# it. A re-setup with the same key reuses the existing handlers instead of
+# clearing them and opening a new file.
 _active_setup_key: Optional[Tuple[str, str]] = None
 _active_log_file: Optional[Path] = None
+_active_counting_handler: Optional["CountingHandler"] = None
+
+
+class CountingHandler(logging.Handler):
+    """
+    Count WARNING/ERROR/CRITICAL records emitted on the ``symfluence`` tree.
+
+    Attached to the ``symfluence`` root logger by
+    :meth:`LoggingManager.setup_logging` so run summaries can report *real*
+    warning/error totals instead of only workflow-level exception lists.
+    Besides the counts, the handler keeps the most recent unique ERROR (and
+    CRITICAL) messages so a run summary can show what went wrong without
+    re-reading the log file.
+
+    Attributes:
+        warning_count: Number of WARNING records seen.
+        error_count: Number of ERROR and CRITICAL records seen.
+    """
+
+    def __init__(self, max_recent_errors: int = 20):
+        super().__init__(level=logging.WARNING)
+        self.max_recent_errors = max_recent_errors
+        self.warning_count = 0
+        self.error_count = 0
+        # Ordered set of unique error messages (insertion order == recency)
+        self._recent_errors: "OrderedDict[str, None]" = OrderedDict()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Count the record; retain recent unique ERROR+ messages."""
+        try:
+            if record.levelno >= logging.ERROR:
+                self.error_count += 1
+                message = record.getMessage()
+                # Re-inserting moves an already-seen message to most-recent
+                self._recent_errors.pop(message, None)
+                self._recent_errors[message] = None
+                while len(self._recent_errors) > self.max_recent_errors:
+                    self._recent_errors.popitem(last=False)
+            elif record.levelno >= logging.WARNING:
+                self.warning_count += 1
+        except Exception:  # noqa: BLE001 — logging must never raise
+            self.handleError(record)
+
+    @property
+    def recent_errors(self) -> List[str]:
+        """The last (up to ``max_recent_errors``) unique error messages."""
+        return list(self._recent_errors)
+
+    def reset(self) -> None:
+        """Zero the counts and clear the retained error messages."""
+        self.warning_count = 0
+        self.error_count = 0
+        self._recent_errors.clear()
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
@@ -106,6 +161,7 @@ class LoggingManager(ConfigMixin):
     Attributes:
         config (Dict[str, Any]): Configuration dictionary
         debug_mode (bool): Whether debug mode is enabled
+        quiet_mode (bool): Whether console output is limited to WARNING+
         data_dir (Path): Path to the SYMFLUENCE data directory
         domain_name (str): Name of the hydrological domain
         project_dir (Path): Path to the project directory
@@ -114,7 +170,8 @@ class LoggingManager(ConfigMixin):
         config_log_file (Path): Path to the logged configuration file
     """
 
-    def __init__(self, config: Dict[str, Any], debug_mode: bool = False):
+    def __init__(self, config: Dict[str, Any], debug_mode: bool = False,
+                 quiet_mode: bool = False):
         """
         Initialize the logging manager.
 
@@ -125,6 +182,9 @@ class LoggingManager(ConfigMixin):
         Args:
             config (Dict[str, Any]): Configuration dictionary containing all settings
             debug_mode (bool): Whether to enable debug mode for detailed console output
+            quiet_mode (bool): Suppress console INFO output (console handler at
+                WARNING). The file log is unaffected. Ignored when debug_mode
+                is set (debug wins).
 
         Raises:
             KeyError: If essential configuration values are missing
@@ -134,6 +194,8 @@ class LoggingManager(ConfigMixin):
         from symfluence.core.config.coercion import coerce_config
         self._config = coerce_config(config, warn=False)
         self.debug_mode = debug_mode
+        self.quiet_mode = quiet_mode
+        self._counting_handler: Optional[CountingHandler] = None
         self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         # experiment_id comes from the ConfigMixin property (config-backed,
@@ -186,7 +248,8 @@ class LoggingManager(ConfigMixin):
         This method configures the process-wide 'symfluence' logger with:
         1. A file handler that captures all levels (DEBUG and above) using the
            canonical FILE_FORMAT (FILE_FORMAT_DEBUG in debug mode)
-        2. A console handler at INFO (DEBUG in debug mode)
+        2. A console handler at INFO (DEBUG in debug mode, WARNING in quiet mode)
+        3. A CountingHandler that tallies WARNING/ERROR records for run summaries
 
         Setup is idempotent per (domain, experiment_id): calling it again for
         the same domain and experiment reuses the existing handlers and log
@@ -208,7 +271,7 @@ class LoggingManager(ConfigMixin):
             ValueError: If an invalid log level is specified
             PermissionError: If log file cannot be created due to permissions
         """
-        global _active_setup_key, _active_log_file
+        global _active_setup_key, _active_log_file, _active_counting_handler
 
         # Get log level from config or parameter
         if log_level is None:
@@ -227,6 +290,9 @@ class LoggingManager(ConfigMixin):
         )
         if has_real_handlers and _active_setup_key == setup_key:
             self.log_file = _active_log_file
+            self._counting_handler = _active_counting_handler
+            # Re-apply the console level so a quiet/debug toggle takes effect
+            self._apply_console_level(logger)
             return logger
 
         # Create timestamp for log file
@@ -287,23 +353,26 @@ class LoggingManager(ConfigMixin):
             file_handler.setFormatter(file_formatter)
             file_handler.addFilter(ShortNameFilter())
 
-        # Console handler - level depends on debug mode
+        # Console handler - level depends on debug/quiet mode
         console_handler = logging.StreamHandler(sys.stdout)
-        if self.debug_mode:
-            console_handler.setLevel(logging.DEBUG)  # Show debug messages in debug mode
-        else:
-            console_handler.setLevel(logging.INFO)   # Only INFO and above in normal mode
+        console_handler.setLevel(self._console_level())
         console_handler.setFormatter(console_formatter)
+
+        # Counting handler: real warning/error totals for run summaries
+        counting_handler = CountingHandler()
 
         # Add handlers to logger
         if file_handler:
             logger.addHandler(file_handler)
         logger.addHandler(console_handler)
+        logger.addHandler(counting_handler)
 
         # Record active configuration for idempotent re-setup
         self.log_file = log_file if file_handler else None
+        self._counting_handler = counting_handler
         _active_setup_key = setup_key
         _active_log_file = self.log_file
+        _active_counting_handler = counting_handler
 
         # Log startup information
         startup_lines = [
@@ -322,6 +391,47 @@ class LoggingManager(ConfigMixin):
         logger.info("\n".join(startup_lines))
 
         return logger
+
+    def _console_level(self) -> int:
+        """Console handler level for the current debug/quiet mode.
+
+        Debug wins over quiet; otherwise quiet raises the console handler to
+        WARNING while the file log keeps capturing everything.
+        """
+        if self.debug_mode:
+            return logging.DEBUG
+        if self.quiet_mode:
+            return logging.WARNING
+        return logging.INFO
+
+    def _apply_console_level(self, logger: logging.Logger) -> None:
+        """Set the console (stream) handler level to match the current mode."""
+        level = self._console_level()
+        for handler in logger.handlers:
+            if (isinstance(handler, logging.StreamHandler)
+                    and not isinstance(handler, logging.FileHandler)):
+                handler.setLevel(level)
+
+    @property
+    def log_counts(self) -> Dict[str, int]:
+        """Warning/error record totals observed on the 'symfluence' logger.
+
+        Returns:
+            Dict with ``warnings`` (WARNING records) and ``errors``
+            (ERROR + CRITICAL records). Zeros when no counting handler is
+            attached (e.g. file-only fallback situations).
+        """
+        handler = self._counting_handler
+        return {
+            'warnings': handler.warning_count if handler else 0,
+            'errors': handler.error_count if handler else 0,
+        }
+
+    @property
+    def recent_errors(self) -> List[str]:
+        """Most recent unique ERROR/CRITICAL messages (up to ~20)."""
+        handler = self._counting_handler
+        return handler.recent_errors if handler else []
 
     def log_configuration(self) -> Path:
         """
@@ -510,48 +620,103 @@ class LoggingManager(ConfigMixin):
         else:
             self.logger.error(completion_msg)
 
-    def create_run_summary(self, steps_completed: List[str],
-                          errors: List[Dict[str, Any]],
-                          warnings: List[str],
+    # Allowed per-step status vocabulary (aligned with core.provenance)
+    _STEP_STATUSES = frozenset({'completed', 'skipped', 'failed'})
+
+    @classmethod
+    def _normalize_step_entry(cls, entry: Any) -> Dict[str, Any]:
+        """Coerce a step record into the fixed run-summary step schema.
+
+        The fixed schema is ``{name, cli_name, description, status,
+        duration_s}`` with ``status`` in {completed, skipped, failed} —
+        the same vocabulary the provenance manifest uses.
+        """
+        if not isinstance(entry, dict):
+            return {
+                'name': str(entry),
+                'cli_name': str(entry),
+                'description': '',
+                'status': 'completed',
+                'duration_s': 0.0,
+            }
+
+        name = str(entry.get('name') or entry.get('fn') or entry.get('cli') or '')
+        cli_name = str(entry.get('cli_name') or entry.get('cli') or name)
+        status = str(entry.get('status') or
+                     ('completed' if entry.get('success', True) else 'failed'))
+        if status not in cls._STEP_STATUSES:
+            status = 'failed' if status in ('error', 'errored') else 'completed'
+        try:
+            duration_s = round(float(entry.get('duration_s',
+                                               entry.get('duration', 0.0)) or 0.0), 3)
+        except (TypeError, ValueError):
+            duration_s = 0.0
+
+        normalized: Dict[str, Any] = {
+            'name': name or cli_name,
+            'cli_name': cli_name or name,
+            'description': str(entry.get('description') or ''),
+            'status': status,
+            'duration_s': duration_s,
+        }
+        if entry.get('error'):
+            normalized['error'] = str(entry['error'])
+        return normalized
+
+    def create_run_summary(self, steps: List[Any],
                           execution_time: float,
-                          status: str = 'completed') -> Path:
+                          status: str = 'completed',
+                          errors: Optional[List[Dict[str, Any]]] = None) -> Path:
         """
         Create a summary JSON file for the entire run.
 
-        This method creates a comprehensive summary of a SYMFLUENCE run, including
-        all completed steps, any errors or warnings encountered, and overall
-        execution statistics. The summary is saved as a JSON file for easy
-        parsing and analysis.
+        Writes an accurate account of the run: one fixed step-entry schema
+        ``{name, cli_name, description, status, duration_s}`` (status in
+        {completed, skipped, failed}), warning/error totals counted from the
+        actual log records via the CountingHandler, the most recent unique
+        error messages, and pointers to the log file and provenance
+        ``run_manifest.json`` instead of duplicating manifest content.
 
         Args:
-            steps_completed (List[str]): List of successfully completed step names
-            errors (List[Dict[str, Any]]): List of error dictionaries with details
-            warnings (List[str]): List of warning messages
+            steps: Per-step records from the workflow orchestrator (dicts are
+                normalized into the fixed step schema)
             execution_time (float): Total execution time in seconds
-            status (str): Overall run status ('completed', 'failed', 'partial')
+            status (str): Overall run status ('completed', 'partial', 'failed')
+            errors: Optional workflow-level error dicts (exceptions surfaced
+                by the orchestrator), recorded as ``workflow_errors``
 
         Returns:
             Path: Path to the created summary file
 
         Raises:
             IOError: If summary file cannot be written
-            ValueError: If execution_time is negative
         """
         summary_file = self.log_dir / f'run_summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
 
+        step_entries = [self._normalize_step_entry(s) for s in (steps or [])]
+        counts = self.log_counts
+
         summary = {
+            'schema_version': 2,
             'timestamp': datetime.now().isoformat(),
             'domain': self.domain_name,
             'experiment_id': self._get_config_value(lambda: self.config.domain.experiment_id, default='N/A', dict_key='EXPERIMENT_ID'),
-            'execution_time_seconds': execution_time,
-            'steps_completed': steps_completed,
-            'total_steps_completed': len(steps_completed),
-            'errors': errors,
-            'total_errors': len(errors),
-            'warnings': warnings,
-            'total_warnings': len(warnings),
-            'debug_mode': self.debug_mode,
             'status': status,
+            'execution_time_seconds': round(float(execution_time), 3),
+            'steps': step_entries,
+            'total_steps': len(step_entries),
+            'steps_completed': sum(1 for s in step_entries if s['status'] == 'completed'),
+            'steps_skipped': sum(1 for s in step_entries if s['status'] == 'skipped'),
+            'steps_failed': sum(1 for s in step_entries if s['status'] == 'failed'),
+            # Real totals counted from log records, not workflow exception lists
+            'total_errors': counts['errors'],
+            'total_warnings': counts['warnings'],
+            'recent_errors': self.recent_errors,
+            'workflow_errors': list(errors or []),
+            'debug_mode': self.debug_mode,
+            # Pointers instead of duplicated content
+            'log_file': str(self.log_file) if getattr(self, 'log_file', None) else None,
+            'run_manifest': str(self.log_dir / 'run_manifest.json'),
             'configuration': {
                 'hydrological_model': self._get_config_value(lambda: self.config.model.hydrological_model, dict_key='HYDROLOGICAL_MODEL'),
                 'domain_definition_method': self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD'),

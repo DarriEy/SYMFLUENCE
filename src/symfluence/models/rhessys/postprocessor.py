@@ -270,7 +270,7 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
 
             if q_col is None:
                 self.logger.error(f"No streamflow column found in {filepath}")
-                self.logger.info(f"Available columns: {list(df.columns)}")
+                self.logger.debug(f"Available columns: {list(df.columns)}")
                 return None
 
             q_mm_day = df[q_col]

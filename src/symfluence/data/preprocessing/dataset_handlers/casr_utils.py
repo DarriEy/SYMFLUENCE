@@ -483,7 +483,7 @@ class CASRHandler(BaseDatasetHandler):
                 rlat, rlon = ds.rlat.values, ds.rlon.values
                 lat, lon = ds.lat.values, ds.lon.values
 
-            self.logger.info(f"CASR dimensions: rlat={rlat.shape}, rlon={rlon.shape}")
+            self.logger.debug(f"CASR dimensions: rlat={rlat.shape}, rlon={rlon.shape}")
 
             # Create grid cells
             geometries, ids, lats, lons = [], [], [], []

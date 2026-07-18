@@ -163,3 +163,60 @@ class TestDeprecatedMethods:
         with patch.object(BaseCommand._console, 'info') as mock_info:
             BaseCommand.print_info("Test info")
             mock_info.assert_called_once_with("Test info")
+
+
+class TestConsoleQuietMode:
+    """Test the Console quiet toggle wired to the global --quiet flag."""
+
+    @staticmethod
+    def _make_console():
+        import io
+
+        from symfluence.cli.console import Console, ConsoleConfig
+
+        stream = io.StringIO()
+        err_stream = io.StringIO()
+        console = Console(ConsoleConfig(
+            use_colors=False,
+            output_stream=stream,
+            error_stream=err_stream,
+        ))
+        return console, stream, err_stream
+
+    def test_set_quiet_suppresses_info_but_not_errors(self):
+        console, stream, err_stream = self._make_console()
+        console.set_quiet(True)
+
+        assert console.is_quiet is True
+        console.info("hidden info")
+        console.success("hidden success")
+        console.error("visible error")
+
+        assert stream.getvalue() == ""
+        assert "visible error" in err_stream.getvalue()
+
+    def test_set_quiet_can_be_disabled_again(self):
+        console, stream, _ = self._make_console()
+        console.set_quiet(True)
+        console.set_quiet(False)
+
+        assert console.is_quiet is False
+        console.info("shown again")
+        assert "shown again" in stream.getvalue()
+
+    def test_main_quiet_flag_sets_global_console_quiet(self):
+        """cli.main() flips the global console into quiet mode for --quiet."""
+        from symfluence.cli import main
+        from symfluence.cli.console import get_console
+
+        console = get_console()
+        original = console.is_quiet
+        try:
+            with patch(
+                'symfluence.cli.commands.workflow_commands.WorkflowCommands.list_steps',
+                return_value=0,
+            ), patch('sys.argv', ['symfluence', '--quiet', 'workflow', 'list-steps']):
+                main()
+            assert console.is_quiet is True
+        finally:
+            console.set_quiet(original)

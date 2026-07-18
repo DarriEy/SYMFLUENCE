@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -181,27 +182,26 @@ class ParFlowRunner(BaseModelRunner):
                 timeout=timeout,
             )
 
-            if result.stdout:
-                logger.debug(f"ParFlow stdout: {result.stdout[-2000:]}")
-            if result.stderr:
-                logger.debug(f"ParFlow stderr: {result.stderr[-2000:]}")
+            # Write the full stdout/stderr to a sidecar file next to the run
+            # outputs instead of re-emitting it into the main log.
+            stdout_log = self.output_dir / (
+                f"parflow_stdout_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            )
+            try:
+                stdout_log.write_text(
+                    (result.stdout or '')
+                    + (f"\n--- stderr ---\n{result.stderr}" if result.stderr else ''),
+                    encoding='utf-8',
+                )
+                logger.debug(f"ParFlow stdout/stderr written to {stdout_log}")
+            except OSError as write_exc:
+                logger.debug(f"Could not write ParFlow stdout sidecar: {write_exc}")
 
             if result.returncode != 0:
-                logger.error(f"ParFlow execution returned code {result.returncode}")
                 logger.error(
-                    f"stderr: {result.stderr[-2000:] if result.stderr else 'none'}"
+                    f"ParFlow failed (exit {result.returncode}); "
+                    f"full output: {stdout_log}"
                 )
-                # Check for ParFlow log file
-                log_file = self.output_dir / f"{runname}.out.log"
-                if log_file.exists():
-                    log_content = log_file.read_text()
-                    error_lines = [
-                        ln for ln in log_content.splitlines()
-                        if 'error' in ln.lower() or 'failed' in ln.lower()
-                    ]
-                    if error_lines:
-                        logger.error(f"ParFlow log errors: {error_lines[-5:]}")
-
                 raise ModelExecutionError(
                     f"ParFlow execution failed with return code {result.returncode}"
                 )

@@ -12,9 +12,24 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from symfluence.core.logging_utils import reset_log_once
+
 # ============================================================================
 # Pytest markers
 # ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _reset_log_once():
+    """Clear the process-wide log_once registry between tests.
+
+    Optimization code de-duplicates hot-path log messages with log_once;
+    without a reset, a message emitted in one test would be demoted to
+    DEBUG in every later test in the same process.
+    """
+    reset_log_once()
+    yield
+    reset_log_once()
 
 def pytest_configure(config):
     """Register custom markers."""

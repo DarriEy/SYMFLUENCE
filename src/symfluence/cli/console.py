@@ -78,6 +78,19 @@ class Console:
         """Return True if console is in quiet mode."""
         return self._config.quiet
 
+    def set_quiet(self, quiet: bool = True) -> None:
+        """
+        Enable or disable quiet mode on this console.
+
+        In quiet mode all informational output (info, success, warning,
+        tables, panels, progress, ...) is suppressed; errors still go to
+        stderr. Used by the global ``--quiet/-q`` CLI flag.
+
+        Args:
+            quiet: Whether to suppress non-error output
+        """
+        self._config.quiet = quiet
+
     def info(self, message: str) -> None:
         """
         Print informational message.

@@ -346,18 +346,18 @@ class ObservedDataProcessor(ConfigMixin):
                 return
             use_registry = backend == 'community' or self.data_provider not in self.LEGACY_STREAMFLOW_PROVIDERS
             if use_registry and key in R.observation_handlers:
-                self.logger.info(f"Dispatching streamflow provider '{self.data_provider}' to registered handler")
+                self.logger.debug(f"Dispatching streamflow provider '{self.data_provider}' to registered handler")
                 handler = ObservationRegistry.get_handler(key, self.config, self.logger)
                 raw_data = handler.acquire()
                 handler.process(raw_data)
             elif self.data_provider == 'USGS':
-                self.logger.info("USGS streamflow data handled by formalized observation handler")
+                self.logger.debug("USGS streamflow data handled by formalized observation handler")
             elif self.data_provider == 'WSC':
-                self.logger.info("WSC streamflow data handled by formalized observation handler")
+                self.logger.debug("WSC streamflow data handled by formalized observation handler")
             elif self.data_provider == 'SMHI':
-                self.logger.info("SMHI streamflow data handled by formalized observation handler")
+                self.logger.debug("SMHI streamflow data handled by formalized observation handler")
             elif self.data_provider == 'LAMAH_ICE':
-                self.logger.info("LAMAH_ICE streamflow data handled by formalized observation handler")
+                self.logger.debug("LAMAH_ICE streamflow data handled by formalized observation handler")
             elif self.data_provider == 'VI':
                 self._process_vi_data()
             else:
@@ -439,7 +439,7 @@ class ObservedDataProcessor(ConfigMixin):
                 kind='streamflow', window=window, logger=self.logger,
             )
         except AcquisitionError as exc:
-            self.logger.info(
+            self.logger.debug(
                 f"Observation-backend selection declined for {self.data_provider} "
                 f"({exc}); using the existing dispatch."
             )
@@ -546,7 +546,7 @@ class ObservedDataProcessor(ConfigMixin):
             output_dir = resolve_data_subdir(self.project_dir, 'observations') / 'fluxnet'
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            self.logger.info(f"Looking for FLUXNET files with station ID: {station_id} in {fluxnet_path}")
+            self.logger.debug(f"Looking for FLUXNET files with station ID: {station_id} in {fluxnet_path}")
 
             # Find files containing the station ID
             import shutil
@@ -567,14 +567,14 @@ class ObservedDataProcessor(ConfigMixin):
                 self.logger.warning(f"No FLUXNET files found for station ID: {station_id} in {fluxnet_path}")
                 return False
 
-            self.logger.info(f"Found {len(matching_files)} FLUXNET files for station {station_id}")
+            self.logger.debug(f"Found {len(matching_files)} FLUXNET files for station {station_id}")
 
             # Copy files to the project directory
             for file_path in matching_files:
                 dest_file = output_dir / file_path.name
                 try:
                     shutil.copy2(file_path, dest_file)
-                    self.logger.info(f"Copied {file_path.name} to {dest_file}")
+                    self.logger.debug(f"Copied {file_path.name} to {dest_file}")
                 except (OSError, shutil.Error, ValueError, TypeError) as copy_e:
                     self.logger.error(f"Failed to copy {file_path.name}: {copy_e}")
 
@@ -647,7 +647,7 @@ class ObservedDataProcessor(ConfigMixin):
                 self.logger.error(f"No SNOTEL file found for station ID: {snotel_station_id} in {snotel_path}")
                 return False
 
-            self.logger.info(f"Found SNOTEL file: {snotel_file}")
+            self.logger.debug(f"Found SNOTEL file: {snotel_file}")
 
             # Read the SNOTEL data file
             import pandas as pd
@@ -762,7 +762,7 @@ class ObservedDataProcessor(ConfigMixin):
             # Ensure output directory exists
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
-            self.logger.info(f"Reading CARAVANS data from: {input_file}")
+            self.logger.debug(f"Reading CARAVANS data from: {input_file}")
 
             # Read the CSV file
             try:
@@ -809,7 +809,7 @@ class ObservedDataProcessor(ConfigMixin):
                 self.logger.error("No discharge column identified in CARAVANS data. Please check column names.")
                 raise DataAcquisitionError("No discharge column found in CARAVANS data")
 
-            self.logger.info(f"Using date column: '{date_col_name}', discharge column: '{discharge_col_name}'")
+            self.logger.debug(f"Using date column: '{date_col_name}', discharge column: '{discharge_col_name}'")
 
             # Rename columns and select only necessary ones
             caravans_data = caravans_data.rename(columns={date_col_name: 'date', discharge_col_name: 'discharge_value'})
@@ -851,7 +851,7 @@ class ObservedDataProcessor(ConfigMixin):
             elif 'cfs' in discharge_col_name.lower():
                 discharge_unit = 'cfs'
 
-            self.logger.info(f"Detected discharge unit: {discharge_unit}")
+            self.logger.debug(f"Detected discharge unit: {discharge_unit}")
 
             # Convert discharge to m³/s if necessary
             if discharge_unit == 'mm/d':
@@ -887,7 +887,7 @@ class ObservedDataProcessor(ConfigMixin):
                         for alt in area_alternatives:
                             if alt in gdf.columns:
                                 area_column = alt
-                                self.logger.info(f"Using alternative area column: {area_column}")
+                                self.logger.debug(f"Using alternative area column: {area_column}")
                                 break
 
                         # If still not found, calculate area from geometry
@@ -896,7 +896,7 @@ class ObservedDataProcessor(ConfigMixin):
                             # Ensure CRS is suitable for area calculation (e.g., projected CRS)
                             # If CRS is geographic (lat/lon), reproject to an equal-area projection
                             if gdf.crs and gdf.crs.is_geographic:
-                                self.logger.info(f"Reprojecting to an equal-area CRS for area calculation: {gdf.crs}")
+                                self.logger.debug(f"Reprojecting to an equal-area CRS for area calculation: {gdf.crs}")
                                 # Use a common equal-area projection, e.g., Albers Equal Area
                                 gdf_projected = gdf.to_crs('+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs')
                             else:
@@ -930,14 +930,14 @@ class ObservedDataProcessor(ConfigMixin):
                     # Ensure basin_area_km2 is in km² for the formula
                     # If the area column was in m², we need to convert it first
                     if area_column == 'calculated_area' or 'm2' in area_column.lower(): # Heuristic check for m²
-                        self.logger.info(f"Area column '{area_column}' seems to be in m², converting to km².")
+                        self.logger.debug(f"Area column '{area_column}' seems to be in m², converting to km².")
                         basin_area_km2 = basin_area_km2 / 1e6
 
                     conversion_factor = (basin_area_km2 * 1000) / UnitConversion.SECONDS_PER_DAY
                     caravans_data['discharge_cms'] = caravans_data['discharge_value'] * conversion_factor
 
-                    self.logger.info(f"Basin area: {basin_area_km2:.2f} km²")
-                    self.logger.info(f"Converted discharge from mm/d to m³/s using conversion factor: {conversion_factor:.6f}")
+                    self.logger.debug(f"Basin area: {basin_area_km2:.2f} km²")
+                    self.logger.debug(f"Converted discharge from mm/d to m³/s using conversion factor: {conversion_factor:.6f}")
 
                 except FileNotFoundError as fnf_e:
                     self.logger.error(f"Shapefile not found: {fnf_e}. Cannot convert mm/d to m³/s.")
@@ -954,10 +954,10 @@ class ObservedDataProcessor(ConfigMixin):
                     self.logger.warning("Falling back to assuming discharge is already in m³/s.")
                     caravans_data['discharge_cms'] = caravans_data['discharge_value'] # Assume it's already m³/s
             elif discharge_unit == 'm³/s' or discharge_unit == 'cms':
-                self.logger.info("Discharge unit is already m³/s, no conversion needed.")
+                self.logger.debug("Discharge unit is already m³/s, no conversion needed.")
                 caravans_data['discharge_cms'] = caravans_data['discharge_value']
             elif discharge_unit == 'cfs':
-                self.logger.info("Discharge unit is cfs, converting to m³/s.")
+                self.logger.debug("Discharge unit is cfs, converting to m³/s.")
                 caravans_data['discharge_cms'] = caravans_data['discharge_value'] * UnitConversion.CFS_TO_CMS
             else:
                 self.logger.warning(f"Unknown discharge unit '{discharge_unit}'. Assuming it's already in m³/s.")
@@ -973,11 +973,11 @@ class ObservedDataProcessor(ConfigMixin):
                     self.logger.error(f"Final attempt to convert index to datetime failed: {idx_e}")
                     raise DataAcquisitionError("Failed to create a valid DatetimeIndex.") from idx_e
 
-            self.logger.info(f"Data date range: {caravans_data.index.min()} to {caravans_data.index.max()}")
-            self.logger.info(f"Number of records after processing: {len(caravans_data)}")
-            self.logger.info(f"Min discharge: {caravans_data['discharge_cms'].min():.4f} m³/s")
-            self.logger.info(f"Max discharge: {caravans_data['discharge_cms'].max():.4f} m³/s")
-            self.logger.info(f"Mean discharge: {caravans_data['discharge_cms'].mean():.4f} m³/s")
+            self.logger.debug(f"Data date range: {caravans_data.index.min()} to {caravans_data.index.max()}")
+            self.logger.debug(f"Number of records after processing: {len(caravans_data)}")
+            self.logger.debug(f"Min discharge: {caravans_data['discharge_cms'].min():.4f} m³/s")
+            self.logger.debug(f"Max discharge: {caravans_data['discharge_cms'].max():.4f} m³/s")
+            self.logger.debug(f"Mean discharge: {caravans_data['discharge_cms'].mean():.4f} m³/s")
 
             # Resample and save the data
             self._resample_and_save(caravans_data['discharge_cms'])
@@ -1045,13 +1045,13 @@ class ObservedDataProcessor(ConfigMixin):
                 self.logger.error("Could not find discharge column in WSC data file.")
                 return
 
-            self.logger.info(f"Using datetime column: '{datetime_col}', discharge column: '{discharge_col}'")
+            self.logger.debug(f"Using datetime column: '{datetime_col}', discharge column: '{discharge_col}'")
 
             # Convert datetime column, handling potential timezone issues
             wsc_data[datetime_col] = pd.to_datetime(wsc_data[datetime_col], errors='coerce')
             # If timezone info is present (e.g., 'UTC'), remove it for consistency if needed, or convert to local time
             if wsc_data[datetime_col].dt.tz is not None:
-                self.logger.info(f"Detected timezone '{wsc_data[datetime_col].dt.tz}' in WSC datetime. Converting to local time and removing tz info.")
+                self.logger.debug(f"Detected timezone '{wsc_data[datetime_col].dt.tz}' in WSC datetime. Converting to local time and removing tz info.")
                 wsc_data[datetime_col] = wsc_data[datetime_col].dt.tz_convert('America/Edmonton').dt.tz_localize(None)
 
             # Convert discharge column to numeric
@@ -1126,9 +1126,9 @@ class ObservedDataProcessor(ConfigMixin):
                 csv_writer.writerows(data_to_write)
 
             self.logger.info(f"Processed streamflow data saved to: {output_file}")
-            self.logger.info(f"Total rows in processed data: {len(resampled_data)}")
-            self.logger.info(f"Number of non-null values: {resampled_data.count()}")
-            self.logger.info(f"Number of null values after interpolation: {resampled_data.isnull().sum()}")
+            self.logger.debug(f"Total rows in processed data: {len(resampled_data)}")
+            self.logger.debug(f"Number of non-null values: {resampled_data.count()}")
+            self.logger.debug(f"Number of null values after interpolation: {resampled_data.isnull().sum()}")
 
         except IOError as e:
             self.logger.error(f"Failed to write processed data to {output_file}: {e}")

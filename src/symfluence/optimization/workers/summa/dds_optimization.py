@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import traceback
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
+
+from symfluence.core.logging_utils import get_worker_logger
 
 from .worker_safety import _evaluate_parameters_worker_safe
 
@@ -72,17 +75,26 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
         # Set up process-specific random seed
         np.random.seed(dds_task['random_seed'])
 
-        # Set up logger
-        log_level = worker_data.get('config', {}).get('LOG_LEVEL', 'INFO').upper()
-        logger = logging.getLogger(f'dds_worker_{start_id}')
-        if not logger.handlers:
-            logger.setLevel(getattr(logging, log_level))
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(f'[DDS-{start_id:02d}] %(levelname)s: %(message)s')
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
+        # Worker logger at the configured level (LOG_LEVEL when provided,
+        # otherwise the symfluence root's effective level)
+        level_name = str(worker_data.get('config', {}).get('LOG_LEVEL', '') or '').upper()
+        level = getattr(logging, level_name, None) if level_name else None
+        if not isinstance(level, int):
+            level = None
+        logger = get_worker_logger(start_id, level=level)
 
         logger.info(f"Starting DDS instance {start_id} with {max_iterations} iterations")
+
+        # Schema-consistent, throttled progress lines tagged with this worker
+        from symfluence.optimization.optimizers.metrics_tracker import EvaluationMetricsTracker
+        run_start = time.time()
+
+        def _elapsed() -> str:
+            return time.strftime('%H:%M:%S', time.gmtime(time.time() - run_start))
+
+        tracker = EvaluationMetricsTracker(
+            max_iterations, logger, _elapsed, worker_tag=f'P{start_id:02d}'
+        )
 
         # Initialize DDS state
         current_solution = starting_solution.copy()
@@ -90,6 +102,7 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
 
         # Evaluate initial solution
         current_score = _evaluate_single_solution_worker(current_solution, worker_data, logger)
+        tracker.track_evaluation(current_score)
 
         best_solution = current_solution.copy()
         best_score = current_score
@@ -97,6 +110,7 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
 
         history = []
         total_evaluations = 1
+        n_improvements = 0
 
         # Record initial state
         history.append({
@@ -137,6 +151,7 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
 
             # Evaluate trial solution
             trial_score = _evaluate_single_solution_worker(trial_solution, worker_data, logger)
+            tracker.track_evaluation(trial_score)
             total_evaluations += 1
 
             # Selection (greedy)
@@ -145,12 +160,20 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
                 current_solution = trial_solution.copy()
                 current_score = trial_score
                 improvement = True
+                n_improvements += 1
 
                 if trial_score > best_score:
                     best_solution = trial_solution.copy()
                     best_score = trial_score
                     best_params = _denormalize_params_worker(best_solution, worker_data)
-                    logger.info(f"Iter {iteration}: NEW BEST! Score={best_score:.6f}")
+                    logger.debug(f"Iter {iteration}: new best score={best_score:.6f}")
+
+            # Throttled, schema-consistent progress line
+            tracker.log_iteration_progress(
+                'DDS', iteration, best_score,
+                n_improved=n_improvements, population_size=iteration,
+                unit='evals'
+            )
 
             # Record iteration
             history.append({

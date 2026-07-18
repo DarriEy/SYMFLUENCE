@@ -88,7 +88,7 @@ class MESHDataPreprocessor:
             gdf = gpd.read_file(path)
 
             if 'ID' in gdf.columns:
-                self.logger.info(f"Sanitizing {path.name}: renaming 'ID' to 'ORIG_ID'")
+                self.logger.debug(f"Sanitizing {path.name}: renaming 'ID' to 'ORIG_ID'")
                 gdf = gdf.rename(columns={'ID': 'ORIG_ID'})
                 temp_path = path.with_suffix('.tmp.shp')
                 gdf.to_file(temp_path)
@@ -154,7 +154,7 @@ class MESHDataPreprocessor:
 
                 if gdf[col].dtype != original_dtype or gdf[col].isna().any():
                     modified = True
-                    self.logger.info(f"Fixed {col} values in {path.name} to be scalar integers")
+                    self.logger.debug(f"Fixed {col} values in {path.name} to be scalar integers")
 
             # Check for duplicate LINKNO values (meshflow requires unique segment IDs)
             if 'LINKNO' in gdf.columns:
@@ -176,11 +176,11 @@ class MESHDataPreprocessor:
                         )
 
                     modified = True
-                    self.logger.info(f"Reassigned LINKNO values to unique integers 1-{len(gdf)}")
+                    self.logger.debug(f"Reassigned LINKNO values to unique integers 1-{len(gdf)}")
 
             if modified:
                 gdf.to_file(path)
-                self.logger.info(f"Saved topology-fixed shapefile: {path.name}")
+                self.logger.debug(f"Saved topology-fixed shapefile: {path.name}")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix network topology fields: {e}", exc_info=True)
@@ -216,7 +216,7 @@ class MESHDataPreprocessor:
             if outlet_mask.any():
                 gdf.loc[outlet_mask, 'DSLINKNO'] = outlet_value
                 gdf.to_file(path)
-                self.logger.info(f"Fixed {outlet_mask.sum()} outlet segment(s) in {path.name}")
+                self.logger.debug(f"Fixed {outlet_mask.sum()} outlet segment(s) in {path.name}")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to fix outlet segment: {e}", exc_info=True)
@@ -247,7 +247,7 @@ class MESHDataPreprocessor:
 
             needs_update = False
             if 'GRU_ID' not in gdf.columns:
-                self.logger.info(f"Adding GRU_ID to {path.name}")
+                self.logger.debug(f"Adding GRU_ID to {path.name}")
                 if len(gdf) == 1:
                     gdf['GRU_ID'] = 1
                 else:
@@ -257,12 +257,12 @@ class MESHDataPreprocessor:
             # Ensure it is integer type and has no NaNs
             if 'GRU_ID' in gdf.columns:
                 if len(gdf) == 1 and gdf['GRU_ID'].iloc[0] != 1:
-                    self.logger.info(f"Forcing lumped GRU_ID to 1 in {path.name}")
+                    self.logger.debug(f"Forcing lumped GRU_ID to 1 in {path.name}")
                     gdf['GRU_ID'] = 1
                     needs_update = True
 
                 if not pd.api.types.is_integer_dtype(gdf['GRU_ID']):
-                    self.logger.info(f"Converting GRU_ID to integer in {path.name}")
+                    self.logger.debug(f"Converting GRU_ID to integer in {path.name}")
                     gdf['GRU_ID'] = pd.to_numeric(gdf['GRU_ID'], errors='coerce').fillna(1).astype(int)
                     needs_update = True
 
@@ -300,7 +300,7 @@ class MESHDataPreprocessor:
             needs_update = False
 
             if hru_col not in gdf.columns:
-                self.logger.info(f"Adding {hru_col} to {path.name}")
+                self.logger.debug(f"Adding {hru_col} to {path.name}")
                 if len(gdf) == 1:
                     gdf[hru_col] = 1
                 elif main_id_col in gdf.columns:
@@ -311,12 +311,12 @@ class MESHDataPreprocessor:
 
             # Ensure it's not empty/NaN and matches lumped ID 1
             if len(gdf) == 1 and gdf[hru_col].iloc[0] != 1:
-                self.logger.info(f"Forcing lumped {hru_col} to 1 in {path.name}")
+                self.logger.debug(f"Forcing lumped {hru_col} to 1 in {path.name}")
                 gdf[hru_col] = 1
                 needs_update = True
 
             if gdf[hru_col].isnull().any():
-                self.logger.info(f"Fixing NaNs in {hru_col} for {path.name}")
+                self.logger.debug(f"Fixing NaNs in {hru_col} for {path.name}")
                 if main_id_col in gdf.columns:
                     gdf[hru_col] = gdf[hru_col].fillna(gdf[main_id_col])
                 gdf[hru_col] = gdf[hru_col].fillna(1)
@@ -357,7 +357,7 @@ class MESHDataPreprocessor:
             for std_name, default_val in required_cols.items():
                 target_col = column_mapping.get(std_name)
                 if target_col and target_col not in gdf.columns:
-                    self.logger.info(f"Adding missing column '{target_col}' to {path.name} with default {default_val}")
+                    self.logger.debug(f"Adding missing column '{target_col}' to {path.name} with default {default_val}")
                     gdf[target_col] = default_val
                     needs_update = True
 
@@ -438,7 +438,7 @@ class MESHDataPreprocessor:
 
             # If the first column is unnamed (common in exported CSVs), rename it to GRU_ID
             if df.columns[0].startswith('Unnamed') or df.columns[0] == '':
-                self.logger.info(f"Renaming first column '{df.columns[0]}' to 'GRU_ID'")
+                self.logger.debug(f"Renaming first column '{df.columns[0]}' to 'GRU_ID'")
                 df = df.rename(columns={df.columns[0]: 'GRU_ID'})
 
             # Ensure GRU_ID is integer
@@ -480,7 +480,7 @@ class MESHDataPreprocessor:
             initial_rows = len(df)
             df = df.drop_duplicates()
             if len(df) < initial_rows:
-                self.logger.info(f"Removed {initial_rows - len(df)} duplicate rows")
+                self.logger.debug(f"Removed {initial_rows - len(df)} duplicate rows")
 
             # Expand landcover data to match catchment GRU_IDs if needed
             if catchment_path and Path(catchment_path).exists():
@@ -524,7 +524,7 @@ class MESHDataPreprocessor:
 
             # If landcover has only 1 row or doesn't match, expand to all catchment IDs
             if len(df) == 1 or not set(landcover_gru_ids).intersection(set(catchment_gru_ids)):
-                self.logger.info(
+                self.logger.debug(
                     f"Landcover GRU_IDs {landcover_gru_ids} don't match catchment GRU_IDs "
                     f"{catchment_gru_ids}. Expanding landcover to all catchment IDs."
                 )
@@ -548,7 +548,7 @@ class MESHDataPreprocessor:
                     new_rows.append(row)
 
                 df = pd.DataFrame(new_rows)
-                self.logger.info(f"Expanded landcover to {len(df)} rows matching catchment GRU_IDs")
+                self.logger.debug(f"Expanded landcover to {len(df)} rows matching catchment GRU_IDs")
 
             return df
 
@@ -601,13 +601,13 @@ class MESHDataPreprocessor:
                 # Fallback: if there's only one non-ID column, treat it as the GRU fraction
                 other_cols = [c for c in df.columns if c != 'GRU_ID' and not c.startswith('Unnamed')]
                 if len(other_cols) == 1:
-                    self.logger.info(f"Guessing {other_cols[0]} is the primary GRU fraction")
+                    self.logger.debug(f"Guessing {other_cols[0]} is the primary GRU fraction")
                     df['frac_10'] = 1.0 # Default to grassland if unknown
                     modified = True
 
             if modified:
                 df.to_csv(csv_path, index=False)
-                self.logger.info(f"Converted {csv_path} to MAF format")
+                self.logger.debug(f"Converted {csv_path} to MAF format")
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.warning(f"Failed to convert to MAF: {e}", exc_info=True)
@@ -635,11 +635,11 @@ class MESHDataPreprocessor:
         Also handles cases where setup and forcing directories are the same
         or files already exist at the destination.
         """
-        self.logger.info(f"Copying MESH settings from {self.setup_dir} to {self.forcing_dir}")
+        self.logger.debug(f"Copying MESH settings from {self.setup_dir} to {self.forcing_dir}")
 
         try:
             if self.setup_dir.resolve() == self.forcing_dir.resolve():
-                self.logger.info("Settings and forcing directories are the same, skipping")
+                self.logger.debug("Settings and forcing directories are the same, skipping")
                 return
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.debug(f"Could not compare directory paths: {e}", exc_info=True)

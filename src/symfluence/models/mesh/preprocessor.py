@@ -334,7 +334,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         all_landcover_classes = _get_mesh_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES)
         if detected_gru_classes:
             landcover_classes = {k: v for k, v in all_landcover_classes.items() if k in detected_gru_classes}
-            self.logger.info(f"Filtered landcover_classes to detected classes: {list(landcover_classes.keys())}")
+            self.logger.debug(f"Filtered landcover_classes to detected classes: {list(landcover_classes.keys())}")
         else:
             landcover_classes = all_landcover_classes
 

@@ -177,6 +177,7 @@ class NelderMeadAlgorithm(OptimizationAlgorithm):
 
         # Track operations for logging
         operations = {'reflect': 0, 'expand': 0, 'contract_out': 0, 'contract_in': 0, 'shrink': 0}
+        n_improvements = 0
 
         # Main optimization loop
         for iteration in range(1, self.max_iterations + 1):
@@ -266,14 +267,20 @@ class NelderMeadAlgorithm(OptimizationAlgorithm):
             if fitness[current_best_idx] > best_fit:
                 best_fit = fitness[current_best_idx]
                 best_pos = simplex[current_best_idx].copy()
+                n_improvements += 1
 
             # Record iteration
             params_dict = denormalize_params(best_pos)
             record_iteration(iteration, best_fit, params_dict, {'eval_count': eval_count})
             update_best(best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, best_fit, 1, 1)
+            # Progress line (tracker throttles emission); Improved counts
+            # cumulative simplex-best improvements over iterations so far.
+            log_progress(
+                self.name, iteration, best_fit,
+                n_improved=n_improvements, pop_size=iteration,
+                unit='evals'
+            )
 
             # Check convergence
             # Simplex size (spread of vertices)

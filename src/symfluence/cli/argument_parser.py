@@ -120,6 +120,10 @@ _GLOBAL_OPTION_SPECS: tuple = (
         'help': f'Path to configuration file (default: {DEFAULT_CONFIG_PATH})'}),
     (('--debug',), {
         'action': 'store_true', 'help': 'Enable debug output'}),
+    (('--quiet', '-q'), {
+        'action': 'store_true', 'dest': 'quiet',
+        'help': 'Suppress console INFO output (warnings/errors still shown; '
+                'the file log is unaffected)'}),
     (('--visualise', '--visualize'), {
         'action': 'store_true', 'dest': 'visualise',
         'help': 'Enable visualization during workflow execution'}),
@@ -1019,7 +1023,7 @@ For more help on a specific command:
         index = 0
         while index < len(args):
             token = args[index]
-            if token == '--':
+            if token == '--':  # nosec B105 — argv separator, not a password
                 return index
             if token.startswith('-'):
                 option = token.partition('=')[0]

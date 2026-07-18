@@ -162,6 +162,6 @@ class FuseSyntheticDataGenerator:
         variations = np.random.uniform(0.8, 1.2, n_subcatchments)  # ±20% variation
         distributed_q = np.outer(base_hydrograph, variations)  # (time, subcatchments)
 
-        self.logger.info(f"Generated distributed hydrograph with shape: {distributed_q.shape}")
+        self.logger.debug(f"Generated distributed hydrograph with shape: {distributed_q.shape}")
 
         return distributed_q

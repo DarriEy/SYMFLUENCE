@@ -894,7 +894,14 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
             params_dict = denormalize_params(best_pos)
             record_iteration(iteration, best_fit, params_dict)
             update_best(best_fit, params_dict, iteration)
-            log_progress(self.name, iteration, best_fit)
+            # Progress line (tracker throttles emission); Improved counts
+            # population members beating the previous shuffle's best.
+            n_improved = int(np.sum(fitness > prev_best_fit))
+            log_progress(
+                self.name, iteration, best_fit,
+                n_improved=n_improved, pop_size=pop_size,
+                unit='loops'
+            )
 
             best_score_so_far = max(best_score_so_far, float(best_fit))
             best_tracking_rows_buffer.append({

@@ -522,7 +522,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 num_nexuses = len(nexus_data.get('features', []))
                 if num_nexuses == 1:
                     is_lumped = True
-                    self.logger.info("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
+                    self.logger.debug("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
             except Exception as e:  # noqa: BLE001 — model execution resilience
                 self.logger.debug(f"Could not parse nexus file for lumped detection: {e}", exc_info=True)
 
@@ -570,7 +570,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     ngen_main(troute_args)
 
             self.logger.info("T-Route routing completed successfully")
-            self.logger.info(f"T-Route log: {troute_log}")
+            self.logger.debug(f"T-Route log: {troute_log}")
             return True
 
         except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -628,7 +628,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             ngiab_run_dir, ngiab_config_dir, ngiab_forcings_dir, ngiab_outputs_dir = (
                 self._prepare_ngiab_run_directories(output_dir)
             )
-            self.logger.info("Preparing NGIAB-compatible directory structure...")
+            self.logger.debug("Preparing NGIAB-compatible directory structure")
 
             setup_files = self._prepare_ngiab_inputs(
                 base_setup_dir=base_setup_dir,
@@ -676,7 +676,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                     else:
                         topology_complete = True
                         use_netcdf = True
-                        self.logger.info("Using NetCDF topology for T-Route NHDNetwork")
+                        self.logger.debug("Using NetCDF topology for T-Route NHDNetwork")
                 except Exception as e:  # noqa: BLE001 — model execution resilience
                     self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.", exc_info=True)
 
@@ -736,7 +736,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
                 self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
 
             if topology_complete:
-                self.logger.info("Configuring T-Route routing for NGIAB...")
+                self.logger.debug("Configuring T-Route routing for NGIAB")
 
                 # Copy topology file (GeoPackage, GeoJSON, or NetCDF)
                 import yaml
@@ -905,7 +905,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
                 # Update realization to include routing section
                 self._add_routing_to_realization(ngiab_config_dir / "realization.json")
-                self.logger.info("T-Route routing enabled in realization")
+                self.logger.debug("T-Route routing enabled in realization")
 
             # Run NGIAB Docker container
             # We run ngen-serial directly since SYMFLUENCE uses separate catchment/nexus files
@@ -1021,7 +1021,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             self.logger.error("Docker is not installed")
             return False
 
-        self.logger.info(f"Checking for NGIAB Docker image: {ngiab_image}")
+        self.logger.debug(f"Checking for NGIAB Docker image: {ngiab_image}")
         pull_result = subprocess.run(  # nosec B603 B607
             ['docker', 'image', 'inspect', ngiab_image],
             capture_output=True

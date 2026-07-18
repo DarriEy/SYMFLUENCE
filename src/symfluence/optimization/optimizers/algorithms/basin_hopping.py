@@ -219,15 +219,19 @@ class BasinHoppingAlgorithm(OptimizationAlgorithm):
 
             # Record iteration
             params_dict = denormalize_params(best_pos)
-            n_accepted = sum(accept_history[-min(10, len(accept_history)):])
             record_iteration(
                 iteration, best_fit, params_dict,
                 {'step_size': step_size, 'accepted': accept}
             )
             update_best(best_fit, params_dict, iteration)
 
-            # Log progress
-            log_progress(self.name, iteration, best_fit, n_accepted, min(10, iteration))
+            # Progress line (tracker throttles emission); Improved counts
+            # cumulative accepted hops over hops so far.
+            log_progress(
+                self.name, iteration, best_fit,
+                n_improved=sum(accept_history), pop_size=len(accept_history),
+                unit='evals'
+            )
 
         # Final statistics
         total_accepts = sum(accept_history)

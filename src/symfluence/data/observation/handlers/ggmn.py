@@ -123,7 +123,7 @@ class GGMNHandler(BaseObservationHandler):
 
                         st_file = raw_dir / f"ggmn_{gid}_auto.csv"
                         df_st.to_csv(st_file, index=False)
-                        self.logger.info(f"✓ Acquired {len(df_st)} records for station {gid}")
+                        self.logger.debug(f"Acquired {len(df_st)} records for station {gid}")
 
                 except Exception as e_st:  # noqa: BLE001 — data acquisition resilience
                     self.logger.warning(f"Failed to fetch data for station {gid}: {e_st}")

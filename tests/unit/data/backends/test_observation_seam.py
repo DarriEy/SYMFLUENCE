@@ -166,8 +166,10 @@ def test_legacy_mode_never_consults_the_backend(tmp_path, register_observation_b
     processor.process_streamflow_data()
 
     assert backend.requests == []
-    info = [str(call.args[0]) for call in logger.info.call_args_list]
-    assert any('formalized observation handler' in m for m in info)
+    # The dispatch note is per-item detail: emitted at DEBUG per the logging
+    # level policy (ADR 0005), never at INFO.
+    debug = [str(call.args[0]) for call in logger.debug.call_args_list]
+    assert any('formalized observation handler' in m for m in debug)
     logger.error.assert_not_called()
 
 

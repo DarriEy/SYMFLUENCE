@@ -20,6 +20,7 @@ from typing import Dict
 
 import numpy as np
 
+from symfluence.core.logging_utils import get_worker_logger
 from symfluence.evaluation.metric_transformer import MetricTransformer
 
 from .error_logging import log_worker_failure
@@ -52,33 +53,21 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         debug_info['individual_id'] = individual_id
         debug_info['proc_id'] = proc_id
 
-        # Setup process logger only if LOG_LEVEL is DEBUG
+        # Worker logger at the configured level (LOG_LEVEL when provided,
+        # otherwise the symfluence root's effective level). Never ERROR-gated:
+        # that used to hide worker failures.
         config = task_data.get('config', {})
-        enable_worker_logging = config.get('LOG_LEVEL', 'INFO').upper() == 'DEBUG'
+        level_name = str(config.get('LOG_LEVEL', '') or '').upper()
+        level = getattr(logging, level_name, None) if level_name else None
+        if not isinstance(level, int):
+            level = None
+        logger = get_worker_logger(proc_id, individual_id, level=level)
 
-        if enable_worker_logging:
-            logger = logging.getLogger(f'worker_{proc_id}_{individual_id}')
-            if not logger.handlers:
-                logger.setLevel(logging.DEBUG)
-                handler = logging.StreamHandler()
-                formatter = logging.Formatter(f'[P{proc_id:02d}-I{individual_id:03d}] %(levelname)s: %(message)s')
-                handler.setFormatter(formatter)
-                logger.addHandler(handler)
-        else:
-            # Use a minimal logger that only logs errors
-            logger = logging.getLogger(f'worker_{proc_id}_{individual_id}')
-            if not logger.handlers:
-                logger.setLevel(logging.ERROR)
-                handler = logging.StreamHandler()
-                formatter = logging.Formatter(f'[P{proc_id:02d}-I{individual_id:03d}] %(levelname)s: %(message)s')
-                handler.setFormatter(formatter)
-                logger.addHandler(handler)
-
-        logger.info(f"Starting evaluation of individual {individual_id}")
+        logger.debug(f"Starting evaluation of individual {individual_id}")
 
         # Check multi-objective flag
         is_multiobjective = task_data.get('multiobjective', False)
-        logger.info(f"Multi-objective evaluation: {is_multiobjective}")
+        logger.debug(f"Multi-objective evaluation: {is_multiobjective}")
 
         # DETERMINE ROUTING NEEDS EARLY
         # Check if any target requires routing (streamflow needs routing in distributed domains)
@@ -106,7 +95,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
             if domain_method not in ['point', 'lumped'] or (domain_method == 'lumped' and routing_delineation == 'river_network'):
                 needs_routing = True
 
-        logger.info(f"Needs routing: {needs_routing} (targets: {targets_to_check})")
+        logger.debug(f"Needs routing: {needs_routing} (targets: {targets_to_check})")
 
         # Convert paths
         debug_info['stage'] = 'path_setup'
@@ -143,7 +132,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
 
         # Apply parameters
         debug_info['stage'] = 'parameter_application'
-        logger.info("Applying parameters")
+        logger.debug("Applying parameters")
         if not _apply_parameters_worker(params, task_data, summa_settings_dir, logger, debug_info):
             error_msg = 'Failed to apply parameters'
             logger.error(error_msg)
@@ -161,7 +150,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         # Run SUMMA
         debug_info['stage'] = 'summa_execution'
         summa_timeout = int(config.get('SUMMA_TIMEOUT', 7200))
-        logger.info("Running SUMMA")
+        logger.debug("Running SUMMA")
         summa_start = time.time()
         if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info, summa_settings_dir, timeout=summa_timeout, config=config):
             error_msg = 'SUMMA simulation failed'
@@ -204,7 +193,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
 
             # ONLY convert if domain is lumped but routing expects a network
             if domain_method in ['lumped', 'point'] and routing_delineation == 'river_network':
-                logger.info("Converting lumped SUMMA output to distributed format")
+                logger.debug("Converting lumped SUMMA output to distributed format")
                 if not _convert_lumped_to_distributed_worker(task_data, summa_dir, logger, debug_info):
                     error_msg = 'Lumped-to-distributed conversion failed'
                     logger.error(error_msg)
@@ -220,7 +209,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     }
 
             debug_info['stage'] = 'mizuroute_execution'
-            logger.info("Running mizuRoute")
+            logger.debug("Running mizuRoute")
             mizu_start = time.time()
             if not _run_mizuroute_worker(task_data, mizuroute_dir, logger, debug_info, summa_dir):
                 error_msg = 'mizuRoute simulation failed'
@@ -256,12 +245,12 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         metrics_start = time.time()
 
         if is_multiobjective:
-            logger.info("Starting multi-objective metrics calculation")
+            logger.debug("Starting multi-objective metrics calculation")
 
             try:
                 # NEW: Support multi-target optimization (e.g. streamflow + TWS)
                 if task_data.get('multi_target_mode', False):
-                    logger.info("Using multi-target objective calculation")
+                    logger.debug("Using multi-target objective calculation")
                     project_dir = task_data.get('project_dir', '.')
                     objectives = _calculate_multitarget_objectives(
                         task_data, str(summa_dir), str(mizuroute_dir),
@@ -272,7 +261,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     objective_names = task_data.get('objective_names', ['OBJ1', 'OBJ2'])
                     for i, val in enumerate(objectives):
                         name = objective_names[i] if i < len(objective_names) else f"OBJ{i+1}"
-                        logger.info(f"Extracted {name}: {val}")
+                        logger.debug(f"Extracted {name}: {val}")
 
                     # Set primary score for backward compatibility
                     target_metric = task_data.get('target_metric', 'OBJ1')
@@ -303,18 +292,18 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                             'runtime': eval_runtime
                         }
 
-                    logger.info(f"Inline metrics calculated: {list(metrics.keys())}")
+                    logger.debug(f"Inline metrics calculated: {list(metrics.keys())}")
 
                     # Dynamically get objectives based on the list passed from the main process
                     objective_names = task_data.get('objective_names', ['NSE', 'KGE'])  # Fallback to old behavior
-                    logger.info(f"Extracting objectives: {objective_names}")
+                    logger.debug(f"Extracting objectives: {objective_names}")
 
                     objectives = []
                     for obj_name in objective_names:
                         # Look for both 'Calib_OBJ' and 'OBJ' to be safe
                         value = metrics.get(obj_name) or metrics.get(f'Calib_{obj_name}')
 
-                        logger.info(f"Extracted {obj_name}: {value}")
+                        logger.debug(f"Extracted {obj_name}: {value}")
 
                         # Handle None/NaN values with a penalty
                         if value is None or (isinstance(value, float) and np.isnan(value)):
@@ -337,13 +326,13 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         if 'KGE' in objective_names:
                             score = objectives[objective_names.index('KGE')]
 
-                logger.info(f"Final objectives: {objectives}")
+                logger.debug(f"Final objectives: {objectives}")
 
                 metrics_runtime = time.time() - metrics_start
                 eval_runtime = time.time() - eval_start_time
 
-                logger.info(f"Multi-objective completed. Objectives: {objectives}, Score ({target_metric}): {score:.6f}")
-                logger.info(f"Runtime breakdown: Total={eval_runtime:.1f}s, SUMMA={summa_runtime:.1f}s, mizuRoute={mizuroute_runtime:.1f}s, Metrics={metrics_runtime:.1f}s")
+                logger.debug(f"Multi-objective completed. Objectives: {objectives}, Score ({target_metric}): {score:.6f}")
+                logger.debug(f"Runtime breakdown: Total={eval_runtime:.1f}s, SUMMA={summa_runtime:.1f}s, mizuRoute={mizuroute_runtime:.1f}s, Metrics={metrics_runtime:.1f}s")
 
                 return {
                     'individual_id': individual_id,
@@ -378,7 +367,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
 
         else:
             # Single-objective evaluation
-            logger.info("Single-objective evaluation using calibration target")
+            logger.debug("Single-objective evaluation using calibration target")
 
             try:
                 metrics = _calculate_metrics_with_target(
@@ -432,8 +421,8 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                 metrics_runtime = time.time() - metrics_start
                 eval_runtime = time.time() - eval_start_time
 
-                logger.info(f"Single-objective completed. {target_metric}: {score:.6f}")
-                logger.info(f"Runtime breakdown: Total={eval_runtime:.1f}s, SUMMA={summa_runtime:.1f}s, mizuRoute={mizuroute_runtime:.1f}s, Metrics={metrics_runtime:.1f}s")
+                logger.debug(f"Single-objective completed. {target_metric}: {score:.6f}")
+                logger.debug(f"Runtime breakdown: Total={eval_runtime:.1f}s, SUMMA={summa_runtime:.1f}s, mizuRoute={mizuroute_runtime:.1f}s, Metrics={metrics_runtime:.1f}s")
 
                 return {
                     'individual_id': individual_id,

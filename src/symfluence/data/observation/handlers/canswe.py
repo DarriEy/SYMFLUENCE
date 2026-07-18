@@ -110,7 +110,7 @@ class CanSWEHandler(BaseObservationHandler):
             dict_key='CANSWE_PATH'
         )
         if canswe_path and canswe_path != 'default' and Path(canswe_path).exists():
-            self.logger.info(f"Using existing CanSWE file: {canswe_path}")
+            self.logger.debug(f"Using existing CanSWE file: {canswe_path}")
             return Path(canswe_path)
 
         # Set up output directory
@@ -131,7 +131,7 @@ class CanSWEHandler(BaseObservationHandler):
         raw_file = raw_dir / f"CanSWE_{version}.nc"
 
         if raw_file.exists() and not download_enabled:
-            self.logger.info(f"Using existing CanSWE file: {raw_file}")
+            self.logger.debug(f"Using existing CanSWE file: {raw_file}")
             return raw_file
 
         if download_enabled:
@@ -182,7 +182,7 @@ class CanSWEHandler(BaseObservationHandler):
                     filename = file_info.get('key', '')
                     if filename.endswith('.nc'):
                         nc_file_url = file_info.get('links', {}).get('self')
-                        self.logger.info(f"Found CanSWE NetCDF via API: {filename}")
+                        self.logger.debug(f"Found CanSWE NetCDF via API: {filename}")
                         break
             except requests.exceptions.RequestException as e:
                 self.logger.warning(f"Zenodo API failed: {e}, using direct URL pattern")
@@ -192,8 +192,7 @@ class CanSWEHandler(BaseObservationHandler):
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                self.logger.info(f"Downloading from: {nc_file_url}")
-                self.logger.info("Note: CanSWE is ~100MB, download may take several minutes...")
+                self.logger.debug(f"Downloading CanSWE (~100 MB) from: {nc_file_url}")
                 headers = {'User-Agent': 'SYMFLUENCE/1.0'}
                 response = requests.get(nc_file_url, headers=headers, stream=True, timeout=(60, 1800))
                 response.raise_for_status()
@@ -209,7 +208,7 @@ class CanSWEHandler(BaseObservationHandler):
                         downloaded += len(chunk)
                         if total_size > 0 and downloaded % (10 * 1024 * 1024) < 1024 * 1024:
                             progress = (downloaded / total_size) * 100
-                            self.logger.info(f"Download progress: {progress:.1f}% ({downloaded / 1024 / 1024:.1f} MB)")
+                            self.logger.debug(f"Download progress: {progress:.1f}% ({downloaded / 1024 / 1024:.1f} MB)")
 
                 tmp_file.replace(output_path)
                 self.logger.info(f"Successfully downloaded CanSWE to {output_path}")
@@ -261,7 +260,7 @@ class CanSWEHandler(BaseObservationHandler):
         lon_min = min(self.bbox['lon_min'], self.bbox['lon_max'])
         lon_max = max(self.bbox['lon_min'], self.bbox['lon_max'])
 
-        self.logger.info(f"Filtering stations within bbox: lat [{lat_min:.2f}, {lat_max:.2f}], "
+        self.logger.debug(f"Filtering stations within bbox: lat [{lat_min:.2f}, {lat_max:.2f}], "
                         f"lon [{lon_min:.2f}, {lon_max:.2f}]")
 
         # Find stations within bounding box
@@ -300,7 +299,7 @@ class CanSWEHandler(BaseObservationHandler):
             station_counts = df.groupby('station_id').size()
             valid_stations = station_counts[station_counts >= min_obs].index
             df = df[df['station_id'].isin(valid_stations)]
-            self.logger.info(f"Retained {len(valid_stations)} stations with >= {min_obs} observations")
+            self.logger.debug(f"Retained {len(valid_stations)} stations with >= {min_obs} observations")
 
         if df.empty:
             raise DataAcquisitionError(
@@ -332,7 +331,7 @@ class CanSWEHandler(BaseObservationHandler):
         # Also save the full multi-station version
         full_output = output_dir / f"{self.domain_name}_canswe_swe_all_stations.csv"
         df.to_csv(full_output, index_label='datetime')
-        self.logger.info(f"Saved full station data to {full_output}")
+        self.logger.debug(f"Saved full station data to {full_output}")
 
         # Create a symlink/copy for generic snow lookup
         snow_processed = output_dir / f"{self.domain_name}_swe_processed.csv"
@@ -447,7 +446,7 @@ class CanSWEHandler(BaseObservationHandler):
         if swe_var is None:
             raise DataAcquisitionError("Cannot find SWE variable in CanSWE dataset")
 
-        self.logger.info(f"Extracting SWE from variable: {swe_var}")
+        self.logger.debug(f"Extracting SWE from variable: {swe_var}")
 
         # Determine station dimension
         station_dim = None
@@ -621,7 +620,7 @@ class CanSWEHandler(BaseObservationHandler):
 
         if records:
             pd.DataFrame(records).to_csv(meta_file, index=False)
-            self.logger.info(f"Saved station metadata to {meta_file}")
+            self.logger.debug(f"Saved station metadata to {meta_file}")
 
 
 # Also register NorSWE as an alias with extended coverage
@@ -660,7 +659,7 @@ class NorSWEHandler(CanSWEHandler):
             dict_key='NORSWE_PATH'
         )
         if norswe_path and norswe_path != 'default' and Path(norswe_path).exists():
-            self.logger.info(f"Using existing NorSWE file: {norswe_path}")
+            self.logger.debug(f"Using existing NorSWE file: {norswe_path}")
             return Path(norswe_path)
 
         # Set up output directory
@@ -669,7 +668,7 @@ class NorSWEHandler(CanSWEHandler):
         raw_file = raw_dir / "NorSWE_v1.nc"
 
         if raw_file.exists() and not download_enabled:
-            self.logger.info(f"Using existing NorSWE file: {raw_file}")
+            self.logger.debug(f"Using existing NorSWE file: {raw_file}")
             return raw_file
 
         if download_enabled:
@@ -699,7 +698,7 @@ class NorSWEHandler(CanSWEHandler):
                 filename = file_info.get('key', '')
                 if filename.endswith('.nc'):
                     nc_file_url = file_info.get('links', {}).get('self')
-                    self.logger.info(f"Found NorSWE NetCDF: {filename}")
+                    self.logger.debug(f"Found NorSWE NetCDF: {filename}")
                     break
 
             if not nc_file_url:
@@ -707,7 +706,7 @@ class NorSWEHandler(CanSWEHandler):
                 nc_file_url = f"https://zenodo.org/records/{self.NORSWE_ZENODO_RECORD}/files/NorSWE_1979-2021_v1.nc"
 
             # Download
-            self.logger.info(f"Downloading from: {nc_file_url}")
+            self.logger.debug(f"Downloading from: {nc_file_url}")
             headers = {'User-Agent': 'SYMFLUENCE/1.0'}
             response = requests.get(nc_file_url, headers=headers, stream=True, timeout=600)
             response.raise_for_status()

@@ -318,7 +318,10 @@ class ABCAlgorithm(OptimizationAlgorithm):
                 }
             )
             update_best(best_fit, params_dict, iteration)
-            log_progress(self.name, iteration, best_fit, n_accepted, n_particles)
+            log_progress(
+                self.name, iteration, best_fit, n_accepted, n_particles,
+                unit='gens', total=n_generations
+            )
             best_score_history.append(best_fit)
 
             # Check stopping conditions

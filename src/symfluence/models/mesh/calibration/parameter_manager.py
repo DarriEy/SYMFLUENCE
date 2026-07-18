@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
@@ -1070,14 +1071,22 @@ class MESHParameterManager(BaseParameterManager):
                             content += '\n'
                         content += inject_line
                         injected += 1
-                        self.logger.info(
-                            f"Injected missing parameter {param_name}={value:.6f} "
-                            f"into {file_path.name}"
+                        log_once(
+                            self.logger, logging.INFO,
+                            key=f'mesh-injected-{file_path.name}-{param_name}',
+                            message=(
+                                f"Injected missing parameter {param_name}={value:.6f} "
+                                f"into {file_path.name}"
+                            ),
                         )
                     else:
-                        self.logger.warning(
-                            f"Array parameter {param_name} not found in "
-                            f"{file_path.name}; cannot inject automatically"
+                        log_once(
+                            self.logger, logging.WARNING,
+                            key=f'mesh-array-param-missing-{file_path.name}-{param_name}',
+                            message=(
+                                f"Array parameter {param_name} not found in "
+                                f"{file_path.name}; cannot inject automatically"
+                            ),
                         )
 
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -1125,8 +1134,10 @@ class MESHParameterManager(BaseParameterManager):
             # CLASS parameters are positional (fixed-format lines)
             if file_type == 'CLASS':
                 if param_name not in self.class_param_positions:
-                    self.logger.warning(
-                        f"No positional mapping for CLASS param {param_name}"
+                    log_once(
+                        self.logger, logging.WARNING,
+                        key=f'mesh-class-param-unmapped-{param_name}',
+                        message=f"No positional mapping for CLASS param {param_name}",
                     )
                     return None
 

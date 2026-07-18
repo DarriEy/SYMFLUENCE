@@ -63,8 +63,6 @@ class DDSAlgorithm(OptimizationAlgorithm):
         Returns:
             Optimization results dictionary
         """
-        self.logger.debug(f"Starting DDS optimization with {n_params} parameters")
-
         # DDS perturbation range (default 0.2, higher values explore more)
         r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
 
@@ -77,16 +75,14 @@ class DDSAlgorithm(OptimizationAlgorithm):
         initial_guess = kwargs.get('initial_guess')
         if initial_guess is not None and len(initial_guess) == n_params:
             x_best = np.array(initial_guess, dtype=float)
-            self.logger.info(
-                f"DDS using provided initial guess ({n_params} params, "
-                f"mean={x_best.mean():.4f}, range=[{x_best.min():.4f}, {x_best.max():.4f}])"
+            self.logger.info(f"Starting DDS optimization with {n_params} parameters (warm start)")
+            self.logger.debug(
+                f"DDS initial guess: mean={x_best.mean():.4f}, "
+                f"range=[{x_best.min():.4f}, {x_best.max():.4f}]"
             )
         else:
             x_best = np.random.uniform(0, 1, n_params)
-            self.logger.info(
-                f"DDS using RANDOM start (initial_guess={'None' if initial_guess is None else f'len={len(initial_guess)}'}, "
-                f"n_params={n_params})"
-            )
+            self.logger.info(f"Starting DDS optimization with {n_params} parameters (random start)")
 
         f_best = evaluate_solution(x_best, 0)
 
@@ -101,6 +97,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
             default=100, dict_key='DDS_STAGNATION_THRESHOLD'
         )
         iterations_since_improvement = 0
+        n_improvements = 0
 
         # Initialize current perturbation range
         current_r = r
@@ -160,6 +157,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
                 x_best = x_new
                 f_best = f_new
                 iterations_since_improvement = 0
+                n_improvements += 1
             elif not is_crash:
                 iterations_since_improvement += 1
 
@@ -168,9 +166,13 @@ class DDSAlgorithm(OptimizationAlgorithm):
             record_iteration(iteration, f_best, params_dict)
             update_best(f_best, params_dict, iteration)
 
-            # Log progress every 10 iterations or at the end to reduce log spam
-            if iteration % 10 == 0 or iteration == self.max_iterations:
-                log_progress(self.name, iteration, f_best)
+            # Progress line (tracker throttles emission; Improved counts
+            # cumulative accepted improvements over evaluations so far)
+            log_progress(
+                self.name, iteration, f_best,
+                n_improved=n_improvements, pop_size=iteration,
+                unit='evals'
+            )
 
         return {
             'best_solution': x_best,

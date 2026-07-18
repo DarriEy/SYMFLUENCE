@@ -160,7 +160,9 @@ class NSGA2Algorithm(OptimizationAlgorithm):
             self.logger.info(f"Initial population complete | Best obj1: {best_fitness:.4f}")
 
         # Main NSGA-II loop with error handling
+        prev_best_fitness = best_fitness
         for generation in range(1, self.max_iterations + 1):
+            n_improved = 0
             try:
                 # Generate offspring through selection, crossover, and mutation
                 offspring = np.zeros_like(population)
@@ -215,6 +217,9 @@ class NSGA2Algorithm(OptimizationAlgorithm):
                 ranks = self._fast_non_dominated_sort(objectives)
                 crowding_distances = self._calculate_crowding_distance(objectives, ranks)
 
+                # Offspring beating the previous generation's best (progress metric)
+                n_improved = int(np.sum(offspring_objectives[:, 0] > prev_best_fitness))
+
                 # Update best solution
                 current_best_idx = np.argmax(objectives[:, 0])
                 if objectives[current_best_idx, 0] > best_fitness:
@@ -240,12 +245,15 @@ class NSGA2Algorithm(OptimizationAlgorithm):
             )
             update_best(best_fitness, params_dict, generation)
 
-            # Log progress
+            # Progress line (tracker throttles emission)
             log_progress(
                 self.name, generation, best_fitness,
+                n_improved=n_improved, pop_size=pop_size,
                 secondary_score=best_secondary,
-                secondary_label=objective_names[1] if best_secondary is not None else None
+                secondary_label=objective_names[1] if best_secondary is not None else None,
+                unit='gens'
             )
+            prev_best_fitness = best_fitness
 
         return {
             'best_solution': best_solution,
