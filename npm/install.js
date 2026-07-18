@@ -799,6 +799,42 @@ function tryInstallPython() {
 }
 
 /**
+ * Post-install check: confirm the Python CLI resolves and report whether its
+ * version matches this npm release. Non-fatal — the unpinned fallback can
+ * legitimately install a different version while a tag's PyPI publish is
+ * still landing, and the runtime wrapper warns on every skewed invocation.
+ */
+function verifyPythonVersion(distDir) {
+  const candidates = [];
+  const pixiPython = process.platform === 'win32'
+    ? path.join(distDir, '.pixi', 'envs', 'default', 'python.exe')
+    : path.join(distDir, '.pixi', 'envs', 'default', 'bin', 'python3');
+  if (fs.existsSync(pixiPython)) candidates.push(`"${pixiPython}"`);
+  candidates.push('python3', 'python');
+
+  for (const py of candidates) {
+    let out;
+    try {
+      out = execSync(`${py} -m symfluence --version`, { encoding: 'utf8', timeout: 15000 });
+    } catch {
+      continue; // try next interpreter
+    }
+    const m = out.match(/(\d+\.\d+\.\d+)/);
+    const version = m ? m[1] : null;
+    if (version === PACKAGE_VERSION) {
+      console.log(`\n✅ Python package ${version} matches the npm package`);
+    } else {
+      console.warn(
+        `\n⚠️  Python package reports ${version || 'an unknown version'}, npm package is ${PACKAGE_VERSION}.\n` +
+        `   Sync manually with: pip install --upgrade "symfluence==${PACKAGE_VERSION}"`
+      );
+    }
+    return;
+  }
+  console.warn('\n⚠️  Could not verify the installed Python package version.');
+}
+
+/**
  * Main installation function
  */
 async function install() {
@@ -869,6 +905,10 @@ async function install() {
       tryInstallPython();
     }
 
+    if (process.env.SYMFLUENCE_OPTIONAL_PYTHON !== '1') {
+      verifyPythonVersion(distDir);
+    }
+
     // Display installation info
     console.log('\n╔════════════════════════════════════════════╗');
     console.log('║   🎉 Installation Complete!                ║');
@@ -934,4 +974,5 @@ module.exports = {
   requiredGlibcVersion,
   unresolvedLibraries,
   verifyBundledBinaries,
+  verifyPythonVersion,
 };

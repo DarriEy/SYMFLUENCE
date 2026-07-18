@@ -130,9 +130,12 @@ jobs:
               pip install .
               ;;
             npm)
-              # Local npm packaging path (publishes the prebuilt-binary distribution).
-              npm pack 2>/dev/null || true
-              npm install -g . || npm install . || true
+              # Meta-installer path: postinstall downloads the released binary
+              # bundle and pip-installs the version-pinned Python package. Skip
+              # pixi so the pip fallback lands on this job's ambient Python,
+              # which the smoke test then imports from.
+              export SYMFLUENCE_SKIP_PIXI=1
+              npm install -g ./npm
               ;;
             source)
               chmod +x scripts/symfluence-bootstrap
@@ -157,9 +160,13 @@ jobs:
               "${UV_TOOLS}/symfluence/bin/python" -c "import symfluence; print('uv-tool venv import OK:', symfluence.__file__)"
               ;;
             npm)
-              # npm ships a prebuilt CLI/binary distribution, not an importable
-              # Python module — CLI smoke only.
+              # The postinstall pip-installs the pinned Python package, so this
+              # is no longer a CLI-shim-only path: exercise a forwarded
+              # (Python-backed) command and the import, not just the built-ins.
               symfluence --version
+              symfluence info
+              symfluence binary --help
+              python3 -c "import symfluence; print('import OK:', symfluence.__file__)"
               ;;
             uv-pip)
               source "$VENV/bin/activate"
