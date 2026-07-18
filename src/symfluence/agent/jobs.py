@@ -7,12 +7,14 @@
 quick preprocessing step, hopeless for an hours-long calibration a chat session
 wants to watch. This module gives the server a start/poll/cancel job pattern:
 
-- Jobs run detached (``start_new_session``) under a tiny Python wrapper that
-  records the exit code to a file, so completion is knowable even after the
-  MCP server (or the whole TUI) restarts.
+- Jobs run detached (``start_new_session``; a new process group on Windows)
+  under a tiny Python wrapper that records the exit code to a file, so
+  completion is knowable even after the MCP server (or the whole TUI) restarts.
 - Each job persists a JSON record under ``agent_cache_root()/jobs/`` next to
   its log file; ``get_job_status`` needs nothing in memory.
 - Cancellation signals the job's process group: TERM first, KILL if ignored.
+  Windows has no graceful console signal for a detached tree, so cancellation
+  goes straight to ``taskkill /T /F`` there.
 
 Everything here is stdlib-only, consistent with the hand-rolled MCP server.
 """
@@ -68,6 +70,25 @@ def _write_record(record: dict) -> None:
 
 
 def _pid_alive(pid: int) -> bool:
+    if sys.platform == 'win32':
+        # No kill-0 probe on Windows (os.kill would TerminateProcess!); ask
+        # the kernel for the process's exit status instead.
+        import ctypes
+        from ctypes import wintypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return False
+        try:
+            code = wintypes.DWORD()
+            ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+            return bool(ok) and code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+
     # Reap the wrapper if it is a finished child of this process — a zombie
     # would otherwise answer the kill-0 probe as "alive" forever.
     try:
@@ -96,11 +117,16 @@ def start_job(argv: list[str], description: str = '') -> dict:
     record_path, log_path, exit_path = _paths(job_id)
     record_path.parent.mkdir(parents=True, exist_ok=True)
 
+    detach: dict = (
+        {'creationflags': (subprocess.CREATE_NEW_PROCESS_GROUP
+                           | subprocess.CREATE_NO_WINDOW)}
+        if sys.platform == 'win32' else {'start_new_session': True}
+    )
     with open(log_path, 'wb') as log:
         proc = subprocess.Popen(  # nosec B603 — argv assembled by the caller, no shell
             [sys.executable, '-c', _WRAPPER, str(exit_path), *argv],
             stdout=log, stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL, start_new_session=True,
+            stdin=subprocess.DEVNULL, **detach,
         )
 
     record = {
@@ -164,18 +190,29 @@ def cancel_job(job_id: str, grace_s: float = 5.0) -> dict:
     pid = record['pid']
 
     if _pid_alive(pid):
-        try:
-            os.killpg(pid, signal.SIGTERM)  # wrapper is the session/group leader
-        except (ProcessLookupError, PermissionError):
-            pass
-        deadline = time.time() + grace_s
-        while time.time() < deadline and _pid_alive(pid):
-            time.sleep(0.1)
-        if _pid_alive(pid):
+        if sys.platform == 'win32':
+            # No graceful console signal reaches a detached tree on Windows;
+            # kill the wrapper and everything under it in one shot.
+            subprocess.run(  # nosec B603 B607 — fixed argv, no shell
+                ['taskkill', '/PID', str(pid), '/T', '/F'],
+                capture_output=True, check=False,
+            )
+            deadline = time.time() + grace_s
+            while time.time() < deadline and _pid_alive(pid):
+                time.sleep(0.1)
+        else:
             try:
-                os.killpg(pid, signal.SIGKILL)
+                os.killpg(pid, signal.SIGTERM)  # wrapper is the session/group leader
             except (ProcessLookupError, PermissionError):
                 pass
+            deadline = time.time() + grace_s
+            while time.time() < deadline and _pid_alive(pid):
+                time.sleep(0.1)
+            if _pid_alive(pid):
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
 
     record['cancelled'] = True
     _write_record(record)

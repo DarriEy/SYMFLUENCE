@@ -74,7 +74,9 @@ def read_run_log(
         )
     else:
         candidates = set(log_dir.glob(f'symfluence_{log_type}_{domain}_*.log'))
-    logs = sorted(candidates, key=lambda p: p.stat().st_mtime)
+    # Tie-break equal mtimes (coarse filesystem timestamps, e.g. Windows) by
+    # name — the filenames embed their creation timestamp.
+    logs = sorted(candidates, key=lambda p: (p.stat().st_mtime, p.name))
     if not logs:
         raise ValueError(f"No '{log_type}' logs in {log_dir}")
     log_path = logs[-1]
@@ -143,7 +145,7 @@ def _pick_experiment_dir(domain_dir: Path, experiment_id: str | None) -> Path:
             f"No optimization runs{f' for {experiment_id!r}' if experiment_id else ''} "
             f"in {optimization}"
         )
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    return max(candidates, key=lambda p: (p.stat().st_mtime, p.name))
 
 
 def _float_or_none(value):
