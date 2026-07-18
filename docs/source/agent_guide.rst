@@ -42,13 +42,13 @@ Prerequisites
 
 Install one coding-agent CLI and set the matching API key:
 
-================  ==========================================  ===========================
-CLI               Install                                     API key
-================  ==========================================  ===========================
-Claude Code       https://docs.claude.com/claude-code         ``ANTHROPIC_API_KEY``
-Codex CLI         https://github.com/openai/codex             ``OPENAI_API_KEY``
-Gemini CLI        https://github.com/google-gemini/gemini-cli ``GEMINI_API_KEY``
-================  ==========================================  ===========================
+================  =============================================  ===========================
+CLI               Install                                        API key
+================  =============================================  ===========================
+Claude Code       https://docs.claude.com/claude-code            ``ANTHROPIC_API_KEY``
+Codex CLI         https://github.com/openai/codex                ``OPENAI_API_KEY``
+Gemini CLI        https://github.com/google-gemini/gemini-cli    ``GEMINI_API_KEY``
+================  =============================================  ===========================
 
 A CLI with a saved login (e.g. ``claude`` after ``claude login``) also works — the
 API key is only used by the CLI itself, never read or forwarded by SYMFLUENCE.
