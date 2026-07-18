@@ -129,9 +129,10 @@ def test_seam_is_inert_when_no_backend_is_registered(tmp_path, no_observation_ba
     # installed the registry tier would have served — but it was emptied of
     # backends only, so handler dispatch may still occur. Either way, no error.
     logger.error.assert_not_called()
+    # The dispatch note is per-item detail: emitted at DEBUG per ADR 0005.
     assert get_handler.called or any(
         'formalized observation handler' in str(call.args[0])
-        for call in logger.info.call_args_list
+        for call in logger.debug.call_args_list
     )
 
 
