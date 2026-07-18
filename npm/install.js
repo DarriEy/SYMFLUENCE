@@ -705,16 +705,25 @@ function tryPixiBootstrap(distDir) {
     return false;
   }
 
-  // Install symfluence into pixi env
+  // Install symfluence into pixi env — pinned so the Python package matches
+  // this npm release; fall back to latest if the pinned version is not yet
+  // on PyPI (npm and PyPI publish from the same tag but land asynchronously).
   console.log('   Installing symfluence Python package into pixi environment...');
-  try {
-    execSync(`"${pixiCmd}" run --manifest-path "${destPixiToml}" pip install symfluence`, {
-      stdio: 'inherit',
-      timeout: 120000,
-      cwd: distDir,
-    });
-  } catch (err) {
-    console.warn(`\n⚠️  pip install in pixi env failed: ${err.message}`);
+  let pixiPipOk = false;
+  for (const spec of [`symfluence==${PACKAGE_VERSION}`, 'symfluence']) {
+    try {
+      execSync(`"${pixiCmd}" run --manifest-path "${destPixiToml}" pip install --upgrade "${spec}"`, {
+        stdio: 'inherit',
+        timeout: 120000,
+        cwd: distDir,
+      });
+      pixiPipOk = true;
+      break;
+    } catch (err) {
+      console.warn(`\n⚠️  pip install ${spec} in pixi env failed: ${err.message}`);
+    }
+  }
+  if (!pixiPipOk) {
     console.log('   Falling back to system pip\n');
     return false;
   }
@@ -738,10 +747,15 @@ function tryPixiBootstrap(distDir) {
 function tryInstallPython() {
   console.log('\n🐍 Installing SYMFLUENCE Python package...\n');
 
+  // Pinned first so the Python package matches this npm release; fall back to
+  // latest if the pinned version is not yet on PyPI (npm and PyPI publish from
+  // the same tag but land asynchronously).
+  const specs = [`symfluence==${PACKAGE_VERSION}`, 'symfluence'];
+
   const strategies = [
-    { check: 'uv --version', install: 'uv pip install symfluence', label: 'uv' },
-    { check: 'pip3 --version', install: 'pip3 install symfluence', label: 'pip3' },
-    { check: 'pip --version', install: 'pip install symfluence', label: 'pip' },
+    { check: 'uv --version', install: 'uv pip install --upgrade', label: 'uv' },
+    { check: 'pip3 --version', install: 'pip3 install --upgrade', label: 'pip3' },
+    { check: 'pip --version', install: 'pip install --upgrade', label: 'pip' },
   ];
 
   for (const { check, install, label } of strategies) {
@@ -751,16 +765,18 @@ function tryInstallPython() {
       continue; // tool not available
     }
 
-    try {
-      console.log(`   Using ${label}...`);
-      // 10 min: heavy scientific stack (torch, geopandas, etc.) can exceed
-      // the previous 120 s budget on slow networks or under emulation.
-      execSync(install, { stdio: 'inherit', timeout: 600000 });
-      console.log(`\n✅ Python package installed via ${label}`);
-      return;
-    } catch (err) {
-      console.warn(`\n⚠️  ${label} install failed: ${err.message}`);
-      // try next strategy
+    for (const spec of specs) {
+      try {
+        console.log(`   Using ${label} (${spec})...`);
+        // 10 min: heavy scientific stack (torch, geopandas, etc.) can exceed
+        // the previous 120 s budget on slow networks or under emulation.
+        execSync(`${install} "${spec}"`, { stdio: 'inherit', timeout: 600000 });
+        console.log(`\n✅ Python package installed via ${label}`);
+        return;
+      } catch (err) {
+        console.warn(`\n⚠️  ${label} install of ${spec} failed: ${err.message}`);
+        // try next spec, then next strategy
+      }
     }
   }
 
