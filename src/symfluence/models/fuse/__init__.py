@@ -57,19 +57,39 @@ Limitations and Considerations:
     - Requires FUSE executable built from source (Fortran)
 """
 
-# Import main classes
 from __future__ import annotations
 
-from .elevation_band_manager import FuseElevationBandManager
+from typing import TYPE_CHECKING
 
-# Import manager classes (for advanced usage)
-from .forcing_processor import FuseForcingProcessor
-from .postprocessor import FUSEPostProcessor
-from .preprocessor import FUSEPreProcessor
-from .runner import FUSERunner
-from .structure_analyzer import FuseStructureAnalyzer
-from .synthetic_data_generator import FuseSyntheticDataGenerator
-from .visualizer import visualize_fuse
+# Lazy import mapping — execution, analysis, and plotting classes pull the
+# geospatial/matplotlib stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'FuseElevationBandManager': ('.elevation_band_manager', 'FuseElevationBandManager'),
+    'FuseForcingProcessor': ('.forcing_processor', 'FuseForcingProcessor'),
+    'FUSEPostProcessor': ('.postprocessor', 'FUSEPostProcessor'),
+    'FUSEPreProcessor': ('.preprocessor', 'FUSEPreProcessor'),
+    'FUSERunner': ('.runner', 'FUSERunner'),
+    'FuseStructureAnalyzer': ('.structure_analyzer', 'FuseStructureAnalyzer'),
+    'FuseSyntheticDataGenerator': ('.synthetic_data_generator', 'FuseSyntheticDataGenerator'),
+    'visualize_fuse': ('.visualizer', 'visualize_fuse'),
+    'FUSEResultExtractor': ('.extractor', 'FUSEResultExtractor'),
+    'FUSEPlotter': ('.plotter', 'FUSEPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for FUSE module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['FUSEConfigAdapter'])
+
 
 __all__ = [
     # Main classes (public API)
@@ -87,17 +107,39 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import FUSEConfigAdapter
-from .extractor import FUSEResultExtractor
-from .plotter import FUSEPlotter
 
 
 def register() -> None:
-    """Register FUSE components with the unified registry."""
+    """Register FUSE components with the unified registry.
+
+    Execution, extraction, analysis, and plotting classes are registered
+    lazily — imported on first registry access rather than at
+    plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "FUSE",
         config_adapter=FUSEConfigAdapter,
-        result_extractor=FUSEResultExtractor,
-        decision_analyzer=FuseStructureAnalyzer,
-        plotter=FUSEPlotter,
         build_instructions_module="symfluence.models.fuse.build_instructions",
     )
+    base = 'symfluence.models.fuse'
+    R.preprocessors.add_lazy("FUSE", f"{base}.preprocessor.FUSEPreProcessor")
+    R.runners.add_lazy("FUSE", f"{base}.runner.FUSERunner", runner_method='run_fuse')
+    R.postprocessors.add_lazy("FUSE", f"{base}.postprocessor.FUSEPostProcessor")
+    R.visualizers.add_lazy("FUSE", f"{base}.visualizer.visualize_fuse")
+    R.result_extractors.add_lazy("FUSE", f"{base}.extractor.FUSEResultExtractor")
+    R.decision_analyzers.add_lazy("FUSE", f"{base}.structure_analyzer.FuseStructureAnalyzer")
+    R.plotters.add_lazy("FUSE", f"{base}.plotter.FUSEPlotter")
+
+
+if TYPE_CHECKING:
+    from .elevation_band_manager import FuseElevationBandManager
+    from .extractor import FUSEResultExtractor
+    from .forcing_processor import FuseForcingProcessor
+    from .plotter import FUSEPlotter
+    from .postprocessor import FUSEPostProcessor
+    from .preprocessor import FUSEPreProcessor
+    from .runner import FUSERunner
+    from .structure_analyzer import FuseStructureAnalyzer
+    from .synthetic_data_generator import FuseSyntheticDataGenerator
+    from .visualizer import visualize_fuse

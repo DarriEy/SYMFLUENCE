@@ -77,11 +77,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import SWATConfigAdapter
-from .extractor import SWATResultExtractor
-from .postprocessor import SWATPostProcessor
-from .preprocessor import SWATPreProcessor
-from .runner import SWATRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'SWATPreProcessor': ('.preprocessor', 'SWATPreProcessor'),
+    'SWATRunner': ('.runner', 'SWATRunner'),
+    'SWATResultExtractor': ('.extractor', 'SWATResultExtractor'),
+    'SWATPostProcessor': ('.postprocessor', 'SWATPostProcessor'),
+    'SWATModelOptimizer': ('.calibration', 'SWATModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for SWAT module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['SWATConfigAdapter'])
+
 
 __all__ = [
     "SWATPreProcessor",
@@ -91,23 +112,36 @@ __all__ = [
     "SWATConfigAdapter",
 ]
 
-# Register all SWAT components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import SWATConfigAdapter
 
 
 def register() -> None:
-    """Register SWAT components with the unified registry."""
+    """Register SWAT components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "SWAT",
-        preprocessor=SWATPreProcessor,
-        runner=SWATRunner,
-        result_extractor=SWATResultExtractor,
         config_adapter=SWATConfigAdapter,
         build_instructions_module="symfluence.models.swat.build_instructions",
     )
+    base = 'symfluence.models.swat'
+    R.preprocessors.add_lazy("SWAT", f"{base}.preprocessor.SWATPreProcessor")
+    R.runners.add_lazy("SWAT", f"{base}.runner.SWATRunner")
+    R.postprocessors.add_lazy("SWAT", f"{base}.postprocessor.SWATPostProcessor")
+    R.result_extractors.add_lazy("SWAT", f"{base}.extractor.SWATResultExtractor")
+    R.optimizers.add_lazy("SWAT", f"{base}.calibration.optimizer.SWATModelOptimizer")
+    R.workers.add_lazy("SWAT", f"{base}.calibration.worker.SWATWorker")
+    R.parameter_managers.add_lazy("SWAT", f"{base}.calibration.parameter_manager.SWATParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import SWATModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import SWATModelOptimizer
+    from .extractor import SWATResultExtractor
+    from .postprocessor import SWATPostProcessor
+    from .preprocessor import SWATPreProcessor
+    from .runner import SWATRunner

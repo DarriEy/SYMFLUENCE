@@ -4,11 +4,32 @@
 """Noah-MP (noah-owp-modular) — NOAA-OWP Standalone Land Surface Model."""
 from __future__ import annotations
 
-from .config import NoahMPConfigAdapter
-from .extractor import NoahMPResultExtractor
-from .postprocessor import NoahMPPostProcessor
-from .preprocessor import NoahMPPreProcessor
-from .runner import NoahMPRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'NoahMPPreProcessor': ('.preprocessor', 'NoahMPPreProcessor'),
+    'NoahMPRunner': ('.runner', 'NoahMPRunner'),
+    'NoahMPResultExtractor': ('.extractor', 'NoahMPResultExtractor'),
+    'NoahMPPostProcessor': ('.postprocessor', 'NoahMPPostProcessor'),
+    'NoahMPModelOptimizer': ('.calibration', 'NoahMPModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for Noah-MP module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['NoahMPConfigAdapter'])
+
 
 __all__ = [
     "NoahMPRunner",
@@ -21,21 +42,34 @@ __all__ = [
 # Register Noah-MP config adapter via unified registry
 from symfluence.core.registry import model_manifest
 
+from .config import NoahMPConfigAdapter
+
 
 def register() -> None:
-    """Register NOAHMP components with the unified registry."""
+    """Register NOAHMP components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "NOAHMP",
-        preprocessor=NoahMPPreProcessor,
-        runner=NoahMPRunner,
-        result_extractor=NoahMPResultExtractor,
         config_adapter=NoahMPConfigAdapter,
-        postprocessor=NoahMPPostProcessor,
         build_instructions_module="symfluence.models.noahmp.build_instructions",
     )
+    base = 'symfluence.models.noahmp'
+    R.preprocessors.add_lazy("NOAHMP", f"{base}.preprocessor.NoahMPPreProcessor")
+    R.runners.add_lazy("NOAHMP", f"{base}.runner.NoahMPRunner")
+    R.postprocessors.add_lazy("NOAHMP", f"{base}.postprocessor.NoahMPPostProcessor")
+    R.result_extractors.add_lazy("NOAHMP", f"{base}.extractor.NoahMPResultExtractor")
+    R.optimizers.add_lazy("NOAHMP", f"{base}.calibration.optimizer.NoahMPModelOptimizer")
+    R.workers.add_lazy("NOAHMP", f"{base}.calibration.worker.NoahMPWorker")
+    R.parameter_managers.add_lazy("NOAHMP", f"{base}.calibration.parameter_manager.NoahMPParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import NoahMPModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import NoahMPModelOptimizer
+    from .extractor import NoahMPResultExtractor
+    from .postprocessor import NoahMPPostProcessor
+    from .preprocessor import NoahMPPreProcessor
+    from .runner import NoahMPRunner

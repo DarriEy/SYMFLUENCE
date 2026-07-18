@@ -18,11 +18,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import GSFLOWConfigAdapter
-from .extractor import GSFLOWResultExtractor
-from .postprocessor import GSFLOWPostProcessor
-from .preprocessor import GSFLOWPreProcessor
-from .runner import GSFLOWRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'GSFLOWPreProcessor': ('.preprocessor', 'GSFLOWPreProcessor'),
+    'GSFLOWRunner': ('.runner', 'GSFLOWRunner'),
+    'GSFLOWResultExtractor': ('.extractor', 'GSFLOWResultExtractor'),
+    'GSFLOWPostProcessor': ('.postprocessor', 'GSFLOWPostProcessor'),
+    'GSFLOWModelOptimizer': ('.calibration', 'GSFLOWModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for GSFLOW module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['GSFLOWConfigAdapter'])
+
 
 __all__ = [
     "GSFLOWPreProcessor",
@@ -35,21 +56,34 @@ __all__ = [
 # Register all GSFLOW components via unified registry
 from symfluence.core.registry import model_manifest
 
+from .config import GSFLOWConfigAdapter
+
 
 def register() -> None:
-    """Register GSFLOW components with the unified registry."""
+    """Register GSFLOW components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "GSFLOW",
-        preprocessor=GSFLOWPreProcessor,
-        runner=GSFLOWRunner,
-        postprocessor=GSFLOWPostProcessor,
-        result_extractor=GSFLOWResultExtractor,
         config_adapter=GSFLOWConfigAdapter,
         build_instructions_module="symfluence.models.gsflow.build_instructions",
     )
+    base = 'symfluence.models.gsflow'
+    R.preprocessors.add_lazy("GSFLOW", f"{base}.preprocessor.GSFLOWPreProcessor")
+    R.runners.add_lazy("GSFLOW", f"{base}.runner.GSFLOWRunner")
+    R.postprocessors.add_lazy("GSFLOW", f"{base}.postprocessor.GSFLOWPostProcessor")
+    R.result_extractors.add_lazy("GSFLOW", f"{base}.extractor.GSFLOWResultExtractor")
+    R.optimizers.add_lazy("GSFLOW", f"{base}.calibration.optimizer.GSFLOWModelOptimizer")
+    R.workers.add_lazy("GSFLOW", f"{base}.calibration.worker.GSFLOWWorker")
+    R.parameter_managers.add_lazy("GSFLOW", f"{base}.calibration.parameter_manager.GSFLOWParameterManager")
 
-# Register calibration components
-try:
-    from .calibration import GSFLOWModelOptimizer  # noqa: F401
-except ImportError:
-    pass
+
+if TYPE_CHECKING:
+    from .calibration import GSFLOWModelOptimizer
+    from .extractor import GSFLOWResultExtractor
+    from .postprocessor import GSFLOWPostProcessor
+    from .preprocessor import GSFLOWPreProcessor
+    from .runner import GSFLOWRunner

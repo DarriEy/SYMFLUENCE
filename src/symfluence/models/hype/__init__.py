@@ -67,13 +67,36 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .config_manager import HYPEConfigManager
-from .forcing_processor import HYPEForcingProcessor
-from .geodata_manager import HYPEGeoDataManager
-from .postprocessor import HYPEPostProcessor
-from .preprocessor import HYPEPreProcessor
-from .runner import HYPERunner
-from .visualizer import visualize_hype
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution, extraction, and plotting classes pull the
+# geospatial/matplotlib stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'HYPEConfigManager': ('.config_manager', 'HYPEConfigManager'),
+    'HYPEForcingProcessor': ('.forcing_processor', 'HYPEForcingProcessor'),
+    'HYPEGeoDataManager': ('.geodata_manager', 'HYPEGeoDataManager'),
+    'HYPEPostProcessor': ('.postprocessor', 'HYPEPostProcessor'),
+    'HYPEPreProcessor': ('.preprocessor', 'HYPEPreProcessor'),
+    'HYPERunner': ('.runner', 'HYPERunner'),
+    'visualize_hype': ('.visualizer', 'visualize_hype'),
+    'HYPEResultExtractor': ('.extractor', 'HYPEResultExtractor'),
+    'HYPEPlotter': ('.plotter', 'HYPEPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for HYPE module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['HYPEConfigAdapter'])
+
 
 __all__ = [
     'HYPEPreProcessor',
@@ -89,16 +112,36 @@ __all__ = [
 from symfluence.core.registry import model_manifest
 
 from .config import HYPEConfigAdapter
-from .extractor import HYPEResultExtractor
-from .plotter import HYPEPlotter
 
 
 def register() -> None:
-    """Register HYPE components with the unified registry."""
+    """Register HYPE components with the unified registry.
+
+    Execution, extraction, and plotting classes are registered lazily —
+    imported on first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "HYPE",
         config_adapter=HYPEConfigAdapter,
-        result_extractor=HYPEResultExtractor,
-        plotter=HYPEPlotter,
         build_instructions_module="symfluence.models.hype.build_instructions",
     )
+    base = 'symfluence.models.hype'
+    R.preprocessors.add_lazy("HYPE", f"{base}.preprocessor.HYPEPreProcessor")
+    R.runners.add_lazy("HYPE", f"{base}.runner.HYPERunner")
+    R.postprocessors.add_lazy("HYPE", f"{base}.postprocessor.HYPEPostProcessor")
+    R.visualizers.add_lazy("HYPE", f"{base}.visualizer.visualize_hype")
+    R.result_extractors.add_lazy("HYPE", f"{base}.extractor.HYPEResultExtractor")
+    R.plotters.add_lazy("HYPE", f"{base}.plotter.HYPEPlotter")
+
+
+if TYPE_CHECKING:
+    from .config_manager import HYPEConfigManager
+    from .extractor import HYPEResultExtractor
+    from .forcing_processor import HYPEForcingProcessor
+    from .geodata_manager import HYPEGeoDataManager
+    from .plotter import HYPEPlotter
+    from .postprocessor import HYPEPostProcessor
+    from .preprocessor import HYPEPreProcessor
+    from .runner import HYPERunner
+    from .visualizer import visualize_hype

@@ -24,11 +24,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import WATFLOODConfigAdapter
-from .extractor import WATFLOODResultExtractor
-from .postprocessor import WATFLOODPostProcessor
-from .preprocessor import WATFLOODPreProcessor
-from .runner import WATFLOODRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'WATFLOODPreProcessor': ('.preprocessor', 'WATFLOODPreProcessor'),
+    'WATFLOODRunner': ('.runner', 'WATFLOODRunner'),
+    'WATFLOODResultExtractor': ('.extractor', 'WATFLOODResultExtractor'),
+    'WATFLOODPostProcessor': ('.postprocessor', 'WATFLOODPostProcessor'),
+    'WATFLOODModelOptimizer': ('.calibration', 'WATFLOODModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for WATFLOOD module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['WATFLOODConfigAdapter'])
+
 
 __all__ = [
     "WATFLOODPreProcessor",
@@ -41,21 +62,34 @@ __all__ = [
 # Register all WATFLOOD components via unified registry
 from symfluence.core.registry import model_manifest
 
+from .config import WATFLOODConfigAdapter
+
 
 def register() -> None:
-    """Register WATFLOOD components with the unified registry."""
+    """Register WATFLOOD components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "WATFLOOD",
-        preprocessor=WATFLOODPreProcessor,
-        runner=WATFLOODRunner,
-        postprocessor=WATFLOODPostProcessor,
-        result_extractor=WATFLOODResultExtractor,
         config_adapter=WATFLOODConfigAdapter,
         build_instructions_module="symfluence.models.watflood.build_instructions",
     )
+    base = 'symfluence.models.watflood'
+    R.preprocessors.add_lazy("WATFLOOD", f"{base}.preprocessor.WATFLOODPreProcessor")
+    R.runners.add_lazy("WATFLOOD", f"{base}.runner.WATFLOODRunner")
+    R.postprocessors.add_lazy("WATFLOOD", f"{base}.postprocessor.WATFLOODPostProcessor")
+    R.result_extractors.add_lazy("WATFLOOD", f"{base}.extractor.WATFLOODResultExtractor")
+    R.optimizers.add_lazy("WATFLOOD", f"{base}.calibration.optimizer.WATFLOODModelOptimizer")
+    R.workers.add_lazy("WATFLOOD", f"{base}.calibration.worker.WATFLOODWorker")
+    R.parameter_managers.add_lazy("WATFLOOD", f"{base}.calibration.parameter_manager.WATFLOODParameterManager")
 
-# Register calibration components
-try:
-    from .calibration import WATFLOODModelOptimizer  # noqa: F401
-except ImportError:
-    pass
+
+if TYPE_CHECKING:
+    from .calibration import WATFLOODModelOptimizer
+    from .extractor import WATFLOODResultExtractor
+    from .postprocessor import WATFLOODPostProcessor
+    from .preprocessor import WATFLOODPreProcessor
+    from .runner import WATFLOODRunner

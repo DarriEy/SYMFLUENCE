@@ -33,12 +33,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import MODFLOWConfigAdapter
-from .extractor import MODFLOWResultExtractor
-from .plotter import MODFLOWPlotter
-from .postprocessor import MODFLOWPostProcessor
-from .preprocessor import MODFLOWPreProcessor
-from .runner import MODFLOWRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'MODFLOWPreProcessor': ('.preprocessor', 'MODFLOWPreProcessor'),
+    'MODFLOWRunner': ('.runner', 'MODFLOWRunner'),
+    'MODFLOWResultExtractor': ('.extractor', 'MODFLOWResultExtractor'),
+    'MODFLOWPostProcessor': ('.postprocessor', 'MODFLOWPostProcessor'),
+    'MODFLOWPlotter': ('.plotter', 'MODFLOWPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for MODFLOW module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['MODFLOWConfigAdapter'])
+
 
 __all__ = [
     "MODFLOWPreProcessor",
@@ -49,17 +69,37 @@ __all__ = [
     "MODFLOWPlotter",
 ]
 
-# Register MODFLOW config adapter via unified registry
-# Note: preprocessor, runner, extractor, postprocessor are registered via
-# decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
+
+from .config import MODFLOWConfigAdapter
 
 
 def register() -> None:
-    """Register MODFLOW components with the unified registry."""
+    """Register MODFLOW components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "MODFLOW",
         config_adapter=MODFLOWConfigAdapter,
-        plotter=MODFLOWPlotter,
         build_instructions_module="symfluence.models.modflow.build_instructions",
     )
+    base = 'symfluence.models.modflow'
+    R.preprocessors.add_lazy("MODFLOW", f"{base}.preprocessor.MODFLOWPreProcessor")
+    R.runners.add_lazy("MODFLOW", f"{base}.runner.MODFLOWRunner")
+    R.postprocessors.add_lazy("MODFLOW", f"{base}.postprocessor.MODFLOWPostProcessor")
+    R.result_extractors.add_lazy("MODFLOW", f"{base}.extractor.MODFLOWResultExtractor")
+    R.plotters.add_lazy("MODFLOW", f"{base}.plotter.MODFLOWPlotter")
+    R.optimizers.add_lazy("COUPLED_GW", f"{base}.calibration.optimizer.CoupledGWModelOptimizer")
+    R.workers.add_lazy("COUPLED_GW", f"{base}.calibration.worker.CoupledGWWorker")
+    R.parameter_managers.add_lazy("COUPLED_GW", f"{base}.calibration.parameter_manager.CoupledGWParameterManager")
+
+
+if TYPE_CHECKING:
+    from .extractor import MODFLOWResultExtractor
+    from .plotter import MODFLOWPlotter
+    from .postprocessor import MODFLOWPostProcessor
+    from .preprocessor import MODFLOWPreProcessor
+    from .runner import MODFLOWRunner

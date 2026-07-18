@@ -68,11 +68,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import VICConfigAdapter
-from .extractor import VICResultExtractor
-from .postprocessor import VICPostProcessor
-from .preprocessor import VICPreProcessor
-from .runner import VICRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'VICPreProcessor': ('.preprocessor', 'VICPreProcessor'),
+    'VICRunner': ('.runner', 'VICRunner'),
+    'VICResultExtractor': ('.extractor', 'VICResultExtractor'),
+    'VICPostProcessor': ('.postprocessor', 'VICPostProcessor'),
+    'VICModelOptimizer': ('.calibration', 'VICModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for VIC module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['VICConfigAdapter'])
+
 
 __all__ = [
     "VICPreProcessor",
@@ -82,23 +103,36 @@ __all__ = [
     "VICConfigAdapter",
 ]
 
-# Register all VIC components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import VICConfigAdapter
 
 
 def register() -> None:
-    """Register VIC components with the unified registry."""
+    """Register VIC components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "VIC",
-        preprocessor=VICPreProcessor,
-        runner=VICRunner,
-        result_extractor=VICResultExtractor,
         config_adapter=VICConfigAdapter,
         build_instructions_module="symfluence.models.vic.build_instructions",
     )
+    base = 'symfluence.models.vic'
+    R.preprocessors.add_lazy("VIC", f"{base}.preprocessor.VICPreProcessor")
+    R.runners.add_lazy("VIC", f"{base}.runner.VICRunner")
+    R.postprocessors.add_lazy("VIC", f"{base}.postprocessor.VICPostProcessor")
+    R.result_extractors.add_lazy("VIC", f"{base}.extractor.VICResultExtractor")
+    R.optimizers.add_lazy("VIC", f"{base}.calibration.optimizer.VICModelOptimizer")
+    R.workers.add_lazy("VIC", f"{base}.calibration.worker.VICWorker")
+    R.parameter_managers.add_lazy("VIC", f"{base}.calibration.parameter_manager.VICParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import VICModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import VICModelOptimizer
+    from .extractor import VICResultExtractor
+    from .postprocessor import VICPostProcessor
+    from .preprocessor import VICPreProcessor
+    from .runner import VICRunner

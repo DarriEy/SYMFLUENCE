@@ -73,11 +73,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import WRFHydroConfigAdapter
-from .extractor import WRFHydroResultExtractor
-from .postprocessor import WRFHydroPostProcessor
-from .preprocessor import WRFHydroPreProcessor
-from .runner import WRFHydroRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'WRFHydroPreProcessor': ('.preprocessor', 'WRFHydroPreProcessor'),
+    'WRFHydroRunner': ('.runner', 'WRFHydroRunner'),
+    'WRFHydroResultExtractor': ('.extractor', 'WRFHydroResultExtractor'),
+    'WRFHydroPostProcessor': ('.postprocessor', 'WRFHydroPostProcessor'),
+    'WRFHydroModelOptimizer': ('.calibration', 'WRFHydroModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for WRF-Hydro module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['WRFHydroConfigAdapter'])
+
 
 __all__ = [
     "WRFHydroPreProcessor",
@@ -87,23 +108,36 @@ __all__ = [
     "WRFHydroConfigAdapter",
 ]
 
-# Register all WRF-Hydro components via unified registry
 from symfluence.core.registry import model_manifest
+
+from .config import WRFHydroConfigAdapter
 
 
 def register() -> None:
-    """Register WRFHYDRO components with the unified registry."""
+    """Register WRFHYDRO components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "WRFHYDRO",
-        preprocessor=WRFHydroPreProcessor,
-        runner=WRFHydroRunner,
-        result_extractor=WRFHydroResultExtractor,
         config_adapter=WRFHydroConfigAdapter,
         build_instructions_module="symfluence.models.wrfhydro.build_instructions",
     )
+    base = 'symfluence.models.wrfhydro'
+    R.preprocessors.add_lazy("WRFHYDRO", f"{base}.preprocessor.WRFHydroPreProcessor")
+    R.runners.add_lazy("WRFHYDRO", f"{base}.runner.WRFHydroRunner")
+    R.postprocessors.add_lazy("WRFHYDRO", f"{base}.postprocessor.WRFHydroPostProcessor")
+    R.result_extractors.add_lazy("WRFHYDRO", f"{base}.extractor.WRFHydroResultExtractor")
+    R.optimizers.add_lazy("WRFHYDRO", f"{base}.calibration.optimizer.WRFHydroModelOptimizer")
+    R.workers.add_lazy("WRFHYDRO", f"{base}.calibration.worker.WRFHydroWorker")
+    R.parameter_managers.add_lazy("WRFHYDRO", f"{base}.calibration.parameter_manager.WRFHydroParameterManager")
 
-# Register calibration components
-try:
-    from .calibration import WRFHydroModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import WRFHydroModelOptimizer
+    from .extractor import WRFHydroResultExtractor
+    from .postprocessor import WRFHydroPostProcessor
+    from .preprocessor import WRFHydroPreProcessor
+    from .runner import WRFHydroRunner

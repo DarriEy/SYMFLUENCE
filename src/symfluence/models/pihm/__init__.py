@@ -33,12 +33,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import PIHMConfigAdapter
-from .extractor import PIHMResultExtractor
-from .plotter import PIHMPlotter
-from .postprocessor import PIHMPostProcessor
-from .preprocessor import PIHMPreProcessor
-from .runner import PIHMRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and plotting classes pull the heavy
+# model/plotting stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'PIHMPreProcessor': ('.preprocessor', 'PIHMPreProcessor'),
+    'PIHMRunner': ('.runner', 'PIHMRunner'),
+    'PIHMResultExtractor': ('.extractor', 'PIHMResultExtractor'),
+    'PIHMPostProcessor': ('.postprocessor', 'PIHMPostProcessor'),
+    'PIHMPlotter': ('.plotter', 'PIHMPlotter'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for PIHM module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['PIHMConfigAdapter'])
+
 
 __all__ = [
     "PIHMPreProcessor",
@@ -49,17 +69,34 @@ __all__ = [
     "PIHMPlotter",
 ]
 
-# Register PIHM config adapter via unified registry
-# Note: preprocessor, runner, extractor, postprocessor are registered via
-# decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
+
+from .config import PIHMConfigAdapter
 
 
 def register() -> None:
-    """Register PIHM components with the unified registry."""
+    """Register PIHM components with the unified registry.
+
+    Execution and plotting classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "PIHM",
         config_adapter=PIHMConfigAdapter,
-        plotter=PIHMPlotter,
         build_instructions_module="symfluence.models.pihm.build_instructions",
     )
+    base = 'symfluence.models.pihm'
+    R.preprocessors.add_lazy("PIHM", f"{base}.preprocessor.PIHMPreProcessor")
+    R.runners.add_lazy("PIHM", f"{base}.runner.PIHMRunner")
+    R.postprocessors.add_lazy("PIHM", f"{base}.postprocessor.PIHMPostProcessor")
+    R.result_extractors.add_lazy("PIHM", f"{base}.extractor.PIHMResultExtractor")
+    R.plotters.add_lazy("PIHM", f"{base}.plotter.PIHMPlotter")
+
+
+if TYPE_CHECKING:
+    from .extractor import PIHMResultExtractor
+    from .plotter import PIHMPlotter
+    from .postprocessor import PIHMPostProcessor
+    from .preprocessor import PIHMPreProcessor
+    from .runner import PIHMRunner
