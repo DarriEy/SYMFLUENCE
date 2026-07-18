@@ -119,7 +119,6 @@ class EvaluationMetricsTracker:
         crash_stats: Optional[Dict[str, Any]] = None,
         unit: str = 'evals',
         total: Optional[int] = None,
-        worker_tag: Optional[str] = None,
         force: bool = False,
     ) -> None:
         """Log optimization progress in a fixed, comparable schema.
@@ -147,8 +146,6 @@ Improved: {a}/{b} | Crashes: {c}/{d} | Elapsed: {t}
             unit: One of :data:`VALID_UNITS` ('evals', 'gens', 'epochs',
                 'loops') — what ``iteration``/``total`` count
             total: Denominator for progress; defaults to ``max_iterations``
-            worker_tag: Per-call worker/context tag overriding the
-                tracker-level one (rendered as a '[P##]' prefix)
             force: Emit even when the throttle would suppress this iteration
         """
         total_ref = total if total is not None else self.max_iterations
@@ -182,9 +179,8 @@ Improved: {a}/{b} | Crashes: {c}/{d} | Elapsed: {t}
         msg_parts.append(f"Elapsed: {elapsed}")
 
         message = " | ".join(msg_parts)
-        tag = worker_tag if worker_tag is not None else self.worker_tag
-        if tag:
-            message = f"[{tag}] {message}"
+        if self.worker_tag:
+            message = f"[{self.worker_tag}] {message}"
 
         self.logger.info(message)
 

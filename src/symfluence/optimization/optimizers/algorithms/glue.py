@@ -174,14 +174,18 @@ class GLUEAlgorithm(OptimizationAlgorithm):
             )
             update_best(best_fit, params_dict, batch + 1)
 
-            # Progress line (tracker throttles emission). GLUE has no notion of
-            # "improvement", so the Improved field carries behavioral/total —
-            # the closest comparable acceptance metric.
-            log_progress(
-                self.name, len(all_fitness), best_fit,
-                n_improved=n_behavioral, pop_size=len(all_fitness),
-                unit='evals', total=n_samples
-            )
+            # Progress line every 10th batch and on the final batch. The
+            # cumulative sample count doesn't align with the tracker's
+            # iteration throttle (cadence would depend on batch_size), so
+            # GLUE throttles on batch index and forces emission. GLUE has no
+            # notion of "improvement", so the Improved field carries
+            # behavioral/total — the closest comparable acceptance metric.
+            if (batch + 1) % 10 == 0 or batch + 1 == n_batches:
+                log_progress(
+                    self.name, len(all_fitness), best_fit,
+                    n_improved=n_behavioral, pop_size=len(all_fitness),
+                    unit='evals', total=n_samples, force=True
+                )
             self.logger.debug(
                 f"GLUE batch {batch + 1}/{n_batches}: "
                 f"{n_behavioral}/{len(all_fitness)} behavioral samples"

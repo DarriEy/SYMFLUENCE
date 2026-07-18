@@ -699,6 +699,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         n_downloaded = 0
         n_failed = 0
+        n_skipped = 0
         if n_workers <= 1:
             for i, chunk_start, chunk_end in chunks_to_process:
                 self.logger.debug(f"Processing ERA5 chunk {i}/{len(chunks)}: {chunk_start.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}")
@@ -715,7 +716,10 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 if cf:
                     chunk_files.append(cf)
                     n_downloaded += 1
-                elif status != "skipped":
+                elif status.startswith("skipped"):
+                    n_skipped += 1
+                    self.logger.debug(f"ERA5 chunk {i}/{len(chunks)} skipped: {status}")
+                else:
                     n_failed += 1
                     self.logger.debug(f"ERA5 chunk {i}/{len(chunks)} failed: {status}")
         else:
@@ -739,13 +743,20 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                     if cf:
                         chunk_files.append(cf)
                         n_downloaded += 1
-                    elif status != "skipped":
+                    elif status.startswith("skipped"):
+                        n_skipped += 1
+                        self.logger.debug(f"ERA5 chunk {idx}/{len(chunks)} skipped: {status}")
+                    else:
                         n_failed += 1
                         self.logger.debug(f"ERA5 chunk {idx}/{len(chunks)} failed: {status}")
 
         summary = f"{n_downloaded} chunks downloaded, {n_failed} failed"
-        if n_failed:
-            self.logger.warning(f"ERA5 download finished with failures: {summary}")
+        if n_skipped:
+            # A skipped chunk materialized empty (e.g. short time dim): the
+            # output has a gap in its time series, so it warrants a warning.
+            summary += f", {n_skipped} skipped (empty slice - gap in time series)"
+        if n_failed or n_skipped:
+            self.logger.warning(f"ERA5 download finished with gaps: {summary}")
         else:
             self.logger.info(summary)
 

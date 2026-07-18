@@ -1115,7 +1115,6 @@ class BaseModelOptimizer(
                 alg_name, iteration, best_score,
                 secondary_score=secondary_score, secondary_label=secondary_label,
                 n_improved=n_improved, population_size=pop_size,
-                crash_stats=self.get_crash_stats(),
                 unit=unit, total=total, force=force
             )
 

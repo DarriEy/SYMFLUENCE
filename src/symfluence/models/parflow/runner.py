@@ -14,7 +14,6 @@ import logging
 import os
 import shutil
 import subprocess
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -182,25 +181,14 @@ class ParFlowRunner(BaseModelRunner):
                 timeout=timeout,
             )
 
-            # Write the full stdout/stderr to a sidecar file next to the run
-            # outputs instead of re-emitting it into the main log.
-            stdout_log = self.output_dir / (
-                f"parflow_stdout_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            stdout_log = self.write_stdout_sidecar(
+                'parflow', result.stdout, result.stderr
             )
-            try:
-                stdout_log.write_text(
-                    (result.stdout or '')
-                    + (f"\n--- stderr ---\n{result.stderr}" if result.stderr else ''),
-                    encoding='utf-8',
-                )
-                logger.debug(f"ParFlow stdout/stderr written to {stdout_log}")
-            except OSError as write_exc:
-                logger.debug(f"Could not write ParFlow stdout sidecar: {write_exc}")
 
             if result.returncode != 0:
                 logger.error(
                     f"ParFlow failed (exit {result.returncode}); "
-                    f"full output: {stdout_log}"
+                    f"full output: {stdout_log or '(sidecar unavailable)'}"
                 )
                 raise ModelExecutionError(
                     f"ParFlow execution failed with return code {result.returncode}"

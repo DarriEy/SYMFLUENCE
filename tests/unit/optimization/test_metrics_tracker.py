@@ -135,11 +135,12 @@ class TestWorkerTag:
         assert line.startswith('[P02] CMA-ES 10/50 gens (20%)')
         assert SCHEMA_RE.match(line)
 
-    def test_per_call_tag_overrides_constructor_tag(self, caplog, tracker_logger):
+    def test_tag_applies_to_every_line(self, caplog, tracker_logger):
         tracker = make_tracker(tracker_logger, max_iterations=50, worker_tag='P02')
         with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
-            tracker.log_iteration_progress('DDS', 10, 0.5, worker_tag='P07')
-        assert progress_records(caplog)[0].startswith('[P07] ')
+            tracker.log_iteration_progress('DDS', 10, 0.5)
+            tracker.log_iteration_progress('DDS', 20, 0.6)
+        assert all(line.startswith('[P02] ') for line in progress_records(caplog))
 
     def test_no_tag_no_prefix(self, caplog, tracker_logger):
         tracker = make_tracker(tracker_logger, max_iterations=50)

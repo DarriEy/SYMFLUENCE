@@ -68,6 +68,9 @@ class CountingHandler(logging.Handler):
     Attached to the ``symfluence`` root logger by
     :meth:`LoggingManager.setup_logging` so run summaries can report *real*
     warning/error totals instead of only workflow-level exception lists.
+    Scope: records emitted in *this process only* — spawned worker processes
+    (parallel calibration) log to their own handlers, so their counts do not
+    reach the parent's summary.
     Besides the counts, the handler keeps the most recent unique ERROR (and
     CRITICAL) messages so a run summary can show what went wrong without
     re-reading the log file.
@@ -288,11 +291,22 @@ class LoggingManager(ConfigMixin):
         has_real_handlers = any(
             not isinstance(h, logging.NullHandler) for h in logger.handlers
         )
-        if has_real_handlers and _active_setup_key == setup_key:
+        # An empty experiment id cannot distinguish two runs, so it never
+        # reuses handlers (each construction gets its own log file, as before).
+        if has_real_handlers and setup_key[1] and _active_setup_key == setup_key:
             self.log_file = _active_log_file
             self._counting_handler = _active_counting_handler
-            # Re-apply the console level so a quiet/debug toggle takes effect
+            # Re-apply level and formats so a quiet/debug toggle between
+            # constructions takes effect on the reused handlers.
+            logger.setLevel(getattr(logging, log_level.upper()))
             self._apply_console_level(logger)
+            file_formatter = logging.Formatter(
+                FILE_FORMAT_DEBUG if self.debug_mode else FILE_FORMAT,
+                datefmt=FILE_DATEFMT
+            )
+            for handler in logger.handlers:
+                if isinstance(handler, logging.FileHandler):
+                    handler.setFormatter(file_formatter)
             return logger
 
         # Create timestamp for log file
@@ -481,61 +495,6 @@ class LoggingManager(ConfigMixin):
 
         self.logger.info(f"Configuration logged to: {config_file}")
         return config_file
-
-    def create_module_logger(self, module_name: str,
-                           log_level: Optional[str] = None) -> logging.Logger:
-        """
-        Create a logger for a specific module with its own file handler.
-
-        This method creates module-specific loggers that inherit from the main
-        SYMFLUENCE logger but have their own log files. This allows for
-        module-specific debugging and analysis without cluttering the main log.
-
-        Module loggers use the same formatters as the main logger but can have
-        different log levels if needed.
-
-        Args:
-            module_name (str): Name of the module requiring a logger
-            log_level (Optional[str]): Logging level for this specific module.
-                                      If None, inherits from main logger
-
-        Returns:
-            logging.Logger: Configured module-specific logger
-
-        Raises:
-            ValueError: If module_name is empty or contains invalid characters
-            PermissionError: If module log file cannot be created
-        """
-        # Create module logger as child of main logger
-        module_logger = logging.getLogger(f'symfluence.{module_name}')
-
-        # Set level
-        if log_level:
-            module_logger.setLevel(getattr(logging, log_level.upper()))
-
-        # Don't add handlers if they already exist (avoid duplicates)
-        if module_logger.handlers:
-            return module_logger
-
-        # Create timestamp for log file
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = self.log_dir / f'{module_name}_{self.domain_name}_{current_time}.log'
-
-        # Create file handler for module
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)
-
-        # Use the same protocol format as the main log file
-        file_handler.setFormatter(logging.Formatter(FILE_FORMAT, datefmt=FILE_DATEFMT))
-        file_handler.addFilter(ShortNameFilter())
-
-        # Add handler to module logger
-        module_logger.addHandler(file_handler)
-
-        # Log creation
-        module_logger.info(f"Module logger initialized for: {module_name}")
-
-        return module_logger
 
     def log_step_header(self, step_number: int, total_steps: int,
                        step_name: str, description: str = "") -> None:
@@ -799,10 +758,12 @@ class LoggingManager(ConfigMixin):
             # Find the most recent general log. New protocol names the file
             # symfluence_{domain}[_{experiment_id}]_{ts}.log; also accept the
             # legacy symfluence_general_{domain}_*.log for old runs.
+            # Sort by modification time: the new and legacy filename patterns
+            # do not sort chronologically against each other by name.
             log_files = sorted(
                 set(self.log_dir.glob(f'symfluence_{self.domain_name}_*.log'))
                 | set(self.log_dir.glob(f'symfluence_general_{self.domain_name}_*.log')),
-                key=lambda p: p.name,
+                key=lambda p: p.stat().st_mtime,
             )
             return log_files[-1] if log_files else None
         elif log_type == 'config':

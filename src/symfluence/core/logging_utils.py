@@ -97,6 +97,11 @@ def log_once(logger: logging.Logger, level: int, key: str, message: str) -> bool
         key: Process-wide de-duplication key.
         message: The message to log.
     """
+    # Lock-free fast path: hot loops hit already-seen keys on every
+    # iteration; a set lookup under the GIL is safe without the lock.
+    if key in _log_once_seen:
+        logger.log(logging.DEBUG, message)
+        return False
     with _log_once_lock:
         first = key not in _log_once_seen
         if first:
@@ -179,7 +184,10 @@ def get_worker_logger(
         individual_id: Optional per-individual identifier (e.g. a population
             member in an evolutionary optimizer).
         level: Explicit level for this logger; defaults to the ``symfluence``
-            root's effective level.
+            root's effective level when that root is configured, else INFO
+            (in a spawned subprocess the unconfigured root would otherwise
+            fall through to the stdlib default of WARNING and silence
+            workers' INFO output).
     """
     name = f'symfluence.worker.P{worker_id:02d}'
     prefix = f'P{worker_id:02d}'
@@ -200,5 +208,10 @@ def get_worker_logger(
         # process later configures it we must not emit each record twice.
         logger.propagate = False
 
-    logger.setLevel(level if level is not None else root.getEffectiveLevel())
+    if level is None:
+        # root.level is NOTSET when no setup_logging ran in this process
+        # (spawned subprocess): getEffectiveLevel() would fall through to the
+        # stdlib root default (WARNING), silencing worker INFO output.
+        level = root.getEffectiveLevel() if root.level != logging.NOTSET else logging.INFO
+    logger.setLevel(level)
     return logger
