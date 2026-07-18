@@ -149,15 +149,19 @@ def test_interactive_approvals_swap_denials_for_prompt_tool(tmp_path, monkeypatc
 
 def _fake_claude(tmp_path, body: str) -> registry.AgentLauncher:
     """A stand-in 'claude' binary that prints canned stream-JSON."""
-    import stat
+    import sys
 
-    script = tmp_path / 'fake-claude'
-    # NB: not sys.executable — shebang lines cannot carry paths with spaces.
-    script.write_text(f"#!/usr/bin/env python3\n{body}", encoding='utf-8')
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    # Run the script through the interpreter rather than a shebang: Windows
+    # cannot exec shebang scripts, and POSIX shebang lines cannot carry
+    # interpreter paths with spaces. The autouse SYMFLUENCE_NO_SKILLS=1 keeps
+    # priming argv empty, so nothing lands between sys.executable and the
+    # script path.
+    script = tmp_path / 'fake-claude.py'
+    script.write_text(body, encoding='utf-8')
     launcher = registry.AgentLauncher(
         name='claude', binary=str(script), env_keys=(),
-        skills_mode='claude_native', oneshot=(str(script), '-p', '{prompt}'),
+        skills_mode='claude_native',
+        oneshot=(sys.executable, str(script), '-p', '{prompt}'),
         system_prompt_args=('--append-system-prompt', '{prompt}'),
         supports_headless=True,
     )

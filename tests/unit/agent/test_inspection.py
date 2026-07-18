@@ -119,7 +119,8 @@ def test_get_plot_paths(domain_tree):
     (run_dir / 'final_evaluation' / 'hydrograph.pdf').write_bytes(b'pdf')
 
     result = inspection.get_plot_paths(domain_tree)
-    names = [p.rsplit('/', 1)[-1] for p in result['plots']]
+    from pathlib import Path
+    names = [Path(p).name for p in result['plots']]
     assert 'convergence.png' in names
     assert 'hydrograph.pdf' in names
 
