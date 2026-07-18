@@ -7,13 +7,13 @@ __pycache__/
 build/
 
 # Requirements - auto-generated from pyproject.toml
-requirements.txt
+/requirements.txt
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -135,7 +135,7 @@ cover/*.nc
 docs/_build/
 # Local drafts, co-author response notes, slide decks — not published
 docs/presentations/
-config_template.yaml
+/config_template.yaml
 
 # Benchmark results (auto-generated)
 benchmark_results/
@@ -179,7 +179,7 @@ SYMFLUENCE_data/
 
 # Local build scripts and configs
 build_clm.sh
-Makefile
+/Makefile
 config_semi_distributed_troute.yaml
 
 # Local test/development domain directories

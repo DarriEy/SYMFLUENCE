@@ -128,6 +128,7 @@ from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.data.acquisition.maf_pipeline import datatoolRunner, gistoolRunner
 from symfluence.data.acquisition.registry import AcquisitionRegistry
+from symfluence.data.acquisition.request_planning import expected_forcing_times, forcing_request_facts
 from symfluence.data.cache import RawForcingCache
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
@@ -682,21 +683,9 @@ class AcquisitionService(ConfigurableMixin):
         gistool_runner.execute_gistool_command(gistool_command)
 
     def _expected_forcing_times(self, dataset: str) -> Optional[pd.DatetimeIndex]:
-        resolution_hours = {
-            "CARRA": 1,
-            "CERRA": 3,
-        }
-        dataset_key = dataset.upper()
-        if dataset_key not in resolution_hours:
-            return None
-
-        start = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START'))
-        end = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END'))
-        if pd.isna(start) or pd.isna(end) or end < start:
-            return None
-
-        freq = f"{resolution_hours[dataset_key]}h"
-        return pd.date_range(start, end, freq=freq)
+        start = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
+        end = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
+        return expected_forcing_times(dataset, start, end)
 
     def _cached_forcing_has_expected_times(
         self, cached_file: Path, expected_times: pd.DatetimeIndex
@@ -724,15 +713,12 @@ class AcquisitionService(ConfigurableMixin):
         """
         time_start = self._get_config_value(lambda: self.config.domain.time_start)
         time_end = self._get_config_value(lambda: self.config.domain.time_end)
-        window = (str(time_start), str(time_end)) if time_start and time_end else None
-
         dataset_vars_key = f"{forcing_dataset.upper()}_VARS"
         variables = self._get_config_value(lambda: None, default=None, dict_key=dataset_vars_key)
+        defaults = None
         if variables is None:
-            variables = self._get_config_value(
-                lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
-        variables = frozenset(variables) if isinstance(variables, list) and variables else None
-        return window, variables
+            defaults = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
+        return forcing_request_facts(time_start, time_end, variables, defaults)
 
     def _maybe_select_protocol_backend(self, forcing_dataset: str):
         """Consult the AcquisitionBackend selector — only once it can matter.

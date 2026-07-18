@@ -27,6 +27,7 @@ import xarray as xr
 
 from symfluence.core.constants import PhysicalConstants
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.models.summa.forcing_time import infer_forcing_step_from_filenames
 
 from ..utilities import BaseForcingProcessor
 
@@ -1476,28 +1477,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         self.logger.debug(f"File {filename}: Passed final validation for SUMMA compatibility")
 
     def _infer_forcing_step_from_filenames(self, forcing_files: List[str]) -> int | None:
-        forcing_times = []
-        for forcing_file in forcing_files:
-            stem = Path(forcing_file).stem
-            time_token = stem.split("_")[-1]
-            try:
-                forcing_times.append(datetime.strptime(time_token, "%Y-%m-%d-%H-%M-%S"))
-            except ValueError:
-                continue
-
-        if len(forcing_times) < 2:
-            return None
-
-        forcing_times.sort()
-        diffs = [
-            (forcing_times[idx] - forcing_times[idx - 1]).total_seconds()
-            for idx in range(1, len(forcing_times))
-            if forcing_times[idx] > forcing_times[idx - 1]
-        ]
-        if not diffs:
-            return None
-
-        return int(np.median(diffs))
+        return infer_forcing_step_from_filenames(forcing_files)
 
     def _determine_batch_size(self, total_files: int) -> int:
         """

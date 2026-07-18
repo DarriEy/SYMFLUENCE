@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing
 
 
 class ConfigurationUpdater(ConfigMixin):
@@ -136,11 +137,9 @@ class ConfigurationUpdater(ConfigMixin):
             forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
             if forcing_timestep >= 3600:  # Hourly or coarser
                 end_dt = datetime.strptime(cal_end, '%Y-%m-%d')
-                forcing_hours = forcing_timestep / 3600
-                last_hour = int(24 - (24 % forcing_hours)) - forcing_hours
-                if last_hour < 0:
-                    last_hour = 0
-                cal_end = end_dt.strftime('%Y-%m-%d') + f' {int(last_hour):02d}:00'
+                cal_end = adjust_end_time_for_forcing(
+                    end_dt.strftime('%Y-%m-%d') + ' 23:00', forcing_timestep
+                )
         except (KeyError, ValueError, IOError):
             pass  # Keep original if adjustment fails
         return cal_end

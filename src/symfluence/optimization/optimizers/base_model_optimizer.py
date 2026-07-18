@@ -27,7 +27,6 @@ import logging
 import random
 import tempfile
 from abc import ABC, abstractmethod
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -45,6 +44,7 @@ from .algorithms import ALGORITHM_REGISTRY, get_algorithm
 from .component_factory import OptimizerComponentFactory
 from .evaluators import PopulationEvaluator, TaskBuilder
 from .final_evaluation import FinalEvaluationOrchestrator, FinalResultsSaver
+from .lifecycle import adjust_end_time_for_forcing, fallback_simulation_dir
 from .metrics_tracker import EvaluationMetricsTracker
 
 if TYPE_CHECKING:
@@ -676,25 +676,15 @@ class BaseModelOptimizer(
             forcing_timestep_seconds = self._get_config_value(
                 lambda: self.config.forcing.time_step_size, default=3600
             )
-
-            if forcing_timestep_seconds >= 3600:  # Hourly or coarser
-                # Parse the end time
-                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
-
-                # Calculate the last valid hour based on timestep
-                forcing_timestep_hours = forcing_timestep_seconds / 3600
-                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
-                if last_hour < 0:
-                    last_hour = 0
-
-                # Adjust if needed
-                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
-                    end_time = end_time.replace(hour=int(last_hour), minute=0)
-                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
-                    self.logger.info(f"Adjusted end time from {end_time_str} to {adjusted_str} for {forcing_timestep_hours}h forcing")
-                    return adjusted_str
-
-            return end_time_str
+            adjusted = adjust_end_time_for_forcing(end_time_str, forcing_timestep_seconds)
+            if adjusted != end_time_str:
+                self.logger.info(
+                    "Adjusted end time from %s to %s for %sh forcing",
+                    end_time_str,
+                    adjusted,
+                    forcing_timestep_seconds / 3600,
+                )
+            return adjusted
 
         except (ValueError, TypeError) as e:
             self.logger.warning(f"Could not adjust end time: {e}")
@@ -756,7 +746,7 @@ class BaseModelOptimizer(
         try:
             base_dir.mkdir(parents=True, exist_ok=True)
         except PermissionError:
-            fallback = Path(tempfile.gettempdir()) / "symfluence" / self.domain_name / f'run_{algorithm}'
+            fallback = fallback_simulation_dir(tempfile.gettempdir(), self.domain_name, algorithm)
             fallback.mkdir(parents=True, exist_ok=True)
             self.logger.warning(
                 f"Simulations directory not writable: {base_dir}. "

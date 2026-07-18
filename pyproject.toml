@@ -293,7 +293,6 @@ include = [
   "README.md",
   "LICENSE",
   "MANIFEST.in",
-  "requirements.txt",
   "examples/"
 ]
 
