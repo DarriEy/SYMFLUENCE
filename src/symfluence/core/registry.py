@@ -112,6 +112,7 @@ class Registry(Generic[T]):
         self._meta: Dict[str, Dict[str, Any]] = {}  # key -> metadata dict
         self._aliases: Dict[str, str] = {}        # alias_key -> canonical_key
         self._frozen = False
+        self._seeder: Optional[Callable[[], None]] = None  # deferred population hook
 
     # ------------------------------------------------------------------
     # Registration
@@ -178,8 +179,26 @@ class Registry(Generic[T]):
     # Lookup
     # ------------------------------------------------------------------
 
+    def set_seeder(self, seeder: Callable[[], None]) -> None:
+        """Install a deferred population hook, invoked on first read access.
+
+        Lets startup code declare *how* to populate a registry without paying
+        the import cost until something actually reads it (e.g. the metrics
+        registry pulls the evaluation stack, which ``--version`` never needs).
+        """
+        self._check_frozen()
+        self._seeder = seeder
+
+    def _ensure_seeded(self) -> None:
+        if self._seeder is not None:
+            # Clear before running so a seeder that reads the registry
+            # cannot recurse.
+            seeder, self._seeder = self._seeder, None
+            seeder()
+
     def get(self, key: str, default: Optional[T] = None) -> Optional[T]:
         """Return the registered value for *key*, or *default* on miss."""
+        self._ensure_seeded()
         nkey = self._resolve_alias(self._normalize(key))
         entry = self._entries.get(nkey)
         if entry is None:
@@ -188,6 +207,7 @@ class Registry(Generic[T]):
 
     def __getitem__(self, key: str) -> T:
         """Return the registered value for *key*; raise ``KeyError`` on miss."""
+        self._ensure_seeded()
         nkey = self._resolve_alias(self._normalize(key))
         entry = self._entries.get(nkey)
         if entry is None:
@@ -199,11 +219,13 @@ class Registry(Generic[T]):
         return self._unwrap(nkey, entry)
 
     def __contains__(self, key: str) -> bool:  # noqa: D105
+        self._ensure_seeded()
         nkey = self._resolve_alias(self._normalize(key))
         return nkey in self._entries
 
     def meta(self, key: str) -> Dict[str, Any]:
         """Return the metadata dict for *key* (empty dict if none)."""
+        self._ensure_seeded()
         nkey = self._resolve_alias(self._normalize(key))
         return self._meta.get(nkey, {})
 
@@ -213,16 +235,20 @@ class Registry(Generic[T]):
 
     def keys(self) -> List[str]:
         """Return sorted list of canonical (non-alias) keys."""
+        self._ensure_seeded()
         return sorted(self._entries.keys())
 
     def items(self) -> List[Tuple[str, T]]:
         """Return sorted list of ``(key, value)`` pairs, resolving lazy entries."""
+        self._ensure_seeded()
         return [(k, self._unwrap(k, v)) for k, v in sorted(self._entries.items())]
 
     def __len__(self) -> int:  # noqa: D105
+        self._ensure_seeded()
         return len(self._entries)
 
     def __iter__(self) -> Iterator[str]:  # noqa: D105
+        self._ensure_seeded()
         return iter(sorted(self._entries.keys()))
 
     def __repr__(self) -> str:  # noqa: D105
@@ -254,6 +280,9 @@ class Registry(Generic[T]):
 
     def freeze(self) -> None:
         """Prevent further mutations (advisory; for post-bootstrap safety)."""
+        # Run any pending seeder first — a frozen registry can no longer
+        # accept the seeder's registrations.
+        self._ensure_seeded()
         self._frozen = True
 
     def remove(self, key: str) -> None:

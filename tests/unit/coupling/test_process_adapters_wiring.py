@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 import pytest
+
+pytest.importorskip("torch", reason="requires the ml extra (pip install 'symfluence[ml]')")
 import torch
 
 

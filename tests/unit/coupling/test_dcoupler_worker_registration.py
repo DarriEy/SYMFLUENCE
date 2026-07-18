@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
+pytest.importorskip("torch", reason="requires the ml extra (pip install 'symfluence[ml]')")
 import torch
 
 from symfluence.core.registries import R

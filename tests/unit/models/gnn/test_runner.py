@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+pytest.importorskip("torch", reason="requires the ml extra (pip install 'symfluence[ml]')")
+
 
 class TestGNNRunnerInitialization:
     """Tests for GNN runner initialization."""

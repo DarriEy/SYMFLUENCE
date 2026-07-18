@@ -76,9 +76,31 @@ Limitations and Considerations:
 """
 from __future__ import annotations
 
-from .postprocessor import RHESSysPostProcessor
-from .preprocessor import RHESSysPreProcessor
-from .runner import RHESSysRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — the execution classes pull the geospatial/observation
+# stack, which must not load when this package is imported for its config
+# schema alone (model_config_schema imports .config at interpreter startup).
+_LAZY_IMPORTS = {
+    'RHESSysRunner': ('.runner', 'RHESSysRunner'),
+    'RHESSysPreProcessor': ('.preprocessor', 'RHESSysPreProcessor'),
+    'RHESSysPostProcessor': ('.postprocessor', 'RHESSysPostProcessor'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for RHESSys module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return list(_LAZY_IMPORTS.keys())
+
 
 __all__ = ["RHESSysPreProcessor", "RHESSysRunner", "RHESSysPostProcessor"]
 
@@ -90,10 +112,25 @@ from .extractor import RHESSysResultExtractor
 
 
 def register() -> None:
-    """Register RHESSYS components with the unified registry."""
+    """Register RHESSYS components with the unified registry.
+
+    Execution classes are registered lazily — they are imported on first
+    registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "RHESSYS",
         config_adapter=RHESSysConfigAdapter,
         result_extractor=RHESSysResultExtractor,
         build_instructions_module="symfluence.models.rhessys.build_instructions",
     )
+    base = 'symfluence.models.rhessys'
+    R.preprocessors.add_lazy("RHESSys", f"{base}.preprocessor.RHESSysPreProcessor")
+    R.runners.add_lazy("RHESSys", f"{base}.runner.RHESSysRunner")
+    R.postprocessors.add_lazy("RHESSys", f"{base}.postprocessor.RHESSysPostProcessor")
+
+
+if TYPE_CHECKING:
+    from .postprocessor import RHESSysPostProcessor
+    from .preprocessor import RHESSysPreProcessor
+    from .runner import RHESSysRunner

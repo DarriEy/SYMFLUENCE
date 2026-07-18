@@ -127,9 +127,18 @@ from .core.exceptions import (
     ValidationError,
 )
 
+
 # SYMFLUENCE facade lives in the project layer (it orchestrates project
-# managers); re-exported here as the documented public entry point.
-from .project.system import SYMFLUENCE
+# managers); re-exported here as the documented public entry point. It is
+# resolved lazily (PEP 562): the facade pulls in the full workflow/geospatial
+# stack (~1.5 s), which CLI startup paths like `--version` must not pay for.
+def __getattr__(name: str):
+    if name == "SYMFLUENCE":
+        from .project.system import SYMFLUENCE
+        globals()["SYMFLUENCE"] = SYMFLUENCE
+        return SYMFLUENCE
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "SYMFLUENCE",

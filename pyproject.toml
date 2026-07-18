@@ -27,9 +27,6 @@ dependencies = [
   "pint_xarray",
   "distributed",
   "pyviscous",
-  # Machine learning - PyTorch major version constrained
-  "torch>=2.0.0,<3.0.0",
-  "scikit-learn>=1.2.0,<2.0.0",
   # Geospatial - GDAL is optional; system installs (brew, apt, conda) are auto-detected
   "geopandas>=0.13.0,<2.0.0",
   "rasterio>=1.3.0,<2.0.0",
@@ -80,11 +77,18 @@ dependencies = [
   "rich>=13.0.0,<14.0.0",
   # Configuration models
   "pydantic>=2.0.0,<3.0.0",
-  # Differentiable coupling framework
-  "dcoupler>=0.2.0",
 ]
 
 [project.optional-dependencies]
+# PyTorch-based features: LSTM and GNN models, and the dCoupler differentiable
+# coupling framework. Optional: a plain install stays ~1 GB lighter; the LSTM/
+# GNN plugins and dCoupler graph coupling activate when this extra is present.
+#   pip install "symfluence[ml]"
+ml = [
+  "torch>=2.0.0,<3.0.0",
+  "scikit-learn>=1.2.0,<2.0.0",
+  "dcoupler>=0.2.0",
+]
 # JAX-based model plugins (Snow-17, SAC-SMA, Xinanjiang, HBV, HEC-HMS, TOPMODEL).
 # Optional: only needed to run those models, discovered via entry points at runtime.
 #   pip install "symfluence[jax]"
@@ -179,11 +183,13 @@ test = [
   "hypothesis>=6.0.0,<7.0.0",
   # Independent optimizer implementation used as an external reference in
   # tests/integration/optimization/test_optimizer_external_reference.py
-  # (SCE-UA cross-check). scipy and torch references ship as core deps.
+  # (SCE-UA cross-check).
   "spotpy>=1.5.0",
-  # The test suite imports the JAX plugins, so the full test extra pulls in that
-  # optional group (the baseline install does not).
+  # The test suite imports the JAX plugins and the torch-based LSTM/GNN/
+  # coupling stack, so the full test extra pulls in those optional groups
+  # (the baseline install does not).
   "symfluence[jax]",
+  "symfluence[ml]",
 ]
 # Documentation tools
 docs = [
@@ -218,7 +224,7 @@ hpc = [
 ]
 # All development dependencies
 all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax]",
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax,ml]",
 ]
 
 [project.scripts]

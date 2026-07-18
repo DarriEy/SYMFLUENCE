@@ -31,6 +31,7 @@ from __future__ import annotations
 import gc
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -262,6 +263,33 @@ def _find_bundled_libhdf5(pkg_name: str) -> Optional[Path]:
     return None
 
 
+def _conflict_marker_path() -> Path:
+    """Path of the marker file recording an already-reported HDF5 conflict."""
+    cache_root = os.environ.get('XDG_CACHE_HOME')
+    base = Path(cache_root) if cache_root else Path.home() / '.cache'
+    return base / 'symfluence' / 'hdf5_conflict_reported'
+
+
+def _conflict_already_reported(h5py_lib: Path, nc4_lib: Path) -> bool:
+    """Return True if this exact library conflict was already reported.
+
+    Persists a marker keyed by the two library paths so the (unchanging,
+    per-environment) warning is shown once rather than on every CLI
+    invocation.  If the marker cannot be read or written, err on the side
+    of warning again.
+    """
+    key = f"{h5py_lib}\n{nc4_lib}\n"
+    try:
+        marker = _conflict_marker_path()
+        if marker.is_file() and marker.read_text() == key:
+            return True
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(key)
+    except OSError:
+        pass
+    return False
+
+
 def _check_hdf5_library_conflict() -> None:
     """Detect conflicting libhdf5 builds between h5py and netCDF4.
 
@@ -275,8 +303,9 @@ def _check_hdf5_library_conflict() -> None:
     bundled libhdf5 files in pip wheel vendor directories — no Python
     HDF5 modules are imported.
 
-    Sets the module-level ``hdf5_library_conflict`` flag and logs a
-    warning with clear fix instructions.
+    Sets the module-level ``hdf5_library_conflict`` flag and logs the
+    full fix instructions once per environment (DEBUG level on repeat
+    invocations, so ``--debug`` always shows them).
     """
     global hdf5_library_conflict
 
@@ -292,7 +321,12 @@ def _check_hdf5_library_conflict() -> None:
         return  # Same file — no conflict
 
     hdf5_library_conflict = True
-    logger.warning(
+    # This check runs at package import, before CLI parsing or logging setup,
+    # so peek at argv directly to let --debug force the full report.
+    force_report = '--debug' in sys.argv
+    already = _conflict_already_reported(h5py_lib, nc4_lib)
+    log = logger.warning if (force_report or not already) else logger.debug
+    log(
         "h5py and netCDF4 bundle DIFFERENT libhdf5 builds:\n"
         "  h5py    → %s\n"
         "  netCDF4 → %s\n"
@@ -302,8 +336,9 @@ def _check_hdf5_library_conflict() -> None:
         "  conda:  pip uninstall h5py netCDF4 -y && conda install h5py netcdf4\n"
         "  pip:    pip install --force-reinstall --no-binary h5py --no-binary "
         "netCDF4 h5py netCDF4\n"
-        "The h5netcdf engine fallback will be DISABLED for this session to "
-        "prevent the conflict from being triggered.",
+        "The h5netcdf engine fallback will be DISABLED to prevent the conflict "
+        "from being triggered. This warning is shown once; re-run with --debug "
+        "to see it again.",
         h5py_lib,
         nc4_lib,
     )

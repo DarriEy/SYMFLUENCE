@@ -29,21 +29,53 @@ Usage:
 # Trigger objective registration
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from . import objectives
 from .objectives import ObjectiveRegistry
-from .optimizers.base_model_optimizer import BaseModelOptimizer
-from .workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 try:
     from .objectives import multivariate
 except ImportError:
     pass
 
-# Import model optimizers to trigger registration with R.optimizers
-from . import model_optimizers
+# The in-tree model optimizers register with R.optimizers/R.workers/
+# R.parameter_managers when `.model_optimizers` is imported. That import-all
+# costs ~0.6 s, so it is deferred: the registry bootstrap installs seeders
+# that trigger it on first registry access. The class re-exports below are
+# likewise lazy (PEP 562) — plugin config adapters import this package at
+# `import symfluence` and must not pay for the optimizer stack.
+_LAZY_IMPORTS = {
+    'BaseModelOptimizer': ('.optimizers.base_model_optimizer', 'BaseModelOptimizer'),
+    'BaseWorker': ('.workers.base_worker', 'BaseWorker'),
+    'WorkerResult': ('.workers.base_worker', 'WorkerResult'),
+    'WorkerTask': ('.workers.base_worker', 'WorkerTask'),
+    'EMA': ('.gradient', 'EMA'),
+    'AdamW': ('.gradient', 'AdamW'),
+    'CosineAnnealingWarmRestarts': ('.gradient', 'CosineAnnealingWarmRestarts'),
+    'CosineDecay': ('.gradient', 'CosineDecay'),
+}
 
-# Gradient-based optimization utilities
-from .gradient import EMA, AdamW, CosineAnnealingWarmRestarts, CosineDecay
+
+def __getattr__(name: str):
+    """Lazy import handler for optimization re-exports."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        value = getattr(import_module(module_path, package=__name__), attr_name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['ObjectiveRegistry', 'objectives'])
+
+
+if TYPE_CHECKING:
+    from .gradient import EMA, AdamW, CosineAnnealingWarmRestarts, CosineDecay
+    from .optimizers.base_model_optimizer import BaseModelOptimizer
+    from .workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 __all__ = [
     # Registries

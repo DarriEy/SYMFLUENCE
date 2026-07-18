@@ -15,9 +15,15 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+except ImportError as _err:
+    raise ImportError(
+        "The GNN model requires PyTorch. Install with: pip install 'symfluence[ml]'"
+    ) from _err
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.registries import R
