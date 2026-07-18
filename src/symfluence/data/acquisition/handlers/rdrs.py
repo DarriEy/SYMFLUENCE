@@ -207,6 +207,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
 
         # Load data from remote server and save locally
         ds_loaded = ds.load()
+        self._validate_acquired_variables(ds_loaded, source='PAVICS OPeNDAP endpoint')
 
         # Use chunked encoding for better memory management
         encoding = {}
@@ -400,7 +401,17 @@ class RDRSAcquirer(BaseAcquisitionHandler):
                 var_files, combine='by_coords', chunks={'time': 24 * 31},
                 data_vars='minimal', coords='minimal', compat='override'))
 
-        ds = xr.merge(per_var, compat='override')
+        # join='exact' so a coordinate mismatch between per-variable archives
+        # raises instead of silently outer-joining and fill-valuing a whole
+        # variable (which produced an all-zero downwelling longwave field).
+        try:
+            ds = xr.merge(per_var, compat='override', join='exact')
+        except ValueError as exc:
+            raise RuntimeError(
+                "CaSR per-variable tile archives do not share identical coordinates, so they "
+                "cannot be merged without fabricating fill values. Re-run with the OPeNDAP "
+                f"pathway, or report the misaligned tile set upstream. Original error: {exc}"
+            ) from exc
         ds = self._subset_bbox(ds)
         ds = ds.sel(time=slice(self.start_date, self.end_date))
         if ds.time.size == 0:
@@ -408,6 +419,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
 
         self.logger.info(f"Saving {ds.time.size} time steps to {final_file.name}...")
         ds_loaded = ds.load()
+        self._validate_acquired_variables(ds_loaded, source='tiled CaSR archive')
         for name in ds_loaded.variables:
             # Source chunk sizes (full 35x35 tiles) can exceed the subset dims
             for key in ('chunksizes', 'preferred_chunks', 'original_shape'):
@@ -420,6 +432,59 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         for f in downloaded:
             f.unlink(missing_ok=True)
         return final_file
+
+    def _validate_acquired_variables(self, ds: xr.Dataset, source: str) -> None:
+        """
+        Fail loudly on degenerate forcing variables.
+
+        A variable that is entirely zero or entirely missing across the whole
+        record is never physically meaningful for the fields we acquire, but it
+        survives acquisition happily: it has the right name, units and shape.
+        Downstream it either trips a model-specific guard much later (SUMMA
+        rejects out-of-range longwave) or, for models without one, silently
+        corrupts the simulation. Catching it here keeps the failure next to its
+        cause.
+
+        Only the variables we actually request are checked. CaSR files ship many
+        incidental fields (freezing-rain rate, ice-pellet rate, land masks) that
+        are legitimately all-zero for a given domain or season, so validating
+        everything would cry wolf.
+        """
+        try:
+            requested = {n.replace('CaSR_v3.2_', '') for n in self._casr_variables()}
+        except (AttributeError, KeyError, TypeError, ValueError):
+            # Config unavailable/malformed — fall back to the documented set so
+            # validation still runs rather than being skipped silently.
+            requested = set(DEFAULT_CASR_V32_VARIABLES)
+
+        def is_requested(name: str, da: xr.DataArray) -> bool:
+            # Files may carry CF names (rlds) or raw archive names (P_FI_SFC);
+            # the CF-renamed variables keep the raw name in `original_variable`.
+            return (
+                name.replace('CaSR_v3.2_', '') in requested
+                or str(da.attrs.get('original_variable', '')) in requested
+            )
+
+        degenerate = []
+        for name, da in ds.data_vars.items():
+            if 'time' not in da.dims or da.size == 0 or not is_requested(name, da):
+                continue
+            values = np.asarray(da.values, dtype='float64')
+            finite = np.isfinite(values)
+            if not finite.any():
+                degenerate.append(f"{name}: all values missing/NaN")
+            elif not np.any(values[finite] != 0.0):
+                degenerate.append(f"{name}: all {finite.sum()} finite values are exactly zero")
+
+        if degenerate:
+            detail = "\n  - ".join(degenerate)
+            raise RuntimeError(
+                f"Degenerate forcing variable(s) from the {source} for "
+                f"{self.start_date:%Y-%m-%d}..{self.end_date:%Y-%m-%d}:\n  - {detail}\n"
+                "The variables were requested and returned with correct metadata but carry no "
+                "data, so any simulation using them would be invalid. Check the source archive "
+                "for this period/domain, or acquire via the OPeNDAP pathway instead."
+            )
 
     def _list_casr_tile_files(
         self, session: requests.Session, tile_base: str, tile_dir: str
