@@ -15,9 +15,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import torch
 import xarray as xr
-from sklearn.preprocessing import StandardScaler
+
+try:
+    import torch
+    from sklearn.preprocessing import StandardScaler
+except ImportError as _err:
+    raise ImportError(
+        "The LSTM model requires PyTorch. Install with: pip install 'symfluence[ml]'"
+    ) from _err
 
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelPreProcessor

@@ -117,9 +117,20 @@ class ConfigCommands(BaseCommand):
 
         BaseCommand._console.success("Configuration file is valid YAML")
 
-        # Try to initialize SYMFLUENCE to validate structure
+        # Try to initialize SYMFLUENCE to validate structure. Point the data
+        # dir at a throwaway location: validation must not create directories
+        # or logs under the user's real SYMFLUENCE_DATA_DIR as a side effect.
+        import tempfile
         try:
-            SYMFLUENCE(config_path, debug_mode=BaseCommand.get_arg(args, 'debug', False))
+            # ignore_cleanup_errors: the run log inside stays open on Windows
+            with tempfile.TemporaryDirectory(
+                prefix="symfluence_validate_", ignore_cleanup_errors=True
+            ) as tmp_data_dir:
+                SYMFLUENCE(
+                    config_path,
+                    config_overrides={'SYMFLUENCE_DATA_DIR': tmp_data_dir},
+                    debug_mode=BaseCommand.get_arg(args, 'debug', False),
+                )
             BaseCommand._console.success("Configuration validated successfully")
             return ExitCode.SUCCESS
         except ConfigurationError as e:

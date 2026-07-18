@@ -306,9 +306,18 @@ class BaseService:
                 pass
 
         if not data_dir_valid or not code_dir_valid:
-            self._console.warning(
-                "Detected invalid or inaccessible paths in config template:"
-            )
+            # Only warn when an explicitly configured path failed validation.
+            # Unset paths ('default' sentinel) are resolved quietly below.
+            bad_paths = []
+            if data_dir and not data_dir_valid:
+                bad_paths.append(f"SYMFLUENCE_DATA_DIR: {data_dir}")
+            if code_dir and not code_dir_valid:
+                bad_paths.append(f"SYMFLUENCE_CODE_DIR: {code_dir}")
+            if bad_paths:
+                self._console.warning(
+                    "Detected invalid or inaccessible paths in config template: "
+                    + "; ".join(bad_paths)
+                )
 
             from symfluence.core.config.factories import _resolve_default_code_dir
 

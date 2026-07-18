@@ -42,11 +42,32 @@ References:
 """
 from __future__ import annotations
 
-from .config import CLMConfigAdapter
-from .extractor import CLMResultExtractor
-from .postprocessor import CLMPostProcessor
-from .preprocessor import CLMPreProcessor
-from .runner import CLMRunner
+from typing import TYPE_CHECKING
+
+# Lazy import mapping — execution and calibration classes pull the model/
+# optimization stacks and must not load at plugin-discovery time.
+_LAZY_IMPORTS = {
+    'CLMPreProcessor': ('.preprocessor', 'CLMPreProcessor'),
+    'CLMRunner': ('.runner', 'CLMRunner'),
+    'CLMResultExtractor': ('.extractor', 'CLMResultExtractor'),
+    'CLMPostProcessor': ('.postprocessor', 'CLMPostProcessor'),
+    'CLMModelOptimizer': ('.calibration', 'CLMModelOptimizer'),
+}
+
+
+def __getattr__(name: str):
+    """Lazy import handler for CLM module components."""
+    if name in _LAZY_IMPORTS:
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        from importlib import import_module
+        module = import_module(module_path, package=__name__)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(_LAZY_IMPORTS.keys()) + ['CLMConfigAdapter'])
+
 
 __all__ = [
     "CLMPreProcessor",
@@ -56,22 +77,36 @@ __all__ = [
     "CLMConfigAdapter",
 ]
 
-# Register CLM config adapter via unified registry
-# Note: preprocessor, runner, extractor, postprocessor are registered via
-# decorators in their respective component modules.
 from symfluence.core.registry import model_manifest
+
+from .config import CLMConfigAdapter
 
 
 def register() -> None:
-    """Register CLM components with the unified registry."""
+    """Register CLM components with the unified registry.
+
+    Execution and calibration classes are registered lazily — imported on
+    first registry access rather than at plugin-discovery time.
+    """
+    from symfluence.core.registries import Registries as R
     model_manifest(
         "CLM",
         config_adapter=CLMConfigAdapter,
         build_instructions_module="symfluence.models.clm.build_instructions",
     )
+    base = 'symfluence.models.clm'
+    R.preprocessors.add_lazy("CLM", f"{base}.preprocessor.CLMPreProcessor")
+    R.runners.add_lazy("CLM", f"{base}.runner.CLMRunner")
+    R.postprocessors.add_lazy("CLM", f"{base}.postprocessor.CLMPostProcessor")
+    R.result_extractors.add_lazy("CLM", f"{base}.extractor.CLMResultExtractor")
+    R.optimizers.add_lazy("CLM", f"{base}.calibration.optimizer.CLMModelOptimizer")
+    R.workers.add_lazy("CLM", f"{base}.calibration.worker.CLMWorker")
+    R.parameter_managers.add_lazy("CLM", f"{base}.calibration.parameter_manager.CLMParameterManager")
 
-# Register calibration components with OptimizerRegistry
-try:
-    from .calibration import CLMModelOptimizer  # noqa: F401
-except ImportError:
-    pass  # Calibration dependencies optional
+
+if TYPE_CHECKING:
+    from .calibration import CLMModelOptimizer
+    from .extractor import CLMResultExtractor
+    from .postprocessor import CLMPostProcessor
+    from .preprocessor import CLMPreProcessor
+    from .runner import CLMRunner

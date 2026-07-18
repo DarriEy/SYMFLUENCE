@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import pytest
+
+pytest.importorskip("torch", reason="requires the ml extra (pip install 'symfluence[ml]')")
+pytest.importorskip("dcoupler", reason="requires the ml extra (pip install 'symfluence[ml]')")
 import torch
 
 from symfluence.coupling.bmi_registry import BMIRegistry

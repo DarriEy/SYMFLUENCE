@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List
 
 # Optional-dependency groups folded into requirements.txt by default.
-DEFAULT_EXTRAS = ("jax",)
+DEFAULT_EXTRAS = ("jax", "ml")
 
 
 def load_pyproject(path: Path) -> dict:

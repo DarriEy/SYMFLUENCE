@@ -37,8 +37,40 @@ def bootstrap() -> None:
     _bootstrap_delineation_aliases(R)
     _bootstrap_bmi_adapters(R)
     _bootstrap_model_aliases(R)
-    _bootstrap_metrics(R)
+    # Deferred: seeding R.metrics imports the evaluation stack (~1 s of
+    # pandas/scipy/geospatial), which most CLI invocations never read.
+    R.metrics.set_seeder(lambda: _bootstrap_metrics(R))
+    # Deferred: delineation strategies self-register via decorators when the
+    # delineation machinery is imported; importing it eagerly costs ~1 s of
+    # raster stack. First strategy lookup triggers the import instead.
+    R.delineation_strategies.set_seeder(_seed_delineation_strategies)
+    # Deferred: evaluators self-register via decorators in
+    # symfluence.evaluation.evaluators, which pulls the observation stack.
+    R.evaluators.set_seeder(_seed_evaluators)
+    # Deferred: the in-tree model optimizers/workers/parameter managers
+    # register when optimization.model_optimizers is imported (~0.6 s).
+    R.optimizers.set_seeder(_seed_model_optimizers)
+    R.workers.set_seeder(_seed_model_optimizers)
+    R.parameter_managers.set_seeder(_seed_model_optimizers)
     _discover_plugins()
+
+
+def _seed_delineation_strategies() -> None:
+    """Import the delineation machinery so its strategy decorators register."""
+    import importlib
+    importlib.import_module("symfluence.geospatial.delineation")
+
+
+def _seed_evaluators() -> None:
+    """Import the evaluators package so its decorators and aliases register."""
+    import importlib
+    importlib.import_module("symfluence.evaluation.evaluators")
+
+
+def _seed_model_optimizers() -> None:
+    """Import the in-tree model optimizers so their decorators register."""
+    import importlib
+    importlib.import_module("symfluence.optimization.model_optimizers")
 
 
 def _bootstrap_delineation_aliases(R: type) -> None:  # noqa: N803

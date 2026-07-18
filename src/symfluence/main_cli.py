@@ -79,6 +79,12 @@ def main():
     try:
         # Create parser and parse arguments
         parser = CLIParser()
+
+        # Bare `symfluence` should orient the user, not print an argparse error
+        if not argv:
+            parser.parser.print_help()
+            return 0
+
         args = parser.parse_args()
 
         # Global flags that shape console output (--quiet) must be applied

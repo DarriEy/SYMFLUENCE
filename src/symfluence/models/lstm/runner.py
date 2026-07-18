@@ -17,10 +17,16 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 import psutil
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+except ImportError as _err:
+    raise ImportError(
+        "The LSTM model requires PyTorch. Install with: pip install 'symfluence[ml]'"
+    ) from _err
 
 try:
     import droute
