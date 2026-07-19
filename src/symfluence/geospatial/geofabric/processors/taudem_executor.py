@@ -21,8 +21,8 @@ import os
 import re
 import shlex
 import shutil
-import sys
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -329,7 +329,7 @@ class TauDEMExecutor:
                     self.logger.debug(f"Command output: {result.stdout}")
                     return
 
-                except FileNotFoundError as e:
+                except FileNotFoundError:
                     # Launch failure (bad executable path) — without this the
                     # error propagates with no record of what was attempted.
                     self.logger.error(f"Executable not found for command: {full_command}")
