@@ -28,21 +28,46 @@ its models (including the JAX-native ones), sets up GDAL/R/NetCDF, and compiles
 exactly the 13 model binaries these experiments use — RHESSys with the paper's
 subsurface-GW patch. Expect 30–60 minutes, mostly compilation.
 
-(`--paper-repro` differs from a plain `--install` only in which binaries get
-built: 13 instead of all 26.)
+(`--paper-repro` differs from a plain `--install` in three ways: it builds 13
+binaries instead of all 26, it installs the `[jax,ml]` extras the paper
+ensemble needs, and it treats missing system build dependencies as fatal rather
+than as a warning — a reproducibility bundle is all-or-nothing.)
 
-Prerequisites: Python 3.11/3.12, a C/C++/Fortran toolchain and CMake
-(`brew install gcc cmake` / `apt install build-essential gfortran cmake`), and
-— for the GR4J member only — R ≥ 4 with `airGR`
-(`Rscript -e 'install.packages("airGR")'`).
-
-Running the MESH member additionally needs two packages that are not on PyPI
-(the extra pins keep meshflow from pulling pandas 3):
+Prerequisites: Python 3.11/3.12 plus the compilers and geospatial/netCDF
+development libraries the 13 binaries build against. A C/C++/Fortran toolchain
+alone is *not* enough — SUMMA, FUSE, mizuRoute, MESH and mHM need
+netCDF-Fortran, RHESSys needs GDAL/PROJ/GEOS, TauDEM needs MPI, and building
+the GDAL Python bindings needs the Python development headers:
 
 ```bash
-pip install git+https://github.com/kasra-keshavarz/hydrant.git
-pip install git+https://github.com/CH-Earth/meshflow.git@main "pandas>=2.0,<3" "pint-pandas<0.8"
+# Debian/Ubuntu
+sudo apt-get install -y build-essential gfortran cmake python3-dev \
+    libnetcdf-dev libnetcdff-dev libgdal-dev libproj-dev proj-bin \
+    libgeos-dev libopenmpi-dev openmpi-bin libopenblas-dev libudunits2-dev
+
+# macOS
+brew install gcc cmake netcdf netcdf-fortran gdal proj geos open-mpi openblas udunits
 ```
+
+`--paper-repro` checks for all of these before it clones or compiles anything
+and stops with the exact missing list, so a missing library costs seconds
+rather than an hour of build time.
+
+The GR4J member additionally needs R ≥ 4 with `airGR`. Install it somewhere on
+R's default library path so `library(airGR)` resolves without extra setup:
+
+```bash
+Rscript -e 'install.packages("airGR", repos="https://cloud.r-project.org")'
+Rscript -e 'library(airGR)'   # must succeed
+```
+
+MESH support (`hydrant` + `meshflow`, neither on PyPI) and the JAX/LSTM model
+stacks are installed by `--paper-repro` automatically; no manual pip steps are
+needed. Note that the `hydrant` name on PyPI belongs to an unrelated Kinesis
+Firehose tool, so if you install meshflow by hand, install
+`git+https://github.com/kasra-keshavarz/hydrant.git` first and constrain
+`"pandas>=2.0,<3" "pint-pandas<0.8"` — pint-pandas 0.8 requires pandas 3 and
+will otherwise break SYMFLUENCE's own `pandas<3` pin.
 
 **Check** — all three must succeed:
 
