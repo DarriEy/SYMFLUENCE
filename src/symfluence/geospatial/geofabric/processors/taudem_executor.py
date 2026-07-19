@@ -21,6 +21,7 @@ import os
 import re
 import shlex
 import shutil
+import sys
 import subprocess
 import time
 from pathlib import Path
@@ -44,6 +45,27 @@ _ALLOWED_TAUDEM_CMDS = frozenset({
     "peukerdouglasstreamdef", "pitremove", "slopearea", "slopeavedown",
     "streamnet", "threshold", "twi",
 })
+
+
+
+def _split_cmd(command: str) -> List[str]:
+    r"""shlex.split that survives Windows paths.
+
+    POSIX-mode shlex treats backslashes as escapes, mangling ``C:\dir\exe``
+    into ``C:direxe``. Windows accepts forward slashes in every path API, so
+    normalize separators before splitting; elsewhere this is a no-op.
+    """
+    if sys.platform == "win32":
+        command = command.replace("\\", "/")
+    tokens = shlex.split(command)
+    # Windows: recipes reference tools by extensionless path (POSIX style),
+    # but only <tool>.exe exists and CreateProcess does not reliably append
+    # .exe to a forward-slash path — resolve it explicitly.
+    if sys.platform == "win32" and tokens:
+        exe = tokens[0]
+        if "." not in os.path.basename(exe) and os.path.isfile(exe + ".exe"):
+            tokens[0] = exe + ".exe"
+    return tokens
 
 
 class TauDEMExecutor:
@@ -70,8 +92,8 @@ class TauDEMExecutor:
         self.max_retries = config.get('MAX_RETRIES', 3)
         self.retry_delay = config.get('RETRY_DELAY', 5)
 
-        # Add TauDEM to PATH
-        os.environ['PATH'] = f"{os.environ['PATH']}:{taudem_dir}"
+        # Add TauDEM to PATH (os.pathsep: ':' corrupts PATH on Windows)
+        os.environ['PATH'] = f"{os.environ['PATH']}{os.pathsep}{taudem_dir}"
 
         # Ensure LD_LIBRARY_PATH includes GDAL libs for TauDEM's runtime dependency.
         # GDAL may come from conda (CONDA_PREFIX/lib) or system HPC modules
@@ -152,6 +174,10 @@ class TauDEMExecutor:
         if has_srun:
             return "srun"
 
+        # Windows: no auto-launcher. MS-MPI's mpiexec aborts mingw-built
+        # TauDEM at runtime ("process exited without calling finalize"),
+        # while running the tools directly (MPI singleton init) works.
+        # An explicit MPI_LAUNCHER config override above still wins.
         return None
 
     def get_mpi_command(self) -> Optional[str]:
@@ -206,7 +232,7 @@ class TauDEMExecutor:
             if not _MODULE_NAME_RE.match(name):
                 raise ValueError(f"Disallowed module name: {name!r}")
 
-        cmd_tokens = shlex.split(actual_cmd)
+        cmd_tokens = _split_cmd(actual_cmd)
         if not cmd_tokens:
             raise ValueError("Empty TauDEM command after 'module load'")
         if not ({Path(t).name for t in cmd_tokens} & _ALLOWED_TAUDEM_CMDS):
@@ -276,21 +302,21 @@ class TauDEMExecutor:
                         # Export LD_LIBRARY_PATH to MPI child processes so TauDEM
                         # can find GDAL libs (from conda env or HPC module load)
                         if run_cmd == "mpirun":
-                            full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
+                            full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + _split_cmd(command)
                         elif run_cmd == "srun":
                             # srun: use --export=ALL to propagate LD_LIBRARY_PATH
                             # to compute nodes (not all SLURM clusters do this by default)
-                            full_command = [run_cmd, "--export=ALL", "-n", str(self.num_processes)] + shlex.split(command)
+                            full_command = [run_cmd, "--export=ALL", "-n", str(self.num_processes)] + _split_cmd(command)
                         else:
-                            full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
+                            full_command = [run_cmd, "-n", str(self.num_processes)] + _split_cmd(command)
                     elif has_mpi_prefix:
                         # Command already has MPI prefix - parse with shlex
-                        full_command = shlex.split(command)
+                        full_command = _split_cmd(command)
                         if run_cmd is None:
                             full_command = self._strip_mpi_prefix(full_command)
                     else:
                         # No MPI launcher available - parse with shlex
-                        full_command = shlex.split(command)
+                        full_command = _split_cmd(command)
 
                     self.logger.debug(f"Running command: {full_command}")
                     result = subprocess.run(
@@ -302,6 +328,12 @@ class TauDEMExecutor:
                     )
                     self.logger.debug(f"Command output: {result.stdout}")
                     return
+
+                except FileNotFoundError as e:
+                    # Launch failure (bad executable path) — without this the
+                    # error propagates with no record of what was attempted.
+                    self.logger.error(f"Executable not found for command: {full_command}")
+                    raise
 
                 except subprocess.CalledProcessError as e:
                     last_err = e
