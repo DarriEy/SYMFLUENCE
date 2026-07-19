@@ -22,6 +22,21 @@ OUT = HERE / "comparison.csv"
 TOL = 0.02
 TOP_TIER = ("de", "cmaes", "dds", "adam")
 
+# Metrics bounded near [0, 1], where 0.02 is a meaningful absolute difference.
+# Anything else (RMSE, MAE, ...) is a magnitude in the units of the variable —
+# for the forcing ensemble that is streamflow RMSE in the hundreds, so an
+# absolute 0.02 would flag every pair of runs no matter how well they agree.
+BOUNDED_METRICS = {"KGE", "KGEP", "KGENP", "NSE", "LOGNSE", "R2", "VE"}
+REL_TOL = 0.02
+
+
+def tolerance_for(metric: str, va: float, vb: float) -> float:
+    """Absolute tolerance for bounded scores, relative for magnitude metrics."""
+    if (metric or "").upper() in BOUNDED_METRICS:
+        return TOL
+    scale = max(abs(va), abs(vb))
+    return REL_TOL * scale if scale else TOL
+
 
 def load_platforms():
     platforms = {}
@@ -70,7 +85,7 @@ def main():
             metric = a[eid][0]
             va, vb = a[eid][1], b[eid][1]
             delta = abs(va - vb)
-            status = "OK" if delta <= TOL else "DIFF"
+            status = "OK" if delta <= tolerance_for(metric, va, vb) else "DIFF"
             key = f"CMP {pa}|{pb} {eid}"
             verdicts[key] = (status,
                              f"CMP {eid} metric={metric} {pa}={va:.4f} "
