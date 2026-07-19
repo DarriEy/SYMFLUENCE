@@ -482,8 +482,9 @@ class RDRSAcquirer(BaseAcquisitionHandler):
                 f"Degenerate forcing variable(s) from the {source} for "
                 f"{self.start_date:%Y-%m-%d}..{self.end_date:%Y-%m-%d}:\n  - {detail}\n"
                 "The variables were requested and returned with correct metadata but carry no "
-                "data, so any simulation using them would be invalid. Check the source archive "
-                "for this period/domain, or acquire via the OPeNDAP pathway instead."
+                "data, so any simulation using them would be invalid. Retrying often succeeds "
+                "on a smaller period; the tiled archive is the more reliable pathway for long "
+                "records. Otherwise check the source archive for this period/domain."
             )
 
     def _list_casr_tile_files(
