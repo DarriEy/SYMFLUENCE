@@ -8,6 +8,24 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_data_dir_env(monkeypatch):
+    """Keep an ambient data directory out of the CLI unit tests.
+
+    ``_resolve_data_dir`` honours ``SYMFLUENCE_DATA_DIR`` ahead of the config,
+    so a test that mocks ``_load_config`` at a ``tmp_path`` still resolves to
+    the real workspace whenever that variable is set. On a developer machine or
+    in the full install-and-validate job — which installs the tools for real and
+    then runs the unit tests in the same environment — that made installer tests
+    inspect genuinely installed tools and disagree with their fixtures.
+
+    Tests that exercise the environment pathway set the variable themselves via
+    ``monkeypatch.setenv``, which still applies after this fixture.
+    """
+    monkeypatch.delenv("SYMFLUENCE_DATA_DIR", raising=False)
+    monkeypatch.delenv("SYMFLUENCE_DATA", raising=False)
+
+
 @pytest.fixture
 def sample_config() -> Dict[str, Any]:
     """Sample SYMFLUENCE configuration for testing.
