@@ -83,7 +83,36 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin, 
     def _download_month_chunk(self, year_month: tuple) -> Optional[Path]:
         """Download a single month chunk (called by download_chunks_parallel)."""
         year, month = year_month
+        cached = self._cached_month_chunk(year, month, self._output_dir)
+        if cached is not None:
+            return cached
         return self._download_and_process_month(year, month, self._output_dir)
+
+    def _cached_month_chunk(self, year: int, month: int, output_dir: Path) -> Optional[Path]:
+        """Return an already-downloaded month chunk, or None to fetch it.
+
+        A CDS request spends most of its wall-clock queued server-side (an hour
+        is not unusual), so re-requesting months that are already on disk makes
+        any interruption cost the whole multi-hour download. The ARCO pathway
+        already skips chunks it has; mirror that here, including its validity
+        check, so a partially-completed CDS download resumes instead of
+        restarting from the first month.
+        """
+        chunk_file = output_dir / (
+            f"{self.domain_name}_era5_cds_processed_{year}{month:02d}_temp.nc"
+        )
+        if not chunk_file.exists():
+            return None
+        try:
+            with xr.open_dataset(chunk_file) as existing:
+                if 'time' in existing.dims and existing.sizes['time'] > 0:
+                    self.logger.debug(
+                        f"ERA5 CDS chunk {chunk_file.name} already downloaded, skipping")
+                    return chunk_file
+        except (OSError, ValueError, KeyError):
+            self.logger.debug(
+                f"Existing chunk {chunk_file.name} is unreadable, re-downloading")
+        return None
 
     def _download_and_process_month(self, year: int, month: int, output_dir: Path) -> Path:
         """Download and process a single month of ERA5 data (executed in thread)."""
