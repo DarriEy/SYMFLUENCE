@@ -10,6 +10,8 @@ git-ignored — each machine tracks its own reporting state):
 
 Tolerance: 0.02 KGE (04_calibration_ensemble/README.md cross-platform bound).
 """
+from __future__ import annotations
+
 import csv
 import itertools
 import json
