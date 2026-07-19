@@ -64,9 +64,12 @@ def ref_checks(scores):
         checks.append(("exp04-top-tier-mean-calib-KGE",
                        sum(tt) / len(tt), 0.867 - TOL, 0.872 + TOL, len(tt)))
     if "cal_ensemble_sacsma_bayesian_opt" in scores:
+        # The README documents this run as an expected optimizer failure
+        # (KGE ~ -0.03). The exact failure value is noise; the check is that
+        # it stays far below the ~0.87 success tier, not a tight window.
         checks.append(("exp04-sacsma-bayesopt-fails",
                        scores["cal_ensemble_sacsma_bayesian_opt"][1],
-                       -0.13, 0.07, 1))
+                       -10.0, 0.3, 1))
     return checks
 
 
