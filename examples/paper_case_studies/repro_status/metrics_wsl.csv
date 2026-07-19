@@ -14,3 +14,4 @@ cal_ensemble_fuse_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KG
 cal_ensemble_fuse_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9074467501,20,2026-07-19T17:58:04Z
 cal_ensemble_fuse_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9103204608,49,2026-07-19T17:58:04Z
 cal_ensemble_fuse_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8919300632,41,2026-07-19T18:08:46Z
+cal_ensemble_fuse_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8908180233,5,2026-07-19T18:28:55Z

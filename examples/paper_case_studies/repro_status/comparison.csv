@@ -14,6 +14,6 @@ cal_ensemble_fuse_nelder_mead,KGE,macos,0.894987,wsl,0.895090,0.000103,OK
 cal_ensemble_fuse_nsga2,KGE,macos,0.898192,wsl,0.907447,0.009255,OK
 cal_ensemble_fuse_pso,KGE,macos,0.910320,wsl,0.910320,0.000000,OK
 cal_ensemble_fuse_sa,KGE,macos,0.891930,wsl,0.891930,0.000000,OK
-forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-387.072260,81.027952,DIFF
+cal_ensemble_fuse_sceua,KGE,macos,0.890818,wsl,0.890818,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
