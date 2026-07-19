@@ -648,8 +648,24 @@ if [ -z "$WMFIRE_FLAG" ]; then
     echo "To enable WMFire: install Boost headers and build WMFire first"
 fi
 
-# Build RHESSys with optional WMFire support
-make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
+# Build RHESSys with optional WMFire support.
+# On Windows the build bash (Git Bash) and make (MSYS2) are different msys
+# runtimes; the cross-runtime spawn strips TMP/TEMP/TMPDIR from make's
+# environment, so the native gcc's assembler falls back to the unwritable
+# C:\Windows ("Cannot create temporary file ... Permission denied").
+# Exported values do not survive that spawn either — but make command-line
+# variables are placed in every recipe's environment by make itself, so
+# pass Windows-style temp paths on the command line.
+MAKE_TMP_ARGS=()
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        _wtmp="$(cygpath -m "${TMPDIR:-/tmp}" 2>/dev/null || echo '')"
+        if [ -n "$_wtmp" ] && [ -d "$_wtmp" ]; then
+            MAKE_TMP_ARGS=("TMPDIR=$_wtmp" "TMP=$_wtmp" "TEMP=$_wtmp")
+        fi
+        ;;
+esac
+make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG "${MAKE_TMP_ARGS[@]}" CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary (handles .exe and versioned names)
@@ -689,6 +705,12 @@ case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
         if [ ! -f ../bin/rhessys.exe ] && [ -f ../bin/rhessys ]; then
             cp ../bin/rhessys ../bin/rhessys.exe
+        fi
+        # Windows resolves DLLs from the exe's own directory, not ../lib,
+        # so a WMFire-enabled binary needs libwmfire.dll next to it or it
+        # dies at load time with "error while loading shared libraries".
+        if [ -f "../lib/$WMFIRE_LIB_NAME" ]; then
+            cp -f "../lib/$WMFIRE_LIB_NAME" ../bin/
         fi
         ;;
 esac

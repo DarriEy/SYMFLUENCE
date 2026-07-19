@@ -197,8 +197,11 @@ fi
         'dependencies': ['cmake', 'gfortran', 'nf-config'],
         'test_command': None,
         'verify_install': {
-            'file_paths': ['bin/mhm'],
-            'check_type': 'exists'
+            # bin/mhm.exe: on Windows, MSYS2/Git Bash `cp` appends .exe when
+            # copying an executable to an extensionless destination, so the
+            # staged binary is bin/mhm.exe even though the script wrote bin/mhm.
+            'file_paths': ['bin/mhm', 'bin/mhm.exe'],
+            'check_type': 'exists_any'
         },
         'order': 16,  # After VIC
         'optional': True,  # Not installed by default with --install

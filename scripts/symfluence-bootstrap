@@ -1663,7 +1663,10 @@ main() {
             # Make clearing persistent for future activations (pip venv only)
             if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
                 if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
-                    cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
+                    # Rewrite instead of `cat >>`: on Windows (MSYS/Cygwin over
+                    # NTFS) O_APPEND has been observed writing at offset 0,
+                    # clobbering the start of the activate script.
+                    { cat "${venv_path}/${VENV_ACTIVATE}"; cat << 'EOF'
 
 # Clear PYTHONPATH to prevent system package conflicts
 if [ -n "$PYTHONPATH" ]; then
@@ -1671,6 +1674,8 @@ if [ -n "$PYTHONPATH" ]; then
     unset PYTHONPATH
 fi
 EOF
+                    } > "${venv_path}/${VENV_ACTIVATE}.new" && \
+                        mv "${venv_path}/${VENV_ACTIVATE}.new" "${venv_path}/${VENV_ACTIVATE}"
                 else
                     print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
                 fi
@@ -1712,7 +1717,11 @@ NCEOF
                 fi
             fi
 
-            resolve_python_scripts_path "$python_cmd" "$venv_path"
+            # Resolve against the *active* interpreter, not $python_cmd:
+            # when SYMFLUENCE_PYTHON pins an absolute base-interpreter path,
+            # $python_cmd bypasses the venv and sysconfig reports the base
+            # Scripts dir — where the just-installed CLI does not exist.
+            resolve_python_scripts_path "python" "$venv_path"
         fi
 
         print_header "Dependencies"
@@ -1743,11 +1752,16 @@ NCEOF
         # Generate requirements.txt from pyproject.toml (source of truth)
         local req_file="${symfluence_dir}/requirements.txt"
         local pyproj_path="${symfluence_dir}/pyproject.toml"
+        # Path handed to the inline Python below; must be a native path on
+        # Windows because it is embedded in a Python string and bypasses
+        # MSYS argument conversion.
+        local req_file_py="$req_file"
         if [[ "$PLATFORM" == "windows" ]]; then
             # Use cygpath -m (mixed mode) for forward slashes that Python handles safely.
             # cygpath -w produces backslashes that Python interprets as escape sequences
             # (e.g. \a → bell char, \n → newline).
             pyproj_path=$(cygpath -m "$pyproj_path")
+            req_file_py=$(cygpath -m "$req_file")
         fi
 
         if [[ -f "${symfluence_dir}/pyproject.toml" ]]; then
@@ -1765,7 +1779,7 @@ deps = data.get('project', {}).get('dependencies', [])
 if deps:
     lines = ['# Auto-generated from pyproject.toml', '']
     lines.extend(deps)
-    with open('${req_file}', 'w') as out:
+    with open('${req_file_py}', 'w') as out:
         out.write('\n'.join(lines) + '\n')
     print(f'Generated {len(deps)} dependencies')
 else:
@@ -1871,8 +1885,10 @@ EOF
 pandas>=2.0.0,<3.0.0
 pint-pandas<0.8
 EOF
-        if $python_cmd -m pip install -c "$mesh_constraints" "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" >"$mesh_log" 2>&1 && \
-           $python_cmd -m pip install -c "$mesh_constraints" "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" >>"$mesh_log" 2>&1; then
+        # Use the *active* interpreter (venv/conda), not $python_cmd — an
+        # absolute SYMFLUENCE_PYTHON would install these into the base Python.
+        if python -m pip install -c "$mesh_constraints" "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" >"$mesh_log" 2>&1 && \
+           python -m pip install -c "$mesh_constraints" "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" >>"$mesh_log" 2>&1; then
             print_success "MESH dependencies installed"
             rm -f "$mesh_log" "$mesh_constraints"
         else

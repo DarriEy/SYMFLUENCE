@@ -166,9 +166,14 @@ fi
 esac
 
 # Build
+# SYMF_MAKE_TMP (from the common build environment) passes a native
+# Windows temp dir to make's children on the command line — env vars do
+# not survive the Git-bash -> MSYS2-make runtime hop, and without a
+# usable TMPDIR gfortran fails with "Cannot create temporary file in
+# C:\Windows\".  Empty (expands to nothing) on non-Windows.
 make clean || true
 echo "Building mizuRoute..."
-make 2>&1 | tee build.log || true
+make "${SYMF_MAKE_TMP[@]}" 2>&1 | tee build.log || true
 
 if [ -f "../bin/mizuRoute.exe" ]; then
     echo "Build successful - executable at ../bin/mizuRoute.exe"

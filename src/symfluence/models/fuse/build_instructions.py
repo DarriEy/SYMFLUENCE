@@ -314,7 +314,12 @@ FFLAGS_FIXED="-O2 -c -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-err
 # and NetCDF detection. Passing the full wrapper path breaks these conditionals.
 # Instead, the wrapper at $WRAPPER_DIR/gfortran is already first in $PATH,
 # so the Makefile's default `FC = gfortran` will find our wrapper automatically.
-make -j1 F_MASTER="${F_MASTER}" LIBRARIES="${LIBS}" INCLUDE="${INCLUDES}"
+# SYMF_MAKE_TMP (from the common build environment) passes a native
+# Windows temp dir to make's children on the command line — env vars do
+# not survive the Git-bash -> MSYS2-make runtime hop, and without a
+# usable TMPDIR gfortran fails with "Cannot create temporary file in
+# C:\Windows\".  Empty (expands to nothing) on non-Windows.
+make -j1 "${SYMF_MAKE_TMP[@]}" F_MASTER="${F_MASTER}" LIBRARIES="${LIBS}" INCLUDE="${INCLUDES}"
 
 # Check result
 if [ -f "fuse.exe" ] || [ -f "../bin/fuse.exe" ]; then

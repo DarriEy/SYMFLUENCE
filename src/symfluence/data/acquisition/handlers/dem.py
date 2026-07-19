@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import gzip
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -106,6 +107,23 @@ class _TileDownloadMixin:
         except (rasterio.errors.RasterioError, OSError, ValueError, TypeError):
             self.logger.warning(f"Cached tile {tile_name} is corrupted, will re-download")
             return False
+
+    def _unlink_tile(self, tile_path: Path) -> None:
+        """Remove a tile file, retrying transient Windows share violations.
+
+        On Windows a freshly written/inspected file can be briefly held open
+        by another process (antivirus scan, search indexer), making unlink
+        fail with WinError 32. Retry with backoff instead of failing the
+        whole acquisition; POSIX never takes more than one attempt.
+        """
+        for attempt in range(5):
+            try:
+                tile_path.unlink(missing_ok=True)
+                return
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.5 * (2 ** attempt))
 
     def _download_tile_with_retry(
         self, session, url: str, local_tile: Path, tile_name: str
@@ -316,7 +334,7 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
                     local_tile = dem_dir / f"temp_{tile_name}.tif"
                     if local_tile.exists():
                         if not self._validate_tile(local_tile, tile_name):
-                            local_tile.unlink()
+                            self._unlink_tile(local_tile)
                         else:
                             self.logger.info(f"Using cached tile: {tile_name}")
                             tile_paths.append(local_tile)
@@ -654,7 +672,7 @@ class SRTMAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
                     local_tile = dem_dir / f"temp_srtm_{tile_name}.tif"
                     if local_tile.exists():
                         if not self._validate_tile(local_tile, tile_name):
-                            local_tile.unlink()
+                            self._unlink_tile(local_tile)
                         else:
                             self.logger.info(f"Using cached tile: {tile_name}")
                             tile_paths.append(local_tile)
@@ -890,7 +908,7 @@ class MapzenAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
                     local_tile = dem_dir / f"temp_mapzen_{tile_name}.tif"
                     if local_tile.exists():
                         if not self._validate_tile(local_tile, tile_name):
-                            local_tile.unlink()
+                            self._unlink_tile(local_tile)
                         else:
                             self.logger.info(f"Using cached tile: {tile_name}")
                             tile_paths.append(local_tile)
@@ -1046,7 +1064,7 @@ class ALOSAcquirer(BaseAcquisitionHandler, RetryMixin, _TileDownloadMixin):
 
                 if local_tile.exists():
                     if not self._validate_tile(local_tile, tile_name):
-                        local_tile.unlink()
+                        self._unlink_tile(local_tile)
                     else:
                         self.logger.info(f"Using cached tile: {tile_name}")
                         tile_paths.append(local_tile)

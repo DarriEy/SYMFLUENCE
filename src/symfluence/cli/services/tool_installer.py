@@ -90,14 +90,22 @@ class ToolInstaller(BaseService):
             r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
         ]
 
-        # 0. When the MSYS2 mingw-w64 toolchain is in use, prefer Git Bash.
-        #    A native mingw-w64 gcc compiles cleanly under Git Bash but dies with
-        #    no diagnostic when spawned from MSYS2's own usr/bin/bash (its msys
-        #    subsystem mangles the native compiler's arguments — confirmed by a
-        #    CI smoke test where the same compile gives rc=0 under Git Bash and
-        #    rc=1 under MSYS2 bash regardless of MSYSTEM). Git Bash carries a
-        #    full Unix toolchain, so the build scripts still run.
+        # 0. When the MSYS2 mingw-w64 toolchain is in use, prefer MSYS2's own
+        #    bash so the whole chain (bash -> make -> gcc/gfortran) runs on ONE
+        #    msys runtime. Git Bash ships a *different* msys-2.0.dll; when it
+        #    spawns MSYS2's usr/bin/make (a foreign-runtime msys binary), the
+        #    TMPDIR/TMP/TEMP variables are silently dropped from the
+        #    environment make passes to native children, so every compiler
+        #    invocation dies with "Cannot create temporary file in C:\Windows\:
+        #    Permission denied" (exit code 3). The historical reason to avoid
+        #    MSYS2 bash — the msys subsystem mangling native compiler
+        #    arguments — is neutralised by MSYSTEM=MINGW64 +
+        #    MSYS2_PATH_TYPE=inherit, which _get_clean_build_env sets whenever
+        #    C:\msys64\mingw64 exists.
         if os.path.isdir(r"C:\msys64\mingw64"):
+            msys2_bash = r"C:\msys64\usr\bin\bash.exe"
+            if os.path.isfile(msys2_bash):
+                return msys2_bash
             for candidate in git_bash_candidates:
                 if os.path.isfile(candidate):
                     return candidate
@@ -1185,9 +1193,17 @@ class ToolInstaller(BaseService):
         Returns:
             List of missing dependencies.
         """
+        from .system_deps import which_with_scripts
+
+        # Probe against the augmented build environment PATH (which includes
+        # the MSYS2/conda toolchain dirs the build itself will see), and use
+        # a PATHEXT-tolerant lookup: on Windows plain shutil.which misses
+        # extensionless shell-script wrappers such as MSYS2's gdal-config,
+        # geos-config, and nf-config.
+        build_path = self._get_clean_build_env().get("PATH", "")
         missing_deps = []
         for dep in dependencies:
-            if not shutil.which(dep):
+            if not which_with_scripts(dep, path=build_path):
                 missing_deps.append(dep)
         return missing_deps
 

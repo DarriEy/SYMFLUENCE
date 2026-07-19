@@ -111,6 +111,18 @@ else
     export CXX=mpicxx
 fi
 
+# Patch an upstream TauDEM bug (src/tiffIO.cpp): GDALGetRasterUnitType() is called
+# with the dataset handle (fh) instead of the raster band handle (bandh) obtained on
+# the previous line. GDAL's C API casts the handle straight to GDALRasterBand* and
+# makes a virtual call, so passing a GDALDataset* dispatches through the wrong
+# vtable. This happens to survive on some Linux GDAL builds but segfaults
+# immediately on Windows/MSYS2 GDAL 3.x, crashing every TauDEM tool on open.
+if grep -q 'GDALGetRasterUnitType(fh)' src/tiffIO.cpp; then
+    sed -i.bak 's/GDALGetRasterUnitType(fh)/GDALGetRasterUnitType(bandh)/' src/tiffIO.cpp
+    rm -f src/tiffIO.cpp.bak
+    echo "Patched src/tiffIO.cpp: GDALGetRasterUnitType(fh) -> GDALGetRasterUnitType(bandh)"
+fi
+
 rm -rf build && mkdir -p build
 cd build
 
