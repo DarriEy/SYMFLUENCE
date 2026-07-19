@@ -1,0 +1,2 @@
+# per-machine verdict-reporting state, never shared
+.compare_state.json
