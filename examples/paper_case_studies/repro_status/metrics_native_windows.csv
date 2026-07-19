@@ -6,3 +6,5 @@ cal_ensemble_hbv_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KG
 cal_ensemble_hbv_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9288707414,50,2026-07-19T20:39:39Z
 cal_ensemble_hbv_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9383386005,825,2026-07-19T20:49:42Z
 cal_ensemble_hbv_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9090824594,30,2026-07-19T20:49:42Z
+cal_ensemble_hbv_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9078622096,20,2026-07-19T20:59:46Z
+cal_ensemble_hbv_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9178005505,50,2026-07-19T20:59:46Z
