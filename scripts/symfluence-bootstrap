@@ -700,6 +700,109 @@ rebuild_hdf5_packages() {
     return 0
 }
 
+# Build dependencies the model binaries need from the system.
+#
+# The conda path (setup_2i2c_environment) pulls these from conda-forge, but the
+# venv path relies on the system providing them. When they are missing the
+# failure surfaces only after cloning and compiling for the better part of an
+# hour, as a wall of "nf-config: not found" / "Python.h: No such file" deep in a
+# build log — so check up front and report every missing piece at once with the
+# command that installs them.
+check_system_build_deps() {
+    local strict="${1:-false}"
+    local missing=()
+
+    _need_cmd() {
+        command -v "$1" >/dev/null 2>&1 || missing+=("$2 ($1)")
+    }
+
+    _need_cmd gcc         "C compiler"
+    _need_cmd g++         "C++ compiler"
+    _need_cmd gfortran    "Fortran compiler"
+    _need_cmd cmake       "CMake"
+    _need_cmd make        "Make"
+    _need_cmd nc-config   "netCDF-C"
+    _need_cmd nf-config   "netCDF-Fortran"
+    _need_cmd gdal-config "GDAL"
+    _need_cmd geos-config "GEOS"
+    _need_cmd proj        "PROJ"
+    _need_cmd mpicc       "MPI"
+
+    # Python development headers. Needed to build any C extension (the GDAL
+    # bindings, mpi4py). Without them pip fails with a bare
+    # "Python.h: No such file or directory" that reads like a compiler bug.
+    #
+    # Resolve the interpreter rather than assuming a bare `python`: on a stock
+    # Debian/Ubuntu only `python3` exists, and probing the wrong name reports
+    # the headers missing when they are simply unreachable.
+    local py_bin="${python_cmd:-}"
+    if [[ -z "$py_bin" ]] || ! command -v "$py_bin" >/dev/null 2>&1; then
+        if command -v python >/dev/null 2>&1; then
+            py_bin="python"
+        elif command -v python3 >/dev/null 2>&1; then
+            py_bin="python3"
+        else
+            py_bin=""
+        fi
+    fi
+
+    if [[ -z "$py_bin" ]]; then
+        missing+=("Python interpreter (python/python3)")
+    else
+        local py_inc
+        py_inc=$("$py_bin" -c 'import sysconfig; print(sysconfig.get_paths()["include"])' 2>/dev/null || true)
+        if [[ -z "$py_inc" || ! -f "${py_inc}/Python.h" ]]; then
+            missing+=("Python development headers (Python.h)")
+        fi
+    fi
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        print_success "System build dependencies present"
+        return 0
+    fi
+
+    print_error "Missing system build dependencies:"
+    local item
+    for item in "${missing[@]}"; do
+        echo "     - $item" >&2
+    done
+    echo "" >&2
+
+    print_info "Install them with:"
+    case "$PLATFORM" in
+        macos)
+            echo "     brew install gcc cmake netcdf netcdf-fortran gdal proj geos open-mpi openblas udunits" >&2
+            ;;
+        linux|unix)
+            if command -v apt-get >/dev/null 2>&1; then
+                echo "     sudo apt-get install -y build-essential gfortran cmake python3-dev \\" >&2
+                echo "         libnetcdf-dev libnetcdff-dev libgdal-dev libproj-dev proj-bin \\" >&2
+                echo "         libgeos-dev libopenmpi-dev openmpi-bin libopenblas-dev libudunits2-dev" >&2
+            elif command -v dnf >/dev/null 2>&1; then
+                echo "     sudo dnf install -y gcc gcc-c++ gcc-gfortran cmake python3-devel \\" >&2
+                echo "         netcdf-devel netcdf-fortran-devel gdal-devel proj-devel geos-devel \\" >&2
+                echo "         openmpi-devel openblas-devel udunits2-devel" >&2
+            else
+                echo "     (install the packages above using your distribution's package manager)" >&2
+            fi
+            ;;
+        *)
+            echo "     (install the packages above using your platform's package manager)" >&2
+            ;;
+    esac
+    echo "" >&2
+
+    if [[ "$strict" == "true" ]]; then
+        # --paper-repro is all-or-nothing: every one of the 13 binaries has to
+        # build, so stop before spending an hour discovering that in a log.
+        print_error "Cannot build the paper binaries without these. Install them and re-run."
+        return 1
+    fi
+
+    print_warning "Some model binaries will fail to build without these."
+    return 0
+}
+
 install_gdal_python() {
     # Check if GDAL Python bindings are already installed
     if python -c "from osgeo import gdal" >/dev/null 2>&1; then
@@ -755,19 +858,37 @@ install_gdal_python() {
         fi
     fi
 
+    # Build against the interpreter's own numpy so gdal_array (the raster <->
+    # numpy bridge) is compiled in. Under pip's default build isolation the
+    # build env has no numpy, GDAL prints only "WARNING: numpy not available!",
+    # and the install *succeeds* without array support — which then fails at
+    # runtime, far from the cause. --no-build-isolation needs the build backend
+    # present in the venv itself.
+    python -m pip install -q setuptools wheel 2>&1 || true
+
+    # Errors are logged rather than discarded: the common failure here is a
+    # missing Python.h, which is actionable, and silencing stderr turned it
+    # into an unexplained "Failed to install".
+    local gdal_log
+    gdal_log=$(mktemp -t symfluence-gdal.XXXXXX)
+
     # Try exact version first
-    if python -m pip install "GDAL==$v" 2>/dev/null; then
+    if python -m pip install --no-build-isolation "GDAL==$v" >"$gdal_log" 2>&1; then
         # Restore setuptools
         [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
         print_success "Installed GDAL Python bindings $v"
+        rm -f "$gdal_log"
         return 0
     fi
 
     # Try version range that allows same patch + post-releases, but not next patch
     print_info "Trying GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}..."
-    if python -m pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}" 2>/dev/null; then
+    if python -m pip install --no-build-isolation \
+        "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}" \
+        >>"$gdal_log" 2>&1; then
         [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
         print_success "Installed GDAL Python bindings compatible with $v"
+        rm -f "$gdal_log"
         return 0
     fi
 
@@ -775,6 +896,12 @@ install_gdal_python() {
     [[ "$needs_old_setuptools" == "true" ]] && python -m pip install --upgrade setuptools -q 2>&1
 
     print_error "Failed to install GDAL Python bindings. You may try: python -m pip install GDAL==$v"
+    print_info "Last lines of the build log (full log: ${gdal_log}):"
+    tail -n 15 "$gdal_log" | sed 's/^/    /' >&2
+    if grep -q "Python.h" "$gdal_log" 2>/dev/null; then
+        print_info "Python.h is missing - install the Python development headers"
+        print_info "  (Debian/Ubuntu: sudo apt-get install python3-dev)"
+    fi
     return 1
 }
 
@@ -1602,6 +1729,17 @@ NCEOF
         setup_r_environment || print_warning "R setup had issues; GR will be unavailable until R is installed (other models continue to work)"
         setup_netcdf_environment || true
 
+        # Check the system build dependencies before anything is cloned or
+        # compiled. Under --paper-repro this is fatal: all 13 binaries are
+        # required, so it is better to stop here than to fail an hour into the
+        # build. Otherwise it warns and continues — a partial toolset is still
+        # useful when the user only wants the Python side.
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            check_system_build_deps true || exit 1
+        else
+            check_system_build_deps false || true
+        fi
+
         # Generate requirements.txt from pyproject.toml (source of truth)
         local req_file="${symfluence_dir}/requirements.txt"
         local pyproj_path="${symfluence_dir}/pyproject.toml"
@@ -1692,6 +1830,29 @@ else:
         python -m pip install "rich>=13.0.0" --quiet || true
         print_success "SYMFLUENCE package installed"
 
+        # The paper ensemble needs the optional model stacks: the JAX
+        # re-implementations (HBV*, SACSMA*, XAJ*, HECHMS*, TOPMODEL*) and the
+        # differentiable-calibration experiments come from [jax], the LSTM
+        # member from [ml]. These are extras, so the editable --no-deps install
+        # above does not bring them in and the failure only shows up as a
+        # ModuleNotFoundError partway through an experiment.
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            print_info "Installing paper model stacks (jax + ml extras)..."
+            local extras_constraints
+            extras_constraints=$(mktemp -t symfluence-extras-constraints.XXXXXX)
+            cat > "$extras_constraints" << 'EOF'
+pandas>=2.0.0,<3.0.0
+pint-pandas<0.8
+EOF
+            python -m pip install -c "$extras_constraints" -e ".[jax,ml]" || {
+                rm -f "$extras_constraints"
+                print_error "Failed to install the [jax,ml] extras the paper experiments need"
+                exit 1
+            }
+            rm -f "$extras_constraints"
+            print_success "Paper model stacks installed"
+        fi
+
         # MESH model support: hydrant (CH-Earth) + meshflow.
         # hydrant must be installed BEFORE meshflow to prevent pip resolving
         # "hydrant" to the wrong PyPI package (an unrelated Kinesis Firehose tool).
@@ -1699,11 +1860,23 @@ else:
         print_info "Installing MESH model dependencies (hydrant + meshflow)..."
         local mesh_log
         mesh_log=$(mktemp -t symfluence-mesh-deps.XXXXXX)
-        if $python_cmd -m pip install "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" >"$mesh_log" 2>&1 && \
-           $python_cmd -m pip install "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" >>"$mesh_log" 2>&1; then
+        # meshflow declares an unbounded pandas>=1.4.0 and pint-pandas>=0.7.1.
+        # pint-pandas 0.8 requires pandas>=3, so an unconstrained install pulls
+        # pandas 3 and breaks SYMFLUENCE's own pandas>=2.0,<3.0 pin — quietly,
+        # because it is a separate pip invocation that never re-checks the
+        # already-installed package. Constrain both explicitly.
+        local mesh_constraints
+        mesh_constraints=$(mktemp -t symfluence-mesh-constraints.XXXXXX)
+        cat > "$mesh_constraints" << 'EOF'
+pandas>=2.0.0,<3.0.0
+pint-pandas<0.8
+EOF
+        if $python_cmd -m pip install -c "$mesh_constraints" "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git" >"$mesh_log" 2>&1 && \
+           $python_cmd -m pip install -c "$mesh_constraints" "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main" >>"$mesh_log" 2>&1; then
             print_success "MESH dependencies installed"
-            rm -f "$mesh_log"
+            rm -f "$mesh_log" "$mesh_constraints"
         else
+            rm -f "$mesh_constraints"
             print_warning "MESH dependency installation failed (MESH model will be unavailable)"
             print_info "Last lines of the install log (full log: ${mesh_log}):"
             tail -n 15 "$mesh_log" | sed 's/^/    /'
@@ -1821,7 +1994,14 @@ else:
             fi
         fi
         print_info "Validating installation..."
-        "$venv_cli" binary validate || {
+        # Under --paper-repro pass the flag through: several of the 13 paper
+        # tools are marked optional, and a plain validate skips optional tools
+        # that are missing — which would let a partial bundle validate clean.
+        local validate_args=()
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            validate_args+=(--paper-repro)
+        fi
+        "$venv_cli" binary validate "${validate_args[@]}" || {
             if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
                 # A reproducibility bundle must validate completely.
                 print_error "Binary validation failed"

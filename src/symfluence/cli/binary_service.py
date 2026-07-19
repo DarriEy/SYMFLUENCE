@@ -11,7 +11,7 @@ This module provides a unified interface to the modular services:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from .console import Console
 from .console import console as global_console
@@ -136,7 +136,10 @@ class BinaryService(BaseService):
     # =========================================================================
 
     def validate_binaries(
-        self, symfluence_instance=None, verbose: bool = False
+        self,
+        symfluence_instance=None,
+        verbose: bool = False,
+        required_tools: Optional[Iterable[str]] = None,
     ) -> Union[bool, Dict[str, Any]]:
         """
         Validate that required binary executables exist and are functional.
@@ -144,6 +147,8 @@ class BinaryService(BaseService):
         Args:
             symfluence_instance: Optional SYMFLUENCE instance with config.
             verbose: If True, show detailed output.
+            required_tools: Tools that must be present, validated even when
+                marked optional.
 
         Returns:
             True if all tools valid, otherwise a dictionary with validation results.
@@ -151,19 +156,28 @@ class BinaryService(BaseService):
         return self._validator.validate(
             symfluence_instance=symfluence_instance,
             verbose=verbose,
+            required_tools=required_tools,
         )
 
-    def validate(self, verbose: bool = False) -> Union[bool, Dict[str, Any]]:
+    def validate(
+        self,
+        verbose: bool = False,
+        required_tools: Optional[Iterable[str]] = None,
+    ) -> Union[bool, Dict[str, Any]]:
         """
         Validate installed tools (alias for validate_binaries).
 
         Args:
             verbose: If True, show detailed output.
+            required_tools: Tools that must be present, validated even when
+                marked optional.
 
         Returns:
             True if all tools valid, otherwise a dictionary with validation results.
         """
-        return self._validator.validate(verbose=verbose)
+        return self._validator.validate(
+            verbose=verbose, required_tools=required_tools
+        )
 
     # =========================================================================
     # Diagnostics Methods (delegated to SystemDiagnostics)

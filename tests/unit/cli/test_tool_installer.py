@@ -183,6 +183,59 @@ def test_install_fails_fast_when_required_tool_missing(mock_external_tools, tmp_
     assert "summa" not in result["successful"]
 
 
+def test_install_rebuilds_when_existing_dir_fails_verification(mock_external_tools, tmp_path):
+    """An install dir left by a failed build must be rebuilt, not skipped.
+
+    The clone step creates the directory before the build runs, so a build that
+    fails for missing system libraries leaves source behind with no binary.
+    Re-running must not report that tool as "skipped - already exists".
+    """
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+
+    # Directory exists but holds no verifiable artifact (bin/pitremove etc.).
+    (tmp_path / "installs" / "TauDEM").mkdir(parents=True)
+
+    installer._load_config = MagicMock(return_value={"SYMFLUENCE_DATA_DIR": str(tmp_path)})
+    installer._clone_repository = MagicMock(return_value=True)
+    installer._check_system_dependencies = MagicMock(return_value=[])
+    installer._run_build_commands = MagicMock(return_value=True)
+
+    def _verify(_name, _info, install_dir):
+        return (install_dir / "bin" / "pitremove").exists()
+
+    installer._verify_installation = MagicMock(side_effect=_verify)
+
+    result = installer.install(specific_tools=["taudem"], force=False)
+
+    assert "taudem" not in result["skipped"]
+    installer._run_build_commands.assert_called_once()
+    assert "taudem" in result["failed"]  # rebuild still lacks the artifact
+
+
+def test_install_skips_when_existing_dir_verifies(mock_external_tools, tmp_path):
+    """A genuinely installed tool must still skip without rebuilding."""
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+
+    taudem_dir = tmp_path / "installs" / "TauDEM" / "bin"
+    taudem_dir.mkdir(parents=True)
+    _make_exe(taudem_dir / "pitremove")
+
+    installer._load_config = MagicMock(return_value={"SYMFLUENCE_DATA_DIR": str(tmp_path)})
+    installer._clone_repository = MagicMock(return_value=True)
+    installer._check_system_dependencies = MagicMock(return_value=[])
+    installer._run_build_commands = MagicMock(return_value=True)
+
+    result = installer.install(specific_tools=["taudem"], force=False)
+
+    assert "taudem" in result["skipped"]
+    installer._run_build_commands.assert_not_called()
+    installer._clone_repository.assert_not_called()
+
+
 def test_install_marks_verification_failure_as_failed(mock_external_tools, tmp_path):
     """Verification failure should remove a tool from successful installs."""
     from symfluence.cli.services.tool_installer import ToolInstaller

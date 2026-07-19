@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 from ..console import Console
 from .base import BaseService
@@ -52,7 +52,10 @@ class ToolValidator(BaseService):
         return self._external_tools
 
     def validate(
-        self, symfluence_instance=None, verbose: bool = False
+        self,
+        symfluence_instance=None,
+        verbose: bool = False,
+        required_tools: Optional[Iterable[str]] = None,
     ) -> Union[bool, Dict[str, Any]]:
         """
         Validate that required binary executables exist and are functional.
@@ -60,6 +63,10 @@ class ToolValidator(BaseService):
         Args:
             symfluence_instance: Optional SYMFLUENCE instance with config.
             verbose: If True, show detailed output.
+            required_tools: Tools that must be present. These are validated even
+                when marked ``optional`` or ``hidden``, so a missing one is
+                reported as missing instead of being skipped. Used by
+                ``--paper-repro``, where the whole set is mandatory.
 
         Returns:
             True if all tools valid, otherwise a dictionary with validation results.
@@ -77,12 +84,19 @@ class ToolValidator(BaseService):
 
         config = self._load_config(symfluence_instance)
 
+        # Tools the caller declared mandatory. They bypass both skip paths
+        # below: an optional-but-required tool that is missing has to surface as
+        # a failure, otherwise a caller asking for a complete set (--paper-repro)
+        # gets a clean pass over a partial install.
+        required = {t.lower() for t in (required_tools or ())}
+
         # Validate each tool (skip optional tools that aren't installed)
         for tool_name, tool_info in self.external_tools.items():
-            if tool_info.get('hidden', False):
+            is_required = tool_name.lower() in required
+            if tool_info.get('hidden', False) and not is_required:
                 validation_results["skipped_tools"].append(tool_name)
                 continue
-            if tool_info.get('optional', False):
+            if tool_info.get('optional', False) and not is_required:
                 # Check if optional tool is actually installed before validating.
                 # Use default_path_suffix (e.g. installs/clm/bin) which includes
                 # the output subdirectory — NOT the install_dir root, which exists
@@ -156,16 +170,50 @@ class ToolValidator(BaseService):
 
             validation_results["summary"][tool_name] = tool_result
 
+        # A required tool that is not a known tool at all would otherwise never
+        # be looked at, and the run would pass while silently validating nothing
+        # for it. Report it rather than assume the caller's list is correct.
+        unknown_required = sorted(
+            name for name in required
+            if not any(name == known.lower() for known in self.external_tools)
+        )
+        for name in unknown_required:
+            validation_results["missing_tools"].append(name)
+            validation_results["summary"][name] = {
+                "name": name,
+                "description": "",
+                "status": "unknown_tool",
+                "path": None,
+                "executable": None,
+                "version": None,
+                "errors": ["Required tool is not a recognized external tool"],
+            }
+            self._console.error(f"Required tool '{name}' is not a recognized external tool")
+
         # Print summary
         self._print_validation_summary(validation_results)
 
-        if (
-            len(validation_results["missing_tools"]) == 0
-            and len(validation_results["failed_tools"]) == 0
-        ):
-            return True
+        problems = (
+            validation_results["missing_tools"] + validation_results["failed_tools"]
+        )
+        if required:
+            # An explicit required set defines the verdict. Tools outside it are
+            # still reported, but must not fail the run: --paper-repro builds 13
+            # of the 26 tools by design, and failing over the ones it
+            # deliberately skipped would make a correct bundle look broken.
+            blocking = [t for t in problems if t.lower() in required]
+            unrelated = [t for t in problems if t.lower() not in required]
+            if unrelated and not blocking:
+                self._console.info(
+                    "Not installed, outside the required set: "
+                    f"{', '.join(sorted(unrelated))}"
+                )
         else:
-            return validation_results
+            blocking = problems
+
+        if not blocking:
+            return True
+        return validation_results
 
     def _check_verify_install(
         self,

@@ -132,19 +132,39 @@ class BinaryCommands(BaseCommand):
 
         BaseCommand._console.info("Validating installed binaries...")
 
+        # --paper-repro makes the 13 paper tools mandatory. Without it the ones
+        # marked optional are skipped when missing and validation passes over a
+        # partial install — exactly what a reproducibility bundle must not do.
+        required_tools = None
+        if BaseCommand.get_arg(args, 'paper_repro', False):
+            from symfluence.cli.argument_parser import PAPER_REPRO_TOOLS
+            required_tools = list(PAPER_REPRO_TOOLS)
+
         # Handle subprocess errors specifically
         try:
-            success = binary_manager.validate_binaries(verbose=verbose)
+            result = binary_manager.validate_binaries(
+                verbose=verbose, required_tools=required_tools
+            )
         except subprocess.CalledProcessError as e:
             BaseCommand._console.error(f"Binary test command failed: {e}")
             return ExitCode.BINARY_ERROR
 
-        if success:
+        # validate_binaries returns True on success, or a results dict on
+        # failure. That dict is always non-empty, so a plain truthiness test
+        # passes for both and the command could never fail — compare to True.
+        if result is True:
             BaseCommand._console.success("All binaries validated successfully")
             return ExitCode.SUCCESS
-        else:
-            BaseCommand._console.error("Binary validation failed")
-            return ExitCode.BINARY_ERROR
+
+        BaseCommand._console.error("Binary validation failed")
+        if isinstance(result, dict):
+            missing = result.get("missing_tools") or []
+            failed = result.get("failed_tools") or []
+            if missing:
+                BaseCommand._console.indent(f"Missing: {', '.join(sorted(missing))}")
+            if failed:
+                BaseCommand._console.indent(f"Failed: {', '.join(sorted(failed))}")
+        return ExitCode.BINARY_ERROR
 
     @staticmethod
     @cli_exception_handler

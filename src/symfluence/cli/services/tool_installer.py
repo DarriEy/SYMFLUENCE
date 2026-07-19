@@ -651,12 +651,28 @@ class ToolInstaller(BaseService):
             branch = branch_override if branch_override else tool_info.get("branch")
 
             try:
-                # Check if already exists
+                # Check if already installed. The directory alone proves
+                # nothing: it is created by the clone step, before the build
+                # runs, so a failed build (missing nf-config/gdal-config, ...)
+                # or a partial clone leaves behind a directory with no usable
+                # artifacts. Skipping on mere existence made a re-run after
+                # installing the missing prerequisites a silent no-op. Only
+                # skip when the tool verifies against its `verify_install`
+                # metadata; anything else is reinstalled from scratch.
+                reinstall_incomplete = False
                 if tool_install_dir.exists() and not force:
-                    self._console.indent(f"Skipping - already exists at: {tool_install_dir}")
-                    self._console.indent("Use --force to reinstall")
-                    installation_results["skipped"].append(tool_name)
-                    continue
+                    if self._verify_installation(tool_name, tool_info, tool_install_dir):
+                        self._console.indent(
+                            f"Skipping - already installed at: {tool_install_dir}"
+                        )
+                        self._console.indent("Use --force to reinstall")
+                        installation_results["skipped"].append(tool_name)
+                        continue
+                    self._console.warning(
+                        f"Existing installation at {tool_install_dir} is incomplete "
+                        "(verification failed) - reinstalling"
+                    )
+                    reinstall_incomplete = True
 
                 if dry_run:
                     self._console.indent(f"Would clone: {repository_url}")
@@ -671,8 +687,10 @@ class ToolInstaller(BaseService):
                     installation_results["successful"].append(f"{tool_name} (dry run)")
                     continue
 
-                # Remove existing if force reinstall
-                if tool_install_dir.exists() and force:
+                # Remove existing if reinstalling (forced, or incomplete): git
+                # refuses to clone into a non-empty directory, so a rebuild
+                # has to start from a clean target either way.
+                if tool_install_dir.exists() and (force or reinstall_incomplete):
                     self._console.indent(f"Removing existing installation: {tool_install_dir}")
                     # On Windows, git repos contain read-only pack files and
                     # may have broken symlinks/junctions (e.g. SUNDIALS docs).
