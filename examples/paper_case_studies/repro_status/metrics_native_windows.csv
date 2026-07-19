@@ -4,3 +4,5 @@ cal_ensemble_hbv_adam,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9372
 cal_ensemble_hbv_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9004938188,3,2026-07-19T20:39:39Z
 cal_ensemble_hbv_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8918683434,30,2026-07-19T20:39:39Z
 cal_ensemble_hbv_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9288707414,50,2026-07-19T20:39:39Z
+cal_ensemble_hbv_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9383386005,825,2026-07-19T20:49:42Z
+cal_ensemble_hbv_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9090824594,30,2026-07-19T20:49:42Z
