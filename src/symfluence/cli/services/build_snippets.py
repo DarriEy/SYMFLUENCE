@@ -406,6 +406,36 @@ configure_libraries
 export NCORES="${NCORES:-4}"
 
 # ================================================================
+# Windows: temp dir for native toolchains spawned by make
+# ================================================================
+# On Windows the build bash (e.g. Git Bash) and MSYS2's make.exe link
+# against DIFFERENT msys-2.0.dll runtimes.  Each runtime converts the
+# path-like variables TMPDIR/TMP/TEMP between POSIX and Windows form at
+# every process hop; across mismatched runtimes the conversion fails and
+# make's child processes see them EMPTY.  Native mingw-w64 gfortran then
+# falls back to the unwritable C:\Windows and dies with
+# "Cannot create temporary file in C:\Windows\: Permission denied".
+# Environment exports cannot survive that hop, but make command-line
+# arguments (plain argv) do — and GNU make exports command-line variables
+# to the environment of its recipes.  Build recipes on Windows should
+# therefore invoke make as:  make "${SYMF_MAKE_TMP[@]}" ...
+# (On non-Windows the array is empty and expands to nothing.)
+SYMF_MAKE_TMP=()
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        # cygpath resolves /tmp with the mount table of whichever runtime
+        # is first on PATH — the same runtime whose make we will invoke —
+        # so the result is a Windows-form (C:/...) directory that native
+        # child processes can use directly.
+        _symf_ntmp="$(cygpath -m /tmp 2>/dev/null || true)"
+        if [ -n "$_symf_ntmp" ] && [ -d "$_symf_ntmp" ]; then
+            SYMF_MAKE_TMP=(TMPDIR="$_symf_ntmp" TMP="$_symf_ntmp" TEMP="$_symf_ntmp")
+            echo "Windows: native temp for make children: $_symf_ntmp"
+        fi
+        ;;
+esac
+
+# ================================================================
 # Portable in-place sed
 # ================================================================
 # macOS sed requires an explicit backup extension with -i (e.g. sed -i ''),

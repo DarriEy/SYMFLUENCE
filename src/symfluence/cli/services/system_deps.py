@@ -22,6 +22,36 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 
+def which_with_scripts(cmd: str, path: Optional[str] = None) -> Optional[str]:
+    """``shutil.which`` plus a Windows fallback for extensionless scripts.
+
+    On Windows, ``shutil.which`` only matches ``cmd + ext`` for the
+    extensions in ``PATHEXT`` (.EXE, .BAT, ...), so the extensionless
+    POSIX shell-script wrappers that MSYS2 ships (``gdal-config``,
+    ``geos-config``, ``nf-config``, ...) are never found even when their
+    directory is on PATH. Fall back to a plain filename probe across the
+    PATH directories so those scripts count as present.
+
+    Args:
+        cmd: Command name to look up.
+        path: PATH string to search (defaults to ``os.environ['PATH']``).
+
+    Returns:
+        Absolute path to the command, or None if not found.
+    """
+    found = shutil.which(cmd, path=path)
+    if found or sys.platform != "win32":
+        return found
+    search_path = path if path is not None else os.environ.get("PATH", "")
+    for d in search_path.split(os.pathsep):
+        if not d:
+            continue
+        candidate = os.path.join(d, cmd)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 class Platform(Enum):
     """Detected package-manager platform."""
     APT = "apt"
@@ -192,7 +222,7 @@ class SystemDepsRegistry:
         for cmd in commands_to_try:
             if not cmd:
                 continue
-            location = shutil.which(cmd)
+            location = which_with_scripts(cmd)
             if location:
                 found = True
                 path = location
