@@ -8,6 +8,7 @@ cal_ensemble_hbv_dds,KGE,macos,0.938339,native_windows,0.938339,0.000000,OK
 cal_ensemble_hbv_de,KGE,macos,0.909082,native_windows,0.909082,0.000000,OK
 cal_ensemble_hbv_dream,KGE,macos,0.907862,native_windows,0.907862,0.000000,OK
 cal_ensemble_hbv_ga,KGE,macos,0.917939,native_windows,0.917801,0.000139,OK
+cal_ensemble_hbv_glue,KGE,macos,0.907066,native_windows,0.907066,0.000000,OK
 bow_exp3_joint,KGE,macos,0.842957,wsl,0.832294,0.010663,OK
 cal_ensemble_fuse_abc,KGE,macos,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos,0.862520,wsl,0.848325,0.014195,OK
@@ -44,5 +45,6 @@ cal_ensemble_hbv_dds,KGE,native_windows,0.938339,wsl,0.938339,0.000000,OK
 cal_ensemble_hbv_de,KGE,native_windows,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream,KGE,native_windows,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga,KGE,native_windows,0.917801,wsl,0.917801,0.000000,OK
+cal_ensemble_hbv_glue,KGE,native_windows,0.907066,wsl,0.907066,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
