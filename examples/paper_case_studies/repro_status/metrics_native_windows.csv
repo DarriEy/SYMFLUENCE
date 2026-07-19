@@ -1,3 +1,6 @@
 experiment_id,domain,metric,best_score,best_iteration,collected_at
 cal_ensemble_hbv_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8881216832,10,2026-07-19T20:19:30Z
 cal_ensemble_hbv_adam,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9372691512,152,2026-07-19T20:29:35Z
+cal_ensemble_hbv_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9004938188,3,2026-07-19T20:39:39Z
+cal_ensemble_hbv_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8918683434,30,2026-07-19T20:39:39Z
+cal_ensemble_hbv_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9288707414,50,2026-07-19T20:39:39Z
