@@ -273,8 +273,11 @@ fi
         'dependencies': ['cmake', 'g++'],
         'test_command': None,
         'verify_install': {
-            'file_paths': ['bin/crhm'],
-            'check_type': 'exists'
+            # On Windows the MSYS cp appends .exe when staging the PE binary,
+            # so the staged file is bin/crhm.exe even though the script copies
+            # to bin/crhm. Accept either name.
+            'file_paths': ['bin/crhm', 'bin/crhm.exe'],
+            'check_type': 'exists_any'
         },
         'order': 20,  # After core models
         'optional': True,  # Not installed by default with --install
