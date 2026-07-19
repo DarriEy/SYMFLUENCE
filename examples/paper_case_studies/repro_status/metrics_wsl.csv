@@ -1,0 +1,16 @@
+experiment_id,domain,metric,best_score,best_iteration,collected_at
+bow_exp3_joint,domain_Bow_at_Banff_multivar,KGE,0.8322938542,9,2026-07-19T17:58:04Z
+cal_ensemble_fuse_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8705254329,3,2026-07-19T17:58:04Z
+cal_ensemble_fuse_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8483252148,17,2026-07-19T17:58:04Z
+cal_ensemble_fuse_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.835566928,43,2026-07-19T17:58:04Z
+cal_ensemble_fuse_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9084271382,45,2026-07-19T17:58:04Z
+cal_ensemble_fuse_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.909638056,762,2026-07-19T17:58:04Z
+cal_ensemble_fuse_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9084878086,50,2026-07-19T17:58:04Z
+cal_ensemble_fuse_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.872713008,2,2026-07-19T17:58:04Z
+cal_ensemble_fuse_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8872084189,50,2026-07-19T17:58:04Z
+cal_ensemble_fuse_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8514687723,7,2026-07-19T17:58:04Z
+cal_ensemble_fuse_moead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9090218297,15,2026-07-19T17:58:04Z
+cal_ensemble_fuse_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8950900937,985,2026-07-19T17:58:04Z
+cal_ensemble_fuse_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9074467501,20,2026-07-19T17:58:04Z
+cal_ensemble_fuse_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9103204608,49,2026-07-19T17:58:04Z
+forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-391.1497176,105,2026-07-19T17:58:04Z
