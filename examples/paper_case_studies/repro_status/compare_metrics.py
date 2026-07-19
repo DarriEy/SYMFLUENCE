@@ -40,6 +40,15 @@ def tolerance_for(metric: str, va: float, vb: float) -> float:
     return REL_TOL * scale if scale else TOL
 
 
+def load_explained():
+    """experiment_id -> note for divergences with a completed diagnosis."""
+    f = HERE / "explained_divergences.csv"
+    if not f.exists():
+        return {}
+    with f.open(newline="") as fh:
+        return {r["experiment_id"]: r["note"] for r in csv.DictReader(fh)}
+
+
 def load_platforms():
     platforms = {}
     for f in sorted(HERE.glob("metrics_*.csv")):
@@ -82,6 +91,7 @@ def main():
             prev = {}
 
     platforms = load_platforms()
+    explained = load_explained()
     rows, verdicts = [], {}
 
     for pa, pb in itertools.combinations(sorted(platforms), 2):
@@ -91,6 +101,10 @@ def main():
             va, vb = a[eid][1], b[eid][1]
             delta = abs(va - vb)
             status = "OK" if delta <= tolerance_for(metric, va, vb) else "DIFF"
+            if status == "DIFF" and eid in explained:
+                # diagnosed divergence (see explained_divergences.csv) —
+                # keep it visible but do not re-alert
+                status = "EXPLAINED"
             key = f"CMP {pa}|{pb} {eid}"
             verdicts[key] = (status,
                              f"CMP {eid} metric={metric} {pa}={va:.4f} "
