@@ -27,6 +27,13 @@ def scan(root: Path):
         if not opt.is_dir():
             continue
         for bp in sorted(opt.rglob("*_best_params.json")):
+            # best_params.json is rewritten on every improvement DURING
+            # calibration; harvesting it mid-run records a partial score
+            # (observed: a DDS best at eval 212/1000 flagged as a spurious
+            # cross-platform DIFF). The final_evaluation directory is only
+            # written when the calibration completes — use it as the gate.
+            if not (bp.parent / "final_evaluation").is_dir():
+                continue
             try:
                 d = json.loads(bp.read_text())
             except (OSError, ValueError, json.JSONDecodeError):

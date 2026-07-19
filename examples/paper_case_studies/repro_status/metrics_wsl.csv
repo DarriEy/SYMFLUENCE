@@ -14,4 +14,3 @@ cal_ensemble_fuse_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KG
 cal_ensemble_fuse_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9074467501,20,2026-07-19T17:58:04Z
 cal_ensemble_fuse_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9103204608,49,2026-07-19T17:58:04Z
 cal_ensemble_fuse_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8919300632,41,2026-07-19T18:08:46Z
-forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-387.0722597,294,2026-07-19T18:18:50Z
