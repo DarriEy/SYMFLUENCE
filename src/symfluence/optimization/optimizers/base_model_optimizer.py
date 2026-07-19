@@ -238,7 +238,8 @@ class BaseModelOptimizer(
                 use_parallel=self.use_parallel,
                 num_processes=self.num_processes,
                 model_name=self._get_model_name(),
-                logger=self.logger
+                logger=self.logger,
+                metrics_tracker=self._metrics_tracker
             )
         return require_not_none(self._population_evaluator, "population_evaluator", OptimizationError)
 

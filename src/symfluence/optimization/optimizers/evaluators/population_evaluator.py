@@ -42,7 +42,8 @@ class PopulationEvaluator:
         use_parallel: bool,
         num_processes: int,
         model_name: str,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        metrics_tracker: Optional[Any] = None
     ):
         """
         Initialize population evaluator.
@@ -55,6 +56,12 @@ class PopulationEvaluator:
             num_processes: Number of parallel processes
             model_name: Model name (e.g., 'SUMMA', 'FUSE')
             logger: Optional logger instance
+            metrics_tracker: Optional EvaluationMetricsTracker. Batch
+                evaluations report each individual's outcome to it, so
+                population-based algorithms count crashes like the
+                single-solution path already does. Without it the progress
+                line reports ``Crashes: 0/0`` no matter how many individuals
+                crashed.
         """
         self.task_builder = task_builder
         self.worker = worker
@@ -63,10 +70,23 @@ class PopulationEvaluator:
         self.num_processes = num_processes
         self.model_name = model_name
         self.logger = logger or logging.getLogger(__name__)
+        self.metrics_tracker = metrics_tracker
         # Occurrence counters for identical task-error messages, so a broken
         # setup that fails every evaluation logs one ERROR instead of thousands
         # of identical WARNINGs.
         self._task_error_counts: Dict[str, int] = {}
+
+    def _track_batch(self, scores: np.ndarray) -> None:
+        """Report one batch of evaluation outcomes to the metrics tracker.
+
+        ``scores`` holds the primary score per individual, already defaulted to
+        the penalty score for anything that crashed or returned nothing, which
+        is exactly what the tracker treats as a crash.
+        """
+        if self.metrics_tracker is None:
+            return
+        for score in scores:
+            self.metrics_tracker.track_evaluation(float(score))
 
     def _log_task_error(self, idx: Any, error: Any, result: Dict) -> None:
         """
@@ -174,6 +194,7 @@ class PopulationEvaluator:
         self.logger.debug(f"Batch results: {len(results)} returned, {valid_count} valid scores")
         if results and valid_count == 0:
             self._log_all_penalty_batch(len(results), 'scores')
+        self._track_batch(fitness)
         return fitness
 
     def _extract_objectives(
@@ -235,6 +256,9 @@ class PopulationEvaluator:
         )
         if results and valid_count == 0:
             self._log_all_penalty_batch(len(results), 'objectives')
+        # Track on the primary objective — an individual whose first objective
+        # is the penalty score is one whose model run failed.
+        self._track_batch(objectives[:, 0])
         return objectives
 
     def evaluate_solution(
