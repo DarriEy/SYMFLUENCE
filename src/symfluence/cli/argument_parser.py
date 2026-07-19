@@ -497,6 +497,10 @@ For more help on a specific command:
         )
         validate_parser.add_argument('--verbose', action='store_true',
                                    help='Show detailed validation output')
+        validate_parser.add_argument('--paper-repro', action='store_true',
+                                   help=f'Require the {len(PAPER_REPRO_TOOLS)} Paper 3 tools '
+                                        '(validated even when marked optional, so a missing '
+                                        'one fails instead of being skipped)')
         validate_parser.set_defaults(func=BinaryCommands.validate)
 
         # binary doctor

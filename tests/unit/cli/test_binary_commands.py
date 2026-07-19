@@ -152,7 +152,58 @@ class TestBinaryValidate:
         result = BinaryCommands.validate(args)
 
         assert result == ExitCode.SUCCESS
-        mock_manager.validate_binaries.assert_called_once_with(verbose=False)
+        mock_manager.validate_binaries.assert_called_once_with(
+            verbose=False, required_tools=None
+        )
+
+    @patch('symfluence.cli.binary_service.BinaryManager')
+    def test_validate_failure_returns_error_for_results_dict(
+        self, mock_binary_manager_class
+    ):
+        """A results dict means failure, even though a non-empty dict is truthy.
+
+        Regression test: validate_binaries returns True on success or a results
+        dict on failure, and the command tested that value for truthiness. The
+        dict is never empty, so failures were reported as successes and
+        `binary validate` exited 0 over a broken install. `False` — what the
+        sibling failure test mocks — is falsy, so it never caught this.
+        """
+        mock_manager = MagicMock()
+        mock_manager.validate_binaries.return_value = {
+            "valid_tools": ["summa"],
+            "missing_tools": ["fuse"],
+            "failed_tools": [],
+            "skipped_tools": [],
+            "warnings": [],
+            "summary": {},
+        }
+        mock_binary_manager_class.return_value = mock_manager
+
+        args = Namespace(verbose=False, debug=False)
+
+        result = BinaryCommands.validate(args)
+
+        assert result == ExitCode.BINARY_ERROR
+
+    @patch('symfluence.cli.binary_service.BinaryManager')
+    def test_validate_paper_repro_requires_the_paper_tools(
+        self, mock_binary_manager_class
+    ):
+        """--paper-repro forwards the paper tool set as required."""
+        from symfluence.cli.argument_parser import PAPER_REPRO_TOOLS
+
+        mock_manager = MagicMock()
+        mock_manager.validate_binaries.return_value = True
+        mock_binary_manager_class.return_value = mock_manager
+
+        args = Namespace(verbose=False, debug=False, paper_repro=True)
+
+        result = BinaryCommands.validate(args)
+
+        assert result == ExitCode.SUCCESS
+        mock_manager.validate_binaries.assert_called_once_with(
+            verbose=False, required_tools=list(PAPER_REPRO_TOOLS)
+        )
 
     @patch('symfluence.cli.binary_service.BinaryManager')
     def test_validate_failure(self, mock_binary_manager_class):

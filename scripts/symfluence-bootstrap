@@ -1994,7 +1994,14 @@ EOF
             fi
         fi
         print_info "Validating installation..."
-        "$venv_cli" binary validate || {
+        # Under --paper-repro pass the flag through: several of the 13 paper
+        # tools are marked optional, and a plain validate skips optional tools
+        # that are missing — which would let a partial bundle validate clean.
+        local validate_args=()
+        if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
+            validate_args+=(--paper-repro)
+        fi
+        "$venv_cli" binary validate "${validate_args[@]}" || {
             if [[ "${SYMFLUENCE_PAPER_REPRO:-}" == "1" ]]; then
                 # A reproducibility bundle must validate completely.
                 print_error "Binary validation failed"
