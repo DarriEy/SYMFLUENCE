@@ -54,7 +54,16 @@ class GRACEHandler(BaseObservationHandler):
 
         # Check if we need to download
         force_download = self._get_config_value(lambda: self.config.data.force_download, default=False)
-        has_files = grace_dir.exists() and any(grace_dir.iterdir())
+        # Count only usable data files. An interrupted download leaves a
+        # "<target>.nc.part" staging file behind (the acquirer's cleanup is
+        # skipped on SIGKILL), and a bare .part satisfied the old
+        # any(iterdir()) test — so the directory looked populated, the
+        # re-download was skipped forever, and the downstream *.nc glob found
+        # nothing. That combination silently starved a multi-objective
+        # calibration of its GRACE observations for an entire run.
+        has_files = grace_dir.exists() and any(
+            p.is_file() and p.suffix == ".nc" for p in grace_dir.iterdir()
+        )
 
         if not has_files or force_download:
             self.logger.info("Acquiring GRACE data...")
