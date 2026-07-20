@@ -475,6 +475,13 @@ class ERA5Acquirer(BaseAcquisitionHandler):
     # Substrings identifying a transient transport failure rather than a
     # misconfigured CDS account. Matched against the exception text because
     # the CDS client wraps urllib3/requests errors in its own types.
+    # The same failure set the caller treats as "CDS did not work", kept
+    # in sync so the retry sees exactly the errors the fallback would.
+    _CDS_ERRORS = (
+        ImportError, OSError, ValueError, TypeError, KeyError,
+        RuntimeError, PermissionError, DataAcquisitionError,
+    )
+
     _CDS_TRANSIENT_MARKERS = (
         "connectionpool", "max retries exceeded", "connection reset",
         "connection aborted", "timed out", "timeout", "temporarily unavailable",
@@ -499,7 +506,7 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         for attempt in range(1, attempts + 1):
             try:
                 return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
-            except Exception as exc:  # noqa: BLE001 — re-raised below
+            except self._CDS_ERRORS as exc:
                 text = f"{type(exc).__name__}: {exc}".lower()
                 if not any(m in text for m in self._CDS_TRANSIENT_MARKERS):
                     raise
