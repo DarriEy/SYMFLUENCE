@@ -14,7 +14,6 @@ cal_ensemble_fuse_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9103
 cal_ensemble_fuse_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8919300632,41,2026-07-19T18:07:18Z,0.9.2,bc37624d,2026-07-19T18:08:46Z
 cal_ensemble_fuse_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8908180233,5,2026-07-19T18:22:42Z,0.9.2,bc37624d,2026-07-19T18:28:55Z
 cal_ensemble_hbv_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8881216832,10,2026-07-19T18:28:56Z,0.9.2,bc37624d,2026-07-19T18:38:59Z
-cal_ensemble_hbv_adam,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9372691512,152,2026-07-19T18:36:30Z,0.9.2,bc37624d,2026-07-19T18:38:59Z
 cal_ensemble_hbv_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9004938188,3,2026-07-19T18:42:59Z,0.9.2,bc37624d,2026-07-19T18:49:03Z
 cal_ensemble_hbv_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8918683354,30,2026-07-19T18:46:01Z,0.9.2,bc37624d,2026-07-19T18:49:03Z
 cal_ensemble_hbv_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9288707414,50,2026-07-19T18:50:22Z,0.9.2,bc37624d,2026-07-19T18:59:07Z
@@ -23,14 +22,12 @@ cal_ensemble_hbv_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.909082
 cal_ensemble_hbv_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.90786221,20,2026-07-19T19:03:24Z,0.9.2,bc37624d,2026-07-19T19:09:10Z
 cal_ensemble_hbv_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9178005505,50,2026-07-19T19:07:46Z,0.9.2,bc37624d,2026-07-19T19:09:10Z
 cal_ensemble_hbv_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9070656464,1,2026-07-19T19:12:04Z,0.9.2,bc37624d,2026-07-19T19:19:13Z
-cal_ensemble_hbv_lbfgs,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9145399865,124,2026-07-20T01:39:37Z,0.9.2,bc37624d,2026-07-20T01:41:49Z
 cal_ensemble_hbv_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9422489632,999,2026-07-20T01:54:41Z,0.9.2,bc37624d,2026-07-20T02:01:59Z
 cal_ensemble_hbv_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7261799518,0,2026-07-20T02:03:03Z,0.9.2,bc37624d,2026-07-20T02:12:03Z
 cal_ensemble_hbv_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9291632219,45,2026-07-20T02:07:57Z,0.9.2,bc37624d,2026-07-20T02:12:03Z
 cal_ensemble_hbv_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9157387048,96,2026-07-20T02:12:50Z,0.9.2,bc37624d,2026-07-20T02:22:09Z
 cal_ensemble_hbv_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9161990737,7,2026-07-20T02:17:59Z,0.9.2,bc37624d,2026-07-20T02:22:08Z
 cal_ensemble_hechms_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8510982691,14,2026-07-20T02:27:50Z,0.9.2,bc37624d,2026-07-20T02:32:15Z
-cal_ensemble_hechms_adam,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8941693902,240,2026-07-20T02:40:32Z,0.9.2,bc37624d,2026-07-20T02:42:20Z
 cal_ensemble_hechms_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8073657284,9,2026-07-20T02:46:52Z,0.9.2,bc37624d,2026-07-20T02:52:25Z
 cal_ensemble_hechms_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.6584035512,42,2026-07-20T02:50:28Z,0.9.2,bc37624d,2026-07-20T02:52:25Z
 cal_ensemble_hechms_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8794903556,28,2026-07-20T02:55:00Z,0.9.2,bc37624d,2026-07-20T02:55:15Z
@@ -39,12 +36,12 @@ cal_ensemble_hechms_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.912
 cal_ensemble_hechms_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8330177926,7,2026-07-20T03:07:33Z,0.9.2,18e0e9c1,2026-07-20T03:12:49Z
 cal_ensemble_hechms_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8408989522,50,2026-07-20T03:11:43Z,0.9.2,18e0e9c1,2026-07-20T03:12:49Z
 cal_ensemble_hechms_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7419960137,4,2026-07-20T03:16:05Z,0.9.2,eaef7551,2026-07-20T03:23:04Z
-cal_ensemble_hechms_lbfgs,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8023730459,124,2026-07-20T18:37:23Z,0.9.2,8048c36d,2026-07-20T18:47:37Z
 cal_ensemble_hechms_moead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8785464688,20,2026-07-20T18:45:48Z,0.9.2,8048c36d,2026-07-20T18:47:37Z
 cal_ensemble_hechms_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9006963005,996,2026-07-20T18:51:02Z,0.9.2,96cadcf7,2026-07-20T18:57:49Z
 cal_ensemble_hechms_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.886108242,19,2026-07-20T18:58:12Z,0.9.2,a5890802,2026-07-20T19:08:01Z
 cal_ensemble_hechms_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8906192441,50,2026-07-20T19:02:25Z,0.9.2,a5890802,2026-07-20T19:08:01Z
 cal_ensemble_hechms_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.771653855,95,2026-07-20T19:06:27Z,0.9.2,a5890802,2026-07-20T19:08:01Z
+cal_ensemble_hechms_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7602747896,0,2026-07-20T19:09:31Z,0.9.2,25835cdc,2026-07-20T19:14:06Z
 forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-386.3030513,880,2026-07-19T19:49:57Z,0.9.2,bc37624d,2026-07-19T19:59:24Z
 forcing_ensemble_conus404,domain_paradise_snotel_wa,RMSE,-306.1649133,618,2026-07-19T22:25:23Z,0.9.2,bc37624d,2026-07-19T22:30:25Z
 forcing_ensemble_rdrs,domain_paradise_snotel_wa,RMSE,-211.9137474,466,2026-07-20T18:24:17Z,0.9.2,6fc5643f,2026-07-20T18:27:07Z
