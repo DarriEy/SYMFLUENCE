@@ -9,3 +9,4 @@ cal_ensemble_hbv_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.909082
 cal_ensemble_hbv_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9078622096,20,2026-07-19T20:59:46Z
 cal_ensemble_hbv_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9178005505,50,2026-07-19T20:59:46Z
 cal_ensemble_hbv_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9070656464,1,2026-07-19T21:09:50Z
+cal_ensemble_hbv_lbfgs,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9147860439,124,2026-07-20T02:01:58Z
