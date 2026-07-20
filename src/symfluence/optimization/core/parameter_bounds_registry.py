@@ -333,7 +333,7 @@ class ParameterBoundsRegistry:
         # New lower bounds enforce physically reasonable values for a snowmelt-dominated
         # mountain basin with permeable soils and steep slopes.
         'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
-        'DRN': ParameterInfo(0.5, 10.0, '-', 'Drainage parameter', 'soil'),
+        'DRN': ParameterInfo(0.5, 5.0, '-', 'Drainage parameter', 'soil'),
         'SDEP': ParameterInfo(0.5, 1.5, 'm', 'Soil depth', 'soil'),
         'DD': ParameterInfo(1.0, 100.0, '-', 'CLASS drainage density (line 12)', 'soil'),
         'XSLP': ParameterInfo(0.01, 0.3, '-', 'Slope for overland flow', 'surface'),

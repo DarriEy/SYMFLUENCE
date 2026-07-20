@@ -588,6 +588,28 @@ class MESHParameterManager(BaseParameterManager):
                     f"Feasibility: scaled DRN {float(drn):.3f} -> {validated['DRN']:.3f} "
                     f"(KSAT*DRN/SDEP={drain_intensity:.1f} > 250)"
                 )
+                drn = validated['DRN']
+
+        # Constraint 2b: DRN * XDRAINH / SDEP <= 1.5 (lateral-drainage intensity).
+        # The KSAT*DRN constraints above only bound the *vertical* drainage path,
+        # so they miss the interflow instability: a large DRN with high horizontal
+        # drainage (XDRAINH) draining a shallow soil (small SDEP) lets the column
+        # saturate and dump an entire high-elevation snowmelt pulse as lateral flow
+        # in a single day (observed: DRN~10, XDRAINH~0.7, SDEP~0.8 -> LATFLW
+        # 60 mm/day -> ~10x the observed peak, blowing up on melt-heavy years while
+        # scoring fine on milder calibration years). Scale DRN down to keep the
+        # interflow path in the physically stable regime.
+        if drn is not None and xdrainh is not None and sdep is not None:
+            lateral_intensity = float(drn) * float(xdrainh) / float(validated['SDEP'])
+            if lateral_intensity > 1.5:
+                scale = 1.5 / lateral_intensity
+                validated['DRN'] = float(drn) * scale
+                self.logger.debug(
+                    f"Feasibility: scaled DRN {float(drn):.3f} -> {validated['DRN']:.3f} "
+                    f"(DRN*XDRAINH/SDEP={lateral_intensity:.2f} > 1.5; "
+                    f"prevents snowmelt interflow blow-up)"
+                )
+                drn = validated['DRN']
 
         # Constraint 3: XSLP >= 0.005
         if xslp is not None and float(xslp) < 0.005:
