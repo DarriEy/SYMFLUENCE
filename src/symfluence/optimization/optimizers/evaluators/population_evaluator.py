@@ -197,6 +197,47 @@ class PopulationEvaluator:
         self._track_batch(fitness)
         return fitness
 
+    def _warn_on_dead_objectives(
+        self,
+        objectives: np.ndarray,
+        objective_names: Optional[List[str]] = None,
+    ) -> None:
+        """Warn when a secondary objective carries no selection pressure.
+
+        Validity above is judged on the *primary* objective only, so a
+        secondary objective that is identical across the whole population —
+        typically every individual falling back to the penalty score because
+        its observations are missing — passes silently and quietly demotes a
+        multi-objective calibration to a single-objective one. Observed with a
+        multivariate streamflow+TWS experiment whose GRACE download had been
+        interrupted: the TWS axis sat at the penalty value for every
+        generation, and the run completed with no indication that half the
+        objective had been inert.
+        """
+        if objectives.ndim != 2 or objectives.shape[1] < 2 or not len(objectives):
+            return
+        for j in range(1, objectives.shape[1]):
+            col = objectives[:, j]
+            if not np.all(col == col[0]):
+                continue
+            name = (objective_names[j] if objective_names
+                    and j < len(objective_names) else f"#{j + 1}")
+            is_penalty = col[0] == self.DEFAULT_PENALTY_SCORE
+            log_once(
+                self.logger,
+                logging.ERROR if is_penalty else logging.WARNING,
+                key=f'dead-objective-{j}',
+                message=(
+                    f"Objective {name} is identical ({col[0]:g}) across all "
+                    f"{len(col)} individuals"
+                    + (" and equals the penalty score, which usually means its "
+                       "observations are missing or unreadable"
+                       if is_penalty else "")
+                    + ". It exerts no selection pressure, so this run is "
+                      "effectively optimizing the remaining objective(s) only."
+                ),
+            )
+
     def _extract_objectives(
         self,
         results: List[Dict],
@@ -256,6 +297,7 @@ class PopulationEvaluator:
         )
         if results and valid_count == 0:
             self._log_all_penalty_batch(len(results), 'objectives')
+        self._warn_on_dead_objectives(objectives, objective_names)
         # Track on the primary objective — an individual whose first objective
         # is the penalty score is one whose model run failed.
         self._track_batch(objectives[:, 0])

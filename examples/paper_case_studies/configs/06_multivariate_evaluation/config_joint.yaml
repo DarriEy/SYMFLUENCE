@@ -18,6 +18,7 @@ system:
   - calibrate_model
   data_dir: default
   code_dir: default
+  random_seed: 42
 domain:
   name: Bow_at_Banff_multivar
   experiment_id: bow_exp3_joint
