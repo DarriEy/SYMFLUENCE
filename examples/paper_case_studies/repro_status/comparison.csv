@@ -35,6 +35,7 @@ cal_ensemble_hbv_de,KGE,macos,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream,KGE,macos,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga,KGE,macos,0.917939,wsl,0.917801,0.000139,OK
 cal_ensemble_hbv_glue,KGE,macos,0.907066,wsl,0.907066,0.000000,OK
+cal_ensemble_hbv_lbfgs,KGE,macos,0.915350,wsl,0.914540,0.000810,OK
 forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,EXPLAINED
 forcing_ensemble_conus404,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
 cal_ensemble_hbv_abc,KGE,native_windows,0.888122,wsl,0.888122,0.000000,OK
