@@ -7,7 +7,7 @@ cal_ensemble_fuse_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8705
 cal_ensemble_fuse_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8625203967,17,2026-07-20T02:48:32Z
 cal_ensemble_fuse_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8355669379,43,2026-07-20T02:48:32Z
 cal_ensemble_fuse_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9090390801,41,2026-07-20T02:48:32Z
-cal_ensemble_fuse_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.6934518814,477,2026-07-20T02:48:32Z
+cal_ensemble_fuse_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9096380472,762,2026-07-20T03:17:06Z
 cal_ensemble_fuse_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9084877968,50,2026-07-20T02:48:32Z
 cal_ensemble_fuse_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8727130294,2,2026-07-20T02:48:32Z
 cal_ensemble_fuse_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8872084022,50,2026-07-20T02:48:32Z
@@ -118,7 +118,7 @@ cal_ensemble_xinanjiang_adam,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE
 cal_ensemble_xinanjiang_basin_hopping,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4738114847,1,2026-07-20T02:48:32Z
 cal_ensemble_xinanjiang_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4655898361,24,2026-07-20T02:48:32Z
 cal_ensemble_xinanjiang_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8318243606,42,2026-07-20T02:48:32Z
-cal_ensemble_xinanjiang_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.2071495823,969,2026-07-20T02:48:32Z
+cal_ensemble_xinanjiang_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9051344925,986,2026-07-20T03:17:06Z
 cal_ensemble_xinanjiang_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8698353687,41,2026-07-20T02:48:32Z
 cal_ensemble_xinanjiang_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.6497357453,14,2026-07-20T02:48:32Z
 cal_ensemble_xinanjiang_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8227399772,50,2026-07-20T02:48:32Z
@@ -171,5 +171,5 @@ gr_michel_seed57,domain_Bow_at_Banff_lumped_era5,KGE,0.9426239432,608,2026-07-20
 gr_michel_seed7,domain_Bow_at_Banff_lumped_era5,KGE,0.9447908684,984,2026-07-20T02:48:32Z
 gr_michel_seed777,domain_Bow_at_Banff_lumped_era5,KGE,0.9450744234,989,2026-07-20T02:48:32Z
 gr_michel_seed99,domain_Bow_at_Banff_lumped_era5,KGE,0.9449866401,961,2026-07-20T02:48:32Z
-run_1,domain_Bow_at_Banff_lumped_era5,KGE,0.9310940725,991,2026-07-20T02:48:32Z
+run_1,domain_Bow_at_Banff_lumped_era5,KGE,0.9310940725,991,2026-07-20T03:17:06Z
 sacsma_fix_verify,domain_Bow_at_Banff_lumped_era5,KGE,0.8615011215,199,2026-07-20T02:48:32Z
