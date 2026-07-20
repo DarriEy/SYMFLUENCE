@@ -98,8 +98,14 @@ class GradientOptimizationMixin(ConfigMixin):
             f_plus = evaluate_func(x_plus)
             f_minus = evaluate_func(x_minus)
 
-            # Central difference (for maximization, gradient points uphill)
-            gradient[i] = (f_plus - f_minus) / (2 * epsilon)
+            # Divide by the step actually taken, not the requested one. The
+            # perturbations above are clamped to the [0, 1] box, so for a
+            # parameter sitting on a bound the real span is epsilon rather
+            # than 2*epsilon — dividing by 2*epsilon there halves the
+            # gradient and points the search along a systematically wrong
+            # direction exactly where it is most likely to be stuck.
+            step = x_plus[i] - x_minus[i]
+            gradient[i] = (f_plus - f_minus) / step if step > 0 else 0.0
 
         return f_center, gradient
 
@@ -133,9 +139,69 @@ class GradientOptimizationMixin(ConfigMixin):
             x_plus[i] = min(1.0, x[i] + epsilon)
 
             f_plus = evaluate_func(x_plus)
-            gradient[i] = (f_plus - f_x) / epsilon
+            # Step backwards when the forward step is clamped away entirely.
+            # A parameter resting on the upper bound previously produced
+            # (f_x - f_x) / epsilon == 0 — an exactly zero gradient, telling
+            # the optimizer the parameter has no effect and freezing it on
+            # the bound for the rest of the run.
+            step = x_plus[i] - x[i]
+            if step <= 0:
+                x_minus = x.copy()
+                x_minus[i] = max(0.0, x[i] - epsilon)
+                step = x[i] - x_minus[i]
+                if step <= 0:
+                    gradient[i] = 0.0  # degenerate box: lower == upper
+                    continue
+                gradient[i] = (f_x - evaluate_func(x_minus)) / step
+            else:
+                gradient[i] = (f_plus - f_x) / step
 
         return gradient
+
+    #: Fraction of failed line searches above which the search is reported as
+    #: degenerate. Occasional failures are normal; a majority means the
+    #: gradient is not a usable descent direction.
+    _LINE_SEARCH_FAILURE_ALERT = 0.5
+    #: Minimum steps before judging, so short runs do not trip the check.
+    _LINE_SEARCH_MIN_STEPS = 20
+
+    def _warn_if_line_search_degenerate(
+        self, failures: int, steps: int, epsilon: float
+    ) -> None:
+        """Report once when line searches fail so often the method degrades.
+
+        Every failure already logs, but a wall of identical warnings reads as
+        noise, and the run still reports success — a paper calibration was
+        observed taking the steepest-descent fallback on 110 of 125 steps,
+        i.e. not running L-BFGS at all, with nothing saying so. The usual
+        cause is a gradient dominated by evaluation noise: JAX defaults to
+        float32 (~1e-7 relative), and a central difference over ``epsilon``
+        divides that noise by ``2*epsilon``, so an epsilon below
+        ``sqrt(float32 eps) ~= 3.5e-4`` amplifies it rather than resolving a
+        slope.
+        """
+        if steps < self._LINE_SEARCH_MIN_STEPS:
+            return
+        if failures / steps < self._LINE_SEARCH_FAILURE_ALERT:
+            return
+        if getattr(self, '_line_search_degenerate_reported', False):
+            return
+        self._line_search_degenerate_reported = True
+        float32_floor = float(np.sqrt(np.finfo(np.float32).eps))
+        hint = ""
+        if epsilon < float32_floor:
+            hint = (
+                f" gradient_epsilon={epsilon:g} is below sqrt(float32 eps)="
+                f"{float32_floor:.1e}, so if the model evaluates in float32 "
+                f"(the JAX default) the gradient is noise, not slope — raise "
+                f"gradient_epsilon or evaluate in float64."
+            )
+        self.logger.error(
+            "Line search has failed on %d of %d steps (%.0f%%); the optimizer "
+            "is running as steepest descent, not L-BFGS, and its result should "
+            "not be read as a converged quasi-Newton solution.%s",
+            failures, steps, 100 * failures / steps, hint,
+        )
 
     def clip_gradient(self, gradient: np.ndarray) -> np.ndarray:
         """
@@ -296,6 +362,7 @@ class GradientOptimizationMixin(ConfigMixin):
         # Initial minimization-space objective and gradient
         g, gradient = eval_min(x)
         gradient = self.clip_gradient(gradient)
+        line_search_failures = 0
 
         for step in range(steps):
             fitness = -g
@@ -316,6 +383,10 @@ class GradientOptimizationMixin(ConfigMixin):
             if step_size is None:
                 # Line search failed, use steepest descent on g
                 self.logger.warning(f"L-BFGS line search failed at step {step}, using steepest descent")
+                line_search_failures += 1
+                self._warn_if_line_search_degenerate(
+                    line_search_failures, step + 1, epsilon=self.gradient_epsilon
+                )
                 step_size = lr / (step + 1)
                 x_new = np.clip(x - step_size * gradient, 0, 1)  # descent along -grad_g
                 g_new, new_gradient = eval_min(x_new)
