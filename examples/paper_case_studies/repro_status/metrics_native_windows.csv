@@ -23,3 +23,5 @@ cal_ensemble_hechms_bayesian_opt,domain_Bow_at_Banff_lumped_calibration_ensemble
 cal_ensemble_hechms_cmaes,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8794903556,28,2026-07-20T03:10:19Z,0.9.2,18e0e9c1,2026-07-20T03:12:44Z
 cal_ensemble_hechms_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9069368223,975,2026-07-20T03:15:00Z,0.9.2,eaef7551,2026-07-20T03:22:59Z
 cal_ensemble_hechms_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9127301216,49,2026-07-20T03:19:58Z,0.9.2,eaef7551,2026-07-20T03:22:59Z
+cal_ensemble_hechms_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8330177926,7,2026-07-20T03:25:22Z,0.9.2,1ad0582b,2026-07-20T03:33:14Z
+cal_ensemble_hechms_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8408989518,50,2026-07-20T03:30:32Z,0.9.2,1ad0582b,2026-07-20T03:33:14Z
