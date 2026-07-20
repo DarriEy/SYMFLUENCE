@@ -16,3 +16,4 @@ cal_ensemble_fuse_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.89
 forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-386.3030513,880,2026-07-19T19:49:57Z,0.9.2,bc37624d,2026-07-19T19:59:24Z
 forcing_ensemble_conus404,domain_paradise_snotel_wa,RMSE,-306.1649133,618,2026-07-19T22:25:23Z,0.9.2,bc37624d,2026-07-19T22:30:25Z
 forcing_ensemble_rdrs,domain_paradise_snotel_wa,RMSE,-211.9137474,466,2026-07-20T18:24:17Z,0.9.2,6fc5643f,2026-07-20T18:27:07Z
+run_1,domain_Bow_at_Banff_lumped_era5,KGE,0.9293502046,993,2026-07-20T20:22:22Z,0.9.2,3ef8e5e3,2026-07-20T20:29:28Z
