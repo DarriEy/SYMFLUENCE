@@ -80,10 +80,30 @@ class MOEADAlgorithm(OptimizationAlgorithm):
             Optimization results dictionary
         """
         # Check if multi-objective
+        objective_names = kwargs.get('objective_names', ['KGE', 'NSE'])
         is_multi_objective = evaluate_population_objectives is not None
 
         if is_multi_objective:
-            objective_names = kwargs.get('objective_names', ['KGE', 'NSE'])
+            # Some workers advertise a multi-objective callback but return penalty
+            # objectives for every candidate (multi-objective evaluation isn't wired
+            # up for that model). Probe once; if it degenerates to all-penalty, fall
+            # back to single-objective so the run still yields a calibration result
+            # instead of a Pareto front of penalties.
+            try:
+                _probe = np.asarray(evaluate_population_objectives(
+                    np.random.uniform(0, 1, (1, n_params)), objective_names, 0))
+                if _probe.size == 0 or np.all(_probe < -900.0):
+                    self.logger.warning(
+                        "MOEA/D: multi-objective evaluation returned all-penalty; "
+                        "falling back to single-objective evaluation."
+                    )
+                    is_multi_objective = False
+            except Exception as e:  # noqa: BLE001 -- a failed probe must not abort the run
+                self.logger.warning(
+                    "MOEA/D multi-objective probe failed (%s); using single-objective.", e)
+                is_multi_objective = False
+
+        if is_multi_objective:
             return self._optimize_multi_objective(
                 n_params, evaluate_population_objectives, objective_names, denormalize_params,
                 record_iteration, update_best, log_progress, log_initial_population

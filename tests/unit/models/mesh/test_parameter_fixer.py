@@ -786,3 +786,75 @@ class TestHydrologyIwfOverride:
         fixer.hydro_path.write_text(original)
         fixer.apply_hydrology_field_overrides()
         assert fixer.hydro_path.read_text() == original
+
+
+# ---------------------------------------------------------------------------
+# TestRunModeSelection  (bug B: LZS baseflow gating via RUNMODE)
+# ---------------------------------------------------------------------------
+
+class TestRunModeSelection:
+    """RUNMODE selection in RunOptionsConfigBuilder.fix_snow_params.
+
+    A single cell has no channel network, so WATROUTE routing (and the wf_lzs
+    lower-zone baseflow store) is auto-disabled ('noroute'). Multi-cell domains
+    route. An explicit MESH_RUNMODE must always be honoured — including keeping
+    'runrte' on a single cell so FLZ/PWR/RCHARG stay live. Previously the config
+    key was silently ignored (passed as the typed accessor, no dict_key) and
+    every single-cell domain was forced to 'noroute'.
+    """
+
+    import logging as _logging
+
+    def _build(self, tmp_path, config):
+        from symfluence.models.mesh.preprocessing.run_options_builder import (
+            RunOptionsConfigBuilder,
+        )
+        p = tmp_path / "MESH_input_run_options.ini"
+        p.write_text(
+            "  3 # flags\n"
+            "RUNMODE               runrte\n"
+            "STREAMFLOWOUTFLAG     csv\n"
+            "OUTFILESFLAG         daily\n"
+            "OUTFIELDSFLAG        none\n"
+            "BASINAVGWBFILEFLAG    daily\n"
+            "FROZENSOILINFILFLAG   0\n"
+            "FREZTH                0.0\n"
+            "SWELIM                800.0\n"
+            "SNDENLIM              600.0\n"
+            "PBSMFLAG              off\n"
+            "METRICSSPINUP         730\n"
+            "DIAGNOSEMODE          off\n"
+            "PRINTSIMSTATUS        date_monthly\n"
+            "SHDFILEFLAG           nc_subbasin pad_outlets\n"
+            "BASINFORCINGFLAG      nc_subbasin\n"
+        )
+        import logging
+        return RunOptionsConfigBuilder(p, config, logging.getLogger("test")), p
+
+    def _runmode(self, path):
+        import re
+        m = re.search(r'RUNMODE\s+(\w+)', path.read_text())
+        return m.group(1)
+
+    def test_single_cell_unset_defaults_to_noroute(self, tmp_path):
+        builder, p = self._build(tmp_path, {"HYDROLOGICAL_MODEL": "MESH"})
+        builder.fix_snow_params(lambda: 1)
+        assert self._runmode(p) == "noroute"
+
+    def test_multi_cell_unset_defaults_to_runrte(self, tmp_path):
+        builder, p = self._build(tmp_path, {"HYDROLOGICAL_MODEL": "MESH"})
+        builder.fix_snow_params(lambda: 49)
+        assert self._runmode(p) == "runrte"
+
+    def test_explicit_runrte_honoured_on_single_cell(self, tmp_path):
+        # The fix: an explicit request keeps the baseflow store live even on 1 cell
+        builder, p = self._build(
+            tmp_path, {"HYDROLOGICAL_MODEL": "MESH", "MESH_RUNMODE": "runrte"})
+        builder.fix_snow_params(lambda: 1)
+        assert self._runmode(p) == "runrte"
+
+    def test_explicit_noroute_honoured_on_multi_cell(self, tmp_path):
+        builder, p = self._build(
+            tmp_path, {"HYDROLOGICAL_MODEL": "MESH", "MESH_RUNMODE": "noroute"})
+        builder.fix_snow_params(lambda: 49)
+        assert self._runmode(p) == "noroute"

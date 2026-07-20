@@ -202,3 +202,52 @@ class TestMESHExtractorProperties:
         method = extractor.get_spatial_aggregation_method('streamflow')
 
         assert method == 'selection'
+
+
+class TestBasinAvgWaterBalanceStreamflow:
+    """Streamflow reconstruction from the basin-average water balance.
+
+    Guards the routing-vs-noroute total-discharge accounting: in a routing run
+    the basin-average RFF already equals OVRFLW + LATFLW + LKG (total runoff),
+    so RFF alone is the streamflow; adding LKG again double-counts baseflow. In
+    a noroute run LKG == 0 and the deep drainage leaves via DRAINSOL, which RFF
+    excludes, so DRAINSOL must be added.
+    """
+
+    def _write_wb(self, path, rff, lkg, drainsol):
+        import pandas as pd
+        n = len(rff)
+        df = pd.DataFrame({
+            'YEAR': [2004] * n,
+            'JDAY': list(range(1, n + 1)),
+            'RFF': rff,
+            'OVRFLW': [0.0] * n,
+            'LATFLW': [0.0] * n,
+            'LKG': lkg,
+            'DRAINSOL': drainsol,
+        })
+        df.to_csv(path, index=False)
+
+    def test_routing_mode_uses_rff_alone_no_lkg_double_count(self, tmp_path):
+        """LKG active => total == RFF (baseflow already inside RFF)."""
+        from datetime import datetime
+        from symfluence.models.mesh.extractor import MESHResultExtractor
+
+        # RFF = OVRFLW + LATFLW + LKG already, so RFF is the total.
+        wb = tmp_path / 'Basin_average_water_balance.csv'
+        self._write_wb(wb, rff=[2.0, 3.0, 4.0], lkg=[1.5, 2.0, 2.5], drainsol=[1.5, 2.0, 2.5])
+        s = MESHResultExtractor('MESH').extract_variable(
+            wb, 'runoff', start_date=datetime(2004, 1, 1), aggregate='daily')
+        # Must equal RFF, NOT RFF + LKG (which would be 3.5, 5.0, 6.5)
+        assert list(s.round(4).values) == [2.0, 3.0, 4.0]
+
+    def test_noroute_mode_adds_drainsol_as_baseflow(self, tmp_path):
+        """LKG == 0 => total == RFF + DRAINSOL (deep drainage is the baseflow)."""
+        from datetime import datetime
+        from symfluence.models.mesh.extractor import MESHResultExtractor
+
+        wb = tmp_path / 'Basin_average_water_balance.csv'
+        self._write_wb(wb, rff=[0.05, 0.06, 0.07], lkg=[0.0, 0.0, 0.0], drainsol=[1.0, 1.1, 1.2])
+        s = MESHResultExtractor('MESH').extract_variable(
+            wb, 'runoff', start_date=datetime(2004, 1, 1), aggregate='daily')
+        assert list(s.round(4).values) == [1.05, 1.16, 1.27]

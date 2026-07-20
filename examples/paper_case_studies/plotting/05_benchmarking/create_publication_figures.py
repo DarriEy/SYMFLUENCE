@@ -363,7 +363,7 @@ def fig_benchmarking(scores: pd.DataFrame, output_dir: Path):
     ax_dot.invert_yaxis()
 
     for fmt in ("png", "pdf"):
-        fig.savefig(output_dir / f"fig_benchmarking.{fmt}", dpi=300, bbox_inches="tight")
+        fig.savefig(output_dir / f"figure_08_benchmarking.{fmt}", dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved: fig_benchmarking")
 
@@ -512,9 +512,9 @@ def create_all_figures(data_dir: Path, output_dir: Path):
         flows = pd.read_csv(flows_path, index_col=0, parse_dates=True)
         logger.info(f"Loaded flows: {flows.shape}")
 
-    # Generate figures
+    # Generate figures. Only fig_benchmarking is a paper figure (Fig 8);
+    # fig_benchmark_flows is not generated.
     fig_benchmarking(scores, output_dir)
-    fig_benchmark_flows(flows, scores, output_dir)
 
     logger.info(f"\nAll figures saved to: {output_dir}")
 

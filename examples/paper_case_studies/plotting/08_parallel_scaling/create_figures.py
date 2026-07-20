@@ -221,7 +221,7 @@ def fig2_calibration_scaling(fmt: str = "png"):
                 grecs.sort(key=lambda x: x["num_processes"])
                 nps = [r["num_processes"] for r in grecs]
                 if use_minutes:
-                    vals = [r["wall_clock_minutes"] for r in grecs]
+                    vals = [r["wall_clock_seconds"] / 60.0 for r in grecs]
                 else:
                     vals = [r[metric] for r in grecs]
                 ax.plot(nps, vals, marker=MARKERS.get(group_name, "o"),
@@ -254,7 +254,7 @@ def fig2_calibration_scaling(fmt: str = "png"):
                     transform=ax.transAxes)
 
     fig.tight_layout()
-    save_figure(fig, "fig2_calibration_scaling", fmt)
+    save_figure(fig, "figure_11_parallel_scaling", fmt)
 
 
 def fig3_combined_efficiency(fmt: str = "png"):
@@ -325,10 +325,10 @@ def fig3_combined_efficiency(fmt: str = "png"):
     save_figure(fig, "fig3_combined_efficiency", fmt)
 
 
+# Only the calibration-scaling figure (paper Fig 11) is generated. The TauDEM
+# delineation-scaling and combined-efficiency figures are not paper figures.
 FIGURES = {
-    1: ("TauDEM Delineation Scaling", fig1_taudem_scaling),
     2: ("Calibration Scaling (Local + HPC)", fig2_calibration_scaling),
-    3: ("Combined Efficiency", fig3_combined_efficiency),
 }
 
 

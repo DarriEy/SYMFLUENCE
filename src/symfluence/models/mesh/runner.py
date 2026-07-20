@@ -280,11 +280,20 @@ class MESHRunner(BaseModelRunner):  # type: ignore[misc]
                 'MESH_output_streamflow.csv',
             ]
         else:
-            # Accept any routed streamflow output supported by extractor/postprocessor.
+            # Routed (multi-cell) mode. Prefer a per-gauge routed streamflow
+            # file when MESH writes one, but also accept the basin-average water
+            # balance: it is always produced (BASINAVGWBFILEFLAG) and, with the
+            # routing-aware extractor, its RFF is the total routed runoff
+            # (OVRFLW + LATFLW + LKG) at the basin outlet — a valid daily
+            # streamflow. MESH's per-gauge CSV requires the gauge to resolve to
+            # a grid cell, which is fragile on subbasin ('nc_subbasin') domains,
+            # so it must not be the sole accepted output.
             output_candidates = [
                 'MESH_output_streamflow.csv',
                 'MESH_output_streamflow_ts.csv',
                 'MESH_streamflow_Gauge_*.txt',
+                'Basin_average_water_balance.csv',
+                'GRU_water_balance.csv',
             ]
 
         # Check in output directory (may be process-specific during parallel calibration)

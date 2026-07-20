@@ -453,6 +453,13 @@ MESH_DDB_VARS: default
 #   Usage:      3
 MESH_DS_MAIN_ID: default
 
+# MESH_RUNMODE
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs_hydrology.py)
+#   Usage:      1
+MESH_RUNMODE: default
+
 # MESH_EXE
 #   Type:        str
 #   Default:     mesh.exe

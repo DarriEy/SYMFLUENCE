@@ -49,7 +49,7 @@ model:
   xinanjiang:
     backend: jax
     warmup_days: 365
-    snow_module: none
+    snow_module: snow17
     latitude: 51.17
 optimization:
   methods:
