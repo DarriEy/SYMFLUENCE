@@ -40,5 +40,6 @@ cal_ensemble_hechms_dds,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.90
 cal_ensemble_hechms_de,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9127301216,49,2026-07-20T03:03:33Z,0.9.2,18e0e9c1,2026-07-20T03:12:49Z
 cal_ensemble_hechms_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8330177926,7,2026-07-20T03:07:33Z,0.9.2,18e0e9c1,2026-07-20T03:12:49Z
 cal_ensemble_hechms_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8408989522,50,2026-07-20T03:11:43Z,0.9.2,18e0e9c1,2026-07-20T03:12:49Z
+cal_ensemble_hechms_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7419960137,4,2026-07-20T03:16:05Z,0.9.2,eaef7551,2026-07-20T03:23:04Z
 forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-386.3030513,880,2026-07-19T19:49:57Z,0.9.2,bc37624d,2026-07-19T19:59:24Z
 forcing_ensemble_conus404,domain_paradise_snotel_wa,RMSE,-306.1649133,618,2026-07-19T22:25:23Z,0.9.2,bc37624d,2026-07-19T22:30:25Z
