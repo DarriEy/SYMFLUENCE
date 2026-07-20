@@ -431,7 +431,7 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         if use_cds:
             self.logger.info("ERA5 pathway: CDS")
             try:
-                return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
+                return self._download_cds_with_retry(output_dir)
             except (
                 ImportError,
                 OSError,
@@ -471,6 +471,51 @@ class ERA5Acquirer(BaseAcquisitionHandler):
 
         self.logger.info("ERA5 pathway: ARCO (Google Cloud)")
         return ERA5ARCOAcquirer(self.config, self.logger).download(output_dir)
+
+    # Substrings identifying a transient transport failure rather than a
+    # misconfigured CDS account. Matched against the exception text because
+    # the CDS client wraps urllib3/requests errors in its own types.
+    _CDS_TRANSIENT_MARKERS = (
+        "connectionpool", "max retries exceeded", "connection reset",
+        "connection aborted", "timed out", "timeout", "temporarily unavailable",
+        "502", "503", "504", "bad gateway", "service unavailable",
+    )
+
+    def _download_cds_with_retry(self, output_dir: Path, attempts: int = 3):
+        """Download via CDS, retrying transient transport failures.
+
+        Falling back to ARCO on the *first* error treats a dropped connection
+        the same as a bad API key, and the two want opposite responses. ARCO
+        cannot subset server-side, so on a small domain it transfers
+        whole-globe chunks: a single transient CDS hiccup was observed
+        downgrading a ~20-cell domain onto a pathway that then held ~15 GB
+        resident, starving every other job on the machine for hours. Retry
+        the transport failures; leave genuine setup errors to fall straight
+        through to the existing diagnostics.
+        """
+        import time
+
+        last_exc = None
+        for attempt in range(1, attempts + 1):
+            try:
+                return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
+            except Exception as exc:  # noqa: BLE001 — re-raised below
+                text = f"{type(exc).__name__}: {exc}".lower()
+                if not any(m in text for m in self._CDS_TRANSIENT_MARKERS):
+                    raise
+                last_exc = exc
+                if attempt == attempts:
+                    break
+                delay = 30 * 2 ** (attempt - 1)
+                self.logger.warning(
+                    "CDS attempt %d/%d hit a transient transport error (%s). "
+                    "Retrying in %ds rather than falling back to ARCO, which "
+                    "cannot subset server-side and would transfer whole-globe "
+                    "chunks for this domain.",
+                    attempt, attempts, exc, delay,
+                )
+                time.sleep(delay)
+        raise last_exc
 
 class ERA5ARCOAcquirer(BaseAcquisitionHandler):
     """
