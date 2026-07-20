@@ -15,3 +15,5 @@ cal_ensemble_hbv_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE
 cal_ensemble_hbv_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7261799518,0,2026-07-20T02:22:08Z
 cal_ensemble_hbv_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9291632219,45,2026-07-20T02:32:13Z
 cal_ensemble_hbv_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9157387048,96,2026-07-20T02:42:20Z
+cal_ensemble_hbv_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9161990737,7,2026-07-20T02:52:24Z
+cal_ensemble_hechms_abc,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8510982691,14,2026-07-20T02:52:24Z
