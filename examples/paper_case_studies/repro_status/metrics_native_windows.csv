@@ -1,1 +1,1 @@
-experiment_id,domain,metric,best_score,best_iteration,run_completed,symfluence_version,code_commit,collected_at
+experiment_id,model,domain,metric,best_score,best_iteration,run_completed,symfluence_version,code_commit,collected_at

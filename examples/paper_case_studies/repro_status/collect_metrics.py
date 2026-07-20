@@ -66,8 +66,20 @@ def scan(root: Path, version: str = "", commit: str = ""):
             score = d.get("best_score")
             if eid is None or score is None:
                 continue
+            # Qualify the id with the model. experiment_id is NOT unique:
+            # all 17 configs of the model-ensemble experiment share
+            # experiment_id "run_1", so keying on it alone collapses 17
+            # different models into one row (last scan wins) and compares
+            # whichever model happened to be scanned last on each machine.
+            # The model is the directory under optimization/.
+            try:
+                model = bp.relative_to(opt).parts[0]
+            except ValueError:
+                model = ""
+            key = f"{eid}@{model}" if model else eid
             yield {
-                "experiment_id": eid,
+                "experiment_id": key,
+                "model": model,
                 "domain": domain.name,
                 "metric": d.get("metric", "?"),
                 "best_score": f"{float(score):.10g}",
@@ -88,7 +100,7 @@ def main():
     args = ap.parse_args()
 
     out = Path(__file__).parent / f"metrics_{args.platform}.csv"
-    fields = ["experiment_id", "domain", "metric", "best_score",
+    fields = ["experiment_id", "model", "domain", "metric", "best_score",
               "best_iteration", "run_completed", "symfluence_version",
               "code_commit", "collected_at"]
     version, commit = code_provenance()
