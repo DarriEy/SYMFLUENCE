@@ -143,6 +143,8 @@ cal_ensemble_hbv_sceua,KGE,macos,0.916199,native_windows,0.916199,0.000000,OK
 cal_ensemble_hechms_abc,KGE,macos,0.851098,native_windows,0.851098,0.000000,OK
 cal_ensemble_hechms_adam,KGE,macos,0.894169,native_windows,0.894169,0.000000,OK
 cal_ensemble_hechms_basin_hopping,KGE,macos,0.829519,native_windows,0.807366,0.022154,DIFF
+cal_ensemble_hechms_bayesian_opt,KGE,macos,0.658404,native_windows,0.658404,0.000000,OK
+cal_ensemble_hechms_cmaes,KGE,macos,0.878798,native_windows,0.879490,0.000692,OK
 cal_ensemble_fuse_abc,KGE,macos,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos,0.862520,wsl,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt,KGE,macos,0.835567,wsl,0.835567,0.000000,OK
@@ -181,6 +183,9 @@ cal_ensemble_hechms_basin_hopping,KGE,macos,0.829519,wsl,0.807366,0.022154,DIFF
 cal_ensemble_hechms_bayesian_opt,KGE,macos,0.658404,wsl,0.658404,0.000000,OK
 cal_ensemble_hechms_cmaes,KGE,macos,0.878798,wsl,0.879490,0.000692,OK
 cal_ensemble_hechms_dds,KGE,macos,0.906937,wsl,0.906937,0.000000,OK
+cal_ensemble_hechms_de,KGE,macos,0.912730,wsl,0.912730,0.000000,OK
+cal_ensemble_hechms_dream,KGE,macos,0.833018,wsl,0.833018,0.000000,OK
+cal_ensemble_hechms_ga,KGE,macos,0.840899,wsl,0.840899,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,EXPLAINED
 forcing_ensemble_conus404,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
 cal_ensemble_hbv_abc,KGE,macos_p3repro,0.888122,native_windows,0.888122,0.000000,OK
@@ -202,6 +207,8 @@ cal_ensemble_hbv_sceua,KGE,macos_p3repro,0.916199,native_windows,0.916199,0.0000
 cal_ensemble_hechms_abc,KGE,macos_p3repro,0.851098,native_windows,0.851098,0.000000,OK
 cal_ensemble_hechms_adam,KGE,macos_p3repro,0.894169,native_windows,0.894169,0.000000,OK
 cal_ensemble_hechms_basin_hopping,KGE,macos_p3repro,0.829519,native_windows,0.807366,0.022154,DIFF
+cal_ensemble_hechms_bayesian_opt,KGE,macos_p3repro,0.658404,native_windows,0.658404,0.000000,OK
+cal_ensemble_hechms_cmaes,KGE,macos_p3repro,0.878798,native_windows,0.879490,0.000692,OK
 cal_ensemble_fuse_abc,KGE,macos_p3repro,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos_p3repro,0.862520,wsl,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt,KGE,macos_p3repro,0.835567,wsl,0.835567,0.000000,OK
@@ -239,6 +246,9 @@ cal_ensemble_hechms_basin_hopping,KGE,macos_p3repro,0.829519,wsl,0.807366,0.0221
 cal_ensemble_hechms_bayesian_opt,KGE,macos_p3repro,0.658404,wsl,0.658404,0.000000,OK
 cal_ensemble_hechms_cmaes,KGE,macos_p3repro,0.878798,wsl,0.879490,0.000692,OK
 cal_ensemble_hechms_dds,KGE,macos_p3repro,0.906937,wsl,0.906937,0.000000,OK
+cal_ensemble_hechms_de,KGE,macos_p3repro,0.912730,wsl,0.912730,0.000000,OK
+cal_ensemble_hechms_dream,KGE,macos_p3repro,0.833018,wsl,0.833018,0.000000,OK
+cal_ensemble_hechms_ga,KGE,macos_p3repro,0.840899,wsl,0.840899,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
 cal_ensemble_hbv_abc,KGE,native_windows,0.888122,wsl,0.888122,0.000000,OK
@@ -261,6 +271,8 @@ cal_ensemble_hbv_sceua,KGE,native_windows,0.916199,wsl,0.916199,0.000000,OK
 cal_ensemble_hechms_abc,KGE,native_windows,0.851098,wsl,0.851098,0.000000,OK
 cal_ensemble_hechms_adam,KGE,native_windows,0.894169,wsl,0.894169,0.000000,OK
 cal_ensemble_hechms_basin_hopping,KGE,native_windows,0.807366,wsl,0.807366,0.000000,OK
+cal_ensemble_hechms_bayesian_opt,KGE,native_windows,0.658404,wsl,0.658404,0.000000,OK
+cal_ensemble_hechms_cmaes,KGE,native_windows,0.879490,wsl,0.879490,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
 exp04-top-tier-mean-calib-KGE,reference,macos_p3repro,0.839937,paper,0.847..0.892,,DIFF
