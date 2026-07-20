@@ -502,7 +502,7 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         """
         import time
 
-        last_exc = None
+        last_exc: Optional[BaseException] = None
         for attempt in range(1, attempts + 1):
             try:
                 return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
@@ -522,6 +522,8 @@ class ERA5Acquirer(BaseAcquisitionHandler):
                     attempt, attempts, exc, delay,
                 )
                 time.sleep(delay)
+        if last_exc is None:  # unreachable: the loop returns or sets it
+            raise DataAcquisitionError("CDS download failed without an exception")
         raise last_exc
 
 class ERA5ARCOAcquirer(BaseAcquisitionHandler):
