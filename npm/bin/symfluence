@@ -111,7 +111,11 @@ function handleBuiltin(args) {
  * @returns {string|null}
  */
 function parseCliVersion(output) {
-  const m = String(output).match(/(\d+\.\d+\.\d+)/);
+  // Anchor to the CLI banner (or a bare-version line) — the import-time
+  // environment checks can print library filenames like libhdf5.320.0.0.dylib
+  // to the same stream, and a bare /(\d+\.\d+\.\d+)/ would report that instead.
+  const s = String(output);
+  const m = s.match(/SYMFLUENCE\s+(\d+\.\d+\.\d+)/i) || s.match(/^\s*(\d+\.\d+\.\d+)\s*$/m);
   return m ? m[1] : null;
 }
 
@@ -125,8 +129,11 @@ function findPythonCli() {
   // 1. Try `python -m symfluence` and `python3 -m symfluence`
   for (const py of ['python3', 'python']) {
     try {
+      // 60 s: a cold first import of the scientific stack (JAX, geopandas,
+      // netCDF4) routinely exceeds 10 s; a short timeout here made `info`
+      // silently drop the version check on freshly installed environments.
       const out = execSync(`${py} -m symfluence --version`,
-        { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+        { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'ignore'] });
       return { exe: py, args: ['-m', 'symfluence'], version: parseCliVersion(out) };
     } catch {
       // not available
@@ -141,7 +148,7 @@ function findPythonCli() {
       let version = null;
       try {
         version = parseCliVersion(execSync(`"${resolved}" --version`,
-          { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] }));
+          { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'ignore'] }));
       } catch { /* version unknown — still usable */ }
       return { exe: resolved, args: [], version };
     }
