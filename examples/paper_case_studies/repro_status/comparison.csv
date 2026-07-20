@@ -197,6 +197,7 @@ cal_ensemble_hechms_ga,KGE,macos,0.840899,wsl,0.840899,0.000000,OK
 cal_ensemble_hechms_glue,KGE,macos,0.741996,wsl,0.741996,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,EXPLAINED
 forcing_ensemble_conus404,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
+forcing_ensemble_rdrs,RMSE,macos,-208.590593,wsl,-211.913747,3.323155,OK
 cal_ensemble_hbv_abc,KGE,macos_p3repro,0.888122,native_windows,0.888122,0.000000,OK
 cal_ensemble_hbv_adam,KGE,macos_p3repro,0.937269,native_windows,0.937269,0.000000,OK
 cal_ensemble_hbv_basin_hopping,KGE,macos_p3repro,0.900494,native_windows,0.900494,0.000000,OK
@@ -271,6 +272,7 @@ cal_ensemble_hechms_ga,KGE,macos_p3repro,0.840899,wsl,0.840899,0.000000,OK
 cal_ensemble_hechms_glue,KGE,macos_p3repro,0.741996,wsl,0.741996,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
+forcing_ensemble_rdrs,RMSE,macos_p3repro,-202.854354,wsl,-211.913747,9.059394,EXPLAINED
 cal_ensemble_hbv_abc,KGE,native_windows,0.888122,wsl,0.888122,0.000000,OK
 cal_ensemble_hbv_adam,KGE,native_windows,0.937269,wsl,0.937269,0.000000,OK
 cal_ensemble_hbv_basin_hopping,KGE,native_windows,0.900494,wsl,0.900494,0.000000,OK
