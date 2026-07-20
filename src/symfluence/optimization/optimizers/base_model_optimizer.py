@@ -23,6 +23,7 @@ Optional Overrides:
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import random
 import tempfile
@@ -46,6 +47,7 @@ from .evaluators import PopulationEvaluator, TaskBuilder
 from .final_evaluation import FinalEvaluationOrchestrator, FinalResultsSaver
 from .lifecycle import adjust_end_time_for_forcing, fallback_simulation_dir
 from .metrics_tracker import EvaluationMetricsTracker
+from .run_lock import RunDirectoryLock
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -764,6 +766,14 @@ class BaseModelOptimizer(
         ).lower()
 
         base_dir = self._resolve_sim_base_dir(algorithm)
+
+        # Claim the run directory before staging anything into it. These
+        # directories are keyed by domain + algorithm only, so a second
+        # process would re-stage settings over a live run's files (and its
+        # cleanup() would delete them) — see issue #329.
+        self._run_lock = RunDirectoryLock(base_dir, self.experiment_id, self.logger)
+        if self._run_lock.acquire():
+            atexit.register(self._run_lock.release)
 
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
@@ -1523,7 +1533,15 @@ class BaseModelOptimizer(
     # =========================================================================
 
     def cleanup(self) -> None:
-        """Cleanup parallel processing directories and temporary files."""
+        """Cleanup parallel processing directories and temporary files.
+
+        Deleting the per-process directories is skipped unless this instance
+        holds the run lock. The directories are shared by every optimizer for
+        the same domain + algorithm, this method has no in-tree callers, and
+        an external script that merely constructed an optimizer once deleted
+        a live calibration's settings mid-run — every later evaluation failed
+        while the workflow still reported success (issue #329).
+        """
         self._shutdown_mpi_strategy()
 
         # Stage results from local scratch back to permanent storage
@@ -1533,4 +1551,17 @@ class BaseModelOptimizer(
                 self.project_dir = self._original_project_dir
 
         if self.parallel_dirs:
-            self.cleanup_parallel_processing(self.parallel_dirs)
+            lock = getattr(self, '_run_lock', None)
+            if lock is not None and not lock.owned:
+                self.logger.warning(
+                    "Skipping cleanup of %s: this optimizer does not hold the "
+                    "run lock, so another process may be using these "
+                    "directories. Deleting them would corrupt that run.",
+                    self.project_dir / 'simulations',
+                )
+            else:
+                self.cleanup_parallel_processing(self.parallel_dirs)
+
+        lock = getattr(self, '_run_lock', None)
+        if lock is not None:
+            lock.release()
