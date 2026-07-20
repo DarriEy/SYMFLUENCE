@@ -64,6 +64,12 @@ repos:
   # Project-specific CI guards (match .github/workflows/ci.yml)
   - repo: local
     hooks:
+      - id: check-npm-bin-shebangs
+        name: Guard npm bin wrapper shebangs
+        entry: python scripts/check_npm_bin_shebangs.py
+        language: python
+        pass_filenames: false
+        files: ^npm/bin/
       - id: check-broad-exceptions
         name: Guard broad Exception catches
         entry: python scripts/check_broad_exceptions.py

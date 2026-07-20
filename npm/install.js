@@ -648,12 +648,14 @@ function verifyPythonVersion(distDir) {
     let out;
     try {
       // stdio array keeps probe stderr (tracebacks, import warnings) out of the install log
+      // 60 s: a cold first import of the scientific stack routinely exceeds 15 s
       out = execSync(`${py} -m symfluence --version`,
-        { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] });
+        { encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'ignore'] });
     } catch {
       continue; // try next interpreter
     }
-    const m = out.match(/(\d+\.\d+\.\d+)/);
+    // Anchored: import-time warnings can print library versions to the same stream
+    const m = out.match(/SYMFLUENCE\s+(\d+\.\d+\.\d+)/i) || out.match(/^\s*(\d+\.\d+\.\d+)\s*$/m);
     const version = m ? m[1] : null;
     if (version === PACKAGE_VERSION) {
       console.log(`\n✅ Python package ${version} matches the npm package`);
