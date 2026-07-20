@@ -14,6 +14,7 @@ cal_ensemble_hbv_moead,KGE,macos,0.927169,native_windows,0.927190,0.000021,OK
 cal_ensemble_hbv_nelder_mead,KGE,macos,0.942249,native_windows,0.942249,0.000000,OK
 cal_ensemble_hbv_nsga2,KGE,macos,0.726180,native_windows,0.726180,0.000000,OK
 cal_ensemble_hbv_pso,KGE,macos,0.929163,native_windows,0.929163,0.000000,OK
+cal_ensemble_hbv_sa,KGE,macos,0.915739,native_windows,0.915739,0.000000,OK
 bow_exp3_joint,KGE,macos,0.842957,wsl,0.832294,0.010663,OK
 cal_ensemble_fuse_abc,KGE,macos,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos,0.862520,wsl,0.848325,0.014195,OK
@@ -48,6 +49,7 @@ cal_ensemble_hbv_pso,KGE,macos,0.929163,wsl,0.929163,0.000000,OK
 cal_ensemble_hbv_sa,KGE,macos,0.915739,wsl,0.915739,0.000000,OK
 cal_ensemble_hbv_sceua,KGE,macos,0.916199,wsl,0.916199,0.000000,OK
 cal_ensemble_hechms_abc,KGE,macos,0.851098,wsl,0.851098,0.000000,OK
+cal_ensemble_hechms_adam,KGE,macos,0.894169,wsl,0.894169,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,EXPLAINED
 forcing_ensemble_conus404,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
 cal_ensemble_hbv_abc,KGE,native_windows,0.888122,wsl,0.888122,0.000000,OK
@@ -65,5 +67,7 @@ cal_ensemble_hbv_moead,KGE,native_windows,0.927190,wsl,0.927190,0.000000,OK
 cal_ensemble_hbv_nelder_mead,KGE,native_windows,0.942249,wsl,0.942249,0.000000,OK
 cal_ensemble_hbv_nsga2,KGE,native_windows,0.726180,wsl,0.726180,0.000000,OK
 cal_ensemble_hbv_pso,KGE,native_windows,0.929163,wsl,0.929163,0.000000,OK
+cal_ensemble_hbv_sa,KGE,native_windows,0.915739,wsl,0.915739,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
+exp04-top-tier-mean-calib-KGE,reference,wsl,0.916785,paper,0.847..0.892,,DIFF
