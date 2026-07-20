@@ -38,6 +38,22 @@ from __future__ import annotations
 import os as _os
 import sys as _sys
 
+# Ask JAX for double precision before anything imports it.
+#
+# JAX defaults to float32 and silently downcasts float64 requests, so the
+# JAX-based model plugins (jhbv, jhechms, jsacsma, jxaj, jtopmodel) — which
+# ask for float64 — evaluate at ~1e-7 relative precision. That noise floor
+# dominates finite-difference gradients: a central difference divides it by
+# 2*gradient_epsilon, so with the 1e-4 default the "gradient" carries more
+# noise than slope, and the L-BFGS line search was observed failing on 110
+# of 125 steps as a result.
+#
+# JAX reads this at import time, and this module is imported before any
+# plugin, so setting it here reaches every JAX user in the process. Set
+# JAX_ENABLE_X64=0 in the environment to opt back out (float32 is faster and
+# reproduces pre-2026-07 results).
+_os.environ.setdefault("JAX_ENABLE_X64", "1")
+
 # Must be kept alive at module level — the DLL directory is removed if the
 # handle returned by os.add_dll_directory() is garbage-collected.
 _dll_directory_handles = []
