@@ -880,7 +880,7 @@ src/symfluence/models/mhm/extractor.py:MHMResultExtractor.extract_variable:excep
 src/symfluence/models/mhm/postprocessor.py:MHMPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._build_distributed_grids._resample_class:except Exception:  # noqa: BLE001
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._build_distributed_grids:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._generate_forcing_files:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._generate_forcing_files:except Exception as e:  # noqa: BLE001 — smoke-test fallback only
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._generate_gauge_data:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._get_catchment_properties:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -1220,7 +1220,6 @@ src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.
 src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/optimizers/algorithms/moead.py:MOEADAlgorithm.optimize:except Exception as e:  # noqa: BLE001 -- a failed probe must not abort the run
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize.log_complex_batch:except Exception as e:  # noqa: BLE001
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
 src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
