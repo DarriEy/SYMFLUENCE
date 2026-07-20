@@ -30,3 +30,4 @@ cal_ensemble_hechms_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,
 cal_ensemble_hechms_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8861082418,19,2026-07-20T14:00:17Z,0.9.2,560bce76,2026-07-20T14:05:51Z
 cal_ensemble_hechms_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8906192441,50,2026-07-20T14:11:55Z,0.9.2,1ea24973,2026-07-20T14:16:19Z
 cal_ensemble_hechms_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.771653855,95,2026-07-20T14:22:31Z,0.9.2,c4f58948,2026-07-20T14:26:42Z
+cal_ensemble_hechms_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7602747906,0,2026-07-20T14:30:33Z,0.9.2,a1447446,2026-07-20T14:37:19Z

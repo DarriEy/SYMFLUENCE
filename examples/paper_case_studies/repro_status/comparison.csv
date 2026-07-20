@@ -154,6 +154,7 @@ cal_ensemble_hechms_nelder_mead,KGE,macos,0.900696,native_windows,0.900696,0.000
 cal_ensemble_hechms_nsga2,KGE,macos,0.876271,native_windows,0.886108,0.009837,OK
 cal_ensemble_hechms_pso,KGE,macos,0.890619,native_windows,0.890619,0.000000,OK
 cal_ensemble_hechms_sa,KGE,macos,0.771654,native_windows,0.771654,0.000000,OK
+cal_ensemble_hechms_sceua,KGE,macos,0.760275,native_windows,0.760275,0.000000,OK
 cal_ensemble_fuse_abc,KGE,macos,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos,0.862520,wsl,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt,KGE,macos,0.835567,wsl,0.835567,0.000000,OK
@@ -227,6 +228,7 @@ cal_ensemble_hechms_nelder_mead,KGE,macos_p3repro,0.900696,native_windows,0.9006
 cal_ensemble_hechms_nsga2,KGE,macos_p3repro,0.876271,native_windows,0.886108,0.009837,OK
 cal_ensemble_hechms_pso,KGE,macos_p3repro,0.890619,native_windows,0.890619,0.000000,OK
 cal_ensemble_hechms_sa,KGE,macos_p3repro,0.771654,native_windows,0.771654,0.000000,OK
+cal_ensemble_hechms_sceua,KGE,macos_p3repro,0.760275,native_windows,0.760275,0.000000,OK
 cal_ensemble_fuse_abc,KGE,macos_p3repro,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping,KGE,macos_p3repro,0.862520,wsl,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt,KGE,macos_p3repro,0.835567,wsl,0.835567,0.000000,OK
