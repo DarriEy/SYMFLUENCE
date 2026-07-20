@@ -10,7 +10,6 @@ cal_ensemble_hbv_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.907
 cal_ensemble_hbv_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9178005505,50,2026-07-19T20:59:07Z,0.9.2,bc37624d,2026-07-19T20:59:46Z
 cal_ensemble_hbv_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9070656464,1,2026-07-19T21:03:57Z,0.9.2,bc37624d,2026-07-19T21:09:50Z
 cal_ensemble_hbv_lbfgs,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9147860439,124,2026-07-20T01:53:52Z,0.9.2,bc37624d,2026-07-20T02:01:58Z
-cal_ensemble_hbv_moead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9271899752,20,2026-07-20T02:03:23Z,0.9.2,bc37624d,2026-07-20T02:12:03Z
 cal_ensemble_hbv_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9422489632,999,2026-07-20T02:09:38Z,0.9.2,bc37624d,2026-07-20T02:12:03Z
 cal_ensemble_hbv_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7261799518,0,2026-07-20T02:19:18Z,0.9.2,bc37624d,2026-07-20T02:22:08Z
 cal_ensemble_hbv_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9291632219,45,2026-07-20T02:27:08Z,0.9.2,bc37624d,2026-07-20T02:32:13Z
@@ -27,7 +26,6 @@ cal_ensemble_hechms_dream,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.
 cal_ensemble_hechms_ga,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8408989518,50,2026-07-20T03:30:32Z,0.9.2,1ad0582b,2026-07-20T03:33:14Z
 cal_ensemble_hechms_glue,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7419960137,4,2026-07-20T03:35:30Z,0.9.2,9a004a4f,2026-07-20T03:43:31Z
 cal_ensemble_hechms_lbfgs,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8567740971,119,2026-07-20T12:59:12Z,0.9.2,74a9a1fa,2026-07-20T13:02:45Z
-cal_ensemble_hechms_moead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8251576472,20,2026-07-20T13:27:08Z,0.9.2,dedfb3f0,2026-07-20T13:34:27Z
 cal_ensemble_hechms_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9006963005,996,2026-07-20T13:43:21Z,0.9.2,6adbd897,2026-07-20T13:44:54Z
 cal_ensemble_hechms_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8861082418,19,2026-07-20T14:00:17Z,0.9.2,560bce76,2026-07-20T14:05:51Z
 cal_ensemble_hechms_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8906192441,50,2026-07-20T14:11:55Z,0.9.2,1ea24973,2026-07-20T14:16:19Z
