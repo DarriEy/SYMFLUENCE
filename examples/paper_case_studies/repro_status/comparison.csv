@@ -13,6 +13,7 @@ cal_ensemble_fuse_nsga2@FUSE,KGE,macos_p3repro,0.898192,wsl,0.907447,0.009255,OK
 cal_ensemble_fuse_pso@FUSE,KGE,macos_p3repro,0.910320,wsl,0.910320,0.000000,OK
 cal_ensemble_fuse_sa@FUSE,KGE,macos_p3repro,0.891930,wsl,0.891930,0.000000,OK
 cal_ensemble_fuse_sceua@FUSE,KGE,macos_p3repro,0.890818,wsl,0.890818,0.000000,OK
+cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.686033,wsl,0.686033,0.000000,OK
 forcing_ensemble_aorc@SUMMA,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404@SUMMA,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
 forcing_ensemble_rdrs@SUMMA,RMSE,macos_p3repro,-202.854354,wsl,-211.913747,9.059394,DIFF
