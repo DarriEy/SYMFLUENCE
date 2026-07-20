@@ -195,8 +195,9 @@ cal_ensemble_hechms_de,KGE,macos,0.912730,wsl,0.912730,0.000000,OK
 cal_ensemble_hechms_dream,KGE,macos,0.833018,wsl,0.833018,0.000000,OK
 cal_ensemble_hechms_ga,KGE,macos,0.840899,wsl,0.840899,0.000000,OK
 cal_ensemble_hechms_glue,KGE,macos,0.741996,wsl,0.741996,0.000000,OK
-cal_ensemble_hechms_lbfgs,KGE,macos,0.859116,wsl,0.802373,0.056743,DIFF
+cal_ensemble_hechms_lbfgs,KGE,macos,0.859116,wsl,0.802373,0.056743,EXPLAINED
 cal_ensemble_hechms_moead,KGE,macos,0.892122,wsl,0.878546,0.013576,OK
+cal_ensemble_hechms_nelder_mead,KGE,macos,0.900696,wsl,0.900696,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,EXPLAINED
 forcing_ensemble_conus404,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
 forcing_ensemble_rdrs,RMSE,macos,-208.590593,wsl,-211.913747,3.323155,OK
@@ -272,8 +273,9 @@ cal_ensemble_hechms_de,KGE,macos_p3repro,0.912730,wsl,0.912730,0.000000,OK
 cal_ensemble_hechms_dream,KGE,macos_p3repro,0.833018,wsl,0.833018,0.000000,OK
 cal_ensemble_hechms_ga,KGE,macos_p3repro,0.840899,wsl,0.840899,0.000000,OK
 cal_ensemble_hechms_glue,KGE,macos_p3repro,0.741996,wsl,0.741996,0.000000,OK
-cal_ensemble_hechms_lbfgs,KGE,macos_p3repro,0.859116,wsl,0.802373,0.056743,DIFF
+cal_ensemble_hechms_lbfgs,KGE,macos_p3repro,0.859116,wsl,0.802373,0.056743,EXPLAINED
 cal_ensemble_hechms_moead,KGE,macos_p3repro,0.874528,wsl,0.878546,0.004018,OK
+cal_ensemble_hechms_nelder_mead,KGE,macos_p3repro,0.900696,wsl,0.900696,0.000000,OK
 forcing_ensemble_aorc,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
 forcing_ensemble_rdrs,RMSE,macos_p3repro,-202.854354,wsl,-211.913747,9.059394,EXPLAINED
@@ -303,7 +305,8 @@ cal_ensemble_hechms_de,KGE,native_windows,0.912730,wsl,0.912730,0.000000,OK
 cal_ensemble_hechms_dream,KGE,native_windows,0.833018,wsl,0.833018,0.000000,OK
 cal_ensemble_hechms_ga,KGE,native_windows,0.840899,wsl,0.840899,0.000000,OK
 cal_ensemble_hechms_glue,KGE,native_windows,0.741996,wsl,0.741996,0.000000,OK
-cal_ensemble_hechms_lbfgs,KGE,native_windows,0.856774,wsl,0.802373,0.054401,DIFF
+cal_ensemble_hechms_lbfgs,KGE,native_windows,0.856774,wsl,0.802373,0.054401,EXPLAINED
+cal_ensemble_hechms_nelder_mead,KGE,native_windows,0.900696,wsl,0.900696,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
 exp04-top-tier-mean-calib-KGE,reference,macos_p3repro,0.871460,paper,0.847..0.892,,OK
