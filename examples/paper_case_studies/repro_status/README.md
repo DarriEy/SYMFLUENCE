@@ -12,6 +12,12 @@ git add examples/paper_case_studies/repro_status/metrics_macos.csv
 git commit -m "repro: update macos metrics" && git pull --rebase && git push
 ```
 
+Each row records `run_completed`, `symfluence_version`, and `code_commit`
+alongside the score. Run artifacts themselves carry no code version, so
+without these a dataset produced before a behaviour-changing fix is
+indistinguishable from a genuine platform difference — re-collect a platform's
+CSV after pulling, and check these columns first when a `DIFF` appears.
+
 `comparison.csv` is regenerated automatically (currently by the Windows box's
 monitoring loop) from all `metrics_*.csv` present: per-`experiment_id` deltas
 between every platform pair, flagged `DIFF` when |Δ| exceeds the tolerance

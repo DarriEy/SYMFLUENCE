@@ -17,11 +17,35 @@ Rows are keyed by experiment_id; re-running refreshes values in place.
 import argparse
 import csv
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-def scan(root: Path):
+def code_provenance():
+    """Version + commit of the SYMFLUENCE checkout doing the collecting.
+
+    Run artifacts record no code version, so a dataset produced before a
+    behaviour-changing fix is indistinguishable from a platform difference
+    (observed: a Mac dataset predating PR #309 read as a cross-platform
+    DIFF). Recording the commit here, plus each run's completion time,
+    makes that skew visible in the comparison instead of a mystery.
+    """
+    here = Path(__file__).resolve()
+    try:
+        commit = subprocess.run(
+            ["git", "-C", str(here.parent), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        commit = ""
+    try:
+        from symfluence import __version__ as ver
+    except Exception:
+        ver = ""
+    return ver, commit
+
+
+def scan(root: Path, version: str = "", commit: str = ""):
     for domain in sorted(root.glob("domain_*")):
         opt = domain / "optimization"
         if not opt.is_dir():
@@ -48,6 +72,10 @@ def scan(root: Path):
                 "metric": d.get("metric", "?"),
                 "best_score": f"{float(score):.10g}",
                 "best_iteration": d.get("best_iteration", ""),
+                "run_completed": datetime.fromtimestamp(
+                    bp.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "symfluence_version": version,
+                "code_commit": commit,
                 "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
 
@@ -61,21 +89,29 @@ def main():
 
     out = Path(__file__).parent / f"metrics_{args.platform}.csv"
     fields = ["experiment_id", "domain", "metric", "best_score",
-              "best_iteration", "collected_at"]
+              "best_iteration", "run_completed", "symfluence_version",
+              "code_commit", "collected_at"]
+    version, commit = code_provenance()
 
     existing = {}
     if out.exists():
         with out.open(newline="") as f:
             for row in csv.DictReader(f):
-                existing[row["experiment_id"]] = row
+                # tolerate rows written before the provenance columns existed
+                existing[row["experiment_id"]] = {k: row.get(k, "") for k in fields}
 
     n_new = 0
-    for row in scan(Path(args.root).expanduser()):
+    for row in scan(Path(args.root).expanduser(), version, commit):
         prev = existing.get(row["experiment_id"])
         if prev is None or prev["best_score"] != row["best_score"]:
             existing[row["experiment_id"]] = row
             n_new += 1
-        # keep original collected_at when value unchanged
+        else:
+            # value unchanged: keep the original collected_at, but backfill
+            # provenance for rows written before those columns existed
+            for k in ("run_completed", "symfluence_version", "code_commit"):
+                if not prev.get(k) and row.get(k):
+                    prev[k] = row[k]
 
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
