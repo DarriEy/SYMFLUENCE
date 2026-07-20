@@ -23,6 +23,9 @@ STATE = HERE / ".compare_state.json"
 OUT = HERE / "comparison.csv"
 TOL = 0.02
 TOP_TIER = ("de", "cmaes", "dds", "adam")
+# The eight models of experiment 04 (04_calibration_ensemble/README.md)
+EXP04_MODELS = frozenset({"hbv", "hechms", "sacsma", "topmodel", "xinanjiang",
+                          "fuse", "summa", "hype"})
 
 # Metrics bounded near [0, 1], where 0.02 is a meaningful absolute difference.
 # Anything else (RMSE, MAE, ...) is a magnitude in the units of the variable —
@@ -67,9 +70,21 @@ def load_platforms():
 
 def ref_checks(scores):
     checks = []
-    tt = [v for e, (_, v) in scores.items()
-          if e.startswith("cal_ensemble_") and e.rsplit("_", 1)[-1] in TOP_TIER]
-    if len(tt) >= 8:
+    # The paper's top-tier mean is an ensemble-wide statistic over all eight
+    # models. Evaluating it on a partial set compares different populations:
+    # a run order that finishes the high-scoring models first (HBV ~0.94)
+    # yields a mean far above the full-ensemble value regardless of
+    # correctness. Only evaluate once every model is represented.
+    tt, models = [], set()
+    for e, (_, v) in scores.items():
+        if not e.startswith("cal_ensemble_"):
+            continue
+        rest = e[len("cal_ensemble_"):]
+        model = rest.split("_", 1)[0]
+        if rest.rsplit("_", 1)[-1] in TOP_TIER:
+            tt.append(v)
+            models.add(model)
+    if EXP04_MODELS <= models:
         checks.append(("exp04-top-tier-mean-calib-KGE",
                        sum(tt) / len(tt), 0.867 - TOL, 0.872 + TOL, len(tt)))
     if "cal_ensemble_sacsma_bayesian_opt" in scores:
