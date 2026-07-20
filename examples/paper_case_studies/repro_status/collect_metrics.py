@@ -101,7 +101,9 @@ def main():
                 existing[row["experiment_id"]] = {k: row.get(k, "") for k in fields}
 
     n_new = 0
+    seen = set()
     for row in scan(Path(args.root).expanduser(), version, commit):
+        seen.add(row["experiment_id"])
         prev = existing.get(row["experiment_id"])
         if prev is None or prev["best_score"] != row["best_score"]:
             existing[row["experiment_id"]] = row
@@ -113,13 +115,22 @@ def main():
                 if not prev.get(k) and row.get(k):
                     prev[k] = row[k]
 
+    # Drop rows the scan no longer accepts. A row harvested before the
+    # completeness gate existed (or from a domain since wiped and re-run)
+    # otherwise persists forever and is compared as if current — exactly how
+    # a mid-run snapshot survived into the shared table and read as a DIFF.
+    stale = [eid for eid in existing if eid not in seen]
+    for eid in stale:
+        del existing[eid]
+
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         for eid in sorted(existing):
             w.writerow(existing[eid])
 
-    print(f"{out.name}: {len(existing)} runs ({n_new} new/updated)")
+    print(f"{out.name}: {len(existing)} runs "
+          f"({n_new} new/updated, {len(stale)} stale dropped)")
 
 
 if __name__ == "__main__":
