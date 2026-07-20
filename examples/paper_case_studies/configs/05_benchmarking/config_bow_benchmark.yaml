@@ -17,6 +17,7 @@ system:
   - run_benchmarking
   data_dir: default
   code_dir: default
+  random_seed: 42
 domain:
   name: Bow_at_Banff_lumped_era5
   experiment_id: benchmark
