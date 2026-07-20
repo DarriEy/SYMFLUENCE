@@ -30,5 +30,7 @@ cal_ensemble_hbv_moead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.927
 cal_ensemble_hbv_nelder_mead,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9422489632,999,2026-07-20T02:01:59Z
 cal_ensemble_hbv_nsga2,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7261799518,0,2026-07-20T02:12:03Z
 cal_ensemble_hbv_pso,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9291632219,45,2026-07-20T02:12:03Z
+cal_ensemble_hbv_sa,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9157387048,96,2026-07-20T02:22:09Z
+cal_ensemble_hbv_sceua,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.9161990737,7,2026-07-20T02:22:08Z
 forcing_ensemble_aorc,domain_paradise_snotel_wa,RMSE,-386.3030513,880,2026-07-19T19:59:24Z
 forcing_ensemble_conus404,domain_paradise_snotel_wa,RMSE,-306.1649133,618,2026-07-19T22:30:25Z
