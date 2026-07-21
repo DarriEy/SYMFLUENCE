@@ -19,6 +19,7 @@ import numpy as np
 import rasterio
 from shapely.geometry import box
 
+from symfluence.core.exceptions import DiscretizationError
 from symfluence.core.registries import R
 
 from ....geospatial.raster_utils import _scipy_mode_compat
@@ -263,8 +264,24 @@ class GridDelineator(BaseGeofabricDelineator):
             _, basin_path = lumped.delineate_lumped_watershed()
 
             if basin_path is None or not basin_path.exists():
-                self.logger.warning("Could not delineate watershed, using full grid")
-                return grid_gdf
+                # Falling back to the full bounding-box grid silently produces a
+                # DIFFERENT DOMAIN than the one requested — the bbox grid is far
+                # larger than the watershed (observed: 6900 cells instead of
+                # 2332, a 3x-too-large domain) — and the workflow then reports
+                # success. That is a wrong result presented as a right one: the
+                # published cell count is a headline number of the domain
+                # experiment. Clipping was explicitly requested, so a failed
+                # delineation is a hard error.
+                raise DiscretizationError(
+                    "Grid clipping was requested (CLIP_GRID_TO_WATERSHED) but "
+                    "the watershed could not be delineated, so the grid cannot "
+                    "be clipped. Refusing to fall back to the unclipped "
+                    "bounding-box grid, which would silently yield a much "
+                    "larger domain than requested. Fix the delineation (check "
+                    "the TauDEM executables and the DEM) and re-run, or set "
+                    "CLIP_GRID_TO_WATERSHED=false to intentionally model the "
+                    "full bounding box."
+                )
 
             # Load watershed
             watershed = gpd.read_file(basin_path)
@@ -300,11 +317,23 @@ class GridDelineator(BaseGeofabricDelineator):
 
             return clipped
 
-        except Exception as e:  # noqa: BLE001 — preprocessing resilience
+        except DiscretizationError:
+            raise
+        except Exception as e:  # noqa: BLE001 — re-raised as a domain error below
+            # Returning the unclipped grid here was the silent-failure path:
+            # ANY clip error yielded the full bounding-box mesh — a different,
+            # much larger domain than requested — and the workflow still
+            # reported success (observed: 6900 cells instead of 2332 when the
+            # TauDEM executables were missing). A domain that silently changes
+            # size is a wrong result presented as a right one, so surface it.
             self.logger.error(f"Error clipping grid to watershed: {str(e)}", exc_info=True)
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return grid_gdf
+            raise DiscretizationError(
+                f"Failed to clip the grid to the watershed ({type(e).__name__}: {e}). "
+                "Refusing to fall back to the unclipped bounding-box grid, which "
+                "would silently model a much larger domain than requested. Fix the "
+                "delineation and re-run, or set CLIP_GRID_TO_WATERSHED=false to "
+                "intentionally model the full bounding box."
+            ) from e
 
     def _compute_d8_flow_directions(self) -> Optional[Path]:
         """
