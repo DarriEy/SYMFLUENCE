@@ -78,6 +78,7 @@ domain_Bow_at_Banff_lumped_sd_routing:river_basins/Bow_at_Banff_lumped_sd_routin
 domain_Bow_at_Banff_lumped_sd_routing:river_network/Bow_at_Banff_lumped_sd_routing_riverNetwork_delineate.shp,n_features,macos_p3repro,49.000000,native_windows,49.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_sd_routing:river_network/Bow_at_Banff_lumped_sd_routing_riverNetwork_lumped.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:catchment/lumped/bow_exp3_joint/Bow_at_Banff_multivar_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
+domain_Bow_at_Banff_multivar:catchment/lumped/bow_exp4_moead_joint/Bow_at_Banff_multivar_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:river_basins/Bow_at_Banff_multivar_riverBasins_lumped.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:river_network/Bow_at_Banff_multivar_riverNetwork_lumped.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_semidistributed_elev:catchment/semidistributed/Bow_at_Banff_semidistributed_elev/Bow_at_Banff_semidistributed_elev_HRUs_elevation.shp,n_features,macos_p3repro,363.000000,native_windows,363.000000,0.000000,OK
@@ -256,6 +257,7 @@ run_1@FUSE,KGE,macos_p3repro,0.939322,wsl,0.940298,0.000976,OK
 run_1@GSFLOW,KGE,macos_p3repro,0.863662,wsl,0.800698,0.062965,DIFF
 run_1@HBV,KGE,macos_p3repro,0.891596,wsl,0.887254,0.004341,OK
 run_1@HECHMS,KGE,macos_p3repro,0.854470,wsl,0.852517,0.001954,OK
+run_1@SACSMA,KGE,macos_p3repro,0.886959,wsl,0.881684,0.005275,OK
 run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.792790,wsl,0.781713,0.011077,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.908749,wsl,0.953393,0.044644,EXPLAINED
@@ -336,6 +338,7 @@ domain_Bow_at_Banff_lumped_sd_routing:river_basins/Bow_at_Banff_lumped_sd_routin
 domain_Bow_at_Banff_lumped_sd_routing:river_network/Bow_at_Banff_lumped_sd_routing_riverNetwork_delineate.shp,n_features,native_windows,49.000000,wsl,49.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_sd_routing:river_network/Bow_at_Banff_lumped_sd_routing_riverNetwork_lumped.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:catchment/lumped/bow_exp3_joint/Bow_at_Banff_multivar_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_multivar:catchment/lumped/bow_exp4_moead_joint/Bow_at_Banff_multivar_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:river_basins/Bow_at_Banff_multivar_riverBasins_lumped.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_multivar:river_network/Bow_at_Banff_multivar_riverNetwork_lumped.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_semidistributed_elev:catchment/semidistributed/Bow_at_Banff_semidistributed_elev/Bow_at_Banff_semidistributed_elev_HRUs_elevation.shp,n_features,native_windows,363.000000,wsl,363.000000,0.000000,OK
