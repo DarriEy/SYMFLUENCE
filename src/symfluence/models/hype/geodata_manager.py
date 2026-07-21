@@ -970,13 +970,25 @@ class HYPEGeoDataManager:
         combination['Soil layer depth 2'] = d2
         combination['Soil layer depth 3'] = d3
 
-        with open(self.output_path / 'GeoClass.txt', 'w', encoding='utf-8') as f:
+        # newline='' + an explicit lineterminator, or this file is silently
+        # corrupt on Windows. Without newline='', pandas writes os.linesep
+        # ('\r\n' here) and Python's text layer translates the '\n' again, so
+        # every data row ends '\r\r\n' while the f.write header ends '\r\n'.
+        # HYPE then parses only the header, reports nclass=1, and skips the
+        # remaining land classes with "slc larger than nclass skipped" — on
+        # this catchment that silently removed 85% of the area from runoff
+        # generation and collapsed every calibration score to ~0.
+        # Pinning '\n' also makes the file byte-identical across platforms,
+        # which a reproduction campaign depends on.
+        with open(self.output_path / 'GeoClass.txt', 'w', encoding='utf-8',
+                  newline='') as f:
             f.write(
                 "!          SLC\tLULC\tSOIL TYPE\tMain crop cropid\tSecond crop cropid\t"
                 "Crop rotation group\tVegetation type\tSpecial class code\tTile depth\t"
                 "Stream depth\tNumber of soil layers\tSoil layer depth 1\tSoil layer depth 2\t"
                 "Soil layer depth 3 \n"
             )
-            combination.to_csv(f, sep='\t', index=False, header=False)
+            combination.to_csv(f, sep='\t', index=False, header=False,
+                               lineterminator='\n')
 
         self.logger.debug("GeoClass.txt created")
