@@ -357,9 +357,20 @@ jobs:
               continue
             fi
             echo "::group::Installing $tool"
+            # RHESSys must ship patched. `--paper-repro` forces --patched
+            # because the paper's runs use the SYMFLUENCE subsurface-GW
+            # pathway, and binary_commands.py records why: "an unpatched
+            # binary silently caps calibration." This loop did not pass the
+            # flag, so released/npm RHESSys was NOT the paper's binary — it
+            # scores KGE ~0.15 against ~0.85, with nothing failing to say so.
+            # Keep this list in step with the --paper-repro behaviour.
+            EXTRA_INSTALL_FLAGS=""
+            case "$tool" in
+              rhessys) EXTRA_INSTALL_FLAGS="--patched" ;;
+            esac
             # Non-fatal, but emit a ::warning:: so a build that stops producing a
             # tool shows up in the job summary instead of being buried in the log.
-            "$PYTHON_CMD" -m symfluence binary install "$tool" \
+            "$PYTHON_CMD" -m symfluence binary install "$tool" $EXTRA_INSTALL_FLAGS \
               || echo "::warning::Optional model '$tool' failed to build on ${{ matrix.platform }} (non-fatal — not shipped this release)"
             echo "::endgroup::"
           done
