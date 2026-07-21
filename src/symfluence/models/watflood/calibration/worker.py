@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -150,7 +151,7 @@ class WATFLOODWorker(BaseWorker):
                     # prompt on the first event (sub.f, id<=1). With no stdin it
                     # hits EOF and the read crashes; feed blank lines so it
                     # continues non-interactively.
-                    result = subprocess.run(
+                    result = run_subprocess(
                         cmd, cwd=str(settings_dir), env=env,
                         input=b'\n' * 256, stdout=out, stderr=err,
                         timeout=timeout
@@ -190,7 +191,7 @@ class WATFLOODWorker(BaseWorker):
         """Find Wine executable."""
         for candidate in ['wine', '/opt/homebrew/bin/wine', '/usr/local/bin/wine']:
             try:
-                subprocess.run(
+                run_subprocess(
                     [candidate, '--version'],
                     capture_output=True, timeout=10
                 )

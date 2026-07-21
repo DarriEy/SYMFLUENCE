@@ -42,6 +42,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.process_exec import run as run_subprocess
+
 from .platform_monitors import create_process_monitor, get_platform_capabilities
 
 
@@ -597,7 +599,7 @@ class _DummySubprocessProfiler:
         if self.env:
             run_env.update(self.env)
 
-        return subprocess.run(
+        return run_subprocess(
             self.command,
             stdout=stdout,
             stderr=stderr,

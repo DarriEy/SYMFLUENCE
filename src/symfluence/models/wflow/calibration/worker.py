@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker
@@ -106,7 +107,7 @@ class WflowWorker(BaseWorker):
             if not exe_path.exists():
                 self.logger.error(f"wflow_cli not found at {exe_path}")
                 return False
-            result = subprocess.run(
+            result = run_subprocess(
                 [str(exe_path), str(Path(settings_dir) / config_file)],
                 cwd=str(settings_dir), capture_output=True, text=True, timeout=timeout,
             )

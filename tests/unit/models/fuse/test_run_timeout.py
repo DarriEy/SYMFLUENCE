@@ -31,15 +31,17 @@ def test_fuse_is_invoked_with_a_timeout_and_no_inherited_stdin(module, monkeypat
         calls.append(kwargs)
         raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 0))
 
-    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+    monkeypatch.setattr(module, "run_subprocess", _fake_run)
 
     src = module.__file__
     with open(src, encoding="utf-8") as fh:
         text = fh.read()
 
-    # Each subprocess.run in these modules launches a model binary; none may
-    # be unbounded, and none may inherit the parent's stdin.
-    for block in text.split("subprocess.run(")[1:]:
+    # Each launch of a model binary must be bounded and must not inherit the
+    # parent's stdin. These sites go through run_subprocess (see
+    # symfluence.core.process_exec) rather than subprocess.run directly.
+    assert "run_subprocess(" in text, f"{src} no longer launches via the shim"
+    for block in text.split("run_subprocess(")[1:]:
         head = block[: block.index("\n            )") + 1] if "\n            )" in block else block[:600]
         assert "timeout=" in head, f"unbounded subprocess.run in {src}:\n{head}"
         assert "stdin=subprocess.DEVNULL" in head, f"stdin inherited in {src}:\n{head}"
@@ -65,7 +67,7 @@ def test_mixin_applies_a_backstop_when_no_timeout_is_given(monkeypatch, tmp_path
         seen.update(kwargs)
         return _Completed()
 
-    monkeypatch.setattr(se.subprocess, "run", _fake_run)
+    monkeypatch.setattr(se, "run_subprocess", _fake_run)
     monkeypatch.delenv("SYMFLUENCE_SUBPROCESS_TIMEOUT", raising=False)
 
     class _Runner(se.SubprocessExecutionMixin):
@@ -106,7 +108,7 @@ def test_timeout_is_reported_as_failure_not_raised(monkeypatch, tmp_path):
     def _timeout(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 3600))
 
-    monkeypatch.setattr(fuse_runner.subprocess, "run", _timeout)
+    monkeypatch.setattr(fuse_runner, "run_subprocess", _timeout)
 
     runner = _Runner()
     # Should return False rather than propagating TimeoutExpired or hanging.

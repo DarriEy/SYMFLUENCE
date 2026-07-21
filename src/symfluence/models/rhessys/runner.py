@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
 
@@ -65,10 +66,9 @@ class RHESSysRunner(BaseModelRunner):
     def _binary_supports_subsurfacegw(self) -> bool:
         """Check if the RHESSys binary was built with SYMFLUENCE patches."""
         try:
-            import subprocess
             # Run with a deliberately invalid worldfile — the binary will fail,
             # but if it chokes on '-subsurfacegw' specifically, it's unpatched.
-            result = subprocess.run(
+            result = run_subprocess(
                 [str(self.rhessys_exe), '-subsurfacegw', '-w', '/dev/null'],
                 capture_output=True, text=True, timeout=5,
             )

@@ -16,6 +16,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.models.execution.model_executor import (
     ExecutionResult,
     augment_conda_library_paths,
@@ -115,7 +116,7 @@ class SubprocessExecutionMixin:
 
         try:
             with open(log_file, 'w', encoding='utf-8') as f:
-                result = subprocess.run(
+                result = run_subprocess(
                     command,
                     check=False,  # We handle the check ourselves
                     stdin=subprocess.DEVNULL,
@@ -217,7 +218,7 @@ class SubprocessExecutionMixin:
             # Execute subprocess
             self.logger.debug(f"Executing command: {' '.join(command)}")
             with open(log_file, 'w', encoding='utf-8') as f:
-                result = subprocess.run(  # nosec B602 - shell mode for trusted model executables
+                result = run_subprocess(  # nosec B602 - shell mode for trusted model executables
                     command,
                     check=check,
                     stdout=f,

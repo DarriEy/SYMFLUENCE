@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.logging_utils import log_once
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.evaluation.utilities import StreamflowMetrics
@@ -311,7 +312,6 @@ class HYPEWorker(BaseWorker):
             True if model ran successfully
         """
         try:
-            import subprocess
 
             settings_dir = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
             output_dir = Path(output_dir) if not isinstance(output_dir, Path) else output_dir
@@ -320,7 +320,7 @@ class HYPEWorker(BaseWorker):
             hype_exe = self._hype_exe
 
             cmd = [str(hype_exe), str(settings_dir).rstrip('/') + '/']
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd, capture_output=True, text=True, timeout=7200
             )
 

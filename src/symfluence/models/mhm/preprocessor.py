@@ -25,6 +25,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
@@ -120,7 +121,6 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         exits 127). The configured TAUDEM_DIR wins if set; otherwise the first
         runnable candidate is returned, falling back to the framework default.
         """
-        import subprocess
         td = self._get_config_value(lambda: self.config.paths.taudem_dir,
                                     default='default', dict_key='TAUDEM_DIR')
         if td != 'default':
@@ -145,7 +145,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             if not exe.exists():
                 continue
             try:
-                rc = subprocess.run([str(exe)], capture_output=True).returncode
+                rc = run_subprocess([str(exe)], capture_output=True).returncode
             except OSError:
                 continue
             if rc not in (126, 127):   # 127/126 => dylib/load failure

@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -230,7 +231,7 @@ class GSFLOWWorker(BaseWorker):
             try:
                 with open(sim_dir / 'gsflow_stdout.log', 'w') as out, \
                      open(sim_dir / 'gsflow_stderr.log', 'w') as err:
-                    result = subprocess.run(
+                    result = run_subprocess(
                         cmd, cwd=str(settings_dir), env=env,
                         stdin=subprocess.DEVNULL, stdout=out, stderr=err,
                         timeout=timeout

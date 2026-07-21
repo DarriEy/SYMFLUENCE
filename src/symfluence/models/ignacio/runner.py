@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
 
@@ -292,7 +293,7 @@ class IGNACIORunner(BaseModelRunner):
 
             self.logger.info(f"Running IGNACIO CLI: {' '.join(cmd)}")
 
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
                 cwd=str(self.project_dir),
                 capture_output=True,

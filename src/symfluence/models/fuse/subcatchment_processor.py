@@ -29,6 +29,7 @@ from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.path_resolver import find_basin_shapefile, find_catchment_subfile
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
@@ -292,7 +293,7 @@ class SubcatchmentProcessor(ConfigMixin):
             )
 
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
-                result = subprocess.run(
+                result = run_subprocess(
                     command,
                     check=True,
                     stdin=subprocess.DEVNULL,

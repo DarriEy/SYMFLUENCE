@@ -22,6 +22,7 @@ import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError, symfluence_error_handler
 from symfluence.core.logging_utils import log_once
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 
 from ..base import BaseModelRunner
@@ -516,7 +517,7 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
             )
 
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
-                result = subprocess.run(
+                result = run_subprocess(
                     command,
                     check=True,
                     stdin=subprocess.DEVNULL,

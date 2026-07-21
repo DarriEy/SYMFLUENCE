@@ -20,6 +20,7 @@ from typing import Optional
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.mpi_utils import find_mpirun
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base.base_runner import BaseModelRunner
 
@@ -162,7 +163,7 @@ class CLMParFlowRunner(BaseModelRunner):
 
             timeout = self._get_timeout()
 
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
                 cwd=str(self.output_dir),
                 env=env,

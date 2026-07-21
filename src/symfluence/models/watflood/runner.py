@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.models.base import BaseModelRunner
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class WATFLOODRunner(BaseModelRunner):
 
             with open(stdout_file, 'w') as stdout_f, \
                  open(stderr_file, 'w') as stderr_f:
-                result = subprocess.run(
+                result = run_subprocess(
                     cmd,
                     cwd=str(settings_dir),
                     env=env,

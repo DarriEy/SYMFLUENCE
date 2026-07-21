@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
 
@@ -941,7 +942,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             docker_log = output_dir / "ngiab_docker_log.txt"
             try:
                 with open(docker_log, 'w', encoding='utf-8') as log_f:
-                    result = subprocess.run(  # nosec B603
+                    result = run_subprocess(  # nosec B603
                         docker_cmd,
                         stdout=log_f,
                         stderr=subprocess.STDOUT,
@@ -1013,7 +1014,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
 
     def _ensure_ngiab_image(self, ngiab_image: str) -> bool:
         try:
-            result = subprocess.run(['docker', '--version'], capture_output=True, text=True)  # nosec B603 B607
+            result = run_subprocess(['docker', '--version'], capture_output=True, text=True)  # nosec B603 B607
             if result.returncode != 0:
                 self.logger.error("Docker is not available")
                 return False
@@ -1022,7 +1023,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             return False
 
         self.logger.debug(f"Checking for NGIAB Docker image: {ngiab_image}")
-        pull_result = subprocess.run(  # nosec B603 B607
+        pull_result = run_subprocess(  # nosec B603 B607
             ['docker', 'image', 'inspect', ngiab_image],
             capture_output=True
         )
@@ -1030,7 +1031,7 @@ class NgenRunner(BaseModelRunner):  # type: ignore[misc]
             return True
 
         self.logger.info(f"Pulling NGIAB Docker image: {ngiab_image}")
-        pull_result = subprocess.run(  # nosec B603 B607
+        pull_result = run_subprocess(  # nosec B603 B607
             ['docker', 'pull', ngiab_image],
             capture_output=True,
             text=True

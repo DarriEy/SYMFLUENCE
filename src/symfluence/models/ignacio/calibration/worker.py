@@ -15,6 +15,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.optimization.workers.base_worker import BaseWorker
 
@@ -167,8 +168,7 @@ class IGNACIOWorker(BaseWorker):
 
             except ImportError:
                 # Fall back to CLI
-                import subprocess
-                result = subprocess.run(
+                result = run_subprocess(
                     ['ignacio', 'run', str(config_path), '--output-dir', str(output_dir)],
                     capture_output=True, text=True, timeout=3600
                 )

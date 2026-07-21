@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker
@@ -94,7 +95,7 @@ class LisfloodWorker(BaseWorker):
                 env["CONDA_PREFIX"] = pcraster_prefix
             env.pop("PCRASTER_NR_WORKER_THREADS", None)
 
-            result = subprocess.run(
+            result = run_subprocess(
                 [sys.executable, "-c", f'from lisflood.main import main; main("{settings_path}")'],
                 cwd=str(settings_dir),
                 capture_output=True,

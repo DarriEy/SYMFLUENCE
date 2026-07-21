@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.data.model_ready.forcing_reader import (
     forcing_timestep_seconds,
@@ -291,7 +292,7 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         pyver = f"{sys.version_info.major}{sys.version_info.minor}"
         for env_name in [f"pcraster{pyver}", "pcraster"]:
             try:
-                result = subprocess.run(
+                result = run_subprocess(
                     ["conda", "run", "-n", env_name, "mapattr", "-p", str(clone_path)],
                     capture_output=True, text=True, timeout=15,
                 )
@@ -330,7 +331,7 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         pyver = f"{sys.version_info.major}{sys.version_info.minor}"
         for env_name in [f"pcraster{pyver}", "pcraster"]:
             try:
-                result = subprocess.run(
+                result = run_subprocess(
                     ["conda", "run", "-n", env_name, "python", "-c", script],
                     capture_output=True, text=True, timeout=timeout,
                 )
