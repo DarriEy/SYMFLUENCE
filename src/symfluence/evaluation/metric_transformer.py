@@ -78,7 +78,7 @@ class MetricTransformer:
 
     # Suffixes that indicate a flow transformation was applied
     # These don't change the optimization direction of the base metric
-    TRANSFORM_SUFFIXES = ('_LOG', '_INV', '_SQRT', '_log', '_inv', '_sqrt')
+    TRANSFORM_SUFFIXES = ('_LOG', '_INV', '_SQRT', '_BOX_COX', '_log', '_inv', '_sqrt', '_box_cox')
 
     @classmethod
     def get_direction(cls, metric_name: str) -> str:

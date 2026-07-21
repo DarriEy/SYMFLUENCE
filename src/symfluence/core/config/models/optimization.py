@@ -31,7 +31,10 @@ OptimizationAlgorithmType = Literal[
 # Supported optimization metrics (uppercase for case-insensitive validation)
 OptimizationMetricType = Literal[
     'KGE', 'KGEP', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'CORRELATION',
-    'COMPOSITE'
+    'COMPOSITE',
+    # Transformed-flow variants (transformation applied to obs/sim before scoring)
+    'KGE_LOG', 'KGE_INV', 'KGE_SQRT', 'KGE_BOX_COX',
+    'NSE_LOG', 'NSE_SQRT', 'RMSE_LOG'
 ]
 
 # Supported sampling methods
