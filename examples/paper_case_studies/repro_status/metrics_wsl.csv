@@ -15,6 +15,7 @@ cal_ensemble_fuse_sa@FUSE,FUSE,domain_Bow_at_Banff_lumped_calibration_ensemble,K
 cal_ensemble_fuse_sceua@FUSE,FUSE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8908180233,5,2026-07-19T18:22:42Z,0.9.2,4c0c2d04,2026-07-20T20:30:49Z
 cal_ensemble_hype_abc@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.686032621,10,2026-07-20T20:42:45Z,0.9.2,19cc95c0,2026-07-20T20:49:54Z
 cal_ensemble_hype_basin_hopping@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.3557054713,13,2026-07-20T22:46:03Z,0.9.2,2f6cc42d,2026-07-20T22:52:35Z
+cal_ensemble_hype_bayesian_opt@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4743792339,44,2026-07-21T00:09:09Z,0.9.2,384cc9b9,2026-07-21T00:14:16Z
 forcing_ensemble_aorc@SUMMA,SUMMA,domain_paradise_snotel_wa,RMSE,-386.3030513,880,2026-07-19T19:49:57Z,0.9.2,4c0c2d04,2026-07-20T20:30:50Z
 forcing_ensemble_conus404@SUMMA,SUMMA,domain_paradise_snotel_wa,RMSE,-306.1649133,618,2026-07-19T22:25:23Z,0.9.2,4c0c2d04,2026-07-20T20:30:50Z
 forcing_ensemble_rdrs@SUMMA,SUMMA,domain_paradise_snotel_wa,RMSE,-211.9137474,466,2026-07-20T18:24:17Z,0.9.2,4c0c2d04,2026-07-20T20:30:50Z
