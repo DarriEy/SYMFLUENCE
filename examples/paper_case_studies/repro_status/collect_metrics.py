@@ -11,9 +11,21 @@ Usage:
     python collect_metrics.py --platform native_windows --root C:/Users/me/repos/SYMFLUENCE_data
 
 Output: metrics_<platform>.csv next to this script with columns
-    experiment_id,domain,metric,best_score,best_iteration,collected_at
+    experiment_id,domain,metric,best_score,eval_score,best_iteration,collected_at
 Rows are keyed by experiment_id; re-running refreshes values in place.
+
+best_score is the CALIBRATION objective — the endpoint of a stochastic search
+(e.g. 1000 DDS iterations). Across architectures (ARM64 vs x86_64) the models
+produce floating-point-different objective values, so the optimiser takes a
+different accept/reject path and lands on a different-but-comparable optimum;
+on models with a rough response surface that makes best_score diverge well
+beyond the 0.02 tolerance even when nothing is wrong. eval_score is the
+out-of-sample metric at the found optimum, which is what actually answers
+"did the two machines reproduce each other" — two different calibration paths
+that both generalise to ~0.87 ARE a reproduction.
 """
+from __future__ import annotations
+
 import argparse
 import csv
 import itertools
@@ -45,6 +57,41 @@ def code_provenance():
     except Exception:
         ver = ""
     return ver, commit
+
+
+# Where each objective metric lands in the final_evaluation JSON. Three schemas
+# are in use: plain names (FUSE/HYPE/SUMMA/...), Calib_/Eval_ prefixes
+# (HBV/TOPMODEL), and the correlation objective stored as 'correlation'/'r'
+# (the TWS runs). Look up the objective's own family so eval_score is the
+# out-of-sample value of the SAME metric that was calibrated.
+_EVAL_KEYS = {
+    "KGE": ("Eval_KGE", "KGE"),
+    "NSE": ("Eval_NSE", "NSE"),
+    "RMSE": ("Eval_RMSE", "RMSE"),
+    "CORRELATION": ("Eval_correlation", "correlation", "Eval_r", "r"),
+    "R": ("Eval_r", "r", "Eval_correlation", "correlation"),
+}
+
+
+def evaluation_score(best_params_path: Path, metric: str):
+    """Out-of-sample metric at the found optimum, or "" if unavailable.
+
+    Read from the sibling <run>_final_evaluation.json's evaluation_metrics.
+    Returns "" when the run has no evaluation period (e.g. a config with only
+    a calibration window) rather than guessing.
+    """
+    fe = next(best_params_path.parent.glob("*_final_evaluation.json"), None)
+    if fe is None:
+        return ""
+    try:
+        em = (json.loads(fe.read_text()).get("evaluation_metrics") or {})
+    except (OSError, ValueError, json.JSONDecodeError):
+        return ""
+    for key in _EVAL_KEYS.get((metric or "").upper(), (f"Eval_{metric}", metric)):
+        val = em.get(key)
+        if isinstance(val, (int, float)):
+            return f"{float(val):.10g}"
+    return ""
 
 
 def scan(root: Path, version: str = "", commit: str = ""):
@@ -85,6 +132,7 @@ def scan(root: Path, version: str = "", commit: str = ""):
                 "domain": domain.name,
                 "metric": d.get("metric", "?"),
                 "best_score": f"{float(score):.10g}",
+                "eval_score": evaluation_score(bp, d.get("metric", "")),
                 "best_iteration": d.get("best_iteration", ""),
                 "run_completed": datetime.fromtimestamp(
                     bp.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -157,8 +205,8 @@ def main():
 
     out = Path(__file__).parent / f"metrics_{args.platform}.csv"
     fields = ["experiment_id", "model", "domain", "metric", "best_score",
-              "best_iteration", "run_completed", "symfluence_version",
-              "code_commit", "collected_at"]
+              "eval_score", "best_iteration", "run_completed",
+              "symfluence_version", "code_commit", "collected_at"]
     version, commit = code_provenance()
 
     existing = {}
@@ -175,7 +223,8 @@ def main():
                                scan_domain_counts(root, version, commit)):
         seen.add(row["experiment_id"])
         prev = existing.get(row["experiment_id"])
-        if prev is None or prev["best_score"] != row["best_score"]:
+        if (prev is None or prev["best_score"] != row["best_score"]
+                or prev.get("eval_score", "") != row["eval_score"]):
             existing[row["experiment_id"]] = row
             n_new += 1
         else:
