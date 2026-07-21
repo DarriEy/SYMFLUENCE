@@ -21,6 +21,33 @@ from symfluence.models.execution.model_executor import (
     augment_conda_library_paths,
 )
 
+#: Backstop wall-clock bound applied when a caller passes no explicit timeout.
+#: ``timeout=None`` used to mean "wait forever", and 11 of the 19 call sites
+#: relied on that default — so any model binary that wedged took its workflow
+#: with it. Observed on Windows: fuse.exe stopped after writing its output
+#: NetCDF header and sat at 0% CPU while the Python parent blocked in
+#: ``subprocess.run`` for 37h, holding a reproduction run slot with nothing
+#: logged and nothing failed.
+#:
+#: This is deliberately generous rather than tight: it exists to bound a hang,
+#: not to police slow-but-legitimate runs (large domains and long calibrations
+#: can run for many hours). Paths that know their own budget should still pass
+#: an explicit ``timeout`` — see FUSE_TIMEOUT. Set the environment variable to
+#: 0 to restore unbounded behaviour.
+DEFAULT_SUBPROCESS_TIMEOUT = 86400  # 24h
+
+
+def _default_timeout() -> Optional[int]:
+    """Resolve the backstop timeout, honouring SYMFLUENCE_SUBPROCESS_TIMEOUT."""
+    raw = os.environ.get('SYMFLUENCE_SUBPROCESS_TIMEOUT')
+    if raw is None:
+        return DEFAULT_SUBPROCESS_TIMEOUT
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_SUBPROCESS_TIMEOUT
+    return value if value > 0 else None  # 0/negative == explicit opt-out
+
 
 class SubprocessExecutionMixin:
     """Mixin providing subprocess execution methods for model runners."""
@@ -49,7 +76,9 @@ class SubprocessExecutionMixin:
             log_file: Path to write stdout/stderr
             cwd: Working directory for execution
             env: Environment variables (merged with os.environ)
-            timeout: Timeout in seconds (None = no timeout)
+            timeout: Timeout in seconds. None applies DEFAULT_SUBPROCESS_TIMEOUT
+                as a backstop against a wedged binary hanging the workflow
+                forever; pass an explicit value when the path knows its budget.
             shell: Whether to use shell execution
             check: Raise exception on non-zero exit code
             capture_output: Return stdout/stderr in result metadata
@@ -65,6 +94,8 @@ class SubprocessExecutionMixin:
             subprocess.CalledProcessError: If check=True and process fails
         """
         start_time = time.time()
+        if timeout is None:
+            timeout = _default_timeout()
 
         # Merge environment variables
         run_env = os.environ.copy()
@@ -87,6 +118,7 @@ class SubprocessExecutionMixin:
                 result = subprocess.run(
                     command,
                     check=False,  # We handle the check ourselves
+                    stdin=subprocess.DEVNULL,
                     stdout=f if not capture_output else subprocess.PIPE,
                     stderr=subprocess.STDOUT if not capture_output else subprocess.PIPE,
                     cwd=cwd,
