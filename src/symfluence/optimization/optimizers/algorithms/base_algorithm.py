@@ -67,6 +67,47 @@ class OptimizationAlgorithm(ConfigMixin, ABC):
             dict_key='OPTIMIZATION_METRIC'
         )
         self.penalty_score = ModelDefaults.PENALTY_SCORE
+        self.random_seed = self._get_config_value(
+            lambda: self.config.system.random_seed,
+            default=None,
+            dict_key='RANDOM_SEED'
+        )
+
+    @property
+    def _rng(self) -> np.random.Generator:
+        """Lazily-created per-run RNG.
+
+        ``optimize()`` assigns a fresh one at the start of every run; accessing
+        it before then (e.g. an operator exercised directly in a unit test)
+        creates one on demand rather than failing.
+        """
+        rng = self.__dict__.get("_rng_instance")
+        if rng is None:
+            rng = self._new_rng()
+            self.__dict__["_rng_instance"] = rng
+        return rng
+
+    @_rng.setter
+    def _rng(self, value: np.random.Generator) -> None:
+        self.__dict__["_rng_instance"] = value
+
+    def _new_rng(self) -> np.random.Generator:
+        """A fresh seeded RNG for one optimization run.
+
+        Population algorithms (NSGA-II, MOEA/D, GA) draw selection, crossover
+        and mutation randomness from this instead of the process-global
+        ``np.random``. The global state is seeded once and then shared with
+        everything else in the process, so any intervening consumer — or a
+        run-dependent number of draws, e.g. when a model crashes on some
+        parameter sets and not others — desynchronises it and the run diverges.
+        Two runs of the same config on the same machine were producing KGE
+        0.843 vs 0.728 for exactly this reason. A dedicated Generator seeded
+        per run isolates the algorithm's randomness and makes it reproducible.
+        """
+        seed = self.random_seed
+        if seed in (None, "None", ""):
+            return np.random.default_rng()
+        return np.random.default_rng(int(seed))
 
     @property
     @abstractmethod
