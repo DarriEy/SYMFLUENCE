@@ -509,17 +509,25 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
             env = self._build_fuse_env()
 
+            timeout = self._get_config_value(
+                lambda: self.config.model.fuse.timeout,
+                default=3600,
+                dict_key='FUSE_TIMEOUT',
+            )
+
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
                     check=True,
+                    stdin=subprocess.DEVNULL,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     text=True,
                     encoding='utf-8',
                     errors='replace',
                     cwd=str(self.setup_dir),
-                    env=env
+                    env=env,
+                    timeout=timeout,
                 )
 
             if result.returncode == 0:
@@ -561,6 +569,17 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 self.logger.error(f"FUSE failed with return code {result.returncode}")
                 return False
 
+        except subprocess.TimeoutExpired as e:
+            # subprocess.run has already killed the child. Without this the
+            # workflow blocks forever on a wedged binary: observed on Windows
+            # as fuse.exe sitting at 0% CPU for 37h after writing only the
+            # output NetCDF header, holding its run slot the whole time.
+            self.logger.error(
+                f"FUSE exceeded its {e.timeout:.0f}s timeout and was killed "
+                f"(log: {log_file}). Raise FUSE_TIMEOUT if this domain is "
+                f"legitimately slower than that."
+            )
+            return False
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed: {str(e)}")
             return False
@@ -1331,7 +1350,12 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                 log_file,
                 cwd=self.setup_dir,  # Run from settings directory where input_info.txt lives
                 check=False,  # Don't raise, we'll return boolean
-                success_message="FUSE execution completed"
+                success_message="FUSE execution completed",
+                timeout=self._get_config_value(
+                    lambda: self.config.model.fuse.timeout,
+                    default=3600,
+                    dict_key='FUSE_TIMEOUT',
+                ),
             )
             self.logger.debug(f"FUSE return code: {result.return_code}")
 
@@ -1375,6 +1399,13 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
 
             return result.success
 
+        except subprocess.TimeoutExpired as e:
+            self.logger.error(
+                f"FUSE exceeded its {e.timeout:.0f}s timeout and was killed "
+                f"(log: {log_file}). Raise FUSE_TIMEOUT if this domain is "
+                f"legitimately slower than that."
+            )
+            return False
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed with error: {str(e)}")
             return False
