@@ -253,6 +253,7 @@ run_1@HECHMS,KGE,macos_p3repro,0.854470,wsl,0.852517,0.001954,OK
 run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.792790,wsl,0.781713,0.011077,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.908749,wsl,0.953393,0.044644,EXPLAINED
+run_1@XINANJIANG,KGE,macos_p3repro,0.931094,wsl,0.914235,0.016859,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,native_windows,6900.000000,wsl,2332.000000,4568.000000,DIFF
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,native_windows,6900.000000,wsl,2332.000000,4568.000000,DIFF
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,native_windows,6900.000000,wsl,2332.000000,4568.000000,DIFF
@@ -353,5 +354,6 @@ domain_Iceland_regional:river_network/Iceland_regional_riverNetwork_semidistribu
 domain_paradise_snotel_wa_era5:catchment/point/paradise_snotel_wa_era5/paradise_snotel_wa_era5_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_paradise_snotel_wa_era5:river_basins/paradise_snotel_wa_era5_riverBasins_point.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 run_1@TOPMODEL,KGE,native_windows,0.953393,wsl,0.953393,0.000000,OK
+run_1@XINANJIANG,KGE,native_windows,0.914235,wsl,0.914235,0.000000,OK
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
