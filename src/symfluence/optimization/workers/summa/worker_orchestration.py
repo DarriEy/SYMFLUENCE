@@ -25,7 +25,7 @@ from symfluence.evaluation.metric_transformer import MetricTransformer
 
 from .error_logging import log_worker_failure
 from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives
-from .model_execution import _run_mizuroute_worker, _run_summa_worker
+from .model_execution import _run_mizuroute_worker, _run_summa_worker, _usable_output_dir
 from .netcdf_utilities import _convert_lumped_to_distributed_worker
 from .parameter_application import _apply_parameters_worker
 
@@ -102,6 +102,13 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         summa_exe = Path(task_data['summa_exe']).resolve()
         file_manager = Path(task_data['file_manager']).resolve()
         summa_dir = Path(task_data['summa_dir']).resolve()
+        # Claim a directory this evaluation can actually own. If a previous
+        # model process exited without releasing its output NetCDF, that file
+        # cannot be deleted; running into the directory anyway either kills
+        # SUMMA with a bare STOP 1 or silently scores the previous iteration's
+        # output. Both writer and reader derive from this path, so redirecting
+        # here keeps them together.
+        summa_dir = _usable_output_dir(summa_dir, logger)
         mizuroute_dir = Path(task_data['mizuroute_dir']).resolve()
         summa_settings_dir = Path(task_data['summa_settings_dir']).resolve()
 

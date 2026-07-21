@@ -24,18 +24,24 @@ from symfluence.core.profiling import get_system_profiler
 from .netcdf_utilities import fix_summa_time_precision
 
 
-def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
-    """Remove stale output files from previous iterations to prevent metric calculation errors.
+def _cleanup_stale_output_files(output_dir: Path, logger) -> list:
+    """Remove stale output files from previous iterations.
 
     This is critical for calibration: if routing fails, we don't want metrics to be
     calculated from old output files from previous iterations.
+
+    Returns:
+        The files that could NOT be removed. A non-empty list means this
+        directory is unsafe to reuse: the caller must not run into it, or the
+        very substitution this function exists to prevent happens anyway.
 
     Args:
         output_dir: Directory containing model output files
         logger: Logger instance
     """
+    stuck: list = []
     if not output_dir.exists():
-        return
+        return stuck
 
     # Patterns to clean up (SUMMA and mizuRoute output files)
     cleanup_patterns = [
@@ -53,6 +59,7 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
                 file_path.unlink()
                 files_removed += 1
             except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
+                stuck.append(file_path)
                 log_once(logger, logging.WARNING, key=f'summa-stale-file-{file_path}',
                          message=f"Could not remove stale file {file_path}: {e}")
 
@@ -70,6 +77,7 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
     if files_removed > 0:
         logger.debug(f"Cleaned up {files_removed} stale output files/dirs from {output_dir}")
 
+    return stuck
 
 def _deduplicate_output_control(output_control_path: Path, logger):
     """Ensure outputControl.txt doesn't have duplicate variables for the same frequency"""
@@ -201,6 +209,44 @@ def _rewrite_mizuroute_control_for_run(
     with open(control_file, "w", encoding="utf-8", newline="\n") as f:
         f.writelines(updated_lines)
 
+
+
+def _usable_output_dir(summa_dir: Path, logger) -> Path:
+    """Return a directory this evaluation can safely own.
+
+    A wedged predecessor never releases its output NetCDF handle (see
+    symfluence.core.process_exec), so the stale file cannot be deleted. Running
+    into that directory anyway has two bad outcomes: SUMMA cannot create its
+    output and dies with a bare ``STOP 1``, or — worse — metrics get computed
+    from the previous iteration's leftovers, which is exactly what
+    _cleanup_stale_output_files exists to prevent.
+
+    So when the directory cannot be cleared, this evaluation gets a fresh
+    sibling instead. Both the fileManager's outputPath and the metric reader
+    derive from this path, so redirecting here moves writer and reader
+    together and no glob can straddle two iterations.
+    """
+    stuck = _cleanup_stale_output_files(summa_dir, logger)
+    if not stuck:
+        return summa_dir
+
+    for attempt in range(1, 1000):
+        candidate = summa_dir.parent / f"{summa_dir.name}__r{attempt}"
+        if candidate.exists() and _cleanup_stale_output_files(candidate, logger):
+            continue  # that one is poisoned too
+        candidate.mkdir(parents=True, exist_ok=True)
+        log_once(
+            logger, logging.WARNING, key=f'summa-output-redirect-{summa_dir}',
+            message=(
+                f"{len(stuck)} stale output file(s) in {summa_dir} could not be "
+                f"removed (a previous model process exited without releasing "
+                f"them). Redirecting this evaluation to {candidate.name} so it "
+                f"neither collides with them nor reads them."
+            ),
+        )
+        return candidate
+
+    return summa_dir
 
 def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None, timeout: int = 7200, config: Dict = None) -> bool:
     """SUMMA execution with iteration-aware logging.
