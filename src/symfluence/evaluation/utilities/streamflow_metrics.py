@@ -36,14 +36,22 @@ class StreamflowMetrics:
     - Calculating performance metrics
     """
 
-    def __init__(self, penalty_score: float = ModelDefaults.PENALTY_SCORE):
+    def __init__(
+        self,
+        penalty_score: float = ModelDefaults.PENALTY_SCORE,
+        box_cox_lambda: float = 0.2
+    ):
         """
         Initialize StreamflowMetrics.
 
         Args:
             penalty_score: Value to return when metric calculation fails
+            box_cox_lambda: Lambda for the Box-Cox flow transformation used by
+                *_box_cox metrics. 0 falls back to the log transform
+                (the Box-Cox lambda=0 limit).
         """
         self.penalty_score = penalty_score
+        self.box_cox_lambda = box_cox_lambda
 
     def load_observations(
         self,
@@ -445,7 +453,7 @@ class StreamflowMetrics:
         Args:
             obs: Observed values
             sim: Simulated values
-            transform: Transformation type: 'log', 'inv', 'sqrt', 'box_cox_02'
+            transform: Transformation type: 'log', 'inv', 'sqrt', 'box_cox'
 
         Returns:
             Tuple of (transformed_obs, transformed_sim)
@@ -461,11 +469,17 @@ class StreamflowMetrics:
         elif transform == 'sqrt':
             obs_t = np.sqrt(obs + epsilon)
             sim_t = np.sqrt(sim + epsilon)
-        elif transform == 'box_cox_02':
-            # Box-Cox with lambda=0.2 (strongly emphasizes low flows)
-            lam = 0.2
-            obs_t = ((obs + epsilon) ** lam - 1) / lam
-            sim_t = ((sim + epsilon) ** lam - 1) / lam
+        elif transform in ('box_cox', 'box_cox_02'):
+            # Box-Cox (default lambda=0.2 strongly emphasizes low flows);
+            # lambda is configurable via BOX_COX_LAMBDA
+            lam = self.box_cox_lambda
+            if lam == 0:
+                # Box-Cox lambda=0 limit is the log transform
+                obs_t = np.log(obs + epsilon)
+                sim_t = np.log(sim + epsilon)
+            else:
+                obs_t = ((obs + epsilon) ** lam - 1) / lam
+                sim_t = ((sim + epsilon) ** lam - 1) / lam
         else:
             raise ValueError(f"Unknown transformation: {transform}")
 
@@ -478,7 +492,7 @@ class StreamflowMetrics:
         'kge_log':  ('kge', 'log'),
         'kge_inv':  ('kge', 'inv'),
         'kge_sqrt': ('kge', 'sqrt'),
-        'kge_box_cox': ('kge', 'box_cox_02'),
+        'kge_box_cox': ('kge', 'box_cox'),
         'nse_log':  ('nse', 'log'),
         'nse_sqrt': ('nse', 'sqrt'),
         'rmse_log': ('rmse', 'log'),
@@ -486,7 +500,7 @@ class StreamflowMetrics:
         'KGE_LOG':  ('kge', 'log'),
         'KGE_INV':  ('kge', 'inv'),
         'KGE_SQRT': ('kge', 'sqrt'),
-        'KGE_BOX_COX': ('kge', 'box_cox_02'),
+        'KGE_BOX_COX': ('kge', 'box_cox'),
         'NSE_LOG':  ('nse', 'log'),
         'NSE_SQRT': ('nse', 'sqrt'),
         'RMSE_LOG': ('rmse', 'log'),

@@ -1903,8 +1903,15 @@ NUMBER_OF_ITERATIONS: 1000
 #   Type:        str
 #   Default:     KGE
 #   Source:      OptimizationConfig (optimization.py)
-#   Usage:      14
+#   Description: Base metric, COMPOSITE, or transformed variant (e.g. KGE_LOG, KGE_BOX_COX)
 OPTIMIZATION_METRIC: "KGE"
+
+# BOX_COX_LAMBDA
+#   Type:        float
+#   Default:     0.2
+#   Source:      OptimizationConfig (optimization.py)
+#   Description: Lambda for the Box-Cox transform in *_BOX_COX metrics (0 = log), range [0, 1]
+BOX_COX_LAMBDA: 0.2
 
 # COMPOSITE_METRIC
 #   Type:        dict | None

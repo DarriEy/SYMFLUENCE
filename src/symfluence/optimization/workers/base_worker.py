@@ -22,6 +22,7 @@ from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import RetryExhaustedError
 from symfluence.core.mixins.logging import _class_logger_name
 from symfluence.evaluation.metric_transformer import MetricTransformer
+from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +329,13 @@ class BaseWorker(ABC):
         self.config = config or {}
         self.logger = logger or logging.getLogger(
             _class_logger_name(self.__class__))
+
+        # Shadow the subclass-level shared StreamflowMetrics instance when a
+        # non-default Box-Cox lambda is configured (used by *_BOX_COX metrics)
+        box_cox_lambda = self._cfg('BOX_COX_LAMBDA')
+        if box_cox_lambda is not None:
+            self._streamflow_metrics = StreamflowMetrics(
+                box_cox_lambda=float(box_cox_lambda))
 
     def _cfg(self, key: str, default: Any = None) -> Any:
         """Get config value from the worker's config dict.

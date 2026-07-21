@@ -438,6 +438,11 @@ class OptimizationConfig(BaseModel):
     calibration_timestep: str = Field(default='daily', alias='CALIBRATION_TIMESTEP')
     algorithm: OptimizationAlgorithmType = Field(default='PSO', alias='ITERATIVE_OPTIMIZATION_ALGORITHM')
     metric: OptimizationMetricType = Field(default='KGE', alias='OPTIMIZATION_METRIC')
+    box_cox_lambda: float = Field(
+        default=0.2, alias='BOX_COX_LAMBDA', ge=0.0, le=1.0,
+        description="Lambda for the Box-Cox flow transformation used by *_BOX_COX "
+                    "metrics (0 = log transform, smaller values emphasize low flows more)"
+    )
     iterations: int = Field(default=1000, alias='NUMBER_OF_ITERATIONS', ge=1)
     population_size: int = Field(default=50, alias='POPULATION_SIZE', ge=2, le=10000)
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
