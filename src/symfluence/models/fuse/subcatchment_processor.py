@@ -285,16 +285,24 @@ class SubcatchmentProcessor(ConfigMixin):
             # Create log file for this subcatchment
             log_file = subcat_output_dir / 'fuse_run.log'
 
+            timeout = self._get_config_value(
+                lambda: self.config.model.fuse.timeout,
+                default=3600,
+                dict_key='FUSE_TIMEOUT',
+            )
+
             with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
                 result = subprocess.run(
                     command,
                     check=True,
+                    stdin=subprocess.DEVNULL,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     text=True,
                     encoding='utf-8',
                     errors='replace',
-                    cwd=str(settings_dir)
+                    cwd=str(settings_dir),
+                    timeout=timeout,
                 )
 
             if result.returncode == 0:
