@@ -16,7 +16,7 @@ cal_ensemble_fuse_sceua@FUSE,KGE,macos_p3repro,0.890818,wsl,0.890818,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,macos_p3repro,0.355703,wsl,0.355705,0.000003,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos_p3repro,0.474379,wsl,0.474379,0.000000,OK
-cal_ensemble_hype_cmaes@HYPE,KGE,macos_p3repro,0.813324,wsl,0.690405,0.122919,DIFF
+cal_ensemble_hype_cmaes@HYPE,KGE,macos_p3repro,0.813324,wsl,0.690405,0.122919,EXPLAINED
 cal_ensemble_hype_dds@HYPE,KGE,macos_p3repro,0.849389,wsl,0.849389,0.000000,OK
 forcing_ensemble_aorc@SUMMA,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404@SUMMA,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
@@ -26,7 +26,7 @@ run_1@FUSE,KGE,macos_p3repro,0.939322,wsl,0.940298,0.000976,OK
 run_1@GSFLOW,KGE,macos_p3repro,0.863662,wsl,0.800698,0.062965,DIFF
 run_1@HBV,KGE,macos_p3repro,0.891596,wsl,0.887254,0.004341,OK
 run_1@HECHMS,KGE,macos_p3repro,0.854470,wsl,0.852517,0.001954,OK
-run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,DIFF
+run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.792790,wsl,0.781713,0.011077,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.908749,wsl,0.249182,0.659567,DIFF
 run_1@XINANJIANG,KGE,macos_p3repro,0.931094,wsl,0.427828,0.503266,DIFF
