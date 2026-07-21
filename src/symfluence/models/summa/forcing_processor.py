@@ -139,6 +139,19 @@ class SummaForcingProcessor(BaseForcingProcessor):
         """
         self.logger.info("Starting memory-efficient temperature lapse rate and data step application")
 
+        # Names written by this run. Stale leftovers are removed only at the
+        # end, against this set, so the leap-day files added after the main
+        # batches are not mistaken for stale.
+        self._written_forcing_names: set = set()
+
+        if self._forcing_outputs_are_current():
+            self.logger.info(
+                "SUMMA forcing files are already current — skipping regeneration. "
+                "This directory is shared by every experiment on the domain, so "
+                "a redundant rewrite would break any run reading it."
+            )
+            return
+
         # Check if model-agnostic elevation correction already applied
         already_corrected = self._check_already_corrected()
 
@@ -168,6 +181,10 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         if self._source_calendar in ('noleap', '365_day'):
             self._insert_noleap_leap_days()
+
+        # Only now that every replacement is in place is it safe to drop
+        # leftovers — deleting first is what opened the gap readers died in.
+        self._remove_stale_forcing_files(self._written_forcing_names)
 
         self.logger.info(
             f"Completed processing of {len(forcing_files)} "
@@ -318,11 +335,69 @@ class SummaForcingProcessor(BaseForcingProcessor):
         return forcing_files
 
     def _prepare_forcing_output_dir(self):
-        """Create output directory and remove stale forcing files."""
+        """Create the output directory.
+
+        Deliberately does NOT delete the existing forcing files. This directory
+        is shared by every experiment on the domain
+        (``{project_dir}/data/forcing/SUMMA_input``, no experiment_id in the
+        path), so deleting up front and rewriting one file at a time opened a
+        window in which the forcing simply did not exist. A SUMMA run reading
+        it during that window dies with a bare ``STOP 1`` and no diagnostic
+        output whatsoever — reproduced by timing: a read at 13:43:54 inside a
+        13:42:21-13:44:34 rewrite window failed, identical reads after it
+        succeeded.
+
+        Files are now replaced atomically as each is regenerated, and anything
+        genuinely stale is removed afterwards by
+        :meth:`_remove_stale_forcing_files`.
+        """
         self.forcing_summa_path.mkdir(parents=True, exist_ok=True)
-        prefix = f"{self.domain_name}_{self.forcing_dataset}".lower()
+
+    def _stale_forcing_prefix(self) -> str:
+        return f"{self.domain_name}_{self.forcing_dataset}".lower()
+
+    def _forcing_outputs_are_current(self) -> bool:
+        """True when every source file already has a newer SUMMA output.
+
+        Regeneration is the hazard, not the cost: this directory is shared by
+        all experiments on the domain, so a run that rewrites forcing another
+        run is reading kills it. Skipping when nothing changed removes almost
+        every collision, since the repeat work was redundant anyway.
+
+        Conservative by construction — any missing output, or any source
+        touched more recently than its output, forces a full regeneration.
+        """
+        try:
+            sources = [
+                f for f in os.listdir(self.forcing_basin_path)
+                if f.startswith(f"{self.domain_name}") and f.endswith('.nc')
+            ]
+        except OSError:
+            return False
+        if not sources:
+            return False
+
+        for name in sources:
+            out = self.forcing_summa_path / name
+            src = self.forcing_basin_path / name
+            try:
+                if not out.exists() or out.stat().st_mtime < src.stat().st_mtime:
+                    return False
+            except OSError:
+                return False
+        return True
+
+    def _remove_stale_forcing_files(self, keep: set) -> None:
+        """Drop leftover outputs that this run did not regenerate.
+
+        Runs after the new files are in place, so a concurrent reader never
+        sees a gap where its forcing used to be.
+        """
+        prefix = self._stale_forcing_prefix()
         for existing_file in self.forcing_summa_path.glob("*.nc"):
             if not existing_file.name.lower().startswith(prefix):
+                continue
+            if existing_file.name in keep:
                 continue
             try:
                 existing_file.unlink()
@@ -591,11 +666,31 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     summa_renames.get(k, k): v for k, v in encoding.items()
                 }
 
-            dat.to_netcdf(output_path, encoding=encoding)
+            # Write beside the target and swap it in atomically. A reader on
+            # this shared directory must never observe a partially written
+            # forcing file (SUMMA fails on one with a bare STOP 1 and no
+            # output at all). os.replace is atomic, so a reader sees either
+            # the old file or the new one.
+            tmp_path = output_path.with_name(output_path.name + '.tmp')
+            dat.to_netcdf(tmp_path, encoding=encoding)
 
             # Explicit cleanup
             dat.close()
             del dat
+
+            try:
+                os.replace(tmp_path, output_path)
+                self._written_forcing_names.add(output_path.name)
+            except OSError as exc:
+                # On Windows the swap fails while another process holds the
+                # target open. Say so loudly: silently leaving the old forcing
+                # in place would feed the next run stale data.
+                tmp_path.unlink(missing_ok=True)
+                raise FileOperationError(
+                    f"Could not replace forcing file {output_path.name}: {exc}. "
+                    f"Another process is likely reading this domain's forcing "
+                    f"while it is being regenerated."
+                ) from exc
 
     def _insert_noleap_leap_days(self):
         """
@@ -798,6 +893,9 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             leap_ds.to_netcdf(out_path, encoding=encoding)
             leap_ds.close()
+            # Claim it so the stale sweep does not treat a file this run just
+            # created as a leftover.
+            getattr(self, '_written_forcing_names', set()).add(out_path.name)
             inserted += 1
             self.logger.debug("Inserted leap-day forcing file: %s", out_name)
 
