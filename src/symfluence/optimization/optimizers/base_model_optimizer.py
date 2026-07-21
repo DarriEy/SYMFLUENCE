@@ -771,7 +771,9 @@ class BaseModelOptimizer(
         # directories are keyed by domain + algorithm only, so a second
         # process would re-stage settings over a live run's files (and its
         # cleanup() would delete them) — see issue #329.
-        self._run_lock = RunDirectoryLock(base_dir, self.experiment_id, self.logger)
+        self._run_lock = RunDirectoryLock(
+            base_dir, self.experiment_id, self.logger, model=self._get_model_name()
+        )
         if self._run_lock.acquire():
             atexit.register(self._run_lock.release)
 
