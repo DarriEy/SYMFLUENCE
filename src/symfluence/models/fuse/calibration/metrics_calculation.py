@@ -459,6 +459,15 @@ def compute_metrics(
 
     metric_list = ['kge', 'nse', 'rmse', 'mae']
 
+    # Add the configured single objective metric (e.g. KGE_LOG, KGE_BOX_COX)
+    calibration_metric = config.get(
+        'OPTIMIZATION_METRIC', config.get('CALIBRATION_METRIC', '')
+    )
+    if isinstance(calibration_metric, str):
+        metric_lower = calibration_metric.lower()
+        if metric_lower and metric_lower != 'composite' and metric_lower not in metric_list:
+            metric_list.append(metric_lower)
+
     # Add composite metric components if configured
     composite_config = config.get('COMPOSITE_METRIC')
     if composite_config and isinstance(composite_config, dict):
