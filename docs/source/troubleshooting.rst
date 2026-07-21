@@ -51,6 +51,41 @@ Installation and Environment
      rm -rf venv
      ./scripts/symfluence-bootstrap --install
 
+**Windows: model processes never exit and cannot be killed**
+
+Symptoms: a model run finishes and writes its output, but the process stays in
+the task list forever, ignores ``taskkill /F``, keeps its output NetCDF file
+locked, and only disappears on reboot. Subsequent calibration evaluations then
+fail on the locked files. Diagnostics from the run may be empty.
+
+Cause: MSYS2's stock ``mingw-w64-x86_64-netcdf`` is built with the AWS S3 SDK.
+netCDF's ``DLL_PROCESS_DETACH`` hook calls ``Aws::ShutdownAPI``, which waits on
+AWS CRT worker threads that ``RtlExitUserProcess`` has already terminated, so it
+blocks forever. The process gets a valid exit code but never signals:
+``GetExitCodeProcess`` succeeds while ``WaitForSingleObject`` times out.
+
+Check::
+
+   grep "S3 Support" /c/msys64/mingw64/lib/libnetcdf.settings
+
+The Windows release bundle (``npm install -g symfluence``) ships an S3-free
+netCDF, so this only affects source builds against your own MSYS2 install. To
+fix one, rebuild netCDF without S3 — the result is a drop-in replacement and no
+model needs relinking::
+
+   scripts/build_netcdf_no_s3_mingw.sh
+
+**Windows: a model exits instantly with no output and scores -9999**
+
+A Windows executable that cannot resolve one of its imported DLLs is terminated
+by the loader with ``0xC0000135`` (``STATUS_DLL_NOT_FOUND``) *before* ``main()``
+runs, so it produces no stdout, no stderr, and no log. Calibration cannot tell
+that apart from a model that ran and scored badly, and records ``-9999``.
+
+List the missing imports with::
+
+   scripts/check_windows_dll_closure.sh <bin_dir>
+
 ---
 
 Runtime and Workflow

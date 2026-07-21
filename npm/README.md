@@ -4,13 +4,27 @@ Pre-compiled hydrological modeling tools for SYMFLUENCE framework.
 
 ## What's Included
 
-This package provides pre-built binaries for:
+This package downloads the pre-built tool bundle for your platform. The release
+pipeline builds and stages:
 
 - **SUMMA** - Structure for Unifying Multiple Modeling Alternatives
 - **mizuRoute** - Multi-scale routing model
 - **FUSE** - Framework for Understanding Structural Errors
 - **NGEN** - NOAA Next Generation Water Resources Modeling Framework
 - **TauDEM** - Terrain Analysis Using Digital Elevation Models
+- **HYPE**, **MESH**, **CRHM**, **mHM**, **PRMS**, **SWAT**, **GSFLOW**,
+  **RHESSys** - the remaining paper-reproduction models
+- **VIC**, **WRF-Hydro**, **WATFLOOD**, **MODFLOW 6**, **ParFlow**,
+  **CLM-ParFlow**, **PIHM**, **CLM**, **NoahMP**, **WMFire**
+
+Not every model builds on every platform. The bundle's `toolchain.json` and the
+staging summary in the release logs record exactly what shipped; `symfluence
+binary info` reports what is present locally.
+
+> **RHESSys note:** the bundled RHESSys is the upstream build. The paper's
+> subsurface-groundwater patch is applied only by
+> `symfluence binary install rhessys --patched` (or `--paper-repro`), so
+> reproducing the paper's RHESSys results still requires a source build.
 
 ## Installation
 

@@ -109,6 +109,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed (`agent doctor` covers the last two).
 
 ### Fixed
+- **Windows model processes no longer deadlock at exit**: the Windows release
+  job now rebuilds netCDF-C without the AWS S3 SDK
+  (`scripts/build_netcdf_no_s3_mingw.sh`) instead of shipping MSYS2's stock
+  package. netCDF's `DLL_PROCESS_DETACH` hook called `Aws::ShutdownAPI`, which
+  waits on AWS CRT worker threads that `RtlExitUserProcess` has already
+  terminated — so every SUMMA/FUSE/HYPE run left an unkillable process that
+  never signalled, kept its output NetCDF handles locked, and broke subsequent
+  calibration evaluations. Byte-range, DAP and NCZarr support are unchanged, and
+  the build asserts the result is a drop-in (export-table diff plus a check that
+  every symbol `libnetcdff-7.dll` imports is still exported). Linux and macOS
+  are untouched: the deadlock needs ExitProcess semantics, and Debian's netCDF
+  is already built without the AWS SDK.
+- **Every packaged Windows tool now ships the DLLs it imports**: the release
+  bundler enumerated images with an `*.exe` glob while staging deliberately
+  drops the `.exe` suffix from tool names, so every Fortran model was skipped
+  and `libnetcdff-7.dll` was never bundled. Images are now detected by content,
+  and `scripts/check_windows_dll_closure.sh` walks each packaged binary's import
+  table and fails the release if anything is unresolvable — a missing DLL aborts
+  a Windows process with `0xC0000135` before `main()` with no output at all,
+  which calibration recorded as a `-9999` score rather than a failure (observed:
+  seven native HYPE calibrations silently lost).
 - **Stale plugins no longer vanish silently**: a plugin whose `register()`
   fails on SYMFLUENCE API drift (e.g. importing a removed alias) now logs a
   WARNING naming the incompatible package instead of disappearing from the
