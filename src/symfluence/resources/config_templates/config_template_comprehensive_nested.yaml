@@ -862,7 +862,14 @@ optimization:
   #   RMSE   - Root Mean Square Error
   #   MAE    - Mean Absolute Error
   #   PBIAS  - Percent Bias
+  # Transformed-flow variants (transformation applied to obs/sim before scoring,
+  # emphasizing low flows): KGE_LOG, KGE_INV, KGE_SQRT, KGE_BOX_COX,
+  # NSE_LOG, NSE_SQRT, RMSE_LOG
   metric: "KGE"
+
+  # Lambda for the Box-Cox flow transformation used by *_BOX_COX metrics.
+  # 0 = log transform; smaller values emphasize low flows more. Range [0, 1].
+  box_cox_lambda: 0.2
 
   # Optimization target variable
   target: "streamflow"

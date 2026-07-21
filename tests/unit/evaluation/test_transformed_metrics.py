@@ -62,6 +62,61 @@ class TestKgeBoxCox:
         assert result['kge_box_cox'] == pytest.approx(float(kge(obs_t, sim_t, transfo=1)))
 
 
+class TestConfigurableBoxCoxLambda:
+    def _manual_box_cox_kge(self, obs, sim, lam):
+        from symfluence.evaluation.metrics_core import kge
+        epsilon = max(np.mean(obs) * 0.01, 1e-6)
+        obs_t = ((obs + epsilon) ** lam - 1) / lam
+        sim_t = ((sim + epsilon) ** lam - 1) / lam
+        return float(kge(obs_t, sim_t, transfo=1))
+
+    def test_custom_lambda_honored(self, flows):
+        obs, sim = flows
+        sm = StreamflowMetrics(box_cox_lambda=0.5)
+        result = sm.calculate_metrics(obs, sim, metrics=['kge_box_cox'])
+        assert result['kge_box_cox'] == pytest.approx(self._manual_box_cox_kge(obs, sim, 0.5))
+
+    def test_default_lambda_is_02(self, flows):
+        obs, sim = flows
+        result = StreamflowMetrics().calculate_metrics(obs, sim, metrics=['kge_box_cox'])
+        assert result['kge_box_cox'] == pytest.approx(self._manual_box_cox_kge(obs, sim, 0.2))
+
+    def test_lambda_zero_equals_log_transform(self, flows):
+        obs, sim = flows
+        sm = StreamflowMetrics(box_cox_lambda=0.0)
+        result = sm.calculate_metrics(obs, sim, metrics=['kge_box_cox', 'kge_log'])
+        assert result['kge_box_cox'] == pytest.approx(result['kge_log'])
+
+    def test_base_worker_picks_up_configured_lambda(self):
+        from symfluence.optimization.workers.base_worker import BaseWorker
+
+        class DummyWorker(BaseWorker):
+            _streamflow_metrics = StreamflowMetrics()
+
+            def apply_parameters(self, *a, **k):
+                return True
+
+            def run_model(self, *a, **k):
+                return True
+
+            def calculate_metrics(self, *a, **k):
+                return {}
+
+        configured = DummyWorker(config={'BOX_COX_LAMBDA': 0.5})
+        assert configured._streamflow_metrics.box_cox_lambda == 0.5
+
+        default = DummyWorker(config={})
+        assert default._streamflow_metrics.box_cox_lambda == 0.2
+
+    def test_config_field_validation(self):
+        assert OptimizationConfig(BOX_COX_LAMBDA=0.35).box_cox_lambda == 0.35
+        assert OptimizationConfig().box_cox_lambda == 0.2
+        with pytest.raises(ValueError):
+            OptimizationConfig(BOX_COX_LAMBDA=1.5)
+        with pytest.raises(ValueError):
+            OptimizationConfig(BOX_COX_LAMBDA=-0.1)
+
+
 class TestBoxCoxDirection:
     def test_kge_box_cox_maximized(self):
         assert MetricTransformer.get_direction('KGE_BOX_COX') == 'maximize'
