@@ -3,9 +3,11 @@
 
 """Exclusive lock over a calibration's parallel run directory.
 
-Per-process calibration directories are keyed by domain and algorithm only
-(``simulations/run_<algorithm>/process_<i>``), so two SYMFLUENCE processes
-working the same domain with the same algorithm share one directory tree.
+Per-process calibration trees live under ``simulations/run_<algorithm>/
+process_<i>`` and are scoped inside by experiment and model
+(``simulations/{experiment_id}/{model}``, ``settings/{model}``), so different
+models may legitimately calibrate concurrently in one domain. A collision
+occurs only when the SAME model and experiment are run twice at once.
 Merely constructing a second optimizer re-stages settings over a live run's
 files, and calling its ``cleanup()`` deletes them outright — observed
 destroying a live NSGA-II calibration mid-run, after which every evaluation
@@ -29,7 +31,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-LOCK_NAME = ".symfluence_run.lock"
+#: Lock filename is scoped to (model, experiment), NOT just the algorithm
+#: directory. Per-process trees are already model- and experiment-scoped
+#: (``process_N/simulations/{experiment_id}/{model}`` and
+#: ``process_N/settings/{model}``), and DirectoryManager.cleanup deliberately
+#: removes only those subdirs "to avoid destroying other concurrent
+#: calibrations sharing the same process directory". Locking the whole
+#: ``run_<algorithm>`` directory would therefore block legitimate concurrent
+#: calibrations of different models in one domain — the exact parallelism the
+#: layout is designed for. Collisions only occur when model AND experiment
+#: match, which is the case the lock must catch (issue #329).
+LOCK_PREFIX = ".symfluence_run"
+
+
+def lock_name(model: str = "", experiment_id: str = "") -> str:
+    """Lock filename for a (model, experiment) pair within a run directory."""
+    safe = "".join(c if c.isalnum() or c in "-_" else "_"
+                   for c in f"{model}__{experiment_id}")
+    return f"{LOCK_PREFIX}.{safe}.lock" if safe.strip("_") else f"{LOCK_PREFIX}.lock"
 
 
 def _mpi_rank() -> int:
@@ -70,11 +89,13 @@ def _process_signature(pid: int) -> Optional[str]:
 
 
 class RunDirectoryLock:
-    """Guards one ``simulations/run_<algorithm>`` tree against concurrent use."""
+    """Guards one (model, experiment) calibration against concurrent use."""
 
-    def __init__(self, base_dir: Path, experiment_id: str, logger: Any):
-        self.path = Path(base_dir) / LOCK_NAME
+    def __init__(self, base_dir: Path, experiment_id: str, logger: Any,
+                 model: str = ""):
+        self.path = Path(base_dir) / lock_name(model, experiment_id)
         self.experiment_id = experiment_id
+        self.model = model
         self.logger = logger
         self.owned = False
 
@@ -90,6 +111,7 @@ class RunDirectoryLock:
             "pid": pid,
             "signature": _process_signature(pid),
             "experiment_id": self.experiment_id,
+            "model": self.model,
             "acquired_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
