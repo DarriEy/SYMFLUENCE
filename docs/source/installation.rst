@@ -49,7 +49,9 @@ an actionable install hint; everything else works.
 
 .. code-block:: bash
 
-   # Install globally (includes SUMMA, mizuRoute, FUSE, NGEN, TauDEM)
+   # Install globally (pre-built model binaries; see `npm/README.md` for the
+   # full list — SUMMA, mizuRoute, FUSE, NGEN, TauDEM, HYPE, MESH, CRHM, mHM,
+   # PRMS, SWAT, GSFLOW, RHESSys and more, subject to platform availability)
    npm install -g symfluence
 
    # Verify installation

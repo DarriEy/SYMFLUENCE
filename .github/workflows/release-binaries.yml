@@ -55,7 +55,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Empty for macOS/Windows rows -> the job runs directly on the host runner.
     container: ${{ matrix.container || '' }}
-    timeout-minutes: 120
+    # Raised from 120: the Windows job now also builds netCDF-C from source
+    # (~10 min, dominated by CMake's feature probes) before building the models.
+    timeout-minutes: 150
 
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
@@ -136,6 +138,21 @@ jobs:
       # ========================================================================
       # Linux System Dependencies
       # ========================================================================
+      # Deliberately NOT mirroring the Windows "netCDF without S3" rebuild here.
+      # Two reasons, in order of weight:
+      #   1. The teardown deadlock is a Windows-only failure mode. It needs
+      #      ExitProcess semantics: RtlExitUserProcess terminates every thread
+      #      but the caller's, THEN runs DLL_PROCESS_DETACH, so netCDF's
+      #      Aws::ShutdownAPI hook waits on threads that no longer exist. POSIX
+      #      exit() has no equivalent step.
+      #   2. There is nothing to remove: Debian's libnetcdf-dev is already built
+      #      without the AWS SDK (`libnetcdf.settings` reports "S3 Support: no",
+      #      and libnetcdf.so links no libaws*), on both the bullseye build
+      #      container and the Ubuntu hosts that consume the artifact. Debian
+      #      does not package aws-sdk-cpp.
+      # Rebuilding netCDF on Linux would therefore add build time and risk while
+      # removing no functionality that is present — and disabling S3 where it IS
+      # present would silently drop remote-object access someone may rely on.
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         env:
@@ -268,6 +285,39 @@ jobs:
           echo "NETCDF_FORTRAN=C:/msys64/mingw64" >> $GITHUB_ENV
           echo "SYMFLUENCE_NO_VENV=true" >> $GITHUB_ENV
           echo "SYMFLUENCE_PYTHON=python" >> $GITHUB_ENV
+
+      # ── netCDF without the AWS S3 SDK (Windows) ──────────────────────────
+      # MSYS2's stock mingw-w64-x86_64-netcdf enables the aws-sdk-cpp S3 driver.
+      # netCDF's DLL_PROCESS_DETACH hook then calls Aws::ShutdownAPI, which waits
+      # on a condition variable for AWS CRT worker threads that RtlExitUserProcess
+      # has already killed — so it blocks forever. The model gets a valid exit
+      # code but its last thread never finishes, the process object never
+      # signals (GetExitCodeProcess succeeds while WaitForSingleObject hangs),
+      # and the unkillable zombie keeps holding its output NetCDF handles. Every
+      # SUMMA/FUSE run on native Windows left one behind; they accumulated past
+      # 70 and broke subsequent calibration evaluations.
+      #
+      # Approach: keep installing the stock package (netcdf-fortran, the headers,
+      # nc-config and the .cmake/.pc files must stay consistent, and the package
+      # pulls in every optional filter backend), then rebuild ONLY netCDF-C at
+      # the same version with -DNETCDF_ENABLE_S3=OFF -DNETCDF_ENABLE_S3_AWS=OFF
+      # and install it over the prefix. Byte-range (curl-only) support stays on.
+      # The script proves the result is a drop-in before the job continues: it
+      # diffs the export table against the stock DLL (only NC_s3sdk*/
+      # NCZ_s3finalize may disappear) and checks that every symbol
+      # libnetcdff-7.dll imports is still exported, so no model needs relinking.
+      # Everything the bundler later copies out of mingw64/bin is then S3-free.
+      - name: Rebuild netCDF without AWS S3 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -e
+          chmod +x ./scripts/build_netcdf_no_s3_mingw.sh
+          # MINGW_PREFIX is left to the script's default (C:/msys64/mingw64)
+          # rather than passed as a command prefix: a `VAR=x script` assignment
+          # is silently dropped when the caller and the script's interpreter
+          # come from different msys2 runtimes, and a dropped prefix here would
+          # be indistinguishable from success.
+          ./scripts/build_netcdf_no_s3_mingw.sh "${RUNNER_TEMP}/netcdf-noS3"
 
       - name: Install MS-MPI (Windows)
         if: runner.os == 'Windows'
@@ -487,6 +537,34 @@ jobs:
 
           echo "Relocatability test complete"
 
+      # Re-run the import-closure check against the EXTRACTED TARBALL rather than
+      # the staging tree, so what is actually shipped is what gets verified. This
+      # is a static check on every packaged PE image (not just the two probed
+      # above) because a missing DLL on Windows produces no output at all —
+      # running the binary is not a reliable detector.
+      - name: Verify packaged DLL closure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -e
+          TEST_DIR="${RUNNER_TEMP:-/tmp}/symfluence-test"
+          chmod +x ./scripts/check_windows_dll_closure.sh
+          ./scripts/check_windows_dll_closure.sh \
+            "$TEST_DIR/symfluence-tools/bin" \
+            "$TEST_DIR/symfluence-tools/lib"
+
+          # Record the netCDF build that actually shipped. S3 must be off or the
+          # deadlock at process teardown is back.
+          if [ -f "$TEST_DIR/symfluence-tools/bin/libnetcdf.dll" ]; then
+            AWS=$(/c/msys64/mingw64/bin/objdump.exe -p \
+              "$TEST_DIR/symfluence-tools/bin/libnetcdf.dll" \
+              | grep -ci 'DLL Name: libaws' || true)
+            echo "packaged libnetcdf.dll AWS SDK imports: $AWS"
+            if [ "$AWS" != "0" ]; then
+              echo "::error::Packaged libnetcdf.dll still links the AWS S3 SDK — model processes will deadlock at exit on Windows"
+              exit 1
+            fi
+          fi
+
       # ========================================================================
       # Upload to GitHub Release
       # ========================================================================
@@ -648,6 +726,11 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Needed for scripts/check_windows_dll_closure.sh below — this job
+      # otherwise only consumes the published npm package.
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -755,6 +838,22 @@ jobs:
             echo "$MISSING_REQUIRED required binaries missing"
             exit 1
           fi
+
+      # The published Windows package must be self-contained: a tool that is
+      # missing one imported DLL exits with 0xC0000135 before main() and prints
+      # nothing, which the calibration framework records as a -9999 score rather
+      # than a failure. Check the import closure statically on what npm shipped.
+      - name: Verify npm-installed DLL closure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -e
+          # objdump comes from the MSYS2 toolchain preinstalled on the Windows
+          # runners. If it is ever absent the script degrades to a warning
+          # rather than a false failure.
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          BIN_DIR=$(symfluence path)
+          chmod +x ./scripts/check_windows_dll_closure.sh
+          ./scripts/check_windows_dll_closure.sh "$BIN_DIR" "$BIN_DIR/../lib"
 
       - name: Test binary execution
         run: |

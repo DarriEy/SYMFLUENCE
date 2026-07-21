@@ -56,6 +56,10 @@ EOF
     exit 1
 fi
 
+# Resolved before the script cd's into the staging dir, so sibling scripts stay
+# reachable regardless of how this one was invoked.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Portable realpath fallback (realpath not available on all systems)
 _realpath() {
     if command -v realpath >/dev/null 2>&1; then
@@ -854,25 +858,81 @@ elif printf '%s' "$OS_BUNDLE" | grep -qiE 'mingw|msys|cygwin'; then
     _ntldd="$(command -v ntldd || echo /c/msys64/mingw64/bin/ntldd.exe)"
     if [ -x "$_ntldd" ] || command -v ntldd >/dev/null 2>&1; then
         # System DLLs that always come from Windows itself — never bundle.
-        WIN_SYS_DLL_RE='^(kernel32|kernelbase|ntdll|msvcrt|user32|advapi32|ws2_32|shell32|ole32|oleaut32|gdi32|crypt32|secur32|bcrypt|rpcrt4|sechost|combase|ucrtbase|dbghelp|version|imm32|setupapi|userenv|iphlpapi|dnsapi|winmm|comdlg32|comctl32|powrprof|psapi|wsock32|mpr|wldap32|msmpi|api-ms-.*|ext-ms-.*)\.dll$'
+        WIN_SYS_DLL_RE='^(kernel32|kernelbase|ntdll|msvcrt|user32|advapi32|ws2_32|shell32|shlwapi|ole32|oleaut32|gdi32|crypt32|secur32|bcrypt|rpcrt4|sechost|combase|ucrtbase|dbghelp|version|imm32|setupapi|userenv|iphlpapi|dnsapi|winmm|comdlg32|comctl32|powrprof|psapi|wsock32|mpr|wldap32|normaliz|netapi32|pdh|wtsapi32|dwmapi|uxtheme|msmpi|api-ms-.*|ext-ms-.*)\.dll$'
+
+        # Enumerate the images to walk by CONTENT, not by filename extension.
+        #
+        # This used to be `ls bin/*.exe bin/*.dll lib/*.dll`, which was wrong:
+        # stage_binary() deliberately drops the .exe suffix so the staged tool
+        # names match what the runners and the npm shims look up (bin/hype,
+        # bin/summa, bin/fuse, ...). Every Fortran model therefore landed in
+        # bin/ WITHOUT an extension and was skipped by the glob, so its imports
+        # were never walked. The visible symptom was libnetcdff-7.dll never
+        # being bundled at all (nothing with a .exe suffix imports it) — HYPE
+        # then aborted with 0xC0000135 before main(), printing nothing, which
+        # calibration recorded as a -9999 score rather than a failure.
+        # `file` is not guaranteed on the Windows runner's PATH, and silently
+        # classifying nothing as a PE image would silently bundle nothing, so
+        # fall back to the DOS header magic.
+        _is_pe() {
+            if command -v file >/dev/null 2>&1; then
+                file -b "$1" 2>/dev/null | grep -qE '^PE32'
+            else
+                [ "$(head -c 2 "$1" 2>/dev/null)" = "MZ" ]
+            fi
+        }
+        _orig_bins=""
+        for _cand in bin/* lib/*; do
+            [ -f "$_cand" ] || continue
+            [ -L "$_cand" ] && continue
+            _is_pe "$_cand" || continue
+            _orig_bins="$_orig_bins $_cand"
+        done
+        print_info "Walking imports of $(printf '%s' "$_orig_bins" | wc -w) PE images"
+
+        # Direct imports of the staged images, lowercased. Used only to keep the
+        # "unresolved" warning below honest: `ntldd -R` recurses THROUGH Windows
+        # system DLLs and reports their optional/servicing-only components
+        # (PdmUtilities.dll, HvsiFileTrust.dll, ...) as "not found" on every
+        # machine. Those are irrelevant; a direct import of ours is not.
+        _direct_imports=" "
+        for exe in $_orig_bins; do
+            for _imp in $(objdump -p "$exe" 2>/dev/null | awk '/DLL Name:/ {print tolower($3)}'); do
+                case "$_direct_imports" in *" $_imp "*) ;; *) _direct_imports="$_direct_imports$_imp " ;; esac
+            done
+        done
+
         # `ntldd -R` already emits the FULL recursive closure, so a single pass
         # over the ORIGINAL staged binaries is sufficient. (A re-scanning round
         # loop is O(n^2) over GDAL's ~100-DLL closure and effectively hangs.)
         # Collect the union of resolved DLL paths first, then copy uniques once.
-        _orig_bins=$(ls bin/*.exe bin/*.dll lib/*.dll 2>/dev/null || true)
         _seen_dlls=" "
+        _unresolved=""
         for exe in $_orig_bins; do
             [ -f "$exe" ] || continue
-            while IFS= read -r dep; do
-                [ -z "$dep" ] && continue
-                dep_base="$(basename "$dep")"
+            # ntldd lines look like "  name.dll => C:\path\name.dll (0x...)" or
+            # "  name.dll => not found". Parse both halves: the old
+            # `awk '{print $3}'` turned "not found" into the literal path "not",
+            # so an unresolvable dependency was silently dropped instead of
+            # reported.
+            while IFS='|' read -r dep_base dep_path; do
+                [ -z "$dep_base" ] && continue
                 case "$_seen_dlls" in *" $dep_base "*) continue ;; esac
                 _seen_dlls="$_seen_dlls$dep_base "
                 printf '%s' "$dep_base" | grep -qiE "$WIN_SYS_DLL_RE" && continue
                 [ -f "bin/$dep_base" ] && continue
-                dep_unix="$dep"
-                case "$dep" in
-                    [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep" 2>/dev/null || echo "$dep")" ;;
+
+                if [ "$dep_path" = "not found" ]; then
+                    _dep_lc="$(printf '%s' "$dep_base" | tr '[:upper:]' '[:lower:]')"
+                    case "$_direct_imports" in
+                        *" $_dep_lc "*) _unresolved="$_unresolved $dep_base" ;;
+                    esac
+                    continue
+                fi
+
+                dep_unix="$dep_path"
+                case "$dep_path" in
+                    [A-Za-z]:\\*|[A-Za-z]:/*) dep_unix="$(cygpath -u "$dep_path" 2>/dev/null || echo "$dep_path")" ;;
                 esac
                 [ -f "$dep_unix" ] || continue
                 # Only bundle DLLs we shipped (under the mingw-w64/msys tree).
@@ -883,11 +943,31 @@ elif printf '%s' "$OS_BUNDLE" | grep -qiE 'mingw|msys|cygwin'; then
                 cp -L "$dep_unix" "bin/$dep_base"
                 chmod +x "bin/$dep_base"
                 print_success "Bundled $dep_base"
-            done < <("$_ntldd" -R "$exe" 2>/dev/null | awk '/=>/ {print $3}')
+            done < <("$_ntldd" -R "$exe" 2>/dev/null | tr -d '\r' \
+                | sed -n 's/^[[:space:]]*\([^ ][^ ]*\) => \(.*\)$/\1|\2/p' \
+                | sed 's/ (0x[0-9a-fA-F]*)$//')
         done
+        if [ -n "$_unresolved" ]; then
+            print_warning "Dependencies ntldd could not resolve on this runner:$_unresolved"
+        fi
         print_success "DLL bundling complete"
     else
         print_warning "ntldd not found — Windows DLLs not bundled (binaries may not relocate)"
+    fi
+
+    # Hard gate: prove every packaged PE image can resolve all of its imports.
+    # A missing DLL does not fail loudly on Windows — the loader aborts with
+    # 0xC0000135 before main(), emitting nothing at all — so this must be a
+    # static check, and it must fail the release rather than warn.
+    _closure_check="$SCRIPT_DIR/check_windows_dll_closure.sh"
+    if [ -f "$_closure_check" ]; then
+        chmod +x "$_closure_check" 2>/dev/null || true
+        bash "$_closure_check" "$STAGE_DIR/bin" "$STAGE_DIR/lib" || {
+            print_error "Packaged Windows binaries have unsatisfied DLL imports (see above)"
+            exit 1
+        }
+    else
+        print_warning "check_windows_dll_closure.sh not found — skipping import-closure gate"
     fi
 fi
 
