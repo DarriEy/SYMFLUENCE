@@ -13,6 +13,7 @@ Handles preparation of mHM model inputs including:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
@@ -374,12 +375,34 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         start_date, end_date = self._get_simulation_dates()
 
-        # Try to load forcing data
+        # Load the real forcing. Fabricating weather when it cannot be read is
+        # never acceptable in a real run: a stray, incompatibly-shaped forcing
+        # file once made this fall back silently, and mHM then calibrated 1500
+        # iterations against a sine-wave temperature and random-exponential
+        # precipitation, reporting a plausible-looking KGE of -0.17 with no
+        # sign that the weather was fake. Let the read error propagate so the
+        # bad input is fixed, not papered over. Synthetic forcing stays
+        # available for tests behind an explicit opt-in.
+        if os.environ.get("SYMFLUENCE_MHM_ALLOW_SYNTHETIC_FORCING") != "1":
+            # Default (real) path: any read failure propagates with its full
+            # traceback. No blanket except — a bad input must be fixed, and a
+            # forcing that cannot be read must never be replaced by fabricated
+            # weather.
+            forcing_ds = self._load_forcing_data()
+            self._write_mhm_forcing(forcing_ds, start_date, end_date)
+            return
+
+        # Opt-in smoke-test path only: fall back to synthetic forcing.
         try:
             forcing_ds = self._load_forcing_data()
             self._write_mhm_forcing(forcing_ds, start_date, end_date)
-        except Exception as e:  # noqa: BLE001 — model execution resilience
-            logger.warning(f"Could not load forcing data: {e}, using synthetic", exc_info=True)
+        except Exception as e:  # noqa: BLE001 — smoke-test fallback only
+            logger.warning(
+                "Could not load mHM forcing (%s); SYMFLUENCE_MHM_ALLOW_"
+                "SYNTHETIC_FORCING=1 is set, generating SYNTHETIC forcing — "
+                "results are meaningless for anything but a smoke test.",
+                e, exc_info=True,
+            )
             self._generate_synthetic_forcing(start_date, end_date)
 
     def _load_forcing_data(self) -> xr.Dataset:
@@ -660,7 +683,12 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             f"cellsize      {t.a:.8f}\nNODATA_value  -9999\n", encoding='utf-8')
 
     def _generate_synthetic_forcing(self, start_date: datetime, end_date: datetime) -> None:
-        """Generate synthetic forcing data for testing."""
+        """Generate synthetic forcing data for smoke tests ONLY.
+
+        Sine-wave temperature and random precipitation — physically meaningless.
+        Only reachable via SYMFLUENCE_MHM_ALLOW_SYNTHETIC_FORCING=1; a real run
+        raises instead of calling this (see _generate_forcing_files).
+        """
         props = self._get_catchment_properties()
         dates = pd.date_range(start_date, end_date, freq='D')
         n = len(dates)
