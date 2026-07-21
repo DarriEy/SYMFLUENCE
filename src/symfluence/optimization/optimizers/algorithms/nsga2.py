@@ -96,9 +96,13 @@ class NSGA2Algorithm(OptimizationAlgorithm):
             dict_key='NSGA2_ETA_M'
         )
 
+        # Dedicated per-run RNG (see OptimizationAlgorithm._new_rng) so the
+        # genetic operators are reproducible and isolated from the global state.
+        self._rng = self._new_rng()
+
         # Initialize population
         self.logger.debug(f"Initializing population ({pop_size} individuals)...")
-        population = np.random.uniform(0, 1, (pop_size, n_params))
+        population = self._rng.uniform(0, 1, (pop_size, n_params))
         objectives = np.full((pop_size, num_objectives), np.nan)
 
         # Evaluate initial population
@@ -173,7 +177,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
                     p1, p2 = population[p1_idx], population[p2_idx]
 
                     # Crossover
-                    if np.random.random() < crossover_rate:
+                    if self._rng.random() < crossover_rate:
                         c1, c2 = self._sbx_crossover(p1, p2, eta_c)
                     else:
                         c1, c2 = p1.copy(), p2.copy()
@@ -340,7 +344,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         pop_size: int
     ) -> int:
         """Tournament selection for NSGA-II."""
-        candidates = np.random.choice(pop_size, 2, replace=False)
+        candidates = self._rng.choice(pop_size, 2, replace=False)
         best_idx = candidates[0]
 
         for candidate in candidates[1:]:
@@ -404,7 +408,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         for i in range(n_params):
             # SBX_SWAP_PROBABILITY = 0.5: equal chance of swapping each gene
             # SBX_EPSILON = 1e-9: minimum parent distance to avoid numerical issues
-            if (np.random.random() < NSGA2Defaults.SBX_SWAP_PROBABILITY and
+            if (self._rng.random() < NSGA2Defaults.SBX_SWAP_PROBABILITY and
                     abs(p1[i] - p2[i]) > NSGA2Defaults.SBX_EPSILON):
                 # Order parents so y1 <= y2
                 if p1[i] < p2[i]:
@@ -413,7 +417,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
                     y1, y2 = p2[i], p1[i]
 
                 # Generate spread factor using polynomial distribution
-                rand = np.random.random()
+                rand = self._rng.random()
 
                 # Beta calculation for bounded SBX (Deb & Agrawal 1995, Eq. 9-11)
                 # beta = (2 * y1 / (y2 - y1))^(eta+1) at lower bound
@@ -467,13 +471,13 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         n_params = len(solution)
 
         for i in range(n_params):
-            if np.random.random() < mutation_rate:
+            if self._rng.random() < mutation_rate:
                 y = mutated[i]
                 # Distance to bounds (used to bias mutation toward feasible region)
                 delta1 = y - 0.0  # Distance to lower bound
                 delta2 = 1.0 - y  # Distance to upper bound
 
-                rand = np.random.random()
+                rand = self._rng.random()
                 # Mutation power: 1/(eta_m + 1) controls perturbation magnitude
                 mut_pow = 1.0 / (eta_m + 1.0)
 

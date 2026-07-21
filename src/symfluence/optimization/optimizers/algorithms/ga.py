@@ -120,7 +120,8 @@ class GAAlgorithm(OptimizationAlgorithm):
 
         # Initialize population
         self.logger.info(f"Evaluating initial population ({pop_size} individuals)...")
-        population = np.random.uniform(0, 1, (pop_size, n_params))
+        self._rng = self._new_rng()
+        population = self._rng.uniform(0, 1, (pop_size, n_params))
         fitness = evaluate_population(population, 0)
 
         # Record initial best
@@ -159,7 +160,7 @@ class GAAlgorithm(OptimizationAlgorithm):
                 )
 
                 # Crossover
-                if np.random.random() < crossover_rate:
+                if self._rng.random() < crossover_rate:
                     child1, child2 = self._sbx_crossover(parent1, parent2)
                 else:
                     child1, child2 = parent1.copy(), parent2.copy()
@@ -224,7 +225,7 @@ class GAAlgorithm(OptimizationAlgorithm):
         """
         pop_size = len(population)
         tournament_size = min(tournament_size, pop_size)
-        candidates = np.random.choice(pop_size, tournament_size, replace=False)
+        candidates = self._rng.choice(pop_size, tournament_size, replace=False)
         winner = candidates[np.argmax(fitness[candidates])]
         return population[winner].copy()
 
@@ -250,7 +251,7 @@ class GAAlgorithm(OptimizationAlgorithm):
         child2 = np.empty(n_params)
 
         for i in range(n_params):
-            if np.random.random() < 0.5:
+            if self._rng.random() < 0.5:
                 if abs(parent1[i] - parent2[i]) > 1e-14:
                     if parent1[i] < parent2[i]:
                         y1, y2 = parent1[i], parent2[i]
@@ -258,7 +259,7 @@ class GAAlgorithm(OptimizationAlgorithm):
                         y1, y2 = parent2[i], parent1[i]
 
                     # Calculate beta
-                    rand = np.random.random()
+                    rand = self._rng.random()
                     beta = 1.0 + (2.0 * y1) / (y2 - y1 + 1e-14)
                     alpha = 2.0 - beta ** (-(eta + 1.0))
                     if rand <= 1.0 / alpha:
@@ -302,12 +303,12 @@ class GAAlgorithm(OptimizationAlgorithm):
         mutant = individual.copy()
 
         for i in range(len(mutant)):
-            if np.random.random() < mutation_rate:
+            if self._rng.random() < mutation_rate:
                 y = mutant[i]
                 delta1 = y  # y - 0 (lower bound)
                 delta2 = 1 - y  # 1 - y (upper bound)
 
-                rand = np.random.random()
+                rand = self._rng.random()
                 mut_pow = 1.0 / (eta + 1.0)
 
                 if rand < 0.5:
