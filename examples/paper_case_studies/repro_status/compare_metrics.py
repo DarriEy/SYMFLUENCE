@@ -37,6 +37,10 @@ REL_TOL = 0.02
 
 def tolerance_for(metric: str, va: float, vb: float) -> float:
     """Absolute tolerance for bounded scores, relative for magnitude metrics."""
+    if (metric or "").lower() == "n_features":
+        # Domain feature counts (experiment 01, Table 1) are integers with no
+        # numerical noise: any cross-platform mismatch is a real divergence.
+        return 0.0
     if (metric or "").upper() in BOUNDED_METRICS:
         return TOL
     scale = max(abs(va), abs(vb))
@@ -48,8 +52,15 @@ def load_explained():
     f = HERE / "explained_divergences.csv"
     if not f.exists():
         return {}
-    with f.open(newline="") as fh:
-        return {r["experiment_id"]: r["note"] for r in csv.DictReader(fh)}
+    # Notes are appended from several machines; the Windows box writes
+    # cp1252 (observed: 0x97 em-dash), which is invalid UTF-8.
+    for enc in ("utf-8", "cp1252"):
+        try:
+            with f.open(newline="", encoding=enc) as fh:
+                return {r["experiment_id"]: r["note"] for r in csv.DictReader(fh)}
+        except UnicodeDecodeError:
+            continue
+    return {}
 
 
 def load_platforms():

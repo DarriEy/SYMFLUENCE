@@ -16,7 +16,9 @@ Rows are keyed by experiment_id; re-running refreshes values in place.
 """
 import argparse
 import csv
+import itertools
 import json
+import struct
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +94,60 @@ def scan(root: Path, version: str = "", commit: str = ""):
             }
 
 
+# Domain-geometry categories counted for experiment 01 (Table 1): GRUs come
+# from river_basins, HRUs from catchment, routing segments from river_network.
+GEOMETRY_DIRS = ("catchment", "river_basins", "river_network")
+
+
+def dbf_record_count(shp: Path):
+    """Feature count of a shapefile, read from its .dbf header.
+
+    Bytes 4:8 of a DBF header are the little-endian record count. Reading it
+    directly keeps the collector dependency-free (no geopandas/fiona), which
+    matters because every reproduction machine — including Windows — runs
+    this script outside any model environment.
+    """
+    try:
+        with shp.with_suffix(".dbf").open("rb") as f:
+            f.seek(4)
+            return struct.unpack("<I", f.read(4))[0]
+    except (OSError, struct.error):
+        return None
+
+
+def scan_domain_counts(root: Path, version: str = "", commit: str = ""):
+    """One row per delineation shapefile: metric n_features, score = count.
+
+    Keyed by domain + shapefile path so every platform counts the same file;
+    compare_metrics.py holds n_features rows to exact equality (counts have
+    no noise tolerance). `_temp` intermediates are skipped — they are
+    delineation scratch files and not present on every machine.
+    """
+    for domain in sorted(root.glob("domain_*")):
+        shp_root = domain / "shapefiles"
+        for cat in GEOMETRY_DIRS:
+            for shp in sorted((shp_root / cat).rglob("*.shp")):
+                if shp.stem.endswith("_temp"):
+                    continue
+                n = dbf_record_count(shp)
+                if n is None:
+                    continue
+                rel = shp.relative_to(shp_root).as_posix()
+                yield {
+                    "experiment_id": f"{domain.name}:{rel}",
+                    "model": "geometry",
+                    "domain": domain.name,
+                    "metric": "n_features",
+                    "best_score": str(n),
+                    "best_iteration": "",
+                    "run_completed": datetime.fromtimestamp(
+                        shp.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "symfluence_version": version,
+                    "code_commit": commit,
+                    "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--platform", required=True,
@@ -112,9 +168,11 @@ def main():
                 # tolerate rows written before the provenance columns existed
                 existing[row["experiment_id"]] = {k: row.get(k, "") for k in fields}
 
+    root = Path(args.root).expanduser()
     n_new = 0
     seen = set()
-    for row in scan(Path(args.root).expanduser(), version, commit):
+    for row in itertools.chain(scan(root, version, commit),
+                               scan_domain_counts(root, version, commit)):
         seen.add(row["experiment_id"])
         prev = existing.get(row["experiment_id"])
         if prev is None or prev["best_score"] != row["best_score"]:

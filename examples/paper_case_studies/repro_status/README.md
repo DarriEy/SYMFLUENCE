@@ -12,6 +12,14 @@ git add examples/paper_case_studies/repro_status/metrics_macos.csv
 git commit -m "repro: update macos metrics" && git pull --rebase && git push
 ```
 
+Besides calibration scores, the collector also emits one `n_features` row per
+delineation shapefile (`catchment`, `river_basins`, `river_network` under each
+`domain_*/shapefiles/`), keyed `<domain>:<relative shapefile path>`. These are
+the GRU/HRU/segment counts of the domain-definition experiment (Table 1 /
+`01_domain_definition/README.md`); the comparison holds them to exact
+equality — counts have no numerical noise, so any cross-platform mismatch is
+a real divergence.
+
 Each row records `run_completed`, `symfluence_version`, and `code_commit`
 alongside the score. Run artifacts themselves carry no code version, so
 without these a dataset produced before a behaviour-changing fix is
