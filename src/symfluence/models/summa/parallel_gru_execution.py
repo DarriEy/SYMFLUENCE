@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.process_exec import run as run_subprocess
 
 
 def get_gru_count_from_attributes(settings_dir: Path) -> int:
@@ -133,7 +134,7 @@ def _run_single_gru_split(split_args: Dict[str, Any]) -> Dict[str, Any]:
             log_f.write('=' * 50 + '\n')
             log_f.flush()
 
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
                 stdout=log_f,
                 stderr=subprocess.STDOUT,

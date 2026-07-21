@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from symfluence.core.logging_utils import log_once
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)
@@ -436,7 +437,7 @@ def execute_fuse(
 
     env = _build_fuse_library_env(fuse_exe)
 
-    result = subprocess.run(
+    result = run_subprocess(
         cmd,
         cwd=str(execution_cwd),
         capture_output=True,

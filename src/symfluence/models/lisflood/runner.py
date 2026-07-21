@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
 
@@ -45,7 +46,7 @@ def _find_pcraster_site_packages() -> Optional[str]:
 
     # Try any env whose name starts with "pcraster"
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             ["conda", "env", "list", "--json"],
             capture_output=True,
             text=True,
@@ -81,7 +82,7 @@ def _find_pcraster_site_packages() -> Optional[str]:
 def _conda_env_site_packages(env_name: str) -> Optional[str]:
     """Return site-packages path for a named conda environment, or None."""
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             ["conda", "run", "-n", env_name, "python", "-c", "import site; print(site.getsitepackages()[0])"],
             capture_output=True,
             text=True,

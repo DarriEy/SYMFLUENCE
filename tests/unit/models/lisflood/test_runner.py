@@ -31,7 +31,7 @@ class TestFindPcrasterSitePackages:
         assert result == fake_path
 
     @patch("symfluence.models.lisflood.runner._conda_env_site_packages", return_value=None)
-    @patch("subprocess.run", side_effect=FileNotFoundError)
+    @patch("symfluence.models.lisflood.runner.run_subprocess", side_effect=FileNotFoundError)
     def test_handles_missing_conda(self, mock_run, mock_conda_site):
         """Should not raise if conda is not installed."""
         result = _find_pcraster_site_packages()

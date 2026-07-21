@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
@@ -145,7 +146,7 @@ class PCRGLOBWBParameterManager(BaseParameterManager):
         pyver = f"{sys.version_info.major}{sys.version_info.minor}"
         for env_name in [f"pcraster{pyver}", "pcraster"]:
             try:
-                result = subprocess.run(
+                result = run_subprocess(
                     ["conda", "run", "-n", env_name, "python", "-c", script],
                     capture_output=True, text=True, timeout=15,
                 )

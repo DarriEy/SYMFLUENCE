@@ -14,6 +14,7 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.lisflood.runner import _find_pcraster_site_packages
@@ -133,7 +134,7 @@ class PCRGLOBWBWorker(BaseWorker):
 
         timeout = int(config.get('PCRGLOBWB_TIMEOUT', 14400))
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd, cwd=str(settings_dir), env=env,
                 capture_output=True, text=True, timeout=timeout,
             )

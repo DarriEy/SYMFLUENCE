@@ -15,6 +15,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import (
@@ -616,7 +617,7 @@ class FUSEWorker(BaseWorker):
             cmd = [str(mizuroute_exe), str(control_file)]
             self.logger.debug(f"Executing mizuRoute: {' '.join(cmd)}")
 
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
                 capture_output=True,
                 text=True,

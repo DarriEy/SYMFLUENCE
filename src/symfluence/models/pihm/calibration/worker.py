@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -144,7 +145,7 @@ class PIHMWorker(BaseWorker):
             # Run PIHM: pihm -o <project_name> <project_name>
             # PIHM internally prepends "output/" to the -o argument
             env = os.environ.copy()
-            result = subprocess.run(
+            result = run_subprocess(
                 [str(pihm_exe), "-o", project_name, project_name],
                 cwd=str(output_dir),
                 env=env,

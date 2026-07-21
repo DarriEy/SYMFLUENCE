@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.models.execution.model_executor import (
     ExecutionMode,
     ExecutionResult,
@@ -132,7 +133,7 @@ class SlurmExecutionMixin:
 
         try:
             # Submit job
-            result = subprocess.run(
+            result = run_subprocess(
                 ["sbatch", str(script_path)],
                 check=True,
                 capture_output=True,
@@ -193,7 +194,7 @@ class SlurmExecutionMixin:
         while (time.time() - start_time) < max_wait_time:
             try:
                 # Check if job is still in queue
-                queue_result = subprocess.run(
+                queue_result = run_subprocess(
                     ["squeue", "-j", job_id, "-h"],
                     capture_output=True,
                     text=True
@@ -262,7 +263,7 @@ class SlurmExecutionMixin:
     def _get_slurm_job_status(self, job_id: str) -> str:
         """Get final status of a completed SLURM job."""
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 ["sacct", "-j", job_id, "-o", "State", "-n", "--parsable2"],
                 capture_output=True,
                 text=True

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.logging_utils import get_worker_logger
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -297,7 +298,6 @@ class SUMMAWorker(BaseWorker):
             True if successful
         """
         try:
-            import subprocess
 
             summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
             summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
@@ -314,7 +314,7 @@ class SUMMAWorker(BaseWorker):
 
             # Run SUMMA
             cmd = [str(summa_exe), '-m', str(file_manager)]
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
                 capture_output=True,
                 text=True,

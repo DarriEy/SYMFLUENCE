@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.models.base import BaseModelRunner
 
@@ -123,7 +124,7 @@ class NoahMPRunner(BaseModelRunner):
         if nf_config:
             import subprocess
             try:
-                result = subprocess.run(
+                result = run_subprocess(
                     [nf_config, '--prefix'],
                     capture_output=True, text=True, timeout=10,
                 )

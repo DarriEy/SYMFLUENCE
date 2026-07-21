@@ -24,6 +24,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -298,7 +299,7 @@ class NoahMPWorker(BaseWorker):
 
             with open(output_dir / 'noahmp_stdout.log', 'w') as out, \
                  open(output_dir / 'noahmp_stderr.log', 'w') as err:
-                result = subprocess.run(
+                result = run_subprocess(
                     [str(noahmp_exe)],
                     cwd=str(settings_dir),
                     env=env,

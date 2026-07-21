@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -486,7 +487,7 @@ class SWATWorker(BaseWorker):
                 try:
                     with open(stdout_file, 'w', encoding='utf-8') as stdout_f, \
                          open(stderr_file, 'w', encoding='utf-8') as stderr_f:
-                        result = subprocess.run(
+                        result = run_subprocess(
                             cmd,
                             cwd=str(work_dir),
                             env=env,

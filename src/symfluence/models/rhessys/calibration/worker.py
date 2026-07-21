@@ -20,6 +20,7 @@ import pandas as pd
 
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.logging_utils import log_once
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
@@ -330,7 +331,7 @@ class RHESSysWorker(BaseWorker):
 
             try:
                 with open(stdout_file, 'w', encoding='utf-8') as stdout_f, open(stderr_file, 'w', encoding='utf-8') as stderr_f:
-                    result = subprocess.run(
+                    result = run_subprocess(
                         cmd,
                         cwd=str(rhessys_output_dir),
                         env=env,
@@ -398,7 +399,7 @@ class RHESSysWorker(BaseWorker):
         if hasattr(self, cache_key):
             return getattr(self, cache_key)
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 [str(exe), '-subsurfacegw', '-w', '/dev/null'],
                 capture_output=True, text=True, timeout=5,
             )

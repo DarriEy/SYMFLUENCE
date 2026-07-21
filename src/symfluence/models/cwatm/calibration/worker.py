@@ -13,6 +13,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.optimization.workers.base_worker import BaseWorker
@@ -57,7 +58,7 @@ class CWatMWorker(BaseWorker):
 
         timeout = int(config.get('CWATM_TIMEOUT', 14400))
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd, cwd=str(settings_dir), env=env,
                 capture_output=True, text=True, timeout=timeout,
             )
