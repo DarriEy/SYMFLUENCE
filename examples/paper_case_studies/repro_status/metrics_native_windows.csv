@@ -1,1 +1,2 @@
 experiment_id,model,domain,metric,best_score,best_iteration,run_completed,symfluence_version,code_commit,collected_at
+run_1@TOPMODEL,TOPMODEL,domain_Bow_at_Banff_lumped_era5,KGE,0.9533931996,752,2026-07-21T12:56:04Z,0.9.2,60e26f88,2026-07-21T12:56:05Z

@@ -1,4 +1,5 @@
 experiment_id,metric,platform_a,value_a,platform_b,value_b,delta,status
+run_1@TOPMODEL,KGE,macos_p3repro,0.908749,native_windows,0.953393,0.044644,DIFF
 bow_exp3_joint@SUMMA,KGE,macos_p3repro,0.728373,wsl,0.851716,0.123343,DIFF
 cal_ensemble_fuse_abc@FUSE,KGE,macos_p3repro,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping@FUSE,KGE,macos_p3repro,0.862520,wsl,0.848325,0.014195,OK
@@ -31,5 +32,6 @@ run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.792790,wsl,0.781713,0.011077,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.908749,wsl,0.249182,0.659567,DIFF
 run_1@XINANJIANG,KGE,macos_p3repro,0.931094,wsl,0.427828,0.503266,DIFF
+run_1@TOPMODEL,KGE,native_windows,0.953393,wsl,0.249182,0.704211,DIFF
 exp04-top-tier-mean-calib-KGE,reference,macos,0.870514,paper,0.847..0.892,,OK
 exp04-sacsma-bayesopt-fails,reference,macos,-0.145077,paper,-10.000..0.300,,OK
