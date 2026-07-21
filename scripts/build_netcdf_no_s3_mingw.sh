@@ -145,6 +145,24 @@ say "Building netCDF-C $VER without the AWS S3 SDK"
 echo "build against:  $MINGW_PREFIX"
 echo "INSTALL INTO:   $INSTALL_PREFIX"
 echo "work dir:       $WORK_DIR"
+
+# Announcing is not enough. This script overwrites a working netCDF in place,
+# and the env-prefix meant to redirect it (`NETCDF_INSTALL_PREFIX=... script`)
+# is silently dropped when the calling shell and the script's interpreter are
+# different msys2-runtime flavours — which has already destroyed a developer's
+# live mingw64 netCDF once. On a throwaway CI prefix that is the intent; on a
+# workstation it is data loss, so require the caller to mean it.
+if [ "$INSTALL_UNIX" = "$MINGW_UNIX" ] \
+   && [ -z "${CI:-}${GITHUB_ACTIONS:-}" ] \
+   && [ "${NETCDF_INSTALL_OVERWRITE:-}" != "1" ]; then
+    fail "refusing to overwrite the live toolchain prefix $INSTALL_PREFIX.
+  This replaces netCDF for everything on this machine that links it.
+  Install somewhere else:   NETCDF_INSTALL_PREFIX=/some/scratch $0
+  ...or say you mean it:    NETCDF_INSTALL_OVERWRITE=1 $0
+  If you set NETCDF_INSTALL_PREFIX and still see this, your shell dropped it
+  across the msys2 boundary — export it instead of prefixing the command,
+  and check the INSTALL INTO line above."
+fi
 # Announced loudly because this script OVERWRITES a working netCDF installation
 # by design. Note that `VAR=x scripts/build_netcdf_no_s3_mingw.sh` does NOT
 # reliably pass VAR when the calling shell and the script's interpreter come
