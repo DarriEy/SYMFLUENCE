@@ -77,6 +77,35 @@ def validated_timestep_seconds(times: np.ndarray, context: str = 'forcing') -> f
     return float(np.median(deltas))
 
 
+def _dedupe_forcing_time(ds: xr.Dataset, files: List[Path]) -> xr.Dataset:
+    """Drop duplicate timestamps left by merging overlapping forcing files.
+
+    Returns ``ds`` unchanged when the time axis is already unique (the common
+    case). When duplicates are present — the signature of a store holding more
+    than one file for the same period — keep the first occurrence of each
+    timestamp and log a warning naming the store, since the duplicate itself
+    is a data-hygiene problem worth fixing at the source.
+    """
+    if 'time' not in ds.dims and 'time' not in ds.coords:
+        return ds
+    try:
+        index = ds.get_index('time')
+    except (KeyError, ValueError):
+        return ds
+    dup_mask = index.duplicated()  # keep='first'
+    n_dup = int(dup_mask.sum())
+    if n_dup == 0:
+        return ds
+    logger.warning(
+        "Forcing store has %d duplicate timestep(s) across %d files (%s) — "
+        "more than one file covers the same period. Keeping the first value "
+        "at each timestamp; remove the duplicate/stray forcing file to silence "
+        "this. Left unhandled it doubles the series and corrupts the run.",
+        n_dup, len(files), ', '.join(f.name for f in files[:4]),
+    )
+    return ds.isel(time=np.where(~dup_mask)[0])
+
+
 def open_canonical_forcing(
     forcing_files: Union[Path, List[Path]],
 ) -> xr.Dataset:
@@ -105,6 +134,17 @@ def open_canonical_forcing(
             # Filename sort order need not be chronological; sort the axis so
             # the regularity validation below sees the true cadence.
             ds = xr.concat([xr.open_dataset(f) for f in sorted(files)], dim='time').sortby('time')
+        # A legitimately-chunked store holds NON-overlapping time slices, which
+        # merge cleanly. Two files describing the SAME period — a duplicate or
+        # stray remap left in the store (e.g. a re-download beside the original
+        # under the shared {domain}_{forcing}_remapped_* namespace) — instead
+        # produce duplicate timestamps: the concat path doubles the series
+        # (140254 = 2x70127 was observed), which then either raises on a
+        # non-unique time index or silently feeds a garbled 2x-length forcing
+        # to the model. Collapse duplicate timestamps deterministically (keep
+        # the first occurrence) and warn loudly, so a contaminated store can
+        # never again silently corrupt a calibration.
+        ds = _dedupe_forcing_time(ds, files)
 
     # Resolve each canonical variable, coalescing across every spelling present.
     # A partially-regenerated store can carry more than one spelling of the same
