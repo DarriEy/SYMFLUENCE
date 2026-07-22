@@ -4,7 +4,7 @@
 """
 Tests for the embedded-R runtime setup used by the GR models.
 
-These pin the two behaviours that made GR4J unusable on native Windows:
+These pin the three behaviours that made GR4J unusable on native Windows:
 
   1. R's own ``bin`` directory must reach ``PATH`` before rpy2 starts the
      embedded interpreter. rpy2 only registers it with
@@ -14,11 +14,17 @@ These pin the two behaviours that made GR4J unusable on native Windows:
   2. An unloadable airGR must raise an actionable error. The previous
      behaviour — fall back to ``install.packages()`` against CRAN — wedged the
      interpreter into a SIGSEGV on offline machines, 53 minutes into a run.
+  3. Paths interpolated into generated R source must not carry backslashes.
+     ``C:\\Users\\...`` reaches R's string lexer as the invalid escape ``\\U``,
+     and the embedded interpreter answers that with a Windows access violation
+     (exit 139) rather than an ``RParsingError`` — no traceback, no exception,
+     process gone.
 """
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import PureWindowsPath
 
 import pytest
 
@@ -159,3 +165,108 @@ class TestEnsureAirgrAvailable:
     def test_raises_when_rpy2_is_absent(self):
         with pytest.raises(ModelExecutionError, match="rpy2"):
             r_environment.ensure_airgr_available(None)
+
+
+class TestRPath:
+    def test_windows_path_becomes_a_forward_slash_literal(self):
+        literal = r_environment.r_path(PureWindowsPath(r"C:\Users\me\domain_x\in.csv"))
+        assert literal == '"C:/Users/me/domain_x/in.csv"'
+        assert "\\" not in literal
+
+    def test_posix_path_is_unchanged_apart_from_quoting(self):
+        assert r_environment.r_path("/home/me/in.csv") == '"/home/me/in.csv"'
+
+    def test_rejects_a_path_that_cannot_be_quoted(self):
+        with pytest.raises(ModelExecutionError, match="quote or newline"):
+            r_environment.r_path('bad"name.csv')
+
+    def test_output_survives_the_escape_guard(self):
+        """The whole point: r_path() output is something R can lex."""
+        literal = r_environment.r_path(PureWindowsPath(r"C:\Users\me\a.csv"))
+        assert r_environment._find_invalid_escape(f"read.csv({literal})") is None
+
+
+class TestFindInvalidEscape:
+    @pytest.mark.parametrize(
+        "script, expected",
+        [
+            (r'read.csv("C:\Users\me\a.csv")', "\\U"),   # the GR4J crash, exactly
+            (r'read.csv("C:\data\a.csv")', "\\d"),
+            (r"load('C:\Users\me\GR.Rdata')", "\\U"),
+            (r'x <- "a\q"', "\\q"),
+        ],
+    )
+    def test_detects_invalid_escapes(self, script, expected):
+        assert r_environment._find_invalid_escape(script) == expected
+
+    @pytest.mark.parametrize(
+        "script",
+        [
+            'read.csv("C:/Users/me/a.csv")',
+            r'cat("done\n")',
+            r'x <- "col\tsep"',
+            r'x <- "\x41 \101 \\ \" fine"',
+            r'x <- "\U0001F600"',
+            r'x <- "\u{1F600}"',
+            'x <- "he said \\"hi\\""',
+            'df <- data.frame(d = format(o$DatesR, "%Y-%m-%d %H:%M:%S"))',
+            '# comment mentioning C:\\Users\\me\nx <- 1',
+            "",
+        ],
+    )
+    def test_accepts_valid_r_source(self, script):
+        assert r_environment._find_invalid_escape(script) is None
+
+
+class TestRunRScript:
+    def test_evaluates_a_clean_script(self):
+        robjects = _FakeRobjects(loadable=True)
+        r_environment.run_r_script(robjects, 'read.csv("C:/Users/me/a.csv")')
+        assert robjects.calls == ['read.csv("C:/Users/me/a.csv")']
+
+    def test_refuses_a_backslash_path_before_r_sees_it(self):
+        """Embedded R answers this with an access violation, not an exception."""
+        robjects = _FakeRobjects(loadable=True)
+        with pytest.raises(ModelExecutionError) as excinfo:
+            r_environment.run_r_script(
+                robjects, r'read.csv("C:\Users\me\a.csv")', "lumped GR4J script"
+            )
+
+        message = str(excinfo.value)
+        assert "lumped GR4J script" in message
+        assert "r_path()" in message
+        assert robjects.calls == []  # never reached the interpreter
+
+
+class TestGrPackageRoutesThroughTheGuard:
+    """``robjects.r(...)`` bypasses the escape guard, so nothing may call it.
+
+    The guard only helps if every generated script goes through
+    :func:`run_r_script`; a single direct ``robjects.r(script)`` is enough to
+    put the access violation back.
+    """
+
+    def test_no_direct_robjects_r_calls(self):
+        import ast
+        from pathlib import Path
+
+        from symfluence.models import gr
+
+        offenders = []
+        for module in sorted(Path(gr.__file__).parent.rglob("*.py")):
+            if module.name == "r_environment.py":
+                continue  # the guard's own home; its scripts are constants
+            tree = ast.parse(module.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "r"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "robjects"
+                ):
+                    offenders.append(f"{module.name}:{node.lineno}")
+
+        assert not offenders, (
+            f"Use run_r_script() instead of robjects.r() at: {', '.join(offenders)}"
+        )

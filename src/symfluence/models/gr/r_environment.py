@@ -4,7 +4,7 @@
 """
 Embedded-R runtime setup for the GR models.
 
-Two problems are solved here, both of which only bite when R runs *embedded*
+Three problems are solved here, all of which only bite when R runs *embedded*
 inside the SYMFLUENCE process (via rpy2) rather than as a standalone
 ``Rscript`` process.
 
@@ -42,15 +42,37 @@ network that leaves the embedded interpreter wedged — observed as a SIGSEGV
 after the workflow had already spent 53 minutes preprocessing. Callers should
 instead invoke :func:`ensure_airgr_available` before doing any real work so a
 broken R shows up as an actionable error in seconds.
+
+**3. Windows paths inside generated R source.**
+
+The GR runner builds R scripts by interpolating filesystem paths into R string
+literals. On Windows ``str(Path)`` yields backslashes, so
+``C:\\Users\\me\\data.csv`` reaches R's lexer as the literal
+``"C:\\Users\\me\\data.csv"``, in which ``\\U`` starts a Unicode escape and
+``\\d`` is not an escape at all.
+
+Standalone ``Rscript`` reports that as a clean parse error. Embedded, R raises
+it from inside its string lexer while ``R_ParseVector`` is running, which on
+Windows takes down the whole process with ``STATUS_ACCESS_VIOLATION``
+(0xC0000005 — Git Bash reports it as exit 139) instead of surfacing an
+``RParsingError``. faulthandler cannot even print the faulting frame. Verified
+on rpy2 3.6.7 with R 4.6.1: a *runtime* R error and an *incomplete* parse both
+raise normally, while an invalid escape in a string literal always aborts.
+
+:func:`r_path` renders a path as an R literal with forward slashes (which R
+accepts on every platform), and :func:`run_r_script` refuses to hand R any
+source containing an invalid escape, so a future regression is an actionable
+error rather than a bare access violation.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from symfluence.core.exceptions import ModelExecutionError
 
@@ -181,6 +203,122 @@ def configure_r_dll_search(force: bool = False) -> Optional[Path]:
     logger.debug("No R installation found; leaving the DLL search path untouched")
     _configured = True
     return None
+
+
+def r_path(path: Union[str, Path]) -> str:
+    """Render ``path`` as a quoted R string literal, safe to embed in R source.
+
+    Backslashes are replaced by forward slashes rather than escaped: R accepts
+    ``/`` separators on Windows too, and the result stays readable in the
+    generated script and in error messages.
+
+    Args:
+        path: Filesystem path to embed in an R script.
+
+    Returns:
+        The path as an R literal, *including* the surrounding double quotes,
+        e.g. ``'"C:/Users/me/data.csv"'``.
+
+    Raises:
+        ModelExecutionError: If the path contains a character that cannot
+            appear unescaped in an R string literal.
+    """
+    text = str(path).replace("\\", "/")
+    if '"' in text or "\n" in text or "\r" in text:
+        raise ModelExecutionError(
+            f"Cannot embed the path {text!r} in an R script: it contains a quote "
+            "or newline. Move the file somewhere without those characters."
+        )
+    return f'"{text}"'
+
+
+# One backslash escape that R's string lexer accepts. Anything else — notably
+# the ``\U`` of ``C:\Users\...`` and the ``\d`` of ``\domain_x`` — makes the
+# embedded interpreter die with an access violation instead of raising.
+_VALID_R_ESCAPE = re.compile(
+    r"""\\(?:
+          [\\'"`nrtbafv]        # single-character escapes
+        | [0-7]{1,3}            # octal
+        | x[0-9A-Fa-f]{1,2}     # hex
+        | u[0-9A-Fa-f]{1,4}     # short Unicode
+        | u\{[0-9A-Fa-f]+\}
+        | U[0-9A-Fa-f]{1,8}     # long Unicode
+        | U\{[0-9A-Fa-f]+\}
+    )""",
+    re.VERBOSE,
+)
+
+
+def _find_invalid_escape(script: str) -> Optional[str]:
+    """Return the first invalid escape sequence in ``script``, or None.
+
+    Only backslashes inside double- or single-quoted R string literals matter;
+    a backslash elsewhere is already a syntax error that R reports safely.
+    """
+    quote: Optional[str] = None
+    index = 0
+    length = len(script)
+
+    while index < length:
+        char = script[index]
+
+        if quote is None:
+            if char in "\"'":
+                quote = char
+            elif char == "#":  # comment: skip to end of line
+                newline = script.find("\n", index)
+                index = length if newline == -1 else newline
+            index += 1
+            continue
+
+        if char == quote:
+            quote = None
+            index += 1
+            continue
+
+        if char != "\\":
+            index += 1
+            continue
+
+        match = _VALID_R_ESCAPE.match(script, index)
+        if match is None:
+            return script[index:index + 2]
+        index = match.end()
+
+    return None
+
+
+def run_r_script(robjects: Any, script: str, description: str = "R script") -> Any:
+    """Evaluate ``script`` in the embedded R, refusing sources R cannot lex.
+
+    An invalid escape sequence in a string literal — what interpolating a
+    Windows path such as ``C:\\Users\\...`` produces — kills the process with an
+    access violation instead of raising, so it is rejected here with an
+    actionable message. Use :func:`r_path` to interpolate paths.
+
+    Args:
+        robjects: The imported ``rpy2.robjects`` module.
+        script: R source to evaluate.
+        description: Human-readable name of the script, used in errors.
+
+    Returns:
+        Whatever ``robjects.r()`` returns for this script.
+
+    Raises:
+        ModelExecutionError: If the script contains an invalid escape sequence.
+    """
+    invalid = _find_invalid_escape(script)
+    if invalid is not None:
+        raise ModelExecutionError(
+            f"Refusing to evaluate the generated {description}: it contains the "
+            f"invalid R escape sequence {invalid!r} inside a string literal. "
+            "This is almost always a Windows path interpolated with backslashes "
+            "(C:\\Users\\... reaches R's lexer as the escape \\U). Embedded R "
+            "does not raise on that — it aborts the process with an access "
+            "violation — so the script is rejected before R sees it. "
+            "Build path literals with symfluence.models.gr.r_environment.r_path()."
+        )
+    return robjects.r(script)
 
 
 # The R side of the check. Returns TRUE when airGR (and, implicitly, the base
