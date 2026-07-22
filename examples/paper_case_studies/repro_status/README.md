@@ -32,3 +32,42 @@ between every platform pair, flagged `DIFF` when |Δ| exceeds the tolerance
 (0.02 KGE — the cross-platform noise bound stated in
 `04_calibration_ensemble/README.md`), plus the aggregate reference checks from
 the experiment READMEs. Do not edit `comparison.csv` by hand.
+
+## Reproduction tiers: tolerance vs exact
+
+Two machines can reproduce these experiments at two levels.
+
+**Within-tolerance (bare metal, native environment).** Each machine builds its
+own binaries and links its platform's linear-algebra backend — Apple Accelerate
+on macOS, OpenBLAS/reference LAPACK on Linux/Windows. An implicit solver
+(SUMMA/SUNDIALS) computes bit-different results under different BLAS backends,
+and those differences compound over multi-year integrations. So bare-metal
+cross-*platform* runs agree only to the 0.02-KGE tolerance, not bit-for-bit.
+This is a fundamental numerical-linear-algebra floor, not a defect — measured
+here at ~96% of runs within tolerance, with the residual traced to the two
+sources below plus the BLAS backend.
+
+**Exact (bit-identical).** Achievable when three things are held fixed:
+
+1. **Binary + BLAS + OS — run inside the container.** `docker/source/Dockerfile`
+   pins `python:3.11-slim-bookworm` + OpenBLAS and compiles the models inside
+   the image, so two *host* machines running the same image get identical
+   binaries and the same BLAS. This is the only way to erase the cross-platform
+   floor.
+2. **Forcing — pin the acquisition endpoint.** RDRS/CaSR tries OPeNDAP and falls
+   back to the tiled archive on any network error, so which endpoint a run uses
+   (and thus the exact forcing values) depends on runtime conditions. Set
+   `RDRS_ACQUISITION_METHOD: opendap` (or `tiled`) so every machine acquires the
+   same data. Verify with the degenerate-forcing check that the chosen endpoint
+   returned complete data. (ERA5 similarly: pin `ERA5_USE_CDS`.)
+3. **Optimizer — set `random_seed`.** The stochastic algorithms (DDS and the
+   population methods NSGA-II / MOEA/D / GA) each seed a dedicated per-run RNG
+   from `system.random_seed`; without it every run draws a different population.
+   All shipped paper configs set `random_seed: 42`.
+
+With all three fixed, the run is bit-reproducible: verified for the exp06
+multi-objective SUMMA cell, where two runs of the identical config produced
+`best_score = 0.513244006860` and identical parameters. Sharing the acquired
+forcing files (or the built container's `symfluence_data` volume) removes the
+acquisition step from the loop entirely and is the most robust route to an
+exact match.
