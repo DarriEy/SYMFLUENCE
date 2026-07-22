@@ -453,7 +453,13 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         return True
 
     except subprocess.CalledProcessError as e:
+        # Without the reason, a rejected parameter set is indistinguishable
+        # from a poorly performing one once it has been folded into a penalty
+        # score, so surface SUMMA's own diagnosis here.
+        reason = _extract_summa_fatal_error(log_file)
         error_msg = f"SUMMA simulation failed with exit code {e.returncode}"
+        if reason:
+            error_msg = f"{error_msg}: {reason}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
         return False
@@ -469,6 +475,38 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
         return False
+
+
+def _extract_summa_fatal_error(log_file, max_tail_bytes: int = 8192) -> str:
+    """Pull SUMMA's ``FATAL ERROR`` diagnosis out of a worker log.
+
+    SUMMA writes the reason it aborted to stdout and exits 1. The calibration
+    layer only sees the exit code, so a parameter set rejected by
+    ``paramCheck`` scores the same generic penalty as one that merely fits
+    badly. Recovering the message keeps rejections attributable.
+
+    Args:
+        log_file: Path to the SUMMA worker log.
+        max_tail_bytes: How much of the end of the log to inspect.
+
+    Returns:
+        The fatal error message, or an empty string when none is found.
+    """
+    try:
+        path = Path(log_file)
+        size = path.stat().st_size
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            if size > max_tail_bytes:
+                f.seek(size - max_tail_bytes)
+            tail = f.read()
+    except (OSError, ValueError):
+        return ""
+
+    for line in reversed(tail.splitlines()):
+        stripped = line.strip()
+        if stripped.startswith('FATAL ERROR'):
+            return stripped
+    return ""
 
 
 def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_info: Dict, summa_dir: Path = None) -> bool:

@@ -271,6 +271,145 @@ class TestSUMMAParameterConstraints:
         # Should be bumped to 0.20 + 0.01 = 0.21
         assert validated['theta_sat'][0] == pytest.approx(0.21)
 
+
+class TestSUMMAParamCheckEnvelope:
+    """The soil-moisture relations SUMMA's paramCheck aborts the run over.
+
+    ``critSoilWilting`` and ``critSoilTranspire`` carry a nominal [0, 1] range
+    in localParamInfo.txt while ``theta_sat`` tops out near 0.65, so drawing
+    them independently produces combinations SUMMA refuses to start on.
+    """
+
+    @staticmethod
+    def _manager(summa_config, test_logger, temp_project_dir):
+        from symfluence.optimization.parameter_managers import SUMMAParameterManager
+
+        settings_dir = temp_project_dir / "settings" / "SUMMA"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        manager = SUMMAParameterManager(summa_config, test_logger, settings_dir)
+        manager.local_params = [
+            'theta_sat', 'theta_res', 'critSoilWilting', 'critSoilTranspire',
+        ]
+        manager._expand_to_hru_count = lambda value: np.array([float(value)])
+        manager._cached_defaults = {}
+        return manager
+
+    @staticmethod
+    def _paramcheck_ok(p):
+        """summa_paramSetup/paramCheck, soil section (paramCheck.f90)."""
+        theta_sat, theta_res = p['theta_sat'], p['theta_res']
+        for name in ('critSoilTranspire', 'critSoilWilting'):
+            if p[name] > theta_sat or p[name] < theta_res:
+                return False
+        return p['critSoilTranspire'] >= p['critSoilWilting'] and theta_sat >= theta_res
+
+    def test_transpire_threshold_clamped_below_porosity(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """critSoilTranspire above theta_sat is the exact draw SUMMA rejects."""
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+
+        params = {
+            'theta_sat': np.array([0.4376]),
+            'theta_res': np.array([0.0623]),
+            'critSoilWilting': np.array([0.20]),
+            'critSoilTranspire': np.array([0.4492]),  # > theta_sat
+        }
+
+        validated = manager._enforce_parameter_constraints(params)
+
+        assert validated['critSoilTranspire'][0] <= validated['theta_sat'][0]
+        assert self._paramcheck_ok({k: v[0] for k, v in validated.items()})
+
+    def test_wilting_point_above_porosity_does_not_drag_transpire_out(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """Raising critSoilTranspire past the wilting point must stay in range.
+
+        The ordering rule used to push critSoilTranspire to
+        ``critSoilWilting + 0.01`` with no ceiling, so a high wilting point
+        produced a transpiration threshold above theta_sat.
+        """
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+
+        params = {
+            'theta_sat': np.array([0.40]),
+            'theta_res': np.array([0.02]),
+            'critSoilWilting': np.array([0.90]),
+            'critSoilTranspire': np.array([0.05]),
+        }
+
+        validated = manager._enforce_parameter_constraints(params)
+
+        assert self._paramcheck_ok({k: v[0] for k, v in validated.items()})
+
+    def test_valid_combination_is_left_alone(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """A set SUMMA already accepts must pass through untouched."""
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+
+        params = {
+            'theta_sat': np.array([0.50]),
+            'theta_res': np.array([0.03]),
+            'critSoilWilting': np.array([0.12]),
+            'critSoilTranspire': np.array([0.25]),
+        }
+
+        validated = manager._enforce_parameter_constraints(params)
+
+        for name, value in params.items():
+            assert validated[name][0] == pytest.approx(value[0])
+
+    def test_random_draws_are_always_accepted(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """No draw from the configured box may reach SUMMA in a rejectable state."""
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+        rng = np.random.default_rng(20260721)
+
+        for _ in range(2000):
+            params = {
+                'theta_sat': np.array([rng.uniform(0.35, 0.65)]),
+                'theta_res': np.array([rng.uniform(0.001, 0.08)]),
+                'critSoilWilting': np.array([rng.uniform(0.0, 1.0)]),
+                'critSoilTranspire': np.array([rng.uniform(0.0, 1.0)]),
+            }
+            validated = manager._enforce_parameter_constraints(params)
+            assert self._paramcheck_ok({k: v[0] for k, v in validated.items()}), validated
+
+    def test_per_hru_variation_survives_the_clamp(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """Regionalized runs must not be collapsed to a single value."""
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+
+        params = {
+            'theta_sat': np.array([0.40, 0.60, 0.50]),
+            'theta_res': np.array([0.02, 0.03, 0.04]),
+            'critSoilWilting': np.array([0.10, 0.15, 0.20]),
+            'critSoilTranspire': np.array([0.95, 0.30, 0.99]),  # 2 of 3 above theta_sat
+        }
+
+        validated = manager._enforce_parameter_constraints(params)
+
+        assert validated['critSoilTranspire'].shape == (3,)
+        assert validated['critSoilTranspire'] == pytest.approx([0.40, 0.30, 0.50])
+
+    def test_unrepairable_violation_is_reported(
+        self, summa_config, test_logger, temp_project_dir
+    ):
+        """A violation nothing can fix must be named, not silently penalised."""
+        manager = self._manager(summa_config, test_logger, temp_project_dir)
+        manager.local_params = ['theta_sat']  # nothing else is adjustable
+
+        violations = manager._report_paramcheck_violations({
+            'theta_sat': np.array([0.40]),
+            'theta_res': np.array([0.02]),
+            'critSoilTranspire': np.array([0.90]),
+        })
+
+        assert any('critSoilTranspire' in v for v in violations)
 # ============================================================================
 # FUSE Calibration Tests
 # ============================================================================
