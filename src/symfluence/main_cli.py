@@ -18,6 +18,44 @@ in pyproject.toml and is responsible for:
 from __future__ import annotations
 
 
+def enable_crash_diagnostics() -> bool:
+    """
+    Install Python's fault handler so a native crash is not silent.
+
+    Workflows load large compiled stacks (PyTorch, GDAL, HDF5/netCDF, MPI-linked
+    model binaries). When one of those faults, the interpreter dies without
+    writing anything: the run leaves a log that stops mid-step and a shell exit
+    status of 139 (Git Bash maps a Windows ``STATUS_ACCESS_VIOLATION`` onto
+    SIGSEGV), with no indication of which call crashed.
+
+    ``faulthandler`` handles this on every supported platform — on Windows it
+    installs an unhandled-exception filter that prints ``Windows fatal
+    exception: access violation`` plus the Python stack of every thread before
+    the process dies. That output goes to stderr, which the workflow logs
+    capture, turning an opaque exit code into a located crash.
+
+    Set ``SYMFLUENCE_NO_FAULTHANDLER=1`` to opt out.
+
+    Returns:
+        True if the fault handler was enabled.
+    """
+    import os
+
+    if os.environ.get("SYMFLUENCE_NO_FAULTHANDLER"):
+        return False
+
+    try:
+        import faulthandler
+
+        if not faulthandler.is_enabled():
+            faulthandler.enable()
+        return True
+    except (ImportError, OSError, ValueError):
+        # A closed/redirected stderr is the only realistic failure here, and it
+        # must never stop the CLI from starting.
+        return False
+
+
 def main():
     """
     Main entry point for SYMFLUENCE CLI.
@@ -27,6 +65,8 @@ def main():
     import sys
 
     from symfluence.core.exceptions import SYMFLUENCEError
+
+    enable_crash_diagnostics()
 
     # Windows consoles default to cp1252 which cannot encode Rich's Unicode
     # box-drawing and emoji characters.  Reconfigure to UTF-8 so output
