@@ -105,7 +105,23 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         if final_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return final_file
 
-        # Try OPeNDAP pathway first (efficient remote subsetting)
+        # Acquisition pathway. The default ("auto") tries OPeNDAP and falls back
+        # to the tiled HTTP archive on any error — resilient, but the choice is
+        # then decided by runtime network conditions, so two machines can end up
+        # on different endpoints. OPeNDAP and the tiled archive do not always
+        # return identical data (a large OPeNDAP request can silently truncate;
+        # see _validate_acquired_variables), so a run that lands on a different
+        # endpoint gets slightly different forcing and a different result. Pin
+        # the method to make acquisition reproducible across machines.
+        method = str(self._get_config_value(
+            lambda: None, default='auto', dict_key='RDRS_ACQUISITION_METHOD')).lower()
+
+        if method in ('opendap', 'pavics'):
+            return self._download_opendap(final_file)
+        if method in ('tiled', 'http', 'gpsc'):
+            return self._download_http(output_dir, final_file)
+
+        # auto: OPeNDAP first, tiled archive on failure
         try:
             return self._download_opendap(final_file)
         except Exception as e:  # noqa: BLE001 — preprocessing resilience
