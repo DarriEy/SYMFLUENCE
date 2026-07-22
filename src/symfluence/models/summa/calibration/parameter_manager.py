@@ -312,6 +312,25 @@ class SUMMAParameterManager(BaseParameterManager):
                     if new_val < 0: new_val = 0.0
                     validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', new_val)
 
+        # 3b. Soil stress thresholds must stay below porosity — SUMMA's
+        #     paramCheck hard-fails when critSoilWilting or critSoilTranspire
+        #     exceeds theta_sat (ordering: theta_res < critSoilWilting <
+        #     critSoilTranspire < fieldCapacity < theta_sat)
+        theta_sat = get_scalar('theta_sat', {**full_params, **validated})
+        crit_wilt = get_scalar('critSoilWilting', {**full_params, **validated})
+        crit_trans = get_scalar('critSoilTranspire', {**full_params, **validated})
+        if theta_sat is not None:
+            if (crit_wilt is not None and crit_wilt > (theta_sat - 0.02)
+                    and 'critSoilWilting' in validated):
+                crit_wilt = max(theta_sat - 0.02, 0.0)
+                validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', crit_wilt)
+            if (crit_trans is not None and crit_trans > (theta_sat - 0.01)
+                    and 'critSoilTranspire' in validated):
+                new_val = max(theta_sat - 0.01, 0.0)
+                if crit_wilt is not None:
+                    new_val = max(new_val, crit_wilt + 0.01)
+                validated['critSoilTranspire'] = self._format_parameter_value('critSoilTranspire', new_val)
+
         # 4. fieldCapacity > critSoilWilting — wilting point must be below
         #    field capacity or the soil column becomes numerically unstable
         fc = get_scalar('fieldCapacity', {**full_params, **validated})

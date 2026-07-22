@@ -271,6 +271,49 @@ class TestSUMMAParameterConstraints:
         # Should be bumped to 0.20 + 0.01 = 0.21
         assert validated['theta_sat'][0] == pytest.approx(0.21)
 
+    def test_enforce_soil_stress_below_porosity(self, summa_config, test_logger, temp_project_dir):
+        """critSoilWilting/critSoilTranspire must stay below theta_sat.
+
+        SUMMA's paramCheck hard-fails on critSoilTranspire > theta_sat
+        (ordering: theta_res < critSoilWilting < critSoilTranspire <
+        fieldCapacity < theta_sat).
+        """
+        from symfluence.optimization.parameter_managers import SUMMAParameterManager
+
+        summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
+        summa_settings_dir.mkdir(parents=True, exist_ok=True)
+
+        manager = SUMMAParameterManager(summa_config, test_logger, summa_settings_dir)
+        manager._cached_defaults = {}
+
+        # Combination observed to crash SUMMA: both stress thresholds sampled
+        # above the sampled porosity.
+        params = {
+            'theta_sat': np.array([0.3625]),
+            'theta_res': np.array([0.0124]),
+            'critSoilWilting': np.array([0.4940]),
+            'critSoilTranspire': np.array([0.5040]),
+        }
+
+        validated = manager._enforce_parameter_constraints(params)
+
+        theta_sat = float(np.asarray(validated['theta_sat']).flatten()[0])
+        theta_res = float(np.asarray(validated['theta_res']).flatten()[0])
+        wilt = float(np.asarray(validated['critSoilWilting']).flatten()[0])
+        transp = float(np.asarray(validated['critSoilTranspire']).flatten()[0])
+        assert theta_res < wilt < transp < theta_sat
+
+        # A valid combination passes through untouched
+        params = {
+            'theta_sat': np.array([0.55]),
+            'theta_res': np.array([0.02]),
+            'critSoilWilting': np.array([0.10]),
+            'critSoilTranspire': np.array([0.20]),
+        }
+        validated = manager._enforce_parameter_constraints(params)
+        assert float(np.asarray(validated['critSoilWilting']).flatten()[0]) == pytest.approx(0.10)
+        assert float(np.asarray(validated['critSoilTranspire']).flatten()[0]) == pytest.approx(0.20)
+
 # ============================================================================
 # FUSE Calibration Tests
 # ============================================================================
