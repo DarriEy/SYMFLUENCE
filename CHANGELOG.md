@@ -109,6 +109,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed (`agent doctor` covers the last two).
 
 ### Fixed
+- **GR4J no longer dies with a Windows access violation the moment it runs the
+  model**: the GR runner built its R script by interpolating `str(Path)` into R
+  string literals, so on Windows R's lexer received
+  `read.csv("C:\Users\...\domain_x\input.csv")` — in which `\U` opens a Unicode
+  escape and `\d` is not an escape at all. Standalone `Rscript` reports that as
+  a parse error; the *embedded* interpreter raises it from inside
+  `R_ParseVector` and takes the process down with `STATUS_ACCESS_VIOLATION`
+  (0xC0000005, reported as exit 139) with no Python frame to trace — after the
+  workflow had already spent ~36 minutes preprocessing. Paths now go through
+  `r_environment.r_path()`, which renders them with forward slashes (accepted by
+  R on every platform), and every generated script is evaluated through
+  `r_environment.run_r_script()`, which refuses source containing an invalid R
+  escape so a regression is an actionable `ModelExecutionError` instead of a
+  bare crash. The same interpolation affected the distributed GR4J path and the
+  GR postprocessor's `load()` of `GR_results.Rdata`.
 - **GR4J no longer segfaults on Windows because the embedded R cannot load its
   own packages**: rpy2 registers `R_HOME/bin/x64` only via
   `os.add_dll_directory()`, which R's internal `dyn.load()` does not consult, so

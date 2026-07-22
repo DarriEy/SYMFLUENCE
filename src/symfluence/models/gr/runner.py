@@ -32,7 +32,7 @@ from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..spatial_modes import SpatialMode
-from .r_environment import configure_r_dll_search, ensure_airgr_available
+from .r_environment import configure_r_dll_search, ensure_airgr_available, r_path, run_r_script
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -466,7 +466,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                     library(airGR)
 
                     # Load HRU data
-                    BasinObs <- read.csv("{str(temp_csv)}")
+                    BasinObs <- read.csv({r_path(temp_csv)})
 
                     # Preparation of InputsModel
                     InputsModel <- CreateInputsModel(
@@ -520,7 +520,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 '''
 
                 # Execute R script
-                result_df = robjects.r(r_script)
+                result_df = run_r_script(robjects, r_script, "distributed GR4J script")
 
                 # Convert to pandas
                 with localconverter(robjects.default_converter + pandas2ri.converter):
@@ -810,7 +810,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 skip_calibration <- {"TRUE" if skip_calibration else "FALSE"}
 
                 # Loading catchment data
-                BasinObs <- read.csv("{str(self.forcing_gr_path / f"{self.domain_name}_input.csv")}")
+                BasinObs <- read.csv({r_path(self.forcing_gr_path / f"{self.domain_name}_input.csv")})
 
                 # Convert time column to POSIXct format
                 BasinObs$time_posix <- as.POSIXct(BasinObs$time)
@@ -886,7 +886,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                         CalibOptions = CalibOptions,
                         FUN_MOD = RunModel_CemaNeigeGR4J
                     )
-                    save(OutputsCalib, file = "{str(self.output_path / 'GR_calib.Rdata')}")
+                    save(OutputsCalib, file = {r_path(self.output_path / 'GR_calib.Rdata')})
                     Param <- OutputsCalib$ParamFinalR
                 }} else {{
                     # Use provided parameters or defaults
@@ -911,27 +911,27 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 # Results preview
                 if ({"TRUE" if self.reporting_manager and self.reporting_manager.visualize else "FALSE"}) {{
                     # Create plots directory
-                    dir.create("{str(self.project_dir / 'reporting' / 'results')}", recursive = TRUE, showWarnings = FALSE)
-                    png("{str(self.project_dir / 'reporting' / 'results' / 'GRhydrology_plot.png')}", height = 900, width = 900)
+                    dir.create({r_path(self.project_dir / 'reporting' / 'results')}, recursive = TRUE, showWarnings = FALSE)
+                    png({r_path(self.project_dir / 'reporting' / 'results' / 'GRhydrology_plot.png')}, height = 900, width = 900)
                     plot(OutputsModel, Qobs = BasinObs$q_obs[Ind_Run])
                     dev.off()
                 }}
 
                 # Save results
-                save(OutputsModel, file = "{str(self.output_path / 'GR_results.Rdata')}")
+                save(OutputsModel, file = {r_path(self.output_path / 'GR_results.Rdata')})
 
                 # Export to CSV for post-processing and metrics
                 results_df <- data.frame(
                     datetime = format(OutputsModel$DatesR, "%Y-%m-%d %H:%M:%S"),
                     q_sim = OutputsModel$Qsim
                 )
-                write.csv(results_df, "{str(self.output_path / 'GR_results.csv')}", row.names = FALSE)
+                write.csv(results_df, {r_path(self.output_path / 'GR_results.csv')}, row.names = FALSE)
 
                 "GR model execution completed successfully"
             '''
 
             # Execute the R script
-            robjects.r(r_script)
+            run_r_script(robjects, r_script, "lumped GR4J script")
             self.logger.debug("R script executed successfully!")
 
             # Verify output file was actually created
