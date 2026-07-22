@@ -270,7 +270,11 @@ def verify_gr_r_runtime() -> None:
             if sys.platform == "win32"
             else ""
         )
-        raise ImportError(
+        # ModelExecutionError, not ImportError: this runs from the GR
+        # preprocessing path, not at module import, nothing catches
+        # ImportError around it, and the sibling _raise_airgr_error already
+        # reports the same class of failure this way.
+        raise ModelExecutionError(
             "GR models require a working R and rpy2, but the embedded R could not "
             f"be started ({type(exc).__name__}: {exc})."
             f"{hint}"
