@@ -128,43 +128,60 @@ class CRHMModelOptimizer(BaseModelOptimizer):
             final_output_dir = self.results_dir / 'final_evaluation'
             final_output_dir.mkdir(parents=True, exist_ok=True)
 
-            rerun_ok = self._run_model_for_final_evaluation(final_output_dir)
-            metrics = (self.worker.calculate_metrics(final_output_dir, self.config)
-                       if rerun_ok else {})
-            rerun_kge = metrics.get('kge') if metrics else None
-
-            # The optimization's best score is the authoritative calibration
-            # result (DDS-verified during the run). The standalone re-run here
-            # is only for output artifacts and a sanity check — it can diverge
-            # from the optimum when the model setup is not reproduced exactly,
-            # and must NOT be allowed to understate the calibrated skill.
-            best_score = self.get_best_result().get('score')
-            kge = best_score if best_score is not None else rerun_kge
-            if kge is None:
-                self.logger.error("No calibration score available for final evaluation")
+            if not self._run_model_for_final_evaluation(final_output_dir):
+                self.logger.error("CRHM run failed during final evaluation")
                 return None
-            if (rerun_kge is not None and best_score is not None
-                    and abs(rerun_kge - best_score) > 0.05):
-                self.logger.warning(
-                    f"Final-eval re-run KGE {rerun_kge:.3f} diverges from optimization "
-                    f"best {best_score:.3f}; reporting the optimization best (authoritative)."
-                )
 
-            metrics = dict(metrics)
-            metrics['kge'] = kge
+            # --- Calibration-period metrics ---
+            cal_config = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+            cal_raw = self.worker.calculate_metrics(final_output_dir, cal_config)
+            calib_kge = cal_raw.get('kge') if cal_raw else None
+
+            if calib_kge is None or calib_kge <= -900:
+                self.logger.error("Failed to calculate calibration-period metrics")
+                return None
+
+            # Sanity check against the optimization's DDS-verified best score:
+            # a large gap means the standalone re-run did not reproduce the
+            # model setup exactly and the reported skill is questionable.
+            best_score = self.get_best_result().get('score')
+            if best_score is not None and abs(calib_kge - best_score) > 0.05:
+                self.logger.warning(
+                    f"Final-eval calibration-period KGE {calib_kge:.3f} diverges from "
+                    f"optimization best {best_score:.3f}; check the final re-run setup."
+                )
+            self.logger.info(f"Calibration period KGE: {calib_kge:.4f}")
+
+            # --- Evaluation-period metrics ---
+            eval_metrics: Dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_cfg = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+                eval_cfg['CALIBRATION_PERIOD'] = eval_period  # worker filters on this key
+                eval_raw = self.worker.calculate_metrics(final_output_dir, eval_cfg)
+                eval_kge = eval_raw.get('kge') if eval_raw else None
+                if eval_kge is not None and eval_kge > -900:
+                    eval_metrics = {"KGE": eval_kge, "KGE_Eval": eval_kge}
+                    self.logger.info(f"Evaluation period KGE: {eval_kge:.4f}")
+                else:
+                    self.logger.warning("Evaluation-period metrics could not be computed")
+            else:
+                self.logger.info("No EVALUATION_PERIOD configured; skipping split-sample validation")
+
+            final_metrics = dict(cal_raw)
+            if best_score is not None:
+                final_metrics['optimization_best_kge'] = best_score
             # Use the canonical 'KGE' key so downstream aggregation finds it.
-            calib_metrics = {"KGE": kge, "KGE_Calib": kge}
-            eval_metrics = {"KGE": kge, "KGE_Eval": kge}
+            calib_metrics = {"KGE": calib_kge, "KGE_Calib": calib_kge}
 
             final_result = {
-                'final_metrics': metrics,
+                'final_metrics': final_metrics,
                 'calibration_metrics': calib_metrics,
                 'evaluation_metrics': eval_metrics,
                 'success': True,
                 'best_params': best_params
             }
 
-            self.logger.info(f"Final evaluation KGE (optimization best): {kge:.4f}")
             return final_result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
