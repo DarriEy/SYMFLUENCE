@@ -243,7 +243,16 @@ class SUMMAParameterManager(BaseParameterManager):
         4. critSoilTranspire > critSoilWilting
         5. fieldCapacity > critSoilWilting (min gap 0.01)
         5b. critSoilWilting > theta_res (min gap 0.01)
+        5c. critSoilWilting, critSoilTranspire and fieldCapacity inside the
+            porosity envelope [theta_res, theta_sat]
         6. albedoMax >= albedoMinWinter
+        7. k_macropore >= k_soil
+
+        Constraint 5c mirrors ``summa_paramSetup/paramCheck``, which aborts the
+        whole simulation with a FATAL ERROR when it is violated. It runs last,
+        as a repair of what the other rules leave behind. Anything it cannot
+        repair is reported by :meth:`_report_paramcheck_violations` rather than
+        left to come back as an unattributed penalty score.
         """
         validated = params.copy()
 
@@ -255,6 +264,20 @@ class SUMMAParameterManager(BaseParameterManager):
                 # Handle scalar wrapped in array or full HRU array (assume homogeneous for check)
                 return float(val.flatten()[0])
             return float(val)
+
+        # Element-wise view of a parameter, so per-HRU spatial variation
+        # produced by regionalization survives the envelope clamp below.
+        def get_array(name, p_dict):
+            if name not in p_dict: return None
+            return np.atleast_1d(np.asarray(p_dict[name], dtype=float))
+
+        def store_array(name, values):
+            """Write values back to ``validated`` preserving the per-HRU shape."""
+            current = validated.get(name)
+            if isinstance(current, np.ndarray) and current.shape == values.shape:
+                validated[name] = values
+            else:
+                validated[name] = self._format_parameter_value(name, float(values.ravel()[0]))
 
         # Load defaults for context if not cached
         if not hasattr(self, '_cached_defaults'):
@@ -340,6 +363,54 @@ class SUMMAParameterManager(BaseParameterManager):
                     new_val = theta_res + 0.01
                     validated['critSoilWilting'] = self._format_parameter_value('critSoilWilting', new_val)
 
+        # 4c. Last-resort repair of summa_paramSetup/paramCheck, which aborts
+        #     the whole simulation when critSoilWilting, critSoilTranspire or
+        #     fieldCapacity falls outside [theta_res, theta_sat] or when
+        #     critSoilTranspire drops below critSoilWilting.
+        #
+        #     localParamInfo.txt advertises a nominal [0, 1] range for the two
+        #     stress thresholds while theta_sat tops out near 0.65, so drawing
+        #     them independently puts them above porosity most of the time —
+        #     and rule 3 above, which raises critSoilTranspire to clear the
+        #     wilting point, can push it over on its own. Every such draw used
+        #     to be spent on a run that died in setup and scored as a penalty.
+        #
+        #     This runs last, after the rules above have had their say, so it
+        #     only moves parameter sets SUMMA was going to reject outright.
+        min_gap = 0.01
+        merged = {**full_params, **validated}
+        theta_res_arr = get_array('theta_res', merged)
+        theta_sat_arr = get_array('theta_sat', merged)
+
+        if theta_res_arr is not None and theta_sat_arr is not None:
+            for name in self._PARAMCHECK_ENVELOPE_PARAMS:
+                if name not in validated:
+                    continue
+                current = get_array(name, validated)
+                # paramCheck uses strict inequalities, so the envelope
+                # endpoints themselves are legal landing spots.
+                clamped = np.clip(current, theta_res_arr, theta_sat_arr)
+                if not np.array_equal(clamped, current):
+                    store_array(name, clamped)
+
+        merged = {**full_params, **validated}
+        crit_trans = get_array('critSoilTranspire', merged)
+        crit_wilt = get_array('critSoilWilting', merged)
+
+        if crit_trans is not None and crit_wilt is not None:
+            # Cap the nudge at theta_sat so restoring the ordering cannot
+            # re-break the envelope clamp just applied.
+            target = crit_wilt + min_gap
+            if theta_sat_arr is not None:
+                target = np.minimum(target, theta_sat_arr)
+            if np.any(crit_trans < target):
+                if 'critSoilTranspire' in validated:
+                    store_array('critSoilTranspire', np.maximum(crit_trans, target))
+                elif 'critSoilWilting' in validated:
+                    lowered = np.maximum(np.minimum(crit_wilt, crit_trans - min_gap), theta_res_arr
+                                         if theta_res_arr is not None else 0.0)
+                    store_array('critSoilWilting', lowered)
+
         # 5. albedoMax >= albedoMinWinter — minimum winter albedo cannot
         #    exceed the maximum albedo or SUMMA snow calculations fail
         albedo_max = get_scalar('albedoMax', full_params)
@@ -365,7 +436,75 @@ class SUMMAParameterManager(BaseParameterManager):
                 elif 'k_soil' in validated:
                     validated['k_soil'] = self._format_parameter_value('k_soil', k_macro_val)
 
+        self._report_paramcheck_violations({**full_params, **validated})
+
         return validated
+
+    # SUMMA aborts the whole simulation when any of these fail — see
+    # summa_paramSetup/paramCheck in paramCheck.f90.
+    _PARAMCHECK_ENVELOPE_PARAMS = ('critSoilWilting', 'critSoilTranspire', 'fieldCapacity')
+
+    def _report_paramcheck_violations(self, params: Dict[str, Any]) -> List[str]:
+        """Name any SUMMA ``paramCheck`` soil relation still violated.
+
+        :meth:`_enforce_parameter_constraints` can only repair a relation when
+        at least one of the parameters involved is under calibration. When it
+        cannot, SUMMA aborts with ``FATAL ERROR ... parameter is out of range``
+        and the evaluation comes back as a penalty score that is
+        indistinguishable from a genuinely poor parameter set. Log the specific
+        relation and the values so the loss is attributable in the run log
+        instead of silently degrading the population.
+
+        Args:
+            params: Merged view of defaults plus the constrained values.
+
+        Returns:
+            List of human-readable violation descriptions (empty when clean).
+        """
+        def scalar(name: str) -> Optional[float]:
+            if name not in params:
+                return None
+            return float(np.atleast_1d(np.asarray(params[name], dtype=float)).ravel()[0])
+
+        theta_res = scalar('theta_res')
+        theta_sat = scalar('theta_sat')
+        violations: List[str] = []
+
+        if theta_res is not None and theta_sat is not None:
+            if theta_sat < theta_res:
+                violations.append(f"theta_sat ({theta_sat:.4g}) < theta_res ({theta_res:.4g})")
+
+            for name in self._PARAMCHECK_ENVELOPE_PARAMS:
+                value = scalar(name)
+                if value is None:
+                    continue
+                if value > theta_sat or value < theta_res:
+                    violations.append(
+                        f"{name} ({value:.4g}) outside "
+                        f"[theta_res={theta_res:.4g}, theta_sat={theta_sat:.4g}]"
+                    )
+
+        crit_wilt = scalar('critSoilWilting')
+        crit_trans = scalar('critSoilTranspire')
+        if crit_wilt is not None and crit_trans is not None and crit_trans < crit_wilt:
+            violations.append(
+                f"critSoilTranspire ({crit_trans:.4g}) < critSoilWilting ({crit_wilt:.4g})"
+            )
+
+        if violations:
+            uncalibrated = [
+                name for name in (*self._PARAMCHECK_ENVELOPE_PARAMS, 'theta_res', 'theta_sat')
+                if name in params and name not in self.local_params
+            ]
+            self.logger.warning(
+                "SUMMA paramCheck will reject this parameter set (the evaluation "
+                "will score as a penalty, not as a poor fit): %s. Not under "
+                "calibration, so unable to adjust: %s",
+                "; ".join(violations),
+                ", ".join(uncalibrated) or "none",
+            )
+
+        return violations
 
     # ========================================================================
     # IMPLEMENT ABSTRACT METHODS FROM BASE CLASS
