@@ -29,6 +29,10 @@ from ..base import BaseModelPreProcessor
 from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
 from ..spatial_modes import SpatialMode
 from ..utilities import ForcingDataProcessor
+from .r_environment import configure_r_dll_search, verify_gr_r_runtime
+
+# Must run before anything imports rpy2 — see r_environment for why.
+configure_r_dll_search()
 
 HAS_RPY2 = find_spec("rpy2") is not None
 
@@ -141,7 +145,16 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         Run the complete GR preprocessing workflow.
 
         Uses the template method pattern from BaseModelPreProcessor.
+
+        Raises:
+            ImportError: If rpy2 or the embedded R cannot be started.
+            ModelExecutionError: If the embedded R cannot load airGR.
         """
+        # GR preprocessing can take the better part of an hour, and the model
+        # it feeds is useless without a working R. Check the R stack up front
+        # rather than discovering it after all that work has been thrown away.
+        verify_gr_r_runtime()
+
         self.logger.info(f"Starting GR preprocessing in {self.spatial_mode} mode")
         # GR does not ship base settings; avoid noisy warning.
         self.copy_base_settings = lambda *args, **kwargs: None

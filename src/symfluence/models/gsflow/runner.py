@@ -31,6 +31,7 @@ class GSFLOWRunner(BaseModelRunner):
         self.gsflow_exe = self.get_model_executable(
             install_path_key='GSFLOW_INSTALL_PATH',
             default_install_subpath='installs/gsflow/bin',
+            exe_name_key='GSFLOW_EXE',
             default_exe_name='gsflow',
             typed_exe_accessor=lambda: (
                 self.config.model.gsflow.exe

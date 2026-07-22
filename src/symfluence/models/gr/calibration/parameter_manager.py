@@ -125,6 +125,9 @@ class GRParameterManager(BaseParameterManager):
             if not rdata_path.exists():
                 return None
 
+            from ..r_environment import configure_r_dll_search
+            configure_r_dll_search()
+
             import rpy2.robjects as robjects
             robjects.r['load'](str(rdata_path))
 

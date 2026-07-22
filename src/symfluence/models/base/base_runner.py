@@ -16,6 +16,7 @@ Provides shared infrastructure for all model execution modules including:
 from __future__ import annotations
 
 import logging
+import sys
 from abc import ABC
 from datetime import datetime
 from pathlib import Path
@@ -627,23 +628,32 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         else:
             exe_name = default_exe_name
 
+        # Windows builds produce <name>.exe even when the model declares a bare
+        # name; MSYS/bash hides that but Path.exists() does not.
+        name_variants = self._exe_name_variants(exe_name)
+
         # Handle candidates: try each subdirectory in order
         if candidates:
             for candidate in candidates:
-                if candidate:
-                    candidate_path = install_dir / candidate / exe_name
-                else:
-                    candidate_path = install_dir / exe_name
-
-                if candidate_path.exists():
-                    self.logger.debug(f"Found executable at: {candidate_path}")
-                    return candidate_path
+                candidate_dir = install_dir / candidate if candidate else install_dir
+                for variant in name_variants:
+                    candidate_path = candidate_dir / variant
+                    if candidate_path.exists():
+                        self.logger.debug(f"Found executable at: {candidate_path}")
+                        return candidate_path
 
             # No candidate found - use first candidate (or root) as default path for error message
             exe_path = install_dir / (candidates[0] if candidates[0] else '') / exe_name
         else:
             # Standard behavior - combine into full path
             exe_path = install_dir / exe_name
+            if not exe_path.exists():
+                for variant in name_variants[1:]:
+                    alternative = install_dir / variant
+                    if alternative.exists():
+                        self.logger.debug(f"Found executable at: {alternative}")
+                        exe_path = alternative
+                        break
 
         # npm fallback: pre-built tools shipped via `npm install -g symfluence`
         # live in a flat dist/bin under canonical names (summa, mizuroute, ...),
@@ -669,10 +679,12 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                     f"Install path key: {install_path_key}"
                 )
             else:
+                searched = ", ".join(str(install_dir / variant) for variant in name_variants)
                 raise FileNotFoundError(
                     f"Model executable not found: {exe_path}\n"
+                    f"Searched: {searched}\n"
                     f"Install path key: {install_path_key}\n"
-                    f"Exe name key: {exe_name_key}"
+                    f"Exe name key: {exe_name_key or '(typed config only)'}"
                 )
 
         # Track for provenance capture
@@ -680,6 +692,31 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         self._resolved_executables.append((label, exe_path))
 
         return exe_path
+
+    @staticmethod
+    def _exe_name_variants(exe_name: Optional[str]) -> List[str]:
+        """Return the on-disk names an executable may have, preferred first.
+
+        Model definitions declare POSIX-style names (``gsflow``, ``prms``,
+        ``hype``) because the build scripts run under MSYS bash, where
+        ``[ -f bin/gsflow ]`` and ``cp x bin/gsflow`` silently resolve to
+        ``gsflow.exe``. Python's ``Path.exists()`` does no such thing, so a
+        model that built perfectly well on Windows was reported as "executable
+        not found". The install verifier already accepts either name
+        (``check_type: exists_any``); this makes the runtime resolver agree.
+
+        Args:
+            exe_name: Declared executable name, or None.
+
+        Returns:
+            Candidate file names. On Windows a ``.exe`` variant is appended
+            unless the name already carries an extension.
+        """
+        if not exe_name:
+            return []
+        if sys.platform != 'win32' or Path(exe_name).suffix:
+            return [exe_name]
+        return [exe_name, f"{exe_name}.exe"]
 
     @staticmethod
     def _find_npm_bin_dir() -> Optional[Path]:
