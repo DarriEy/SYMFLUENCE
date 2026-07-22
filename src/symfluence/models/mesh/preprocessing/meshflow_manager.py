@@ -9,7 +9,10 @@ Meshflow is the single required pathway - no fallbacks.
 """
 from __future__ import annotations
 
+import glob
 import logging
+import os
+import shutil
 import traceback
 from pathlib import Path
 from typing import Any, Dict
@@ -147,6 +150,122 @@ def _patch_meshflow_network_bug():
         logger.warning(f"Failed to apply meshflow network.py patch: {e}", exc_info=True)
 
 
+def find_cdo_binary() -> "str | None":
+    """
+    Locate the CDO (Climate Data Operators) *binary*, if one is installed.
+
+    ``pip install cdo`` only provides the Python bindings; those bindings shell
+    out to a separate ``cdo`` executable. Returns the resolved path, or None
+    when no CDO executable is reachable.
+
+    Resolution order matches python-cdo's own: the ``CDO`` environment
+    variable (which python-cdo only honors when it names an existing *file*),
+    then ``PATH``. ``shutil.which`` appends ``PATHEXT`` on Windows, so a
+    ``cdo.exe`` on PATH is found by its extensionless name.
+    """
+    cdo_env = os.environ.get('CDO')
+    if cdo_env and Path(cdo_env).is_file():
+        return cdo_env
+    return shutil.which('cdo')
+
+
+class _XarrayMergetime:
+    """
+    Drop-in stand-in for ``cdo.Cdo()`` providing only ``mergetime``.
+
+    meshflow's ``prepare_mesh_forcing`` merges the per-chunk forcing files with
+    ``cdo.Cdo().mergetime(input=<glob>, returnXArray=<vars>)`` and immediately
+    hands the result to xarray. Constructing ``cdo.Cdo()`` shells out to the
+    CDO executable just to read its version, so on a machine without CDO the
+    call dies inside python-cdo with a bare ``FileNotFoundError``/``WinError 2``
+    before any merging is attempted.
+
+    CDO has no Windows build (conda-forge ships linux-64/osx only), so the
+    merge is reimplemented here with ``xarray.open_mfdataset``, which is what
+    ``mergetime`` does: concatenate the inputs along ``time``. This mirrors the
+    CDO-with-xarray-fallback that the HYPE forcing processor already uses.
+    """
+
+    def mergetime(self, input=None, returnXArray=None, output=None, **_kwargs):
+        """Concatenate ``input`` along time and return the requested variables."""
+        import xarray as xr
+
+        from symfluence.core.exceptions import ModelExecutionError
+
+        if isinstance(input, (str, Path)):
+            files = sorted(glob.glob(str(input)))
+        else:
+            files = sorted(str(f) for f in (input or []))
+
+        if not files:
+            raise ModelExecutionError(
+                f"No forcing files matched {input!r} for the MESH forcing merge"
+            )
+
+        logging.getLogger(__name__).info(
+            f"CDO binary not available; merging {len(files)} MESH forcing file(s) with xarray"
+        )
+
+        ds = xr.open_mfdataset(
+            files,
+            combine='by_coords',
+            parallel=False,
+            data_vars='minimal',
+            coords='minimal',
+            compat='override',
+        )
+        if 'time' in ds.dims:
+            ds = ds.sortby('time')
+
+        if output is not None:
+            ds.to_netcdf(output)
+            ds.close()
+            return output
+
+        return ds[returnXArray] if returnXArray is not None else ds
+
+
+class _XarrayCdoModule:
+    """Stands in for the ``cdo`` module inside meshflow's ``forcing_prep``."""
+
+    Cdo = _XarrayMergetime
+
+
+def _patch_meshflow_cdo_dependency():
+    """
+    Make meshflow's forcing merge work without a CDO executable.
+
+    ``meshflow.utility.forcing_prep`` does ``import cdo`` and then
+    ``cdo.Cdo().mergetime(...)``. Rebinding the module-level ``cdo`` name
+    inside ``forcing_prep`` is enough to cover every caller, because
+    ``prepare_mesh_forcing`` resolves ``cdo`` through that module's globals
+    regardless of whether it is reached as ``utility.prepare_mesh_forcing``
+    (the re-export created by ``from .forcing_prep import *``) or through
+    ``forcing_prep`` directly.
+
+    The patch is a no-op when a real CDO binary is present, so platforms that
+    have CDO keep byte-for-byte identical behaviour.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        cdo_binary = find_cdo_binary()
+        if cdo_binary:
+            logger.debug(f"CDO binary found at {cdo_binary}; meshflow forcing merge left unpatched")
+            return
+
+        from meshflow.utility import forcing_prep
+
+        forcing_prep.cdo = _XarrayCdoModule()
+        logger.debug(
+            "No CDO executable on PATH; meshflow forcing merge will use the xarray fallback"
+        )
+
+    except (ImportError, AttributeError, OSError) as e:
+        # The shim is a compatibility aid; a failure to install it must not stop
+        # meshflow from importing on a platform that has CDO anyway.
+        logger.warning(f"Failed to install meshflow CDO fallback: {e}", exc_info=True)
+
+
 # Import meshflow and apply patch
 try:
     from meshflow.core import MESHWorkflow
@@ -154,6 +273,8 @@ try:
     _meshflow_import_error = None
     # Apply runtime patch for meshflow bug
     _patch_meshflow_network_bug()
+    # Make the forcing merge independent of the (Unix-only) CDO executable
+    _patch_meshflow_cdo_dependency()
 except Exception as e:  # noqa: BLE001 — model execution resilience
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
