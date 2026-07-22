@@ -411,9 +411,18 @@ class CRHMWorker(BaseWorker):
 
             obs_series = pd.Series(obs_values, index=obs_index)
 
+            # Restrict scoring to the configured calibration window; the final
+            # evaluation swaps EVALUATION_PERIOD into this key to score the
+            # held-out window from the same full-period run.
+            cal_period_str = config.get('CALIBRATION_PERIOD', '')
+            cal_period_tuple = None
+            if cal_period_str and ',' in str(cal_period_str):
+                parts = str(cal_period_str).split(',')
+                cal_period_tuple = (parts[0].strip(), parts[1].strip())
+
             # Align and calculate metrics
             obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
-                sim_series, obs_series
+                sim_series, obs_series, calibration_period=cal_period_tuple
             )
 
             results = self._streamflow_metrics.calculate_metrics(

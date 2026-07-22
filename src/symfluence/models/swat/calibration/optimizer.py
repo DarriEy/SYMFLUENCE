@@ -142,29 +142,46 @@ class SWATModelOptimizer(BaseModelOptimizer):
                 self.logger.error("SWAT run failed during final evaluation")
                 return None
 
-            # Use worker's calculate_metrics (knows how to parse output.rch)
-            metrics = self.worker.calculate_metrics(
-                final_output_dir, self.config,
+            # --- Calibration-period metrics (worker knows how to parse output.rch) ---
+            cal_config = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+            cal_raw = self.worker.calculate_metrics(
+                final_output_dir, cal_config,
                 sim_dir=final_output_dir
             )
 
-            if not metrics or metrics.get('kge', -999) <= -999:
-                self.logger.error("Failed to calculate final evaluation metrics")
+            if not cal_raw or cal_raw.get('kge', -999) <= -999:
+                self.logger.error("Failed to calculate calibration-period metrics")
                 return None
 
-            # Build result structure compatible with results_saver
-            calib_metrics = {"KGE_Calib": metrics.get('kge', -999)}
-            eval_metrics = {"KGE_Eval": metrics.get('kge', -999)}
+            calib_metrics = {"KGE_Calib": cal_raw.get('kge', -999)}
+            self.logger.info(f"Calibration period KGE: {cal_raw.get('kge', 'N/A'):.4f}")
+
+            # --- Evaluation-period metrics ---
+            eval_metrics: Dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_cfg = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+                eval_cfg['CALIBRATION_PERIOD'] = eval_period  # worker filters on this key
+                eval_raw = self.worker.calculate_metrics(
+                    final_output_dir, eval_cfg,
+                    sim_dir=final_output_dir
+                )
+                if eval_raw and eval_raw.get('kge', -999) > -999:
+                    eval_metrics = {"KGE_Eval": eval_raw.get('kge', -999)}
+                    self.logger.info(f"Evaluation period KGE: {eval_raw.get('kge', 'N/A'):.4f}")
+                else:
+                    self.logger.warning("Evaluation-period metrics could not be computed")
+            else:
+                self.logger.info("No EVALUATION_PERIOD configured; skipping split-sample validation")
 
             final_result = {
-                'final_metrics': metrics,
+                'final_metrics': cal_raw,
                 'calibration_metrics': calib_metrics,
                 'evaluation_metrics': eval_metrics,
                 'success': True,
                 'best_params': best_params
             }
 
-            self.logger.info(f"Final evaluation KGE: {metrics.get('kge', 'N/A')}")
             return final_result
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
