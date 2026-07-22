@@ -362,32 +362,121 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         scaled_targets = np.clip(scaled_targets, -10, 10)
 
         # Create sequences
-        X, y = [], []
-
         if self.spatial_mode == SpatialMode.LUMPED:
-            for i in range(len(scaled_features) - self.lookback):
-                X.append(scaled_features[i:(i + self.lookback)])
-                y.append(scaled_targets[i + self.lookback])
-
-            X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
-            y_tensor = torch.FloatTensor(np.array(y)).to(self.device)
+            n_sequences = len(scaled_features) - self.lookback
+            source_features = scaled_features
+            source_targets = scaled_targets
         else:
             # Distributed mode: Sequences are (timesteps, hrus, features)
             # Reshape scaled_features to (timesteps, hrus, n_features)
             n_timesteps = len(common_dates)
             n_features = len(feature_columns)
-            feat_reshaped = scaled_features.reshape(n_timesteps, n_hrus, n_features)
-            targ_reshaped = scaled_targets.reshape(n_timesteps, n_hrus, self.output_size)
+            n_sequences = n_timesteps - self.lookback
+            source_features = scaled_features.reshape(n_timesteps, n_hrus, n_features)
+            source_targets = scaled_targets.reshape(n_timesteps, n_hrus, self.output_size)
 
-            for i in range(n_timesteps - self.lookback):
-                X.append(feat_reshaped[i:(i + self.lookback)]) # (lookback, hrus, features)
-                y.append(targ_reshaped[i + self.lookback])     # (hrus, output_size)
-
-            X_tensor = torch.FloatTensor(np.array(X)).to(self.device) # (B, T, N, F)
-            y_tensor = torch.FloatTensor(np.array(y)).to(self.device) # (B, N, O)
+        X_tensor = self._build_sequence_tensor(source_features, n_sequences)
+        y_tensor = torch.from_numpy(
+            np.ascontiguousarray(
+                source_targets[self.lookback:self.lookback + n_sequences],
+                dtype=np.float32,
+            )
+        ).to(self.device)
 
         self.logger.debug(f"Preprocessed data shape: X: {X_tensor.shape}, y: {y_tensor.shape}")
         return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), features_avg, hru_ids
+
+    def _build_sequence_tensor(self, source: np.ndarray, n_sequences: int) -> "torch.Tensor":
+        """
+        Build the (n_sequences, lookback, ...) input tensor for the LSTM.
+
+        The sequences are overlapping windows over `source`, so they are formed
+        with a strided view and materialised once, directly in the float32 dtype
+        the model consumes. Accumulating the windows in a Python list and
+        calling ``np.array`` on it instead produced a full float64 copy
+        (8 bytes per element) that was then copied again into a float32 tensor —
+        three times the necessary footprint. For an hourly multi-year lumped
+        domain with a 365-step lookback that is ~2.1 GB of transient allocation
+        instead of ~0.7 GB, which is enough to exhaust a loaded machine at
+        exactly the point the model starts.
+
+        Args:
+            source: Scaled features, shape (timesteps, ...).
+            n_sequences: Number of windows to emit.
+
+        Returns:
+            Input tensor of shape (n_sequences, lookback, *source.shape[1:]).
+
+        Raises:
+            ModelExecutionError: If `n_sequences` is not positive, or the tensor
+                does not fit in memory.
+        """
+        from symfluence.core.exceptions import ModelExecutionError
+
+        if n_sequences <= 0:
+            raise ModelExecutionError(
+                f"LSTM lookback of {self.lookback} timesteps exceeds the "
+                f"{len(source)} timesteps of overlapping forcing and observation "
+                "data; no training sequences can be formed. Shorten the lookback "
+                "or widen the simulation period."
+            )
+
+        required_bytes = int(
+            n_sequences * self.lookback * np.prod(source.shape[1:], dtype=np.int64) * 4
+        )
+        self._warn_if_sequence_tensor_is_large(required_bytes)
+
+        try:
+            windows = np.lib.stride_tricks.sliding_window_view(
+                source, window_shape=self.lookback, axis=0
+            )[:n_sequences]
+            # sliding_window_view puts the window axis last; the LSTM wants it
+            # directly after the batch axis.
+            sequences = np.ascontiguousarray(
+                np.moveaxis(windows, -1, 1), dtype=np.float32
+            )
+            return torch.from_numpy(sequences).to(self.device)
+        except MemoryError as e:
+            # numpy's _ArrayMemoryError subclasses MemoryError, so this covers
+            # both the interpreter's and numpy's allocation failures.
+            raise ModelExecutionError(
+                f"Ran out of memory building the LSTM input tensor "
+                f"({required_bytes / 1e9:.2f} GB for {n_sequences} sequences of "
+                f"{self.lookback} timesteps). Reduce the LSTM lookback or the "
+                "simulation period, or run on a machine with more free memory."
+            ) from e
+
+    def _warn_if_sequence_tensor_is_large(self, required_bytes: int) -> None:
+        """
+        Log the LSTM input tensor footprint against the memory actually free.
+
+        A native allocation failure inside the compiled stack does not always
+        surface as a Python MemoryError — on Windows an allocation refused
+        because the system commit limit is exhausted can crash the interpreter
+        outright. Recording the size before the allocation makes that failure
+        attributable instead of silent.
+        """
+        required_gb = required_bytes / 1e9
+        try:
+            import psutil
+
+            available_bytes = psutil.virtual_memory().available
+        except (ImportError, OSError):
+            self.logger.info(f"LSTM input tensor requires {required_gb:.2f} GB")
+            return
+
+        available_gb = available_bytes / 1e9
+        message = (
+            f"LSTM input tensor requires {required_gb:.2f} GB "
+            f"({available_gb:.2f} GB currently available)"
+        )
+        if required_bytes > available_bytes:
+            self.logger.warning(
+                f"{message}. The allocation exceeds free memory and may fail or "
+                "be killed by the operating system."
+            )
+        else:
+            self.logger.info(message)
 
     def set_scalers(self, feature_scaler, target_scaler, output_size, target_names):
         """

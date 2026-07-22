@@ -131,3 +131,74 @@ class TestLSTMSequenceCreation:
         # Sequence shape should be (samples, lookback, features)
         lookback = preprocessor.lookback
         assert lookback > 0
+
+
+class TestLSTMSequenceTensorBuilder:
+    """Tests for the strided sequence-tensor builder."""
+
+    @staticmethod
+    def _builder(lookback):
+        """A minimal object exposing only what _build_sequence_tensor uses."""
+        import logging
+
+        import torch
+
+        from symfluence.models.lstm.preprocessor import LSTMPreProcessor
+
+        stub = Mock()
+        stub.lookback = lookback
+        stub.device = torch.device('cpu')
+        stub.logger = logging.getLogger('test')
+        stub._warn_if_sequence_tensor_is_large = (
+            lambda n: LSTMPreProcessor._warn_if_sequence_tensor_is_large(stub, n)
+        )
+        return stub
+
+    @pytest.mark.parametrize(
+        "shape,lookback",
+        [((120, 4), 12), ((90, 3, 5), 10)],
+    )
+    def test_matches_naive_windowing(self, shape, lookback):
+        """Strided windows equal the naive per-window stack, bit for bit."""
+        import torch
+
+        from symfluence.models.lstm.preprocessor import LSTMPreProcessor
+
+        rng = np.random.default_rng(11)
+        source = rng.standard_normal(shape)  # float64, as StandardScaler emits
+        n_sequences = shape[0] - lookback
+
+        expected = torch.FloatTensor(
+            np.array([source[i:i + lookback] for i in range(n_sequences)])
+        )
+        actual = LSTMPreProcessor._build_sequence_tensor(
+            self._builder(lookback), source, n_sequences
+        )
+
+        assert actual.shape == expected.shape
+        assert actual.dtype is torch.float32
+        assert torch.equal(actual, expected)
+
+    def test_lookback_longer_than_record_raises_clear_error(self):
+        """A lookback that leaves no sequences fails with a domain error."""
+        from symfluence.core.exceptions import ModelExecutionError
+        from symfluence.models.lstm.preprocessor import LSTMPreProcessor
+
+        source = np.zeros((10, 3))
+
+        with pytest.raises(ModelExecutionError, match="lookback"):
+            LSTMPreProcessor._build_sequence_tensor(self._builder(50), source, -40)
+
+    def test_oversized_allocation_is_warned_about(self, caplog):
+        """The footprint is logged, and flagged when it exceeds free memory."""
+        from symfluence.models.lstm.preprocessor import LSTMPreProcessor
+
+        stub = self._builder(365)
+        stub.logger = MagicMock()
+
+        with patch('psutil.virtual_memory') as mem:
+            mem.return_value.available = 1_000_000
+            LSTMPreProcessor._warn_if_sequence_tensor_is_large(stub, 8_000_000_000)
+
+        assert stub.logger.warning.called
+        assert "exceeds free memory" in stub.logger.warning.call_args[0][0]
