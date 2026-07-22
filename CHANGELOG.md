@@ -109,6 +109,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed (`agent doctor` covers the last two).
 
 ### Fixed
+- **GR4J no longer segfaults on Windows because the embedded R cannot load its
+  own packages**: rpy2 registers `R_HOME/bin/x64` only via
+  `os.add_dll_directory()`, which R's internal `dyn.load()` does not consult, so
+  `stats.dll` could not resolve `Rlapack.dll` and *every* compiled R package —
+  airGR included — failed to load, while standalone `Rscript` worked fine. R
+  reported this as the misleading `package 'stats' in options("defaultPackages")
+  was not found`. The new `models/gr/r_environment.py` puts R's binary directory
+  on `PATH` (locating R from `R_HOME`, `PATH`, the registry, or `Program Files`)
+  before rpy2 starts the interpreter. The GR runner also no longer answers a
+  failed `library(airGR)` with `install.packages()` against CRAN: on an offline
+  machine that wedged the interpreter into a SIGSEGV 53 minutes into a run.
+  airGR is now verified up front, and an unusable one raises an actionable error
+  quoting the embedded R's own `R.home()`, `.libPaths()` and load error.
+- **Models that build to `<name>.exe` on Windows are found again**: model
+  definitions declare POSIX-style executable names (`gsflow`, `prms`) because
+  the build scripts run under MSYS bash, where `[ -f bin/gsflow ]` and
+  `cp x bin/gsflow` transparently resolve to `gsflow.exe`. `Path.exists()` does
+  not, so a GSFLOW that had compiled and linked perfectly well was reported as
+  `Model executable not found`. `BaseModelRunner.get_model_executable` now tries
+  the `.exe` variant on Windows — matching the `exists_any` rule the install
+  verifier already used — and the error lists every name it searched. GSFLOW's
+  calibration worker, which resolves the path by hand, got the same treatment,
+  and its runner now passes `exe_name_key='GSFLOW_EXE'` so dict-style configs
+  can override the name.
 - **Windows model processes no longer deadlock at exit**: the Windows release
   job now rebuilds netCDF-C without the AWS S3 SDK
   (`scripts/build_netcdf_no_s3_mingw.sh`) instead of shipping MSYS2's stock

@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import sys
 import warnings
 from unittest.mock import Mock, patch
 
@@ -1091,3 +1092,93 @@ class TestNpmExecutableFallback:
         d.mkdir()
         monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(d))
         assert BaseModelRunner._find_npm_bin_dir() == d
+
+
+class TestWindowsExeSuffixFallback:
+    """Windows builds emit ``<name>.exe`` for POSIX-named executables (#349-adjacent).
+
+    Model definitions declare bare names (``gsflow``, ``prms``) because the
+    build scripts run under MSYS bash, where ``[ -f bin/gsflow ]`` and
+    ``cp x bin/gsflow`` transparently resolve to ``gsflow.exe``. The install
+    verifier already accepts either name (``check_type: exists_any``); before
+    this fix the runtime resolver did not, so a GSFLOW that had built
+    perfectly well was reported as "Model executable not found".
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_npm_env(self, monkeypatch):
+        monkeypatch.delenv("SYMFLUENCE_NPM_DIST_BIN", raising=False)
+
+    @pytest.fixture
+    def _as_windows(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "win32")
+
+    def test_exe_suffix_found_when_bare_name_absent(self, runner, temp_dir, _as_windows):
+        """A bare declared name resolves to the .exe that was actually built."""
+        install = temp_dir / "data" / "installs" / "gsflow" / "bin"
+        install.mkdir(parents=True)
+        (install / "gsflow.exe").write_text("MZ")
+
+        result = runner.get_model_executable(
+            "GSFLOW_INSTALL_PATH", "installs/gsflow/bin",
+            default_exe_name="gsflow", must_exist=True,
+        )
+        assert result.resolve() == (install / "gsflow.exe").resolve()
+
+    def test_extensionless_binary_still_wins(self, runner, temp_dir, _as_windows):
+        """HYPE ships an extensionless binary on Windows; it must keep working."""
+        install = temp_dir / "data" / "installs" / "hype" / "bin"
+        install.mkdir(parents=True)
+        (install / "hype").write_text("MZ")
+        (install / "hype.exe").write_text("MZ")
+
+        result = runner.get_model_executable(
+            "HYPE_INSTALL_PATH", "installs/hype/bin",
+            default_exe_name="hype", must_exist=True,
+        )
+        assert result.resolve() == (install / "hype").resolve()
+
+    def test_candidates_search_tries_exe_suffix(self, runner, temp_dir, _as_windows):
+        """The candidate-subdirectory branch (PRMS, NGEN) gets the same fallback."""
+        install = temp_dir / "data" / "installs" / "prms" / "bin"
+        install.mkdir(parents=True)
+        (install / "prms.exe").write_text("MZ")
+
+        result = runner.get_model_executable(
+            "PRMS_INSTALL_PATH", "installs/prms",
+            default_exe_name="prms", candidates=["bin", ""], must_exist=True,
+        )
+        assert result.resolve() == (install / "prms.exe").resolve()
+
+    def test_no_suffix_appended_off_windows(self, runner, temp_dir, monkeypatch):
+        """POSIX platforms must not start matching stray .exe files."""
+        monkeypatch.setattr(sys, "platform", "linux")
+        install = temp_dir / "data" / "installs" / "gsflow" / "bin"
+        install.mkdir(parents=True)
+        (install / "gsflow.exe").write_text("MZ")
+
+        with pytest.raises(FileNotFoundError):
+            runner.get_model_executable(
+                "GSFLOW_INSTALL_PATH", "installs/gsflow/bin",
+                default_exe_name="gsflow", must_exist=True,
+            )
+
+    def test_error_lists_every_name_searched(self, runner, temp_dir, _as_windows):
+        """The failure must say what it looked for, not just one bare path."""
+        with pytest.raises(FileNotFoundError) as excinfo:
+            runner.get_model_executable(
+                "GSFLOW_INSTALL_PATH", "installs/gsflow/bin",
+                default_exe_name="gsflow", must_exist=True,
+            )
+        message = str(excinfo.value)
+        assert "gsflow.exe" in message
+        assert "Searched:" in message
+
+    def test_variants_helper(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "win32")
+        assert BaseModelRunner._exe_name_variants("gsflow") == ["gsflow", "gsflow.exe"]
+        # Already-suffixed names are left alone.
+        assert BaseModelRunner._exe_name_variants("summa.exe") == ["summa.exe"]
+        assert BaseModelRunner._exe_name_variants(None) == []
+        monkeypatch.setattr(sys, "platform", "linux")
+        assert BaseModelRunner._exe_name_variants("gsflow") == ["gsflow"]

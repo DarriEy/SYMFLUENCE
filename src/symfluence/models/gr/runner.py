@@ -32,6 +32,7 @@ from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..spatial_modes import SpatialMode
+from .r_environment import configure_r_dll_search, ensure_airgr_available
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -39,6 +40,10 @@ from ..spatial_modes import SpatialMode
 # incompatible versions, etc.). We must catch all to provide graceful fallback.
 # rpy2 prints noisy messages to stderr during R initialization (e.g. "Error importing in
 # API mode", "Trying to import in ABI mode") — redirect stderr to suppress them.
+# configure_r_dll_search() must run first: importing rpy2 starts the embedded
+# interpreter, and on Windows that interpreter can only dyn.load() compiled R
+# packages if R's own bin directory is already on PATH.
+configure_r_dll_search()
 try:
     import contextlib
     import io
@@ -95,10 +100,12 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
 
         Raises:
             ImportError: If R or rpy2 is not installed (required for GR models).
+            ModelExecutionError: If the embedded R cannot load the airGR package.
 
         Note:
-            GR models require R and the airGR package. The runner will attempt
-            to install airGR automatically if not present.
+            GR models require R and the airGR package. airGR is verified up
+            front rather than installed on demand: installing from CRAN
+            mid-workflow is neither reproducible nor available offline.
         """
         # GR-specific: Check rpy2 dependency BEFORE calling super()
         if not HAS_RPY2:
@@ -110,6 +117,9 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
                 "`pip install rpy2` (or `pip install -e \".[r]\"`). "
                 "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
             )
+
+        # Fail fast on a broken R rather than several steps into the run.
+        ensure_airgr_available(robjects)
 
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
@@ -373,13 +383,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         try:
             # Initialize R environment
             importr('base')
-
-            # Install airGR if not already installed
-            robjects.r('''
-                if (!require("airGR")) {
-                    install.packages("airGR", repos="https://cloud.r-project.org")
-                }
-            ''')
+            ensure_airgr_available(robjects)
 
             # Load forcing data
             forcing_file = self.forcing_gr_path / f"{self.domain_name}_input_distributed.nc"
@@ -729,6 +733,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
         try:
             # Initialize R environment
             importr('base')
+            ensure_airgr_available(robjects)
             skip_calibration = self._skip_calibration
             default_params = self._get_config_value(
                 lambda: self.config.model.gr.default_params,
@@ -777,13 +782,6 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             self.logger.debug(f"Spinup period: {spinup_start} to {spinup_end}")
             self.logger.debug(f"Calibration period: {calib_start} to {calib_end}")
             self.logger.debug(f"Run period: {run_start} to {run_end}")
-
-            # Install airGR if not already installed
-            robjects.r('''
-                if (!require("airGR")) {
-                    install.packages("airGR", repos="https://cloud.r-project.org")
-                }
-            ''')
 
             # Determine parameters for R script
             # Use instance variable for external params (config_dict is read-only)

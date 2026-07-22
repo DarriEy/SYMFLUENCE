@@ -214,6 +214,13 @@ class GSFLOWWorker(BaseWorker):
                 p = Path(install_path)
                 gsflow_exe = p / exe_name if p.is_dir() else p
 
+            # Windows builds land as <name>.exe even though the declared name
+            # is bare — mirror BaseModelRunner._exe_name_variants.
+            if not gsflow_exe.exists() and sys.platform == 'win32' and not gsflow_exe.suffix:
+                windows_exe = gsflow_exe.with_name(f"{gsflow_exe.name}.exe")
+                if windows_exe.exists():
+                    gsflow_exe = windows_exe
+
             if not gsflow_exe.exists():
                 self.logger.error(f"GSFLOW executable not found: {gsflow_exe}")
                 return False
