@@ -187,6 +187,7 @@ def scan_domain_counts(root: Path, version: str = "", commit: str = ""):
                     "domain": domain.name,
                     "metric": "n_features",
                     "best_score": str(n),
+                    "eval_score": "",
                     "best_iteration": "",
                     "run_completed": datetime.fromtimestamp(
                         shp.stat().st_mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -224,7 +225,7 @@ def main():
         seen.add(row["experiment_id"])
         prev = existing.get(row["experiment_id"])
         if (prev is None or prev["best_score"] != row["best_score"]
-                or prev.get("eval_score", "") != row["eval_score"]):
+                or prev.get("eval_score", "") != row.get("eval_score", "")):
             existing[row["experiment_id"]] = row
             n_new += 1
         else:
