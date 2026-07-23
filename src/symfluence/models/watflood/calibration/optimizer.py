@@ -97,17 +97,38 @@ class WATFLOODModelOptimizer(BaseModelOptimizer):
             if not self._run_model_for_final_evaluation(final_output_dir):
                 return None
 
-            metrics = self.worker.calculate_metrics(
-                final_output_dir, self.config, sim_dir=final_output_dir
+            # --- Calibration-period metrics ---
+            cal_config = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+            cal_raw = self.worker.calculate_metrics(
+                final_output_dir, cal_config, sim_dir=final_output_dir
             )
 
-            if not metrics or metrics.get('kge', -999) <= -999:
+            if not cal_raw or cal_raw.get('kge', -999) <= -999:
                 return None
 
+            self.logger.info(f"Calibration period KGE: {cal_raw.get('kge', 'N/A'):.4f}")
+
+            # --- Evaluation-period metrics ---
+            eval_metrics: Dict[str, float] = {}
+            eval_period = self.config.get('EVALUATION_PERIOD', '')
+            if eval_period and ',' in str(eval_period):
+                eval_cfg = self.config.to_dict() if hasattr(self.config, 'to_dict') else dict(self.config)
+                eval_cfg['CALIBRATION_PERIOD'] = eval_period  # worker filters on this key
+                eval_raw = self.worker.calculate_metrics(
+                    final_output_dir, eval_cfg, sim_dir=final_output_dir
+                )
+                if eval_raw and eval_raw.get('kge', -999) > -999:
+                    eval_metrics = {"KGE_Eval": eval_raw.get('kge', -999)}
+                    self.logger.info(f"Evaluation period KGE: {eval_raw.get('kge', 'N/A'):.4f}")
+                else:
+                    self.logger.warning("Evaluation-period metrics could not be computed")
+            else:
+                self.logger.info("No EVALUATION_PERIOD configured; skipping split-sample validation")
+
             return {
-                'final_metrics': metrics,
-                'calibration_metrics': {"KGE_Calib": metrics.get('kge', -999)},
-                'evaluation_metrics': {"KGE_Eval": metrics.get('kge', -999)},
+                'final_metrics': cal_raw,
+                'calibration_metrics': {"KGE_Calib": cal_raw.get('kge', -999)},
+                'evaluation_metrics': eval_metrics,
                 'success': True,
                 'best_params': best_params
             }
