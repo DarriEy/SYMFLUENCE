@@ -321,20 +321,27 @@ class OptimizationManager(BaseManager):
                     if not hydrological_models:
                         return None
 
-            # Skip external optimization for self-training models (ML).
-            # LSTM/GNN learn their weights during the run step (run_lstm/run_gnn)
-            # via gradient descent — there are no physical parameters for the
-            # DDS/PSO loop to calibrate, so they register no optimizer/worker.
+            # Self-training models (ML): no external parameter search — LSTM/GNN
+            # learn their weights during the run step (run_lstm/run_gnn) via
+            # gradient descent and register no optimizer/worker. Their trained
+            # simulation still gets the standard split-sample final evaluation
+            # so calibration/evaluation-period KGE is reported like every other
+            # member.
             self_training = [m for m in hydrological_models if m in _SELF_TRAINING_MODELS]
+            self_training_result: Optional[Path] = None
             if self_training:
                 self.logger.info(
                     "Skipping external optimization for %s — these models train "
-                    "internally during run_model; no parameter calibration is performed.",
+                    "internally during run_model; evaluating the trained simulation instead.",
                     ', '.join(self_training),
                 )
+                for m in self_training:
+                    result = self._evaluate_self_training_model(m, opt_algorithm)
+                    if result:
+                        self_training_result = result
                 hydrological_models = [m for m in hydrological_models if m not in _SELF_TRAINING_MODELS]
                 if not hydrological_models:
-                    return None
+                    return self_training_result
 
             # Detect coupled groundwater calibration — when a GROUNDWATER_MODEL
             # is configured alongside the land-surface model, route to the
@@ -413,6 +420,95 @@ class OptimizationManager(BaseManager):
             dict_key='CALIBRATE_ROUTING',
         )
         return bool(calibrate)
+
+    def _evaluate_self_training_model(self, model_name: str, algorithm: str) -> Optional[Path]:
+        """Split-sample evaluation of a self-training model's trained simulation.
+
+        Self-training models (LSTM/GNN) have no external calibration loop, so
+        this scores the run step's saved streamflow against observations for
+        the calibration and evaluation windows and writes the standard
+        ``*_final_evaluation.json`` under ``optimization/<MODEL>/`` — the same
+        artifact every externally calibrated model produces.
+
+        Returns:
+            Path to the saved final-evaluation JSON, or None if the run output
+            or observations are unavailable.
+        """
+        from symfluence.evaluation.metrics_core import calculate_all_metrics
+        from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+        from symfluence.optimization.optimizers.final_evaluation.results_saver import FinalResultsSaver
+
+        try:
+            import xarray as xr
+
+            sim_file = (
+                self.project_dir / 'simulations' / self.experiment_id / model_name /
+                f"{self.experiment_id}_{model_name}_output.nc"
+            )
+            if not sim_file.exists():
+                self.logger.warning(
+                    f"{model_name} evaluation skipped: run output not found at {sim_file} "
+                    f"(run the model step first)"
+                )
+                return None
+
+            with xr.open_dataset(sim_file) as ds:
+                if 'predicted_streamflow' not in ds:
+                    self.logger.warning(
+                        f"{model_name} evaluation skipped: no predicted_streamflow in {sim_file}"
+                    )
+                    return None
+                sim_series = ds['predicted_streamflow'].to_series()
+            sim_series = sim_series.resample('D').mean()
+
+            sm = StreamflowMetrics()
+            obs_values, obs_index = sm.load_observations(
+                self.config_dict, self.project_dir, self.domain_name, resample_freq='D'
+            )
+            if obs_values is None:
+                self.logger.warning(f"{model_name} evaluation skipped: no observations found")
+                return None
+            obs_series = pd.Series(obs_values, index=obs_index)
+
+            periods = {
+                'calibration_metrics': self.config_dict.get('CALIBRATION_PERIOD', ''),
+                'evaluation_metrics': self.config_dict.get('EVALUATION_PERIOD', ''),
+            }
+            final_result: Dict[str, Any] = {'best_params': {}}
+            for key, period_str in periods.items():
+                final_result[key] = {}
+                if not period_str or ',' not in str(period_str):
+                    continue
+                parts = [p.strip() for p in str(period_str).split(',')]
+                try:
+                    obs_aligned, sim_aligned = sm.align_timeseries(
+                        sim_series, obs_series, calibration_period=(parts[0], parts[1])
+                    )
+                except ValueError as e:
+                    self.logger.warning(f"{model_name} {key} not computable: {e}")
+                    continue
+                final_result[key] = calculate_all_metrics(
+                    pd.Series(obs_aligned), pd.Series(sim_aligned)
+                )
+
+            if not final_result['calibration_metrics'] and not final_result['evaluation_metrics']:
+                self.logger.warning(f"{model_name} evaluation produced no metrics")
+                return None
+
+            results_dir = (
+                self.project_dir / 'optimization' / model_name /
+                f"{algorithm.lower()}_{self.experiment_id}"
+            )
+            results_dir.mkdir(parents=True, exist_ok=True)
+            saver = FinalResultsSaver(results_dir, self.experiment_id, self.domain_name, self.logger)
+            saver.log_results(final_result['calibration_metrics'], final_result['evaluation_metrics'])
+            return saver.save_results(final_result, algorithm)
+
+        except Exception as e:  # noqa: BLE001 — calibration resilience
+            self.logger.error(
+                f"Error evaluating self-training model {model_name}: {e}", exc_info=True
+            )
+            return None
 
     def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
         """
