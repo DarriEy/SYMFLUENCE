@@ -82,15 +82,11 @@ src/symfluence/data/acquisition/handlers/__init__.py:<module>:except Exception a
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer._download_latlon_grid:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer.download:except Exception as fallback_err:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer.download:except Exception as primary_err:  # noqa: BLE001
-src/symfluence/data/acquisition/handlers/aridity_index.py:AridityIndexAcquirer._log_summary:except Exception as e:  # noqa: BLE001 — summary logging is non-critical
 src/symfluence/data/acquisition/handlers/ascat_sm.py:ASCATSMAcquirer.download:except Exception as exc:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/ascat_sm.py:ASCATSMAcquirer.download:except Exception as exc:  # noqa: BLE001 — data acquisition resilience
-src/symfluence/data/acquisition/handlers/bedrock_depth.py:BedrockDepthAcquirer._log_summary:except Exception as e:  # noqa: BLE001 — summary logging is non-critical
-src/symfluence/data/acquisition/handlers/bedrock_depth.py:BedrockDepthAcquirer.download:except Exception as e:  # noqa: BLE001 — fallback to full download
 src/symfluence/data/acquisition/handlers/cds_datasets.py:CDSRegionalReanalysisHandler._retrieve_with_retry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/acquisition/handlers/chirps.py:CHIRPSAcquirer._subset_and_merge:except Exception as e:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/chirps.py:CHIRPSAcquirer.download:except Exception as e:  # noqa: BLE001 — data acquisition resilience
-src/symfluence/data/acquisition/handlers/cmc_snow.py:CMCSnowAcquirer._download_year:except Exception as e:  # noqa: BLE001 — retry resilience
 src/symfluence/data/acquisition/handlers/cnes_grgs_tws.py:CNESGRGSAcquirer.download:except Exception as e:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/daymet.py:DaymetAcquirer._download_opendap_subset:except Exception as e:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/daymet.py:DaymetAcquirer._download_single_pixel:except Exception as e:  # noqa: BLE001 — data acquisition resilience
@@ -492,8 +488,6 @@ src/symfluence/geospatial/geofabric/methods/drop_analysis.py:DropAnalysisMethod.
 src/symfluence/geospatial/geofabric/methods/multi_scale.py:MultiScaleMethod._combine_multi_scale_sources:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/geospatial/geofabric/processors/gdal_processor.py:GDALProcessor.run_gdal_processing:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/geospatial/geofabric/processors/gdal_processor.py:GDALProcessor.run_gdal_processing:except Exception as fallback_err:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/geospatial/geometry_utils.py:calculate_feature_centroids:except Exception as e:  # noqa: BLE001 — geospatial resilience
-src/symfluence/geospatial/geometry_utils.py:clean_geometry:except Exception as e:  # noqa: BLE001 — geospatial resilience
 src/symfluence/geospatial/raster_utils.py:calculate_annual_radiation:except Exception as e:  # noqa: BLE001 — plotting resilience
 src/symfluence/geospatial/raster_utils.py:calculate_aspect:except Exception as e:  # noqa: BLE001 — plotting resilience
 src/symfluence/gui/app.py:SymfluenceApp.__init__:except Exception as exc:  # noqa: BLE001 — UI resilience

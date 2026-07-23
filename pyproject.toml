@@ -147,26 +147,22 @@ climate-classification = [
 #   cas  — zonal attributes     (CAS_DATASETS: ... in any attribute profile)
 #   csfs — streamflow obs       (ADDITIONAL_OBSERVATIONS: csfs + CSFS_STATION_ID: ...)
 # Install via: uv pip install "symfluence[community]" (or cfs/cas/csfs singly)
-# Upper bound is intentional: the acquisition-backend contract is pre-1.0,
-# where a MINOR bump is a BREAKING change (contract PROTOCOL_VERSION, enforced
-# by is_compatible). Each package version tracks the contract minor it targets;
-# the in-tree contract is currently 0.5.0 (source-kind / dataset-artifact tier
-# on top of 0.4.0's license posture), so a `<0.6.0` cap admits 0.3.x–0.5.x
-# packages (additive-compatible) while blocking the next breaking boundary.
-# Bump the cap when the contract minor advances.
+# Community-service releases preserve the acquisition-backend surface across
+# minor versions. Do not synchronize their package versions: the services
+# release independently, and the resolver should select each newest release.
 cfs = [
-  "community-forcing-service>=0.3.0,<0.6.0",
+  "community-forcing-service",
 ]
 cas = [
-  "community-attribute-service>=0.3.0,<0.6.0",
+  "community-attribute-service",
 ]
 csfs = [
-  "community-streamflow-service>=0.3.0,<0.6.0",
+  "community-streamflow-service",
 ]
 community = [
-  "community-forcing-service>=0.3.0,<0.6.0",
-  "community-attribute-service>=0.3.0,<0.6.0",
-  "community-streamflow-service>=0.3.0,<0.6.0",
+  "community-forcing-service",
+  "community-attribute-service",
+  "community-streamflow-service",
 ]
 # Development tools
 dev = [
@@ -381,20 +377,23 @@ skips = [
     "B404",  # subprocess import - required for external model execution
     "B603",  # subprocess calls - required for external model execution
     "B607",  # partial paths - safe for known system commands
-    "B608",  # SQL string construction - controlled API queries (gSSURGO SDA), not user input
 ]
 
 [tool.mypy]
 python_version = "3.11"
 show_error_codes = true
 warn_return_any = false
+warn_redundant_casts = true
+strict_equality = true
 warn_unused_configs = true
 ignore_missing_imports = true
 check_untyped_defs = true
 disallow_untyped_calls = false
 disallow_untyped_defs = false
 # Ignore the most common noisy errors for now
-disable_error_code = ["attr-defined", "no-any-return", "operator", "arg-type", "assignment", "union-attr"]
+# These high-volume categories are being enabled incrementally.  Do not add
+# codes here without recording a concrete burn-down plan.
+disable_error_code = ["attr-defined", "operator", "arg-type", "assignment", "union-attr"]
 exclude = ["examples/", "tests/", "src/symfluence/cli\\.py$"]
 
 [tool.coverage.run]

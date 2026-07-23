@@ -15,10 +15,13 @@ from __future__ import annotations
 import logging
 from typing import Optional, Tuple, Union
 
+from pyproj.exceptions import CRSError
+from shapely.errors import GEOSException
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon
 from shapely.validation import make_valid
 
 from symfluence.core.mixins import LoggingMixin
+from symfluence.geospatial.exceptions import CoordinateError
 
 try:
     import geopandas as gpd
@@ -85,9 +88,9 @@ def clean_geometry(
 
         return geometry if geometry.is_valid and not geometry.is_empty else None
 
-    except Exception as e:  # noqa: BLE001 — geospatial resilience
+    except GEOSException as e:
         if logger:
-            logger.debug(f"Error cleaning geometry: {str(e)}")
+            logger.debug("GEOS could not clean geometry: %s", e, exc_info=True)
         return None
 
 
@@ -248,10 +251,18 @@ def calculate_feature_centroids(
         # Project to temporary CRS, calculate centroid, project back
         try:
             return gdf.to_crs(epsg=temp_epsg).geometry.centroid.to_crs(gdf.crs)
-        except Exception as e:  # noqa: BLE001 — geospatial resilience
+        except CRSError as e:
             if logger:
-                logger.warning(f"Projection failed, using original CRS: {e}")
-            return gdf.geometry.centroid
+                logger.error(
+                    "Projection to EPSG:%s failed; refusing to calculate "
+                    "centroids in geographic coordinates",
+                    temp_epsg,
+                    exc_info=True,
+                )
+            raise CoordinateError(
+                f"Cannot calculate accurate feature centroids: "
+                f"projection to EPSG:{temp_epsg} failed"
+            ) from e
     else:
         return gdf.geometry.centroid
 

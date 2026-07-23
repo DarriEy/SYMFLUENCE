@@ -12,7 +12,8 @@ Handles geological and hydrogeological attributes including:
 """
 from __future__ import annotations
 
-import pickle  # nosec B403 - used for caching geology lookup tables, not untrusted data
+# Security rationale: used for caching geology lookup tables, not untrusted data
+import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict
 
@@ -74,7 +75,8 @@ class GeologyProcessor(BaseAttributeProcessor):
             self.logger.info(f"Loading cached GLHYMPS results from {cache_file}")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
+                    # Security rationale: loading trusted local cache files
+                    return pickle.load(f)  # nosec B301
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cached GLHYMPS results: {str(e)}")
 

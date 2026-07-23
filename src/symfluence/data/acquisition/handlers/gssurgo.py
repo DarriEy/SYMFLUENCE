@@ -154,11 +154,11 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
 
     def _query_mukeys(self, session) -> List[str]:
         """Query SDA for map unit keys intersecting the domain polygon."""
-        wkt = _bbox_to_wkt(self.bbox)
+        wkt = _bbox_to_wkt(self.bbox).replace("'", "''")
 
         # Use SDA spatial query to get mukeys (controlled API, not user input)
-        query = (  # nosec B608
-            f"SELECT mu.mukey, mu.musym, mu.muname "
+        query = (
+            f"SELECT mu.mukey, mu.musym, mu.muname "  # nosec
             f"FROM mapunit mu "
             f"INNER JOIN SDA_Get_Mukey_from_intersection_with_WktWgs84('{wkt}') mk "
             f"ON mu.mukey = mk.mukey"
@@ -179,11 +179,14 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
         max_depth: int,
     ) -> Optional[pd.DataFrame]:
         """Query SDA for depth-weighted soil properties by dominant component."""
+        if not all(p.isidentifier() for p in properties):
+            raise ValueError("Soil property names must be valid identifiers")
         prop_cols = ", ".join([f"AVG(ch.{p}) AS {p}" for p in properties])
-        mukey_list = ", ".join([f"'{mk}'" for mk in mukeys])
+        mukey_list = ", ".join([f"'{str(mk).replace(chr(39), chr(39) * 2)}'" for mk in mukeys])
 
         # Query: dominant component per mapunit, depth-weighted horizon averages
-        query = f"""  # nosec B608
+        # Security rationale: identifiers are validated and literals escaped above.
+        query = f"""
         SELECT
             mu.mukey,
             mu.musym,
@@ -204,7 +207,7 @@ class GSSURGOAcquirer(BaseAcquisitionHandler, RetryMixin):
             )
         GROUP BY mu.mukey, mu.musym, mu.muname, c.comppct_r
         ORDER BY mu.mukey
-        """
+        """  # nosec
 
         # SDA has query size limits; chunk if many mukeys
         if len(mukeys) > 500:

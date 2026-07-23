@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import pandas as pd
 import xarray as xr
@@ -281,7 +281,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                 default=50.0,
                 dict_key='GW_BASE_DEPTH'
             ))
-            gw_depth_sim = cast(pd.Series, (base_depth - sim_data_m).abs())
+            gw_depth_sim = (base_depth - sim_data_m).abs()
 
             return gw_depth_sim
         elif 'scalarAquiferStorage' in ds.variables:
@@ -292,7 +292,7 @@ class GroundwaterEvaluator(ModelEvaluator):
                 default=50.0,
                 dict_key='GW_BASE_DEPTH'
             ))
-            gw_depth_sim = cast(pd.Series, (base_depth - sim_data).abs())
+            gw_depth_sim = (base_depth - sim_data).abs()
 
             return gw_depth_sim
         else:

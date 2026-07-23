@@ -277,6 +277,10 @@ pytest tests/integration/   # Integration tests
 pytest tests/e2e/ --run-full-examples  # End-to-end tests (slow)
 ```
 
+Preview known generated workspace artifacts with `pixi run clean`. Remove only
+those listed artifacts with `pixi run clean-apply`; the cleanup task targets
+only named caches/probe artifacts and never arbitrary model-output directories.
+
 CI enforces a coverage floor that only ratchets upward — a change may not lower
 total coverage. See [ADR-0008](docs/adr/0008-coverage-gate-raise-and-ratchet.md)
 for the policy. When testing config handling, set `SYMFLUENCE_STRICT_CONFIG=1`

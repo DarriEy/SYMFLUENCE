@@ -69,12 +69,9 @@ def minimal_config(tmp_path):
 def backend(backend_name, minimal_config):
     """Materialize the registered backend (classes get (config, logger)).
 
-    Backends targeting an incompatible interface version are SKIPPED, not
-    failed: pre-1.0, a minor contract bump is breaking by design, and a
-    third-party backend hardcoding an older target is *detected* as skew by
-    the selection layer and declined (it is inert, so conformance of its
-    acquire path is moot until it re-targets). The in-tree native backend
-    imports PROTOCOL_VERSION and can never skew.
+    Backends targeting an incompatible major interface version are SKIPPED,
+    not failed. Minor community-service releases are additive and compatible;
+    the in-tree native backend imports PROTOCOL_VERSION and cannot skew.
     """
     from symfluence.core.registries import R
     from symfluence.data.backends.contract import PROTOCOL_VERSION, is_compatible
@@ -90,8 +87,8 @@ def backend(backend_name, minimal_config):
     if not is_compatible(version):
         pytest.skip(
             f'backend {backend_name!r} targets interface_version {version!r}, '
-            f'incompatible with protocol {PROTOCOL_VERSION} (pre-1.0 minor bumps '
-            f'are breaking); the selection layer declines it, so it is inert '
+            f'incompatible with protocol {PROTOCOL_VERSION} (major versions '
+            f'differ); the selection layer declines it, so it is inert '
             f'until it re-targets'
         )
     return materialized

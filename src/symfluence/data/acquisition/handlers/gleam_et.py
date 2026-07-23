@@ -168,7 +168,8 @@ class GLEAMETAcquirer(BaseAcquisitionHandler):
         downloaded: List[Path] = []
 
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+        # Security rationale: legacy GLEAM host has no distributed host-key manifest.
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec
 
         try:
             self.logger.info(f"Connecting to {GLEAM_HOST}:{GLEAM_PORT}...")

@@ -371,4 +371,4 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             )
 
         series_cms.index = pd.to_datetime(series_cms.index).round(freq='h')
-        return series_cms
+        return pd.Series(series_cms)

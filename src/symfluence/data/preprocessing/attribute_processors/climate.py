@@ -14,7 +14,9 @@ Handles climate data processing including:
 from __future__ import annotations
 
 import os
-import pickle  # nosec B403 - used for trusted local cache files
+
+# Security rationale: used for trusted local cache files
+import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -76,7 +78,8 @@ class ClimateProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached raw climate results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
+                    # Security rationale: loading trusted local cache files
+                    return pickle.load(f)  # nosec B301
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -311,7 +314,8 @@ class ClimateProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached derived climate results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301 - loading trusted local cache files
+                    # Security rationale: loading trusted local cache files
+                    return pickle.load(f)  # nosec B301
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 

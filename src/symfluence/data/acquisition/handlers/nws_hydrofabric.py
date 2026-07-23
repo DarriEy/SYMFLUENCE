@@ -498,8 +498,12 @@ class NWSHydrofabricAcquirer(BaseAcquisitionHandler, RetryMixin):
             return None
 
         # Build SQL query with parameterized IN clause
-        id_list = ",".join(f"'{i}'" for i in ids)
-        sql = f'SELECT * FROM "{layer}" WHERE "{id_col}" IN ({id_list})'
+        # GeoPandas does not expose SQL parameters here, so quote identifiers
+        # and literals according to SQL rules before constructing the query.
+        quoted_layer = layer.replace('"', '""')
+        quoted_id_col = id_col.replace('"', '""')
+        id_list = ",".join(f"'{str(i).replace(chr(39), chr(39) * 2)}'" for i in ids)
+        sql = f'SELECT * FROM "{quoted_layer}" WHERE "{quoted_id_col}" IN ({id_list})'  # nosec
 
         try:
             return gpd.read_file(gpkg_path, sql=sql)

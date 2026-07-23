@@ -25,6 +25,9 @@ on:
   schedule:
     - cron: '0 3 * * 0'  # weekly, Sundays 03:00 UTC (offset from the x86_64 job)
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -70,13 +73,13 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -279,11 +282,11 @@ jobs:
           set -e
           unset HDF5_ROOT HDF5_LIBDIR HDF5_INCLUDE_DIR
           # Lean smoke level — the build itself is the expensive part under test.
-          pytest -v --tb=short -m "smoke" tests/ || pytest -v --tb=short -m "unit" -q tests/unit/cli/
+          pytest --timeout=300 -v --tb=short -m "smoke" tests/ || pytest --timeout=300 -v --tb=short -m "unit" -q tests/unit/cli/
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: arm-build-logs
           path: |

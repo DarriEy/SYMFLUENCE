@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess  # nosec B404 — runs the symfluence CLI itself, argv-built
+
+# Security rationale: runs the symfluence CLI itself, argv-built
+import subprocess  # nosec B404
 import sys
 import tempfile
 from pathlib import Path
@@ -114,7 +116,8 @@ def _tool_run_workflow_step(arguments: dict) -> dict:
 
     with tempfile.TemporaryFile() as buf:
         try:
-            proc = subprocess.run(  # nosec B603 — argv built above, no shell
+            # Security rationale: argv built above, no shell
+            proc = subprocess.run(  # nosec B603
                 argv, stdout=buf, stderr=subprocess.STDOUT, timeout=timeout,
             )
         except subprocess.TimeoutExpired:

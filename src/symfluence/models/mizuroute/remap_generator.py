@@ -263,19 +263,19 @@ class MizuRouteRemapGenerator:
             lambda: self.pp.config.paths.river_basins_name, default='default'
         )
 
-        intersect_path = Path(self.pp._get_config_value(
+        intersect_path_value = self.pp._get_config_value(
             lambda: self.pp.config.paths.intersect_routing_path, default='default'
-        ))
+        )
         intersect_name = self.pp._get_config_value(
             lambda: self.pp.config.paths.intersect_routing_name, default='default'
         )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_routing_basins.shp'
 
-        if intersect_path == 'default':
+        if intersect_path_value == 'default':
             intersect_path = self.pp.project_dir / 'shapefiles/catchment_intersection'
         else:
-            intersect_path = Path(intersect_path)
+            intersect_path = Path(intersect_path_value)
 
         remap_name = self.pp.mizu_remap_file
         if not remap_name:

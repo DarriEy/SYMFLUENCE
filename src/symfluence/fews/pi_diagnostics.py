@@ -11,7 +11,9 @@ failure. The ``write()`` method therefore catches all internal exceptions.
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET  # nosec B405 - writing trusted local diagnostics XML
+
+# Security rationale: writing trusted local diagnostics XML
+import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path

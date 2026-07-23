@@ -18,7 +18,8 @@ native chat screen lands.
 """
 from __future__ import annotations
 
-import subprocess  # nosec B404 — argv from build_launch_argv, no shell
+# Security rationale: argv from build_launch_argv, no shell
+import subprocess  # nosec B404
 from pathlib import Path
 
 from textual.app import ComposeResult

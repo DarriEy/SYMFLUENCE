@@ -91,8 +91,8 @@ class ProjectWizard:
                         return result
                 else:
                     # Question phase
-                    result = self._process_phase(phase)
-                    if result == 'quit':
+                    phase_result = self._process_phase(phase)
+                    if phase_result == 'quit':
                         self.prompts.show_cancelled()
                         return ExitCode.USER_INTERRUPT
 

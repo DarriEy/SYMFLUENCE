@@ -10,9 +10,12 @@ from unittest.mock import Mock
 
 import geopandas as gpd
 import pytest
+from pyproj.exceptions import CRSError
+from shapely.errors import GEOSException
 from shapely.geometry import Point, Polygon
 
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
+from symfluence.geospatial.exceptions import CoordinateError
+from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin, clean_geometry
 
 
 class MockClass(GeospatialUtilsMixin):
@@ -20,6 +23,39 @@ class MockClass(GeospatialUtilsMixin):
 
     def __init__(self):
         self.logger = Mock()
+
+
+def test_clean_geometry_suppresses_geos_repair_failure(monkeypatch):
+    """Invalid GEOS input is rejected without hiding unrelated exceptions."""
+    invalid = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
+    logger = Mock()
+
+    def fail_repair(_geometry):
+        raise GEOSException("repair failed")
+
+    monkeypatch.setattr(
+        "symfluence.geospatial.geometry_utils.make_valid",
+        fail_repair,
+    )
+
+    assert clean_geometry(invalid, logger) is None
+    logger.debug.assert_called_once()
+
+
+def test_clean_geometry_does_not_hide_programming_errors(monkeypatch):
+    """Unexpected failures propagate instead of being treated as bad geometry."""
+    invalid = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
+
+    def fail_repair(_geometry):
+        raise RuntimeError("unexpected bug")
+
+    monkeypatch.setattr(
+        "symfluence.geospatial.geometry_utils.make_valid",
+        fail_repair,
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected bug"):
+        clean_geometry(invalid)
 
 
 class TestGeospatialUtilsMixinCentroid:
@@ -38,6 +74,28 @@ class TestGeospatialUtilsMixinCentroid:
         # Should be centered at (0, 0)
         assert abs(lon - 0.0) < 0.01
         assert abs(lat - 0.0) < 0.01
+
+    def test_feature_centroid_projection_failure_is_domain_error(
+        self, monkeypatch
+    ):
+        """Never silently calculate projected centroids in angular degrees."""
+        polygon = Polygon(
+            [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
+        )
+        gdf = gpd.GeoDataFrame({"geometry": [polygon]}, crs="EPSG:4326")
+
+        def fail_projection(*_args, **_kwargs):
+            raise CRSError("projection unavailable")
+
+        monkeypatch.setattr(gdf, "to_crs", fail_projection)
+        mixin = MockClass()
+
+        with pytest.raises(
+            CoordinateError,
+            match="projection to EPSG:3857 failed",
+        ):
+            mixin.calculate_feature_centroids(gdf)
+        mixin.logger.error.assert_called_once()
 
     def test_centroid_rectangle_northern_hemisphere(self):
         """Test centroid for a rectangle in northern hemisphere."""

@@ -155,7 +155,8 @@ def _write_netcdf_with_fallbacks(ds: xr.Dataset, path: Path, encoding: dict = No
     import shutil
     import tempfile
 
-    tmpdir = os.environ.get('TMPDIR') or tempfile.gettempdir()  # nosec B108 — respects $TMPDIR
+    # Security rationale: respects $TMPDIR
+    tmpdir = os.environ.get('TMPDIR') or tempfile.gettempdir()
     fd, tmp_path = tempfile.mkstemp(suffix='.nc', dir=tmpdir)
     os.close(fd)
     try:
@@ -582,7 +583,8 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         except ImportError as e:
             raise ImportError("gcsfs and xarray are required for ERA5 cloud access.") from e
 
-        gcs = gcsfs.GCSFileSystem(token="anon")  # nosec B106 - anonymous access to public GCS
+        # Security rationale: anonymous access to public GCS
+        gcs = gcsfs.GCSFileSystem(token="anon")  # nosec B106
         default_store = "gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
         zarr_store = self._get_config_value(
             lambda: self.config.forcing.era5.zarr_path, default=default_store

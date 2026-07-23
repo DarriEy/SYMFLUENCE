@@ -10,7 +10,9 @@ and snow water equivalent (SWE).
 from __future__ import annotations
 
 import logging
-import pickle  # nosec B403 - Used for trusted internal model serialization
+
+# Security rationale: Used for trusted internal model serialization
+import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -424,7 +426,8 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         # 1. Load network
         network_data_path = self.project_dir / "settings" / "dRoute" / 'dRoute_network.pkl'
         with open(network_data_path, 'rb') as f:
-            network_data = pickle.load(f)  # nosec B301 - Loading trusted internal model data
+            # Security rationale: Loading trusted internal model data
+            network_data = pickle.load(f)  # nosec B301
 
         network = network_data['network']
         network_data['seg_areas']

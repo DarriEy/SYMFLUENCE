@@ -1027,7 +1027,8 @@ For more help on a specific command:
         index = 0
         while index < len(args):
             token = args[index]
-            if token == '--':  # nosec B105 — argv separator, not a password
+            # Security rationale: argv separator, not a password
+            if token == '--':  # nosec B105
                 return index
             if token.startswith('-'):
                 option = token.partition('=')[0]
