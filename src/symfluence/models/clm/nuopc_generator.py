@@ -86,7 +86,8 @@ def _ensure_cesm_inputdata(root: Path) -> None:
         url = f'{_CESM_INPUTDATA_URL}/{rel_path}'
         logger.info(f"Downloading CESM inputdata: {rel_path}")
         try:
-            urllib.request.urlretrieve(url, local)  # nosec B310 — trusted CESM inputdata URL
+            # Security rationale: trusted CESM inputdata URL
+            urllib.request.urlretrieve(url, local)  # nosec B310
             logger.info(f"  Saved: {local} ({local.stat().st_size / 1e6:.1f} MB)")
         except Exception as exc:  # noqa: BLE001 — model execution resilience
             logger.warning(f"  Failed to download {rel_path}: {exc}", exc_info=True)

@@ -260,6 +260,13 @@ def test_complete_workflow(tmp_path):
 pytest -v -m "unit"
 ```
 
+Parallel execution and per-test timeouts are opt-in so a minimal pytest
+installation can collect the suite:
+
+```bash
+pytest -n auto --dist loadscope --timeout=300 -m "unit" tests/unit/
+```
+
 ### Run quick tests (like CI quick mode)
 ```bash
 pytest -v -m "unit"

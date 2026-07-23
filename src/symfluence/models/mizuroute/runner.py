@@ -363,7 +363,8 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             ds.close()
 
             if os.name != 'nt':
-                os.chmod(temp_filepath, 0o664)  # nosec B103 - Group-writable for HPC shared access
+                # Security rationale: Group-writable for HPC shared access
+                os.chmod(temp_filepath, 0o664)  # nosec B103
             temp_filepath.replace(runoff_filepath)
 
             self.logger.info("Time precision fixed successfully")

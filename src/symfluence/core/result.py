@@ -97,7 +97,7 @@ class Result(Generic[T]):
             raise ValueError(f"Unwrap called on error Result:\n{self.format_errors()}")
         if self.value is None:
             raise ValueError("Result value is None despite no errors")
-        return cast(T, self.value)
+        return self.value
 
     def unwrap_or(self, default: T) -> T:
         """
@@ -112,7 +112,7 @@ class Result(Generic[T]):
         if self.is_ok:
             if self.value is None:
                 raise ValueError("Result value is None despite no errors")
-            return cast(T, self.value)
+            return self.value
         return default
 
     def unwrap_or_else(self, f: Callable[[], T]) -> T:
@@ -128,7 +128,7 @@ class Result(Generic[T]):
         if self.is_ok:
             if self.value is None:
                 raise ValueError("Result value is None despite no errors")
-            return cast(T, self.value)
+            return self.value
         return f()
 
     def map(self, f: Callable[[T], U]) -> "Result[U]":
@@ -144,7 +144,7 @@ class Result(Generic[T]):
         if self.is_ok:
             if self.value is None:
                 raise ValueError("Result value is None despite no errors")
-            return Result.ok(f(cast(T, self.value)))
+            return Result.ok(f(self.value))
         return Result(errors=self.errors)
 
     def format_errors(self, prefix: str = "  - ") -> str:

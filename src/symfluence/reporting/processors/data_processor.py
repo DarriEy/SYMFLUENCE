@@ -131,7 +131,7 @@ class DataProcessor(ConfigMixin):
             List of (model_name, Series) tuples
         """
         import xarray as xr
-        sim_data = []
+        sim_data: List[Tuple[str, pd.Series]] = []
 
         for sim_name, sim_file in model_outputs:
             try:
@@ -180,7 +180,7 @@ class DataProcessor(ConfigMixin):
         if not sim_data:
             self.logger.error("No simulation data could be loaded")
 
-        return cast(List[Tuple[str, pd.Series]], sim_data)
+        return sim_data
 
     def load_distributed_model_outputs(
         self,

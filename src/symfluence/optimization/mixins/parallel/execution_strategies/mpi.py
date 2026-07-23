@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import os
-import pickle  # nosec B403 - Used for trusted internal MPI task serialization
+
+# Security rationale: Used for trusted internal MPI task serialization
+import pickle  # nosec B403
 import shutil
 import subprocess
 import sys
@@ -129,7 +131,8 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
                 if result.returncode == 0 and results_file.exists():
                     with open(results_file, 'rb') as f:
-                        results = pickle.load(f)  # nosec B301 - Loading trusted MPI results
+                        # Security rationale: Loading trusted MPI results
+                        results = pickle.load(f)  # nosec B301
                     self.logger.debug(f"MPI completed: {len(results)} results")
                     return results
 

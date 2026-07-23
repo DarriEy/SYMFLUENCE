@@ -392,7 +392,8 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
                 # Atomically move temporary file to final location
                 try:
                     if os.name != 'nt':
-                        os.chmod(temp_path, 0o664)  # nosec B103 - Group-writable for HPC shared access
+                        # Security rationale: Group-writable for HPC shared access
+                        os.chmod(temp_path, 0o664)  # nosec B103
                     temp_path.replace(trial_params_path)
                     logger.debug(f"Trial parameters file created successfully: {trial_params_path}")
                     debug_info['files_checked'].append(f"trialParams.nc (created): {trial_params_path}")

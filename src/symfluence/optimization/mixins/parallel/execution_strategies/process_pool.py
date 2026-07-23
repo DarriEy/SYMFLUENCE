@@ -11,7 +11,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
-from typing import Any, Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List
 
 from .base import ExecutionStrategy
 
@@ -59,7 +59,7 @@ class ProcessPoolExecutionStrategy(ExecutionStrategy):
             # Fall back to sequential for single worker/task
             return [worker_func(task) for task in tasks]
 
-        results: List[Dict[str, Any]] = cast(List[Any], [None] * len(tasks))
+        results: List[Dict[str, Any]] = [{} for _ in tasks]
 
         try:
             # Use ProcessPoolExecutor.map to preserve order

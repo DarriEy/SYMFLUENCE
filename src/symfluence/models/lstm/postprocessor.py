@@ -245,10 +245,10 @@ class LSTMPostProcessor(StandardModelPostProcessor):
             return {}
 
         return {
-            'RMSE': cast(float, rmse(obs_vals, sim_vals, transfo=1)),
+            'RMSE': rmse(obs_vals, sim_vals, transfo=1),
             'KGE': cast(float, kge(obs_vals, sim_vals, transfo=1)),
             'KGEp': cast(float, kge_prime(obs_vals, sim_vals, transfo=1)),
-            'NSE': cast(float, nse(obs_vals, sim_vals, transfo=1)),
-            'MAE': cast(float, mae(obs_vals, sim_vals, transfo=1)),
-            'KGEnp': cast(float, kge_np(obs_vals, sim_vals, transfo=1))
+            'NSE': nse(obs_vals, sim_vals, transfo=1),
+            'MAE': mae(obs_vals, sim_vals, transfo=1),
+            'KGEnp': kge_np(obs_vals, sim_vals, transfo=1)
         }

@@ -77,7 +77,7 @@ class BedrockDepthAcquirer(BaseAcquisitionHandler, RetryMixin):
 
         try:
             self._download_vsicurl(out_path, convert_units)
-        except Exception as e:  # noqa: BLE001 — fallback to full download
+        except (OSError, rasterio.errors.RasterioError, ValueError) as e:
             self.logger.warning(
                 f"/vsicurl/ remote subset failed: {e}. "
                 "Falling back to full download..."
@@ -197,5 +197,5 @@ class BedrockDepthAcquirer(BaseAcquisitionHandler, RetryMixin):
                         f"max={valid.max():.1f} {unit}, "
                         f"pixels={len(valid)}"
                     )
-        except Exception as e:  # noqa: BLE001 — summary logging is non-critical
+        except (OSError, rasterio.errors.RasterioError, ValueError) as e:
             self.logger.debug(f"Could not log summary: {e}")

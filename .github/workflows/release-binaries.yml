@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false  # Don't cancel releases
 
 permissions:
-  contents: write  # Required for creating/updating releases
+  contents: read
 
 jobs:
   build-and-release:
@@ -58,6 +58,8 @@ jobs:
     # Raised from 120: the Windows job now also builds netCDF-C from source
     # (~10 min, dominated by CMake's feature probes) before building the models.
     timeout-minutes: 150
+    permissions:
+      contents: write  # Required for creating/updating releases
 
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
@@ -88,7 +90,7 @@ jobs:
           git config --global --add safe.directory '*'
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -110,7 +112,7 @@ jobs:
       # (setup-python's binary needs a newer glibc than the container has).
       - name: Set up Python
         if: matrix.container == ''
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -217,7 +219,7 @@ jobs:
       # ========================================================================
       - name: Set up Miniconda (Windows)
         if: runner.os == 'Windows'
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3
         with:
           auto-update-conda: false
           channels: conda-forge
@@ -322,7 +324,7 @@ jobs:
 
       - name: Install MS-MPI (Windows)
         if: runner.os == 'Windows'
-        uses: mpi4py/setup-mpi@v1
+        uses: mpi4py/setup-mpi@3417e34f1394a16723d7913c236642c24e95fd5a # v1
         with:
           mpi: msmpi
 
@@ -599,7 +601,7 @@ jobs:
       # (and keeps the backup workflow artifact) but uploads nothing.
       - name: Upload to Release
         if: steps.resolve-tag.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.tag != '')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.resolve-tag.outputs.tag }}
           files: |
@@ -612,7 +614,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (backup)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symfluence-tools-${{ matrix.platform }}
           path: |
@@ -633,10 +635,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -741,10 +743,10 @@ jobs:
       # Needed for scripts/check_windows_dll_closure.sh below — this job
       # otherwise only consumes the published npm package.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 

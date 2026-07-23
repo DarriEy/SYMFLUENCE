@@ -10,7 +10,8 @@ and properties needed to drive a SYMFLUENCE model run.
 """
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET  # nosec B405 - parsing trusted FEWS run_info.xml
+# Security rationale: parsing trusted FEWS run_info.xml
+import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path

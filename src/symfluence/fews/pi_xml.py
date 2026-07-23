@@ -11,7 +11,8 @@ PI-XML namespace: ``http://www.wldelft.nl/fews/PI``
 """
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET  # nosec B405 - parsing trusted FEWS PI-XML files
+# Security rationale: parsing trusted FEWS PI-XML files
+import xml.etree.ElementTree as ET  # nosec B405
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List

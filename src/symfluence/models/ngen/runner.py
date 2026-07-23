@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess  # nosec B404 - Required for running Docker containers and model executables
+
+# Security rationale: Required for running Docker containers and model executables
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 

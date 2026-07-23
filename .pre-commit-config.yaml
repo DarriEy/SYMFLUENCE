@@ -64,6 +64,13 @@ repos:
   # Project-specific CI guards (match .github/workflows/ci.yml)
   - repo: local
     hooks:
+      - id: actionlint
+        name: Validate GitHub Actions workflows
+        entry: actionlint
+        language: python
+        additional_dependencies: [actionlint-py==1.7.12.24]
+        pass_filenames: false
+        files: ^\.github/workflows/.*\.ya?ml$
       - id: check-npm-bin-shebangs
         name: Guard npm bin wrapper shebangs
         entry: python scripts/check_npm_bin_shebangs.py

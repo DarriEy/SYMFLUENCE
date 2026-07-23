@@ -3,6 +3,10 @@ name = "symfluence"
 platforms = ["linux-64", "osx-arm64", "win-64"]
 channels = ["conda-forge", "pytorch"]
 
+[tasks]
+clean = "python scripts/clean_workspace.py"
+clean-apply = "python scripts/clean_workspace.py --apply"
+
 [dependencies]
 python = ">=3.11,<3.14"
 

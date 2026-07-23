@@ -118,7 +118,8 @@ class GLEAMETHandler(BaseObservationHandler):
     def _extract_if_needed(self, archive_path: Path, target_dir: Path) -> None:
         if archive_path.suffix in {".tar", ".gz", ".tgz"} or archive_path.name.endswith(".tar.gz"):
             with tarfile.open(archive_path, "r:*") as tar:
-                # nosec B202 - Extracting from trusted GLEAM data archive
+               # Security rationale: Extracting from trusted GLEAM data archive
+                # nosec B202
                 from symfluence.core.archive_extraction import safe_tar_extract
                 safe_tar_extract(tar, target_dir)
             return

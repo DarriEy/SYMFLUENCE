@@ -105,7 +105,7 @@ class LocalScratchManager(ConfigMixin):
             return f"node{slurm_nodeid}"
 
         # Otherwise use hostname hash for uniqueness
-        node_hash = hashlib.md5(self.node_name.encode(), usedforsecurity=False).hexdigest()[:8]  # nosec B324
+        node_hash = hashlib.md5(self.node_name.encode(), usedforsecurity=False).hexdigest()[:8]
         return f"node_{node_hash}"
 
     def _should_use_scratch(self) -> bool:

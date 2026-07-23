@@ -1048,21 +1048,23 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                         self.logger.debug(f"Loaded {len(constraint_defaults)} defaults from constraints file")
 
                     for var in ds.data_vars:
-                        if var in constraint_defaults:
-                            default_val = constraint_defaults[var]
-                        elif var in bounds:
-                            default_val = (bounds[var]['min'] + bounds[var]['max']) / 2.0
+                        var_name = str(var)
+                        if var_name in constraint_defaults:
+                            default_val = constraint_defaults[var_name]
+                        elif var_name in bounds:
+                            default_val = (bounds[var_name]['min'] + bounds[var_name]['max']) / 2.0
                         else:
                             default_val = 0.0
-                        ds_dict[var] = np.array([default_val])
+                        ds_dict[var_name] = np.array([default_val])
                 else:
                     # Normal case: keep only first parameter set
                     for var in ds.data_vars:
                         vals = ds[var].values
+                        var_name = str(var)
                         if vals.ndim > 0 and len(vals) > 0:
-                            ds_dict[var] = np.array([vals[0]])
+                            ds_dict[var_name] = np.array([vals[0]])
                         else:
-                            ds_dict[var] = np.array([0.0])
+                            ds_dict[var_name] = np.array([0.0])
 
             # Update the elevation band parameters
             ds_dict['N_BANDS'] = np.array([float(n_bands)])

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import logging
 import os
-import pickle  # nosec B403 - Used for trusted internal MPI task serialization
+
+# Security rationale: Used for trusted internal MPI task serialization
+import pickle  # nosec B403
 import shutil
 import subprocess
 import sys
@@ -230,7 +232,8 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
 
         # Read results
         with open(results_file, 'rb') as f:
-            results = pickle.load(f)  # nosec B301 - Trusted internal data
+            # Security rationale: Trusted internal data
+            results = pickle.load(f)  # nosec B301
 
         # Clean up for next batch
         for f in ('tasks.pkl', 'tasks.ready', 'results.pkl', 'results.ready'):
@@ -405,7 +408,8 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
     @staticmethod
     def _is_local_path(path: str, slurm_tmpdir: Optional[str] = None) -> bool:
         """Check whether a path is on node-local storage."""
-        local_prefixes = ["/tmp"]  # nosec B108 - path check, not file creation
+        # Security rationale: path check, not file creation
+        local_prefixes = ["/tmp"]  # nosec B108
         if slurm_tmpdir:
             local_prefixes.append(slurm_tmpdir)
         return any(path.startswith(p) for p in local_prefixes)

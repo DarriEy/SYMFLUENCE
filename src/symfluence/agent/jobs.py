@@ -23,7 +23,9 @@ from __future__ import annotations
 import json
 import os
 import signal
-import subprocess  # nosec B404 — argv-built commands, no shell
+
+# Security rationale: argv-built commands, no shell
+import subprocess  # nosec B404
 import sys
 import time
 import uuid
@@ -123,7 +125,8 @@ def start_job(argv: list[str], description: str = '') -> dict:
         if sys.platform == 'win32' else {'start_new_session': True}
     )
     with open(log_path, 'wb') as log:
-        proc = subprocess.Popen(  # nosec B603 — argv assembled by the caller, no shell
+        # Security rationale: argv assembled by the caller, no shell
+        proc = subprocess.Popen(  # nosec B603
             [sys.executable, '-c', _WRAPPER, str(exit_path), *argv],
             stdout=log, stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL, **detach,
@@ -193,7 +196,8 @@ def cancel_job(job_id: str, grace_s: float = 5.0) -> dict:
         if sys.platform == 'win32':
             # No graceful console signal reaches a detached tree on Windows;
             # kill the wrapper and everything under it in one shot.
-            subprocess.run(  # nosec B603 B607 — fixed argv, no shell
+            # Security rationale: fixed argv, no shell.
+            subprocess.run(  # nosec B603 B607
                 ['taskkill', '/PID', str(pid), '/T', '/F'],
                 capture_output=True, check=False,
             )

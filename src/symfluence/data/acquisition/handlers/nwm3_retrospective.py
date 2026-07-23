@@ -158,7 +158,7 @@ class NWM3RetrospectiveAcquirer(BaseAcquisitionHandler):
         )
         if requested_vars:
             var_list = [v.strip() for v in requested_vars.split(',')]
-            available = set(ds.data_vars)
+            available = {str(name) for name in ds.data_vars}
             missing = set(var_list) - available
             if missing:
                 self.logger.warning(

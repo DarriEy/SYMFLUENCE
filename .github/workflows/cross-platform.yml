@@ -9,6 +9,9 @@ on:
     - cron: '0 3 * * *'  # nightly full cross-platform matrix
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -46,18 +49,18 @@ jobs:
           df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python ${{ matrix.python-version }}
         if: matrix.os != 'windows-latest'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Setup conda (Windows)
         if: matrix.os == 'windows-latest'
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3
         with:
           python-version: ${{ matrix.python-version }}
           auto-activate-base: true
@@ -122,7 +125,7 @@ jobs:
             conda activate test-env
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
+          pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Core coverage gate
         # Stricter ratchet for the fully-testable core spine, reusing the
@@ -137,7 +140,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-report
           path: coverage.xml
@@ -202,13 +205,13 @@ jobs:
           df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
 
       - name: Set up Python
         if: runner.os != 'Windows'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -259,7 +262,7 @@ jobs:
 
       - name: Setup conda (Windows)
         if: runner.os == 'Windows'
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3
         with:
           python-version: ${{ matrix.python-version }}
           auto-activate-base: true
@@ -282,7 +285,7 @@ jobs:
 
       - name: Cache external tools
         id: cache-tools
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
           key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v5
@@ -400,7 +403,7 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
           fi
-          pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation
+          pytest --timeout=300 -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation
 
       # =====================================================================
       # PHASE 1: Generate Release Artifacts (macOS only)
@@ -499,7 +502,7 @@ jobs:
 
       - name: Upload release artifacts
         if: success() && runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: symfluence-tools-macos-arm64
           path: |
@@ -547,13 +550,13 @@ jobs:
           df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
 
       - name: Set up Python
         if: matrix.os != 'windows-latest'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -604,7 +607,7 @@ jobs:
 
       - name: Setup conda (Windows)
         if: runner.os == 'Windows'
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3
         with:
           python-version: ${{ matrix.python-version }}
           auto-activate-base: true
@@ -627,13 +630,13 @@ jobs:
 
       - name: Cache external tools
         id: cache-tools
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
           key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v5
 
       - name: Cache raw forcing data
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/cache/raw_forcing
           key: raw-forcing-v1-${{ hashFiles('tests/configs/*.yaml', 'tests/integration/data/*.py') }}
@@ -755,11 +758,11 @@ jobs:
             conda activate test-env
           fi
           # Run integration tests in parallel (skip slow tests that download large datasets)
-          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/
+          pytest --timeout=300 -v --tb=short -m "integration and not slow" -n auto tests/integration/
 
       - name: Upload test outputs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: integration-outputs-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |

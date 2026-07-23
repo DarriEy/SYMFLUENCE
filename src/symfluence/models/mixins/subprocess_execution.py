@@ -124,7 +124,7 @@ class SubprocessExecutionMixin:
                     stderr=subprocess.STDOUT if not capture_output else subprocess.PIPE,
                     cwd=cwd,
                     env=run_env,
-                    shell=shell,  # nosec B602 - shell mode required for model executables
+                    shell=shell,  # nosec B602,B604
                     text=True,
                     timeout=timeout
                 )
@@ -218,14 +218,15 @@ class SubprocessExecutionMixin:
             # Execute subprocess
             self.logger.debug(f"Executing command: {' '.join(command)}")
             with open(log_file, 'w', encoding='utf-8') as f:
-                result = run_subprocess(  # nosec B602 - shell mode for trusted model executables
+                # Security rationale: shell mode for trusted model executables
+                result = run_subprocess(
                     command,
                     check=check,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     cwd=cwd,
                     env=run_env,
-                    shell=shell,
+                    shell=shell,  # nosec B602,B604
                     text=True,
                     timeout=timeout
                 )
