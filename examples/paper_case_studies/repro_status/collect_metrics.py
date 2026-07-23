@@ -59,15 +59,17 @@ def code_provenance():
     return ver, commit
 
 
-# Where each objective metric lands in the final_evaluation JSON. Three schemas
-# are in use: plain names (FUSE/HYPE/SUMMA/...), Calib_/Eval_ prefixes
-# (HBV/TOPMODEL), and the correlation objective stored as 'correlation'/'r'
-# (the TWS runs). Look up the objective's own family so eval_score is the
-# out-of-sample value of the SAME metric that was calibrated.
+# Where each objective metric lands in the final_evaluation JSON. Four schemas
+# are in use: plain names (FUSE/HYPE/SUMMA/...), Eval_ prefixes
+# (HBV/TOPMODEL), _Eval suffixes (the PRMS-family optimizers: PRMS/mHM/SWAT/
+# CRHM/GSFLOW/MESH/WRF-Hydro/WATFLOOD write KGE_Eval), and the correlation
+# objective stored as 'correlation'/'r' (the TWS runs). Look up the
+# objective's own family so eval_score is the out-of-sample value of the
+# SAME metric that was calibrated.
 _EVAL_KEYS = {
-    "KGE": ("Eval_KGE", "KGE"),
-    "NSE": ("Eval_NSE", "NSE"),
-    "RMSE": ("Eval_RMSE", "RMSE"),
+    "KGE": ("Eval_KGE", "KGE_Eval", "KGE"),
+    "NSE": ("Eval_NSE", "NSE_Eval", "NSE"),
+    "RMSE": ("Eval_RMSE", "RMSE_Eval", "RMSE"),
     "CORRELATION": ("Eval_correlation", "correlation", "Eval_r", "r"),
     "R": ("Eval_r", "r", "Eval_correlation", "correlation"),
 }
