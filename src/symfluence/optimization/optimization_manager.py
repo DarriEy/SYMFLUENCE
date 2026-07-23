@@ -502,7 +502,27 @@ class OptimizationManager(BaseManager):
             results_dir.mkdir(parents=True, exist_ok=True)
             saver = FinalResultsSaver(results_dir, self.experiment_id, self.domain_name, self.logger)
             saver.log_results(final_result['calibration_metrics'], final_result['evaluation_metrics'])
-            return saver.save_results(final_result, algorithm)
+            saved = saver.save_results(final_result, algorithm)
+
+            # Repro tooling (repro_status/collect_metrics.py) discovers runs via
+            # <eid>_<algo>_best_params.json gated on a final_evaluation/ dir —
+            # emit both so self-training members are collected like everyone else.
+            import json
+            calib_kge = final_result['calibration_metrics'].get('KGE')
+            best_params_file = (
+                results_dir / f"{self.experiment_id}_{algorithm.lower().replace('/', '_')}_best_params.json"
+            )
+            best_params_file.write_text(json.dumps({
+                'experiment_id': self.experiment_id,
+                'model': model_name,
+                'metric': 'KGE',
+                'best_score': calib_kge,
+                'best_iteration': '',
+                'best_params': {},
+                'note': 'self-training model: score is the trained simulation, no parameter search',
+            }, indent=2))
+            (results_dir / 'final_evaluation').mkdir(exist_ok=True)
+            return saved
 
         except Exception as e:  # noqa: BLE001 — calibration resilience
             self.logger.error(
