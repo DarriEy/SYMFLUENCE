@@ -138,14 +138,32 @@ case "$(uname -s 2>/dev/null)" in
         # MinGW's linker can link against DLLs directly.
         # NOTE: CMake uses semicolons as list separators — spaces would be
         # treated as part of a single filename and break the build.
+        #
+        # Prefer openlibm over the msvcrt libm. On Windows, gfortran resolves
+        # exp/log/pow to msvcrt.dll, which is 5-26x slower PER CALL than a real
+        # libm; SUMMA's physics spends ~20-25% of its time in those calls, so
+        # linking a static openlibm (msun lineage, MSYS2 package
+        # mingw-w64-x86_64-openlibm) ahead of the implicit msvcrt makes each
+        # evaluation ~14% faster. Measured reproduction-safe: KGE delta ~5e-6
+        # vs the msvcrt build on an 8.75-year run, and it moves Windows closer
+        # to the glibc Linux/Mac reference rather than away. Purely optional:
+        # if the static archive is not found the msvcrt path is kept unchanged,
+        # so this never turns a working build into a broken one. Only the
+        # static .a is accepted (self-contained; nothing extra to bundle).
+        OPENLIBM_LINK=""
+        if _ol="$("${FC:-gfortran}" -print-file-name=libopenlibm.a 2>/dev/null)" \
+           && [ "$_ol" != "libopenlibm.a" ] && [ -f "$_ol" ]; then
+            echo "Using openlibm for fast transcendentals (exp/log/pow)"
+            OPENLIBM_LINK="-lopenlibm;"
+        fi
         if [ -f "${CONDA_LIB_PREFIX}/bin/openblas.dll" ]; then
             echo "Using OpenBLAS DLL directly (Windows/MinGW)"
             SPECIFY_LINKS=ON
-            export LIBRARY_LINKS="${CONDA_LIB_PREFIX}/bin/openblas.dll"
+            export LIBRARY_LINKS="${OPENLIBM_LINK}${CONDA_LIB_PREFIX}/bin/openblas.dll"
         elif [ -f "${CONDA_LIB_PREFIX}/bin/liblapack.dll" ]; then
             echo "Using manual LAPACK specification (Windows/MinGW)"
             SPECIFY_LINKS=ON
-            export LIBRARY_LINKS="${CONDA_LIB_PREFIX}/bin/liblapack.dll;${CONDA_LIB_PREFIX}/bin/libblas.dll"
+            export LIBRARY_LINKS="${OPENLIBM_LINK}${CONDA_LIB_PREFIX}/bin/liblapack.dll;${CONDA_LIB_PREFIX}/bin/libblas.dll"
         elif _ob="$("${FC:-gfortran}" -print-file-name=libopenblas.dll.a 2>/dev/null)" \
              && [ "$_ob" != "libopenblas.dll.a" ] && [ -f "$_ob" ]; then
             # MSYS2/mingw-w64: no conda, no lib{lapack,blas} — OpenBLAS ships
@@ -153,11 +171,11 @@ case "$(uname -s 2>/dev/null)" in
             # -lopenblas satisfies both BLAS and LAPACK references.
             echo "Using MSYS2 OpenBLAS (Windows/MinGW): -lopenblas"
             SPECIFY_LINKS=ON
-            export LIBRARY_LINKS="-lopenblas"
+            export LIBRARY_LINKS="${OPENLIBM_LINK}-lopenblas"
         else
             echo "Using manual LAPACK specification (Windows fallback)"
             SPECIFY_LINKS=ON
-            export LIBRARY_LINKS="-llapack;-lblas"
+            export LIBRARY_LINKS="${OPENLIBM_LINK}-llapack;-lblas"
         fi
         ;;
     Darwin)

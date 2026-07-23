@@ -252,6 +252,7 @@ jobs:
             mingw-w64-x86_64-netcdf-fortran
             mingw-w64-x86_64-hdf5
             mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-openlibm
             mingw-w64-x86_64-gdal
             mingw-w64-x86_64-proj
             mingw-w64-x86_64-geos
