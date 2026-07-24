@@ -5,8 +5,9 @@ algorithms on the identical problem: Bow River at Banff (lumped domain,
 `Bow_at_Banff_lumped_calibration_ensemble`), RDRS forcing, KGE objective,
 calibration 2004–2007, evaluation 2008–2009, `random_seed: 42`. Each Fig 9
 heatmap cell is one of these runs. Gradient-based algorithms (ADAM, L-BFGS)
-are only defined for the five JAX-based models and use
-`gradient_mode: finite_difference`; the three Fortran-based models get the 15
+are only defined for the five JAX-based models: ADAM uses
+`gradient_mode: native` (JAX automatic differentiation), L-BFGS uses
+`gradient_mode: finite_difference`. The three Fortran-based models get the 15
 derivative-free algorithms (17 × 5 + 15 × 3 = 130).
 
 ## Configs (one directory per model: `<model>/config_bow_<model>_<algorithm>.yaml`)
@@ -29,9 +30,10 @@ models).
 Evaluation budgets are matched at ≈1,000 model evaluations for the
 derivative-free methods (e.g. DDS/Nelder-Mead 1,000 iterations; DE/PSO/
 CMA-ES/GA 50 generations × 20; NSGA-II/MOEA/D 20 × 50; GLUE/ABC 10 × 100).
-The gradient methods use fewer optimizer steps (ADAM 500, L-BFGS 125), each
-step costing several finite-difference model evaluations. Warm starting is
-disabled (`skip_warm_start: true`) for a fair comparison.
+The gradient methods use fewer optimizer steps (ADAM 500, L-BFGS 125); each
+ADAM step costs one autodiff evaluation, each L-BFGS step several
+finite-difference model evaluations. Warm starting is disabled
+(`skip_warm_start: true`) for a fair comparison.
 
 ## Run
 

@@ -145,7 +145,8 @@ run logs + provenance manifests in `_workLog_<name>/`.
 | `executable not found` | `symfluence binary install --paper-repro --force`, then `symfluence binary doctor` |
 | RHESSys calibration stuck near KGE 0.15 | binary built without the SYMFLUENCE patch — `symfluence binary install rhessys --patched --force` |
 | calibration log shows `Best: 9999.0` | the objective never saw valid observations — check the obs step in the log |
-| warning: h5py/netCDF4 bundle different libhdf5 | known pip-wheel quirk, mitigated automatically, ignore |
+| warning: h5py/netCDF4 bundle different libhdf5 | pip-wheel quirk: each wheel vendors its own libhdf5. SYMFLUENCE's own I/O is guarded, but third-party libraries that open netCDF files directly can still crash (see next row) — install both from one source: `pip uninstall h5py netCDF4 -y && conda install h5py netcdf4`, or rerun `./scripts/symfluence-bootstrap --paper-repro` |
+| segfault / bus error in `xr.open_dataset` during forcing remapping (EASYMORE `__weighted_average`, common on macOS) | the libhdf5 conflict above hitting EASYMORE, which opens files outside SYMFLUENCE's guard — apply the same fix, and confirm the startup warning is gone (`--debug` re-shows it) |
 | fresh start for one experiment | delete `SYMFLUENCE_data/domain_<name>/` and rerun |
 
 Issues: https://github.com/symfluence-org/SYMFLUENCE/issues
