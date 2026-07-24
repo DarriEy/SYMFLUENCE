@@ -20,10 +20,10 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 from symfluence.core.calibration.optimizers.base_model_optimizer import (
     BaseModelOptimizer,
 )
+from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 
 CALIB_PERIOD = "2010-01-01, 2013-12-31"
 EVAL_PERIOD = "2014-01-01, 2015-12-31"

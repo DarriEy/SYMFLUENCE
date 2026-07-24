@@ -9,7 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-family contract versioning** (ADR-0009): `symfluence.core.contracts`
+  declares independent semantic versions for the `models`, `calibration`,
+  `metrics`, and `geospatial-utils` extensibility surfaces, with
+  `contract_version()` / `is_compatible()` / `assert_compatible()` carrying
+  the acquisition-backend contract's proven semantics (same major; pre-1.0
+  minors additive-only; forward skew declined). The acquisition family keeps
+  its existing constant and import path.
+- **`register_algorithm()`** — sanctioned registration seam for external
+  optimization algorithms (decorator or direct call, aliases, collision
+  refusal); externally registered algorithms appear in `list_algorithms()`
+  and resolve through `get_algorithm()`.
+
 ### Changed
+- **Geometry utilities promoted to core** (`core.geometry_utils`, was
+  `geospatial.geometry_utils`): the audit of the models→geospatial surface
+  found exactly one module — the `GeospatialUtilsMixin` and catchment
+  area/centroid helpers model preprocessors build against — so it joins the
+  core contract surface (`geospatial-utils` family). Old import path kept as
+  a shim; the layering guard now forbids `models/` from importing
+  `symfluence.geospatial` at all.
 - **Model-specific data decentralized** (service-decomposition prep, tail):
   - Base settings templates moved from `resources/base_settings/` into their
     model packages (`models/<model>/base_settings/`), resolved through the new

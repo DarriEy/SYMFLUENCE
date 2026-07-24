@@ -14,7 +14,7 @@ from pyproj.exceptions import CRSError
 from shapely.errors import GEOSException
 from shapely.geometry import Point, Polygon
 
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin, clean_geometry
+from symfluence.core.geometry_utils import GeospatialUtilsMixin, clean_geometry
 
 
 class MockClass(GeospatialUtilsMixin):
@@ -33,7 +33,7 @@ def test_clean_geometry_suppresses_geos_repair_failure(monkeypatch):
         raise GEOSException("repair failed")
 
     monkeypatch.setattr(
-        "symfluence.geospatial.geometry_utils.make_valid",
+        "symfluence.core.geometry_utils.make_valid",
         fail_repair,
     )
 
@@ -49,7 +49,7 @@ def test_clean_geometry_does_not_hide_programming_errors(monkeypatch):
         raise RuntimeError("unexpected bug")
 
     monkeypatch.setattr(
-        "symfluence.geospatial.geometry_utils.make_valid",
+        "symfluence.core.geometry_utils.make_valid",
         fail_repair,
     )
 

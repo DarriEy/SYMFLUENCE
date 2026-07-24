@@ -23,8 +23,8 @@ from shapely.geometry import MultiPolygon, Polygon, shape
 from shapely.validation import make_valid
 
 from symfluence.core.exceptions import ShapefileError
+from symfluence.core.geometry_utils import clean_geometry
 from symfluence.core.path_resolver import PathResolverMixin
-from symfluence.geospatial.geometry_utils import clean_geometry
 from symfluence.geospatial.raster_utils import analyze_raster_values
 
 from .artifacts import DiscretizationArtifacts

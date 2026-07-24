@@ -19,7 +19,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from .abc import ABCAlgorithm
 from .adam import AdamAlgorithm
@@ -92,6 +92,57 @@ ALGORITHM_REGISTRY: Dict[str, Type[OptimizationAlgorithm]] = {
 }
 
 
+# Primary names contributed via register_algorithm() (external packages),
+# kept separate so list_algorithms() can report them alongside the built-ins.
+_EXTERNAL_PRIMARY_NAMES: List[str] = []
+
+
+def _normalize_name(name: str) -> str:
+    """The same normalization get_algorithm() applies to lookups."""
+    return name.lower().replace('-', '_').replace(' ', '_')
+
+
+def register_algorithm(
+    name: str,
+    algorithm_class: Optional[Type[OptimizationAlgorithm]] = None,
+    *,
+    aliases: Tuple[str, ...] = (),
+):
+    """Register an optimization algorithm with the calibration engine.
+
+    The extensibility seam for external packages (calibration contract
+    family, ADR-0009): call from a plugin's ``register()``, or use as a
+    decorator. Names are normalized the same way :func:`get_algorithm`
+    normalizes lookups, so every registered spelling is reachable.
+
+    Args:
+        name: Primary algorithm name.
+        algorithm_class: The :class:`OptimizationAlgorithm` subclass; omit to
+            use as a decorator.
+        aliases: Additional accepted spellings.
+
+    Raises:
+        ValueError: On collision with an existing (built-in or registered)
+            algorithm name.
+    """
+    def _register(cls: Type[OptimizationAlgorithm]) -> Type[OptimizationAlgorithm]:
+        keys = [_normalize_name(name)] + [_normalize_name(a) for a in aliases]
+        taken = [k for k in keys if k in ALGORITHM_REGISTRY]
+        if taken:
+            raise ValueError(
+                f"Algorithm name(s) already registered: {taken}. "
+                f"Pick a different name/alias."
+            )
+        for key in keys:
+            ALGORITHM_REGISTRY[key] = cls
+        _EXTERNAL_PRIMARY_NAMES.append(_normalize_name(name))
+        return cls
+
+    if algorithm_class is None:
+        return _register
+    return _register(algorithm_class)
+
+
 def get_algorithm(
     name: str,
     config: Dict[str, Any],
@@ -132,12 +183,13 @@ def list_algorithms() -> list:
     Returns:
         Sorted list of primary algorithm names
     """
-    # Return only primary names (not aliases)
+    # Return only primary names (not aliases), built-in + externally registered
     primary_names = ['dds', 'pso', 'de', 'sce-ua', 'async_dds', 'nsga2', 'adam', 'lbfgs', 'cmaes', 'dream', 'glue', 'basin_hopping', 'nelder_mead', 'ga', 'bayesian_opt', 'moead', 'simulated_annealing', 'abc']
-    return sorted(primary_names)
+    return sorted(primary_names + _EXTERNAL_PRIMARY_NAMES)
 
 
 __all__ = [
+    'register_algorithm',
     # Base class
     'OptimizationAlgorithm',
     # Algorithm classes

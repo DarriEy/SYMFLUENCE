@@ -25,9 +25,9 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError
+from symfluence.core.geometry_utils import calculate_catchment_centroid
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.geospatial.geometry_utils import calculate_catchment_centroid
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
