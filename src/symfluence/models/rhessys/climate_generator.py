@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import FileOperationError
 from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
 from symfluence.data.utils.variable_utils import VariableHandler
 
@@ -189,6 +190,91 @@ class RHESSysClimateGenerator:
         self.logger.info(f"Climate files written to {self.climate_dir}")
         return True
 
+    def _select_forcing_files(self, forcing_files: List[Path]) -> List[Path]:
+        """Deterministically choose the forcing file(s) for this domain and mode.
+
+        The basin-averaged forcing store is a domain-shared product that can
+        accumulate several NetCDFs: a different forcing dataset (RDRS alongside
+        ERA5), or a remap produced under a different discretization. In
+        particular the ``--patched`` RHESSys binary builds a distributed
+        landscape and drops a multi-HRU remap into the same
+        ``{domain}_{forcing}_remapped_*`` namespace as the lumped 1-HRU basin
+        average. ``open_canonical_forcing`` merges/aligns everything it is
+        handed, so an incompatible file crashes on dimension alignment (the
+        observed ``hru {1, 12}`` mismatch). Since ``_basin_average`` collapses
+        every non-time dimension anyway, RHESSys only needs one spatially
+        compatible representation — prefer the single-HRU lumped remap.
+
+        Selection reuses the framework's remap naming convention
+        ``{domain}_{forcing_dataset}_remapped_*`` (see
+        ``resampling.file_processor.determine_output_filename`` and mHM's
+        ``_select_forcing_files``). Genuine multi-file forcing of one shape
+        (e.g. per-period time chunks) is still merged; genuinely ambiguous,
+        incompatibly-shaped candidates raise a clear error listing them rather
+        than being merged blindly.
+
+        Raises:
+            FileOperationError: if more than one incompatibly-shaped candidate
+                remains after filtering.
+        """
+        files = sorted(forcing_files)
+        if len(files) == 1:
+            return files
+
+        domain = self.domain_name.lower()
+        dataset = self.forcing_dataset.lower()
+
+        # 1. Prefer the canonical remap naming for the active (domain, dataset).
+        #    Progressive fallbacks keep non-standard stores working.
+        candidates = [f for f in files if f.name.lower().startswith(f"{domain}_{dataset}_remapped")]
+        if not candidates and dataset:
+            candidates = [f for f in files if dataset in f.name.lower()]
+        if not candidates:
+            candidates = [f for f in files if f.name.lower().startswith(domain)]
+        if not candidates:
+            candidates = files
+        if len(candidates) == 1:
+            return candidates
+
+        # 2. A lumped domain must resolve to a single spatial point; drop any
+        #    candidate remapped onto a multi-HRU geofabric (e.g. the patched
+        #    distributed remap) when a single-HRU one is present. RHESSys
+        #    basin-averages regardless, so the 1-HRU file is always correct.
+        sizes = {f: self._forcing_spatial_size(f) for f in candidates}
+        method = str(self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')).lower()
+        if method != 'delineate':
+            lumped = [f for f in candidates if sizes[f] == 1]
+            if lumped:
+                candidates = lumped
+
+        # 3. Whatever remains must be spatially compatible to merge (e.g. genuine
+        #    per-period time chunks of one grid). Refuse to merge mixed shapes.
+        distinct = {sizes[f] for f in candidates}
+        if len(distinct) > 1:
+            listing = "\n".join(
+                f"  {f.name}: {sizes[f]} spatial point(s)" for f in candidates
+            )
+            raise FileOperationError(
+                f"Ambiguous RHESSys forcing in {self.forcing_basin_path}: "
+                f"{len(candidates)} files match (domain={self.domain_name}, "
+                f"forcing={self.forcing_dataset}) but have incompatible spatial "
+                f"shapes; refusing to merge them.\n"
+                f"{listing}\n"
+                "Remove the stale/incompatible forcing file(s), or set the "
+                "correct forcing dataset for this run."
+            )
+        return candidates
+
+    @staticmethod
+    def _forcing_spatial_size(path: Path) -> int:
+        """Return the number of spatial points (product of non-time dims)."""
+        with xr.open_dataset(path) as ds:
+            size = 1
+            for dim, length in ds.sizes.items():
+                if dim != 'time':
+                    size *= int(length)
+            return size
+
     def _load_forcing_data(
         self,
         start_date: datetime,
@@ -209,7 +295,7 @@ class RHESSysClimateGenerator:
                 files = list(path.glob("*.nc"))
                 if files:
                     self.logger.info(f"Found {len(files)} forcing files in {path}")
-                    forcing_files = files
+                    forcing_files = self._select_forcing_files(files)
                     break
 
         if not forcing_files:
