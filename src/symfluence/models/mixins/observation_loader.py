@@ -18,7 +18,7 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
-from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
+from symfluence.core.geometry_utils import calculate_catchment_area_km2
 
 try:
     import geopandas as gpd

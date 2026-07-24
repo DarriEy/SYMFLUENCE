@@ -14,8 +14,8 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.geometry_utils import GeospatialUtilsMixin
 from symfluence.core.registries import R
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.mizuroute.control_writer import ControlFileWriter
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
@@ -249,7 +249,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         - models.mizuroute.remap_generator.MizuRouteRemapGenerator: Remapping file generation
         - models.mizuroute.control_writer.ControlFileWriter: Control file generation
         - models.mizuroute.mixins.MizuRouteConfigMixin: Configuration accessors
-        - geospatial.geometry_utils.GeospatialUtilsMixin: Spatial utilities
+        - core.geometry_utils.GeospatialUtilsMixin: Spatial utilities
         - models.base.BaseModelPreProcessor: Base preprocessor interface
     """
 

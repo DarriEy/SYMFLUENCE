@@ -25,9 +25,9 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.geometry_utils import GeospatialUtilsMixin
 from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 from ..base import BaseModelPreProcessor
 from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin

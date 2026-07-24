@@ -69,6 +69,13 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "import at module level.",
     ),
     (
+        "contracts.py",
+        "symfluence.data.backends.contract",
+        "contract_version('acquisition') surfaces the acquisition family's "
+        "PROTOCOL_VERSION (owned by data/, where external services import it) "
+        "for a uniform read-only view; resolved at call time only.",
+    ),
+    (
         "calibration/optimizers/component_factory.py",
         "symfluence.optimization.calibration_targets",
         "The component factory resolves calibration targets through the "
@@ -204,8 +211,11 @@ BOUNDARY_RULES: List[BoundaryRule] = [
         ],
     ),
     (
-        # Models must not depend on interface layers; build-environment helpers
-        # live in core.build, everything else the adapters need is in core.
+        # Models must not depend on interface layers, nor on the geospatial
+        # capability package: the geometry utilities model preprocessors need
+        # are part of the core contract surface (core.geometry_utils).
+        # Build-environment helpers live in core.build; everything else the
+        # adapters need is in core.
         "models",
         (
             "symfluence.cli",
@@ -213,6 +223,7 @@ BOUNDARY_RULES: List[BoundaryRule] = [
             "symfluence.tui",
             "symfluence.agent",
             "symfluence.fews",
+            "symfluence.geospatial",
         ),
         [],
     ),

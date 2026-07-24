@@ -18,8 +18,8 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from symfluence.core.geometry_utils import GeospatialUtilsMixin
 from symfluence.core.registries import R
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.troute.mixins import TRouteConfigMixin
 
