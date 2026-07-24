@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from symfluence.cli.services.build_snippet_catalog import BuildSnippetCatalog
-from symfluence.cli.services.build_snippets import get_all_snippets
+from symfluence.core.build.build_snippet_catalog import BuildSnippetCatalog
+from symfluence.core.build.build_snippets import get_all_snippets
 
 
 def test_catalog_renders_factories_lazily() -> None:

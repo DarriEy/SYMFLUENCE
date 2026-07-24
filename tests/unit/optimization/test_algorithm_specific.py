@@ -112,7 +112,7 @@ class TestConfigSchema:
 
     def test_cmaes_defaults_exist(self):
         """CMAESDefaults should have all required attributes."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         assert hasattr(CMAESDefaults, 'MIN_POPULATION')
         assert hasattr(CMAESDefaults, 'POPULATION_LOG_FACTOR')
@@ -124,7 +124,7 @@ class TestConfigSchema:
 
     def test_nsga2_defaults_exist(self):
         """NSGA2Defaults should have all required attributes."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import NSGA2Defaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import NSGA2Defaults
 
         assert hasattr(NSGA2Defaults, 'CROSSOVER_RATE')
         assert hasattr(NSGA2Defaults, 'MUTATION_RATE')
@@ -135,7 +135,7 @@ class TestConfigSchema:
 
     def test_dream_defaults_exist(self):
         """DREAMDefaults should have all required attributes."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import DREAMDefaults
 
         assert hasattr(DREAMDefaults, 'MIN_CHAINS_FACTOR')
         assert hasattr(DREAMDefaults, 'DE_PAIRS')
@@ -149,7 +149,7 @@ class TestConfigSchema:
 
     def test_pso_defaults_exist(self):
         """PSODefaults should have all required attributes."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import PSODefaults
 
         assert hasattr(PSODefaults, 'INERTIA')
         assert hasattr(PSODefaults, 'COGNITIVE')
@@ -158,7 +158,7 @@ class TestConfigSchema:
 
     def test_cmaes_population_size_computation(self):
         """CMAESDefaults.compute_population_size should follow Hansen's heuristic."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         # λ = 4 + floor(3 * ln(n))
         assert CMAESDefaults.compute_population_size(1) == 4  # 4 + 0
@@ -167,7 +167,7 @@ class TestConfigSchema:
 
     def test_cmaes_strategy_parameters_computation(self):
         """CMAESDefaults.compute_strategy_parameters should return valid values."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         n_params = 10
         mu = 5
@@ -193,7 +193,7 @@ class TestConfigSchema:
 
     def test_cmaes_sigma_validation(self):
         """CMAESDefaults.validate_sigma should catch invalid values."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         # Valid sigma
         valid, msg = CMAESDefaults.validate_sigma(0.3)
@@ -212,7 +212,7 @@ class TestConfigSchema:
 
     def test_dream_min_chains_computation(self):
         """DREAMDefaults.compute_min_chains should follow 2*n+1 rule."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import DREAMDefaults
 
         assert DREAMDefaults.compute_min_chains(1) == 3  # 2*1 + 1
         assert DREAMDefaults.compute_min_chains(5) == 11  # 2*5 + 1
@@ -220,7 +220,7 @@ class TestConfigSchema:
 
     def test_dream_optimal_gamma_computation(self):
         """DREAMDefaults.compute_optimal_gamma should follow Vrugt's formula."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import DREAMDefaults
 
         # γ = 2.38 / sqrt(2 * δ * d*)
         gamma = DREAMDefaults.compute_optimal_gamma(n_pairs=3, d_star=5)
@@ -229,7 +229,7 @@ class TestConfigSchema:
 
     def test_pso_coefficient_validation(self):
         """PSODefaults.validate_coefficients should warn about unstable params."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import PSODefaults
 
         # Valid coefficients
         valid, msg = PSODefaults.validate_coefficients(0.7, 1.5, 1.5)
@@ -242,7 +242,7 @@ class TestConfigSchema:
 
     def test_get_algorithm_defaults(self):
         """get_algorithm_defaults should return correct class for each algorithm."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import (
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import (
             CMAESDefaults,
             DREAMDefaults,
             NSGA2Defaults,
@@ -269,8 +269,8 @@ class TestCMAESAlgorithm:
 
     def test_cmaes_imports_config_schema(self):
         """CMA-ES should import and use CMAESDefaults."""
-        from symfluence.optimization.optimizers.algorithms.cmaes import CMAESAlgorithm
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.cmaes import CMAESAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         # Verify import works
         assert CMAESDefaults is not None
@@ -279,7 +279,7 @@ class TestCMAESAlgorithm:
         self, mock_config, test_logger, sphere_population_objective, mock_callbacks
     ):
         """CMA-ES should compute strategy parameters correctly."""
-        from symfluence.optimization.optimizers.algorithms.cmaes import CMAESAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.cmaes import CMAESAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 3
         mock_config['POPULATION_SIZE'] = 10
@@ -301,7 +301,7 @@ class TestCMAESAlgorithm:
         self, mock_config, test_logger, mock_callbacks
     ):
         """CMA-ES should recover from covariance matrix errors."""
-        from symfluence.optimization.optimizers.algorithms.cmaes import CMAESAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.cmaes import CMAESAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -333,8 +333,8 @@ class TestCMAESAlgorithm:
         self, mock_config, test_logger, sphere_population_objective, mock_callbacks
     ):
         """CMA-ES should keep sigma within bounds."""
-        from symfluence.optimization.optimizers.algorithms.cmaes import CMAESAlgorithm
-        from symfluence.optimization.optimizers.algorithms.config_schema import CMAESDefaults
+        from symfluence.core.calibration.optimizers.algorithms.cmaes import CMAESAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import CMAESDefaults
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -361,14 +361,14 @@ class TestNSGA2Algorithm:
 
     def test_nsga2_imports_config_schema(self):
         """NSGA-II should import and use NSGA2Defaults."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import NSGA2Defaults
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import NSGA2Defaults
+        from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         assert NSGA2Defaults is not None
 
     def test_nsga2_sbx_crossover_produces_valid_children(self, test_logger, tmp_path):
         """SBX crossover should produce children within bounds."""
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+        from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         algo = NSGA2Algorithm(_make_full_config(tmp_path, NUMBER_OF_ITERATIONS=1, POPULATION_SIZE=10), test_logger)
 
@@ -384,7 +384,7 @@ class TestNSGA2Algorithm:
 
     def test_nsga2_polynomial_mutation_stays_bounded(self, test_logger, tmp_path):
         """Polynomial mutation should keep solutions within bounds."""
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+        from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         algo = NSGA2Algorithm(_make_full_config(tmp_path, NUMBER_OF_ITERATIONS=1, POPULATION_SIZE=10), test_logger)
 
@@ -397,7 +397,7 @@ class TestNSGA2Algorithm:
 
     def test_nsga2_non_dominated_sorting(self, test_logger, tmp_path):
         """Fast non-dominated sorting should correctly rank solutions."""
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+        from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         algo = NSGA2Algorithm(_make_full_config(tmp_path, NUMBER_OF_ITERATIONS=1, POPULATION_SIZE=10), test_logger)
 
@@ -421,7 +421,7 @@ class TestNSGA2Algorithm:
         self, mock_config, test_logger, mock_callbacks
     ):
         """NSGA-II should handle errors gracefully in main loop."""
-        from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+        from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -456,15 +456,15 @@ class TestDREAMAlgorithm:
 
     def test_dream_imports_config_schema(self):
         """DREAM should import and use DREAMDefaults."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.core.calibration.optimizers.algorithms.dream import DREAMAlgorithm
 
         assert DREAMDefaults is not None
 
     def test_dream_chain_computation(self, mock_config, test_logger):
         """DREAM should use at least 2*n+1 chains."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import DREAMDefaults
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import DREAMDefaults
+        from symfluence.core.calibration.optimizers.algorithms.dream import DREAMAlgorithm
 
         mock_config['POPULATION_SIZE'] = 5  # Less than minimum
         mock_config['NUMBER_OF_ITERATIONS'] = 1
@@ -479,7 +479,7 @@ class TestDREAMAlgorithm:
         self, mock_config, test_logger, sphere_population_objective, mock_callbacks
     ):
         """DREAM outlier correction should handle stuck chains."""
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.dream import DREAMAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 15
         mock_config['POPULATION_SIZE'] = 10
@@ -498,7 +498,7 @@ class TestDREAMAlgorithm:
 
     def test_dream_gelman_rubin_computation(self, test_logger, tmp_path):
         """Gelman-Rubin computation should return valid R-hat."""
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.dream import DREAMAlgorithm
 
         algo = DREAMAlgorithm(_make_full_config(tmp_path, NUMBER_OF_ITERATIONS=1, POPULATION_SIZE=10), test_logger)
 
@@ -515,7 +515,7 @@ class TestDREAMAlgorithm:
         self, mock_config, test_logger, mock_callbacks
     ):
         """DREAM should handle errors in proposal generation."""
-        from symfluence.optimization.optimizers.algorithms.dream import DREAMAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.dream import DREAMAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -550,8 +550,8 @@ class TestPSOAlgorithm:
 
     def test_pso_imports_config_schema(self):
         """PSO should import and use PSODefaults."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.core.calibration.optimizers.algorithms.pso import PSOAlgorithm
 
         assert PSODefaults is not None
 
@@ -559,8 +559,8 @@ class TestPSOAlgorithm:
         self, mock_config, test_logger, sphere_population_objective, mock_callbacks
     ):
         """PSO should clamp velocities to v_max."""
-        from symfluence.optimization.optimizers.algorithms.config_schema import PSODefaults
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.config_schema import PSODefaults
+        from symfluence.core.calibration.optimizers.algorithms.pso import PSOAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -583,7 +583,7 @@ class TestPSOAlgorithm:
         self, mock_config, test_logger, mock_callbacks
     ):
         """PSO should correctly update personal bests."""
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.pso import PSOAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 10
         mock_config['POPULATION_SIZE'] = 10
@@ -609,7 +609,7 @@ class TestPSOAlgorithm:
         self, mock_config, test_logger, mock_callbacks
     ):
         """PSO should handle errors gracefully."""
-        from symfluence.optimization.optimizers.algorithms.pso import PSOAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.pso import PSOAlgorithm
 
         mock_config['NUMBER_OF_ITERATIONS'] = 5
         mock_config['POPULATION_SIZE'] = 10
@@ -655,7 +655,7 @@ class TestAlgorithmErrorHandling:
         import importlib
 
         module = importlib.import_module(
-            f"symfluence.optimization.optimizers.algorithms.{algorithm_name}"
+            f"symfluence.core.calibration.optimizers.algorithms.{algorithm_name}"
         )
         AlgorithmClass = getattr(module, algorithm_class)
 
@@ -693,7 +693,7 @@ class TestAlgorithmErrorHandling:
         import importlib
 
         module = importlib.import_module(
-            f"symfluence.optimization.optimizers.algorithms.{algorithm_name}"
+            f"symfluence.core.calibration.optimizers.algorithms.{algorithm_name}"
         )
         AlgorithmClass = getattr(module, algorithm_class)
 
@@ -726,7 +726,7 @@ class TestModuleImports:
 
     def test_config_schema_exports_from_init(self):
         """Config schema classes should be importable from algorithms package."""
-        from symfluence.optimization.optimizers.algorithms import (
+        from symfluence.core.calibration.optimizers.algorithms import (
             CMAESDefaults,
             DREAMDefaults,
             NSGA2Defaults,
@@ -744,7 +744,7 @@ class TestModuleImports:
 
     def test_validate_hyperparameters_function(self):
         """validate_hyperparameters should return appropriate warnings."""
-        from symfluence.optimization.optimizers.algorithms import validate_hyperparameters
+        from symfluence.core.calibration.optimizers.algorithms import validate_hyperparameters
 
         # Valid CMA-ES params
         warnings = validate_hyperparameters('cmaes', {'sigma': 0.3})

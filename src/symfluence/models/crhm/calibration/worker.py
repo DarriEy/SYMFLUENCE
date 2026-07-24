@@ -17,12 +17,12 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @R.workers.add('CRHM')

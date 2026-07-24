@@ -6,9 +6,9 @@ not just hand-picked examples.  They complement the existing example-based tests
 by exploring the space of possible inputs systematically.
 
 Modules covered:
-    - symfluence.evaluation.metrics_core   (performance metrics)
-    - symfluence.evaluation.metrics_hydrograph  (hydrograph signatures)
-    - symfluence.evaluation.metric_transformer  (optimisation direction)
+    - symfluence.core.metrics.metrics_core   (performance metrics)
+    - symfluence.core.metrics.metrics_hydrograph  (hydrograph signatures)
+    - symfluence.core.metrics.metric_transformer  (optimisation direction)
     - symfluence.geospatial.coordinate_utils    (lon/lat normalisation)
 """
 from __future__ import annotations
@@ -21,8 +21,8 @@ from hypothesis import assume, given, settings  # noqa: E402
 from hypothesis import strategies as st  # noqa: E402
 from hypothesis.extra.numpy import arrays  # noqa: E402
 
-from symfluence.evaluation.metric_transformer import MetricTransformer
-from symfluence.evaluation.metrics_core import (
+from symfluence.core.metrics.metric_transformer import MetricTransformer
+from symfluence.core.metrics.metrics_core import (
     _apply_transformation,
     _clean_data,
     bias,
@@ -40,7 +40,7 @@ from symfluence.evaluation.metrics_core import (
     rmse,
     volumetric_efficiency,
 )
-from symfluence.evaluation.metrics_hydrograph import (
+from symfluence.core.metrics.metrics_hydrograph import (
     baseflow_index,
     flow_duration_curve_metrics,
     peak_timing_error,

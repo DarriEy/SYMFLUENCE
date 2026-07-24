@@ -16,9 +16,9 @@ import netCDF4 as nc4
 import numpy as np
 import xarray as xr
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.models.troute.preprocessor import TRoutePreProcessor
 from symfluence.models.troute.runner import TRouteRunner
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 
 class TRouteModelOptimizer(BaseModelOptimizer):

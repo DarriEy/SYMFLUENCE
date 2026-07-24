@@ -14,9 +14,9 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.file_utils import safe_delete
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 from .worker import MESHWorker  # noqa: F401 - Import to trigger worker registration
 

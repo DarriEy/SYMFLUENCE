@@ -502,8 +502,8 @@ class TestFUSEWorkerContract:
 
     def test_fuse_worker_inherits_from_base(self):
         """Test that FUSEWorker inherits from BaseWorker."""
+        from symfluence.core.calibration.workers import BaseWorker
         from symfluence.models.fuse.calibration.worker import FUSEWorker
-        from symfluence.optimization.workers import BaseWorker
         assert issubclass(FUSEWorker, BaseWorker)
 
     def test_fuse_worker_has_required_methods(self):
@@ -543,7 +543,7 @@ class TestNgenWorkerContract:
 
 def _make_minimal_worker(config, logger=None):
     """Create a minimal concrete BaseWorker for API-contract tests."""
-    from symfluence.optimization.workers import BaseWorker
+    from symfluence.core.calibration.workers import BaseWorker
 
     class _MinimalWorker(BaseWorker):
         def apply_parameters(self, params, settings_dir, **kwargs):
@@ -602,7 +602,7 @@ class TestWorkerConfigAccessContract:
         ) == 'typed_value'
 
     def test_inmemory_worker_inherits_config_access(self):
-        from symfluence.optimization.workers import InMemoryModelWorker
+        from symfluence.core.calibration.workers import InMemoryModelWorker
         for accessor in ('_cfg', '_get_config_value'):
             assert hasattr(InMemoryModelWorker, accessor), (
                 f"InMemoryModelWorker lost '{accessor}' — external plugin "
@@ -634,7 +634,7 @@ class TestWorkerConfigAccessContract:
             dict_key='DOMAIN_NAME',
         ) == 'test_domain'
 
-        from symfluence.optimization.workers.base_worker import WorkerTask
+        from symfluence.core.calibration.workers.base_worker import WorkerTask
         task = WorkerTask(
             params={},
             config=dict(base_worker_config),

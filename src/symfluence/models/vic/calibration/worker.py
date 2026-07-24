@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @R.workers.add('VIC')

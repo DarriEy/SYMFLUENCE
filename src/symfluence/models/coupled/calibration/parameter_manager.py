@@ -19,9 +19,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.exceptions import ConfigurationError
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 # Settings sub-directory per model (defaults to the model name when absent).
 _SETTINGS_SUBDIR: Dict[str, str] = {

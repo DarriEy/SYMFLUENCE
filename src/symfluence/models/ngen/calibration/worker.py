@@ -15,9 +15,9 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel as PydanticBaseModel
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -377,7 +377,7 @@ class NgenWorker(BaseWorker):
         """
         try:
             # Try to use calibration target
-            from symfluence.optimization.calibration_targets import NgenStreamflowTarget
+            from symfluence.models.ngen.calibration.targets import NgenStreamflowTarget
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')
@@ -420,7 +420,7 @@ class NgenWorker(BaseWorker):
         try:
             import pandas as pd
 
-            from symfluence.evaluation.metrics import kge, nse
+            from symfluence.core.metrics import kge, nse
 
             domain_name = config.get('DOMAIN_NAME')
 

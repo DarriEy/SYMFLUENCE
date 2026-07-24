@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from symfluence.optimization.mixins.results_tracking import (
+from symfluence.core.calibration.mixins.results_tracking import (
     ResultsTrackingMixin,
     _scalar_for_csv,
 )

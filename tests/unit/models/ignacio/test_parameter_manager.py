@@ -46,47 +46,47 @@ class TestIGNACIOParameterBounds:
     """Tests for IGNACIO FBP parameter bounds."""
 
     def test_ignacio_bounds_available(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert len(bounds) == 6
 
     def test_ffmc_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'ffmc' in bounds
         assert bounds['ffmc']['min'] == 0.0
         assert bounds['ffmc']['max'] == 101.0
 
     def test_dmc_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'dmc' in bounds
         assert bounds['dmc']['min'] == 0.0
         assert bounds['dmc']['max'] == 200.0
 
     def test_dc_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'dc' in bounds
         assert bounds['dc']['min'] == 0.0
         assert bounds['dc']['max'] == 800.0
 
     def test_fmc_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'fmc' in bounds
         assert bounds['fmc']['min'] == 50.0
         assert bounds['fmc']['max'] == 150.0
 
     def test_curing_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'curing' in bounds
         assert bounds['curing']['min'] == 0.0
         assert bounds['curing']['max'] == 100.0
 
     def test_initial_radius_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_ignacio_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_ignacio_bounds
         bounds = get_ignacio_bounds()
         assert 'initial_radius' in bounds
         assert bounds['initial_radius']['min'] == 1.0

@@ -507,7 +507,7 @@ class ResultsViewer(param.Parameterized):
 
         # Try to get interpretation labels
         try:
-            from symfluence.evaluation.metrics import interpret_metric
+            from symfluence.core.metrics import interpret_metric
             has_interpret = True
         except ImportError:
             has_interpret = False

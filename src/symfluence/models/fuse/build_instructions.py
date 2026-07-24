@@ -14,7 +14,7 @@ rainfall-runoff modeling framework.
 """
 from __future__ import annotations
 
-from symfluence.cli.services import (
+from symfluence.core.build import (
     get_common_build_environment,
     get_hdf5_detection,
     get_netcdf_detection,

@@ -20,22 +20,22 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.logging_utils import log_once
-from symfluence.core.mixins.project import resolve_data_subdir
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     kge as calc_kge,
 )
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     mae as calc_mae,
 )
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     nse as calc_nse,
 )
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     pbias as calc_pbias,
 )
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     rmse as calc_rmse,
 )
+from symfluence.core.mixins.project import resolve_data_subdir
 
 
 def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Series:
@@ -224,7 +224,7 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
     try:
         from pathlib import Path as PathType
 
-        from ...calibration_targets import (
+        from symfluence.optimization.calibration_targets import (
             ETTarget,
             GroundwaterTarget,
             MultivariateTarget,
@@ -768,7 +768,7 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
     """
     from pathlib import Path
 
-    from ...calibration_targets import (
+    from symfluence.optimization.calibration_targets import (
         ETTarget,
         GroundwaterTarget,
         SnowTarget,

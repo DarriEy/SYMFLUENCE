@@ -11,8 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 from symfluence.models.lstm import LSTMRunner
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 
 
 class LSTMWorker(BaseWorker):

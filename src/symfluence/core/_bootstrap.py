@@ -170,7 +170,7 @@ def _bootstrap_metrics(R: type) -> None:  # noqa: N803
     into ``R.metrics`` so that both old and new consumers see the same data.
     """
     try:
-        from symfluence.evaluation.metrics_registry import METRIC_REGISTRY
+        from symfluence.core.metrics.metrics_registry import METRIC_REGISTRY
     except ImportError:
         logger.debug("metrics_registry not available; skipping metric bootstrap")
         return

@@ -21,8 +21,8 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 from ..parameters import PARAM_BOUNDS, PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 

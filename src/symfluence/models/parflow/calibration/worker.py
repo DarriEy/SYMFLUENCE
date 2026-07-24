@@ -13,8 +13,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.registries import R
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 

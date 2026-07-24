@@ -18,10 +18,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import xarray as xr
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
+from symfluence.core.calibration.parameters.parameter_bounds_registry import get_fuse_bounds
 from symfluence.core.logging_utils import log_once
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
 
 # Mapping of FUSE decisions to the parameters they require for meaningful calibration.
 # If a decision is active but its required params are not being calibrated, the model

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sys
 
-from symfluence.cli.services import get_common_build_environment
+from symfluence.core.build import get_common_build_environment
 from symfluence.core.registries import R
 
 

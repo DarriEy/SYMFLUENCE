@@ -705,7 +705,7 @@ class ModelManager(BaseManager):
         ):
             import numpy as np
 
-            from symfluence.evaluation.metrics import kge, kge_prime, nse
+            from symfluence.core.metrics import kge, kge_prime, nse
 
             # Get results file path
             results_file = self.project_dir / "results" / f"{self.experiment_id}_results.csv"

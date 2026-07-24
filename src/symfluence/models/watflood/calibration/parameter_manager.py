@@ -14,8 +14,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 
 @R.parameter_managers.add('WATFLOOD')

@@ -19,8 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from symfluence.core.calibration.optimizers.lifecycle import adjust_end_time_for_forcing
 from symfluence.core.exceptions import FileOperationError
-from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing
 
 if TYPE_CHECKING:
     pass

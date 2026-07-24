@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-Worker utilities module.
+"""Worker utilities.
 
-Provides shared functionality for optimization workers including:
-- RoutingDecider: Unified routing decision logic (moved to symfluence.models.utilities)
-- StreamflowMetrics: Shared metric calculation utilities
+- StreamflowMetrics: shared metric calculation utilities
+- RoutingDecider: lives in ``symfluence.models.utilities``; resolved lazily
+  here for backward compatibility (optimization must not import models at
+  module level).
 """
-
-# RoutingDecider has moved to symfluence.models.utilities
-# Import from there for backward compatibility
 from __future__ import annotations
-
-from symfluence.models.utilities.routing_decider import RoutingDecider
 
 from .streamflow_metrics import StreamflowMetrics
 
 __all__ = ['RoutingDecider', 'StreamflowMetrics']
+
+
+def __getattr__(name: str):
+    if name == 'RoutingDecider':
+        from symfluence.models.utilities.routing_decider import RoutingDecider
+        globals()[name] = RoutingDecider
+        return RoutingDecider
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

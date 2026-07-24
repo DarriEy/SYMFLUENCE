@@ -74,8 +74,8 @@ def test_summa_worker_skips_mizuroute_when_flagged(tmp_path, monkeypatch):
         calls['mizu'] += 1
         return True
 
-    monkeypatch.setattr('symfluence.optimization.workers.summa._run_summa_worker', _fake_summa)
-    monkeypatch.setattr('symfluence.optimization.workers.summa._run_mizuroute_worker', _fake_mizu)
+    monkeypatch.setattr('symfluence.models.summa.calibration.worker_impl._run_summa_worker', _fake_summa)
+    monkeypatch.setattr('symfluence.models.summa.calibration.worker_impl._run_mizuroute_worker', _fake_mizu)
 
     cfg = _coupled_config()
     worker = SUMMAWorker(config=cfg, logger=logging.getLogger('t'))
@@ -101,8 +101,8 @@ def test_summa_worker_runs_mizuroute_standalone(tmp_path, monkeypatch):
         calls['mizu'] += 1
         return True
 
-    monkeypatch.setattr('symfluence.optimization.workers.summa._run_summa_worker', _fake_summa)
-    monkeypatch.setattr('symfluence.optimization.workers.summa._run_mizuroute_worker', _fake_mizu)
+    monkeypatch.setattr('symfluence.models.summa.calibration.worker_impl._run_summa_worker', _fake_summa)
+    monkeypatch.setattr('symfluence.models.summa.calibration.worker_impl._run_mizuroute_worker', _fake_mizu)
 
     cfg = _coupled_config()  # subset domain + streamflow => needs_routing() is True
     worker = SUMMAWorker(config=cfg, logger=logging.getLogger('t'))

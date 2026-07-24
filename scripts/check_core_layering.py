@@ -52,17 +52,28 @@ UPPER_LAYERS: Set[str] = {
 # seed a registry or validate a value against an upper-layer catalogue. Keep this
 # list short and justified; adding to it should be a deliberate decision.
 ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
-    (
-        "_bootstrap.py",
-        "symfluence.evaluation.metrics_registry",
-        "Bootstrap seeds R.metrics from the evaluation metric registry (IoC).",
-    ),
+    # (_bootstrap.py seeding of R.metrics is no longer an upward edge: the
+    # metric registry moved into core.metrics with the calibration promotion.)
     (
         "config/factories.py",
         "symfluence.cli.init_presets",
         "from_preset factory resolves a named CLI init preset at call time; the "
         "preset catalogue transitively needs the models layer, and from_preset "
         "is a public SymfluenceConfig classmethod, so this stays a call-time seam.",
+    ),
+    (
+        "calibration/optimizers/base_model_optimizer.py",
+        "symfluence.evaluation.registry",
+        "Final evaluation resolves the EvaluationRegistry at call time to score "
+        "the calibrated run; evaluation is a capability package core must not "
+        "import at module level.",
+    ),
+    (
+        "calibration/optimizers/component_factory.py",
+        "symfluence.optimization.calibration_targets",
+        "The component factory resolves calibration targets through the "
+        "optimization facade at call time; targets wrap evaluation evaluators, "
+        "which core must not import at module level.",
     ),
 ]
 
@@ -99,13 +110,26 @@ def _scan_file(py_file: Path, core_root: Path) -> List[Violation]:
     rel_path = str(py_file.relative_to(core_root))
     tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
 
-    # Map each import node to whether it is nested inside a function body.
+    # Map each import node to whether it is nested inside a function body or an
+    # ``if TYPE_CHECKING:`` block (the latter is erased at runtime, so it is a
+    # type-only edge — treated like a deferred import, requiring an allowance).
     deferred_nodes: Set[int] = set()
     for func in ast.walk(tree):
         if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for child in ast.walk(func):
                 if isinstance(child, (ast.Import, ast.ImportFrom)):
                     deferred_nodes.add(id(child))
+        elif isinstance(func, ast.If):
+            test = func.test
+            is_type_checking = (
+                isinstance(test, ast.Name) and test.id == "TYPE_CHECKING"
+            ) or (
+                isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+            )
+            if is_type_checking:
+                for child in ast.walk(func):
+                    if isinstance(child, (ast.Import, ast.ImportFrom)):
+                        deferred_nodes.add(id(child))
 
     violations: List[Violation] = []
     for node in ast.walk(tree):
@@ -138,19 +162,212 @@ def find_violations(core_root: Path | None = None) -> List[Violation]:
     return violations
 
 
+# ---------------------------------------------------------------------------
+# Package-boundary rules (monorepo prep for service decomposition)
+# ---------------------------------------------------------------------------
+# Each rule: (scanned package, forbidden import prefixes, allowed deferred
+# edges). Module-level imports of a forbidden prefix are always violations;
+# deferred (function-body) imports must be allow-listed with a reason.
+#
+# Note: the deprecated lazy shims under optimization/ (parameter_managers,
+# calibration_targets model files, workers/summa, mixins/summa_optimizer_mixin)
+# resolve via importlib.import_module with string paths, which the AST scan
+# does not see; the rules below guard against *reintroducing* static imports.
+
+BoundaryRule = Tuple[str, Tuple[str, ...], List[Tuple[str, str, str]]]
+
+BOUNDARY_RULES: List[BoundaryRule] = [
+    (
+        # The models layer must be removable: nothing may import it at module
+        # level, so the framework imports cleanly with the model suite absent.
+        "optimization",
+        ("symfluence.models",),
+        [
+            (
+                "_autodiscover.py",
+                "symfluence.models",
+                "Auto-discovery iterates installed model packages at call time; "
+                "tolerates absence via try/except ImportError.",
+            ),
+            (
+                "workers/utilities/__init__.py",
+                "symfluence.models.utilities.routing_decider",
+                "Deprecated lazy re-export (PEP 562) of RoutingDecider from its "
+                "canonical home in the models package.",
+            ),
+            (
+                "mixins/summa_optimizer_mixin.py",
+                "symfluence.models.summa.calibration",
+                "Deprecated lazy re-export (PEP 562) of SUMMAOptimizerMixin; "
+                "the TYPE_CHECKING import is type-only and erased at runtime.",
+            ),
+        ],
+    ),
+    (
+        # Models must not depend on interface layers; build-environment helpers
+        # live in core.build, everything else the adapters need is in core.
+        "models",
+        (
+            "symfluence.cli",
+            "symfluence.gui",
+            "symfluence.tui",
+            "symfluence.agent",
+            "symfluence.fews",
+        ),
+        [],
+    ),
+    (
+        "evaluation",
+        ("symfluence.models",),
+        [
+            (
+                "analysis_manager.py",
+                "symfluence.models",
+                "Imports model packages at call time solely to trigger analyzer "
+                "registration (IoC seam).",
+            ),
+        ],
+    ),
+    (
+        "project",
+        ("symfluence.models",),
+        [
+            (
+                "manager_factory.py",
+                "symfluence.models.model_manager",
+                "Factory resolves ModelManager at call time; orchestration "
+                "entry point for the model suite.",
+            ),
+        ],
+    ),
+    (
+        # Process adapters resolve model components via R.runners /
+        # R.result_extractors — no direct model imports remain.
+        "coupling",
+        ("symfluence.models",),
+        [],
+    ),
+    (
+        "fews",
+        ("symfluence.models",),
+        [
+            (
+                "pre_adapter.py",
+                "symfluence.models.state",
+                "Resolves the model state manager at call time.",
+            ),
+            (
+                "post_adapter.py",
+                "symfluence.models.state",
+                "Resolves the model state manager at call time.",
+            ),
+        ],
+    ),
+    (
+        "data_assimilation",
+        ("symfluence.models",),
+        [
+            (
+                "enkf/ensemble_manager.py",
+                "symfluence.models.state",
+                "EnKF resolves state-capable model interfaces at call time.",
+            ),
+        ],
+    ),
+    (
+        "cli",
+        ("symfluence.models",),
+        [
+            (
+                "init_presets.py",
+                "symfluence.models",
+                "Preset catalogue lists installed model packages at call time.",
+            ),
+            (
+                "preset_registry.py",
+                "symfluence.models",
+                "Preset registry lists installed model packages at call time.",
+            ),
+        ],
+    ),
+    (
+        "gui",
+        ("symfluence.models",),
+        [
+            (
+                "server.py",
+                "symfluence.models",
+                "Server triggers model plugin registration at call time.",
+            ),
+        ],
+    ),
+    (
+        "data",
+        ("symfluence.models",),
+        [],
+    ),
+    (
+        "geospatial",
+        ("symfluence.models",),
+        [],
+    ),
+    (
+        "reporting",
+        ("symfluence.models",),
+        [],
+    ),
+]
+
+
+def find_boundary_violations(src_root: Path | None = None) -> List[Violation]:
+    """Scan package-boundary rules; reuse the core scanner per package."""
+    if src_root is None:
+        src_root = Path(__file__).resolve().parent.parent / "src" / "symfluence"
+    violations: List[Violation] = []
+    global UPPER_LAYERS, ALLOWED_DEFERRED
+    saved = (UPPER_LAYERS, ALLOWED_DEFERRED)
+    try:
+        for package, forbidden, allowed in BOUNDARY_RULES:
+            pkg_root = src_root / package
+            if not pkg_root.exists():
+                continue
+            # Reuse _scan_file by temporarily retargeting the module filter.
+            UPPER_LAYERS = {f.split(".")[1] for f in forbidden}
+            ALLOWED_DEFERRED = allowed
+            for py_file in sorted(pkg_root.rglob("*.py")):
+                for v in _scan_file(py_file, pkg_root):
+                    if any(v.module.startswith(f) for f in forbidden):
+                        violations.append(
+                            Violation(f"{package}/{v.path}", v.lineno, v.module, v.deferred)
+                        )
+    finally:
+        UPPER_LAYERS, ALLOWED_DEFERRED = saved
+    return violations
+
+
 def main() -> int:
-    violations = find_violations()
-    if not violations:
-        print("core layering OK: no disallowed core -> upper-layer imports")
+    core_violations = find_violations()
+    boundary_violations = find_boundary_violations()
+    if not core_violations and not boundary_violations:
+        print(
+            "core layering OK: no disallowed core -> upper-layer imports; "
+            "package boundaries OK (models removable, models -> no interface layers)"
+        )
         return 0
 
-    print("core layering VIOLATIONS found (RTI review item 19):\n", file=sys.stderr)
-    for v in violations:
-        print(f"  {v.describe()}", file=sys.stderr)
+    if core_violations:
+        print("core layering VIOLATIONS found (RTI review item 19):\n", file=sys.stderr)
+        for v in core_violations:
+            print(f"  {v.describe()}", file=sys.stderr)
+    if boundary_violations:
+        print("package-boundary VIOLATIONS found:\n", file=sys.stderr)
+        for v in boundary_violations:
+            print(f"  {v.describe()}", file=sys.stderr)
     print(
-        "\nFix: move shared code down into core, invert the dependency, or "
-        "(for a genuine call-time IoC seam) add it to ALLOWED_DEFERRED in "
-        "scripts/check_core_layering.py with a reason.",
+        "\nFix: move shared code down into core, invert the dependency through "
+        "the registry, or (for a genuine call-time IoC seam) add it to "
+        "ALLOWED_DEFERRED / BOUNDARY_RULES in scripts/check_core_layering.py "
+        "with a reason.",
         file=sys.stderr,
     )
     return 1

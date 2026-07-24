@@ -86,7 +86,7 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
         logger.info(f"Starting DDS instance {start_id} with {max_iterations} iterations")
 
         # Schema-consistent, throttled progress lines tagged with this worker
-        from symfluence.optimization.optimizers.metrics_tracker import EvaluationMetricsTracker
+        from symfluence.core.calibration.optimizers.metrics_tracker import EvaluationMetricsTracker
         run_start = time.time()
 
         def _elapsed() -> str:

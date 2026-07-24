@@ -20,9 +20,9 @@ import pytest
 netCDF4 = pytest.importorskip('netCDF4')  # noqa: N816
 pytest.importorskip('xarray')
 
+from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 from symfluence.data.model_ready.observations_builder import ObservationsNetCDFBuilder
 from symfluence.evaluation.utilities import streamflow_metrics as sm_module
-from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
 
 DOMAIN = 'test'
 

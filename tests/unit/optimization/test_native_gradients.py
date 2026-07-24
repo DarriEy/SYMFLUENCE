@@ -130,7 +130,7 @@ class TestBaseWorkerGradientSupport:
 
     def test_default_supports_native_gradients_returns_false(self):
         """Default worker should not support native gradients."""
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         # Create a minimal concrete implementation
         class MinimalWorker(BaseWorker):
@@ -146,7 +146,7 @@ class TestBaseWorkerGradientSupport:
 
     def test_compute_gradient_returns_none_by_default(self):
         """Default compute_gradient should return None."""
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         class MinimalWorker(BaseWorker):
             def apply_parameters(self, params, settings_dir, **kwargs):
@@ -162,7 +162,7 @@ class TestBaseWorkerGradientSupport:
 
     def test_evaluate_with_gradient_raises_not_implemented(self):
         """Default evaluate_with_gradient should raise NotImplementedError."""
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         class MinimalWorker(BaseWorker):
             def apply_parameters(self, params, settings_dir, **kwargs):
@@ -178,7 +178,7 @@ class TestBaseWorkerGradientSupport:
 
     def test_custom_worker_can_override_gradient_support(self):
         """Workers can override to support native gradients."""
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         class GradientCapableWorker(BaseWorker):
             def apply_parameters(self, params, settings_dir, **kwargs):
@@ -215,7 +215,7 @@ class TestGradientModeSelection:
         self, mock_config, test_logger, quadratic_gradient
     ):
         """gradient_mode='finite_difference' should always use FD."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -225,7 +225,7 @@ class TestGradientModeSelection:
 
     def test_native_mode_requires_callback(self, mock_config, test_logger):
         """gradient_mode='native' should error without callback."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -236,7 +236,7 @@ class TestGradientModeSelection:
         self, mock_config, test_logger, quadratic_gradient
     ):
         """gradient_mode='native' with callback should return True."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -247,7 +247,7 @@ class TestGradientModeSelection:
         self, mock_config, test_logger, quadratic_gradient
     ):
         """gradient_mode='auto' should use native when callback available."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -258,7 +258,7 @@ class TestGradientModeSelection:
         self, mock_config, test_logger
     ):
         """gradient_mode='auto' should use FD when no callback."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -277,7 +277,7 @@ class TestUnifiedGradientFunction:
         self, mock_config, test_logger, quadratic_objective
     ):
         """Finite difference gradients should be approximately correct."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -301,7 +301,7 @@ class TestUnifiedGradientFunction:
         self, mock_config, test_logger, quadratic_gradient
     ):
         """Native gradients should use the provided callback."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -331,7 +331,7 @@ class TestUnifiedGradientFunction:
 
     def test_gradient_clipping_works(self, mock_config, test_logger):
         """Gradient clipping should limit gradient norm."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -353,7 +353,7 @@ class TestUnifiedGradientFunction:
 
     def test_small_gradient_not_clipped(self, mock_config, test_logger):
         """Small gradients should not be modified by clipping."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         algo = AdamAlgorithm(mock_config, test_logger)
 
@@ -376,7 +376,7 @@ class TestAdamWithGradients:
         self, mock_config, test_logger, quadratic_objective
     ):
         """Adam should converge using finite-difference gradients."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         mock_config['ADAM_STEPS'] = 50
         mock_config['ADAM_LR'] = 0.1
@@ -402,7 +402,7 @@ class TestAdamWithGradients:
         self, mock_config, test_logger, quadratic_objective, quadratic_gradient
     ):
         """Adam should converge using native gradients."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         mock_config['ADAM_STEPS'] = 50
         mock_config['ADAM_LR'] = 0.1
@@ -428,7 +428,7 @@ class TestAdamWithGradients:
         self, mock_config, test_logger, quadratic_objective
     ):
         """Adam result should include which gradient method was used."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         mock_config['ADAM_STEPS'] = 5
         algo = AdamAlgorithm(mock_config, test_logger)
@@ -459,7 +459,7 @@ class TestLBFGSWithGradients:
         self, mock_config, test_logger, quadratic_objective
     ):
         """L-BFGS should converge using finite-difference gradients."""
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         mock_config['LBFGS_STEPS'] = 30
         mock_config['LBFGS_LR'] = 0.5
@@ -485,7 +485,7 @@ class TestLBFGSWithGradients:
         self, mock_config, test_logger, quadratic_objective, quadratic_gradient
     ):
         """L-BFGS should converge using native gradients."""
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         mock_config['LBFGS_STEPS'] = 30
         mock_config['LBFGS_LR'] = 0.5
@@ -551,7 +551,7 @@ class TestLBFGSQuasiNewton:
         On a locally-concave (for maximization) objective the buggy code kept the
         history empty forever. Here it must grow above zero.
         """
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         # Set both keys so step count is 40 regardless of resolution precedence.
         mock_config['LBFGS_STEPS'] = 40
@@ -574,7 +574,7 @@ class TestLBFGSQuasiNewton:
         self, mock_config, test_logger, ill_conditioned_objective
     ):
         """Quasi-Newton steps must solve an ill-conditioned quadratic tightly."""
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         mock_config['LBFGS_STEPS'] = 60
         mock_config['NUMBER_OF_ITERATIONS'] = 60
@@ -593,7 +593,7 @@ class TestLBFGSQuasiNewton:
         self, mock_config, test_logger, ill_conditioned_objective, ill_conditioned_gradient
     ):
         """Native-gradient path must also engage curvature and converge."""
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         mock_config['LBFGS_STEPS'] = 60
         mock_config['NUMBER_OF_ITERATIONS'] = 60
@@ -618,8 +618,8 @@ class TestLBFGSQuasiNewton:
         far faster than gradient ascent. If L-BFGS had degraded to gradient ascent
         (the bug), the two would be comparable and this margin would vanish.
         """
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         steps = 25
         common = dict(
@@ -701,7 +701,7 @@ class TestGradientChainRule:
         it and the arrays stay aligned with all_param_names."""
         from unittest.mock import Mock
 
-        from symfluence.optimization.optimizers.base_model_optimizer import (
+        from symfluence.core.calibration.optimizers.base_model_optimizer import (
             BaseModelOptimizer,
         )
 

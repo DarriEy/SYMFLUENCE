@@ -67,12 +67,12 @@ class TestParameterBoundsRegistry:
     """Test parameter bounds in the central registry."""
 
     def test_get_sacsma_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_sacsma_bounds
         bounds = get_sacsma_bounds()
         assert len(bounds) == 26
 
     def test_all_params_present(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_sacsma_bounds
         bounds = get_sacsma_bounds()
         expected = {
             'SCF', 'PXTEMP', 'MFMAX', 'MFMIN', 'NMF', 'MBASE', 'TIPM', 'UADJ', 'PLWHC', 'DAYGM',
@@ -82,7 +82,7 @@ class TestParameterBoundsRegistry:
         assert set(bounds.keys()) == expected
 
     def test_log_transforms_preserved(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_sacsma_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_sacsma_bounds
         bounds = get_sacsma_bounds()
         log_params = {'ZPERC', 'LZFPM', 'LZFSM', 'LZPK', 'LZSK'}
         for name in log_params:

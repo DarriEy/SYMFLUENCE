@@ -33,9 +33,15 @@ The source tree under `src/symfluence/` divides into three layers:
 
 - **`core/`** is the foundation: the Pydantic configuration models, the
   component registry, the path resolver, shared mixins, the exception
-  hierarchy, and profiling hooks. Everything depends on it; **it depends on
-  nothing above it.** That rule is enforced, not aspirational — see
-  `scripts/check_core_layering.py` (CI + pre-commit).
+  hierarchy, profiling hooks, and the contract surface model packages build
+  against — performance metrics (`core/metrics/`), the generic calibration
+  engine (`core/calibration/`: optimizer bases, algorithms, workers, parameter
+  management), and build-environment helpers (`core/build/`). Everything
+  depends on it; **it depends on nothing above it.** That rule is enforced,
+  not aspirational — see `scripts/check_core_layering.py` (CI + pre-commit),
+  which also guards the package boundaries that keep the model suite
+  extractable (nothing imports `models` at module level; `models` imports no
+  interface layer).
 - **Capability packages** implement the workflow steps: `geospatial/` (domain
   setup), `data/` (acquisition and preprocessing), `models/` (one adapter
   package per hydrological model), `optimization/` (calibration algorithms),

@@ -31,26 +31,26 @@ class TestVICParameterBounds:
     """Tests for VIC parameter bounds in registry."""
 
     def test_vic_bounds_available(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_vic_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_vic_bounds
         bounds = get_vic_bounds()
         assert len(bounds) > 0
 
     def test_infilt_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_vic_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_vic_bounds
         bounds = get_vic_bounds()
         assert 'infilt' in bounds
         assert bounds['infilt']['min'] == 0.001
         assert bounds['infilt']['max'] == 0.9
 
     def test_soil_depth_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_vic_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_vic_bounds
         bounds = get_vic_bounds()
         assert 'depth1' in bounds
         assert 'depth2' in bounds
         assert 'depth3' in bounds
 
     def test_baseflow_bounds(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_vic_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_vic_bounds
         bounds = get_vic_bounds()
         assert 'Ds' in bounds
         assert 'Dsmax' in bounds

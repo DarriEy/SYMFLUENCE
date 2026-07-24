@@ -15,9 +15,9 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.optimization.workers.base_worker import BaseWorker
 
 
 @R.workers.add('IGNACIO')

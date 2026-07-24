@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from symfluence.optimization.workers.summa.model_execution import (
+from symfluence.models.summa.calibration.worker_impl.model_execution import (
     _ensure_coupling_output_vars,
 )
 

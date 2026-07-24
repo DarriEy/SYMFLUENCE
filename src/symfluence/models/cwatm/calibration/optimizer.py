@@ -7,8 +7,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 
 @R.optimizers.add('CWATM')

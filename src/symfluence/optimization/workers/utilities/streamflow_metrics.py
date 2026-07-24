@@ -5,7 +5,7 @@
 Streamflow Metrics Utility (Backward Compatibility)
 
 .. deprecated::
-    This module has been moved to symfluence.evaluation.utilities.streamflow_metrics
+    This module has been moved to symfluence.core.metrics.streamflow_metrics
     as streamflow metrics calculation is evaluation logic, not optimization-specific.
 
     This re-export is provided for backward compatibility. Please update imports to:
@@ -18,12 +18,12 @@ Migration Context:
     package to the evaluation package where it belongs conceptually.
 
     Old location: symfluence.optimization.workers.utilities.streamflow_metrics
-    New location: symfluence.evaluation.utilities.streamflow_metrics
+    New location: symfluence.core.metrics.streamflow_metrics
 """
 
 # Backward compatibility re-export
 from __future__ import annotations
 
-from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 
 __all__ = ['StreamflowMetrics']

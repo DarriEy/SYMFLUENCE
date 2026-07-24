@@ -13,11 +13,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.logging_utils import get_worker_logger
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class SUMMAWorker(BaseWorker):
                 return self._cached_pm.update_model_files(params)
 
             # No coefficients — use standard worker path
-            from symfluence.optimization.workers.summa import _apply_parameters_worker
+            from .worker_impl import _apply_parameters_worker
 
             task_data = kwargs.get('task_data', {}).copy() if kwargs.get('task_data') else kwargs.copy()
             if 'config' not in task_data:
@@ -185,7 +185,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing functions
-            from symfluence.optimization.workers.summa import _run_mizuroute_worker, _run_summa_worker
+            from .worker_impl import _run_mizuroute_worker, _run_summa_worker
 
             summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
             summa_exe = config.get("SUMMA_EXE", "summa_sundials.exe")
@@ -364,7 +364,7 @@ class SUMMAWorker(BaseWorker):
                     )
 
             # Import existing function
-            from symfluence.optimization.workers.summa import _calculate_metrics_with_target
+            from .worker_impl import _calculate_metrics_with_target
 
             # Resolve mizuroute_dir if needed
             mizuroute_dir = kwargs.get('mizuroute_dir')
@@ -598,7 +598,7 @@ class SUMMAWorker(BaseWorker):
         try:
             import xarray as xr
 
-            from symfluence.evaluation.metrics import kge, nse
+            from symfluence.core.metrics import kge, nse
 
             # Find output file
             output_files = list(output_dir.glob('*_day.nc')) + list(output_dir.glob('*_output.nc'))
@@ -678,7 +678,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Use existing safe wrapper for full functionality
-            from symfluence.optimization.workers.summa import _evaluate_parameters_worker_safe
+            from .worker_impl import _evaluate_parameters_worker_safe
             return _evaluate_parameters_worker_safe(task_data)
 
         except ImportError:

@@ -14,7 +14,7 @@ which supports NetCDF input/output for distributed simulations.
 """
 from __future__ import annotations
 
-from symfluence.cli.services import (
+from symfluence.core.build import (
     get_common_build_environment,
     get_netcdf_detection,
 )

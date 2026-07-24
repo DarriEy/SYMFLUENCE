@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]

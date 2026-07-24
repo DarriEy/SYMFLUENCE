@@ -25,8 +25,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker
 from symfluence.core.registries import R
-from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +413,7 @@ class CoupledGWWorker(BaseWorker):
 
 def _evaluate_coupled_gw_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
     """Module-level worker function for MPI/ProcessPool execution."""
-    from symfluence.optimization.workers.base_worker import WorkerTask
+    from symfluence.core.calibration.workers.base_worker import WorkerTask
     worker = CoupledGWWorker(config=task_data.get('config'))
     task = WorkerTask.from_legacy_dict(task_data)
     result = worker.evaluate(task)

@@ -1,23 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Types shared by evaluation metric modules."""
+"""Back-compat shim: this module moved to ``symfluence.core.metrics.metrics_types``.
 
+Kept so external plugins and downstream code importing the old
+``symfluence.evaluation.metrics_types`` path keep working. New code should import from ``symfluence.core.metrics.metrics_types``.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Tuple
+import symfluence.core.metrics.metrics_types as _impl
+from symfluence.core.metrics.metrics_types import *  # noqa: F401,F403
 
 
-@dataclass(frozen=True)
-class MetricInfo:
-    """Metadata for a performance metric."""
-
-    name: str
-    full_name: str
-    range: Tuple[float, float]
-    optimal: float
-    direction: str
-    units: str
-    description: str
-    reference: str
+def __getattr__(name: str):
+    return getattr(_impl, name)

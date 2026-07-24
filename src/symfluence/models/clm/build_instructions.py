@@ -15,7 +15,7 @@ ESMF must be installed (mpiuni serial mode) for the NUOPC driver.
 """
 from __future__ import annotations
 
-from symfluence.cli.services import (
+from symfluence.core.build import (
     get_common_build_environment,
     get_netcdf_detection,
 )

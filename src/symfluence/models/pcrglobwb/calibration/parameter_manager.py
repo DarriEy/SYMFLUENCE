@@ -7,9 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 
 @R.parameter_managers.add('PCRGLOBWB')

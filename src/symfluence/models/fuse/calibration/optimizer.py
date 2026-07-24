@@ -13,9 +13,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.file_utils import copy_file
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 from .parameter_manager import FUSEParameterManager  # noqa: F401 - trigger param manager registration
 from .worker import FUSEWorker  # noqa: F401 - trigger worker registration
@@ -156,7 +156,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
 
             # Get parameter bounds from config or use defaults
-            from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
+            from symfluence.core.calibration.parameters.parameter_bounds_registry import get_fuse_bounds
             bounds = get_fuse_bounds()
 
             # Override with config bounds if specified (preserve transform metadata)

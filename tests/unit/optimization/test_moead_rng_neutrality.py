@@ -17,7 +17,7 @@ import logging
 import numpy as np
 import pytest
 
-from symfluence.optimization.optimizers.algorithms.moead import MOEADAlgorithm
+from symfluence.core.calibration.optimizers.algorithms.moead import MOEADAlgorithm
 
 
 @pytest.fixture

@@ -15,9 +15,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.registries import R
 from symfluence.models.gr.runner import GRRunner
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ class GRWorker(BaseWorker):
             - Primary metric (KGE) used for optimization objective
         """
         try:
-            from symfluence.optimization.calibration_targets import GRStreamflowTarget
+            from symfluence.models.gr.calibration.targets import GRStreamflowTarget
 
             # Resolve project directory
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))

@@ -120,7 +120,7 @@ class TestGradientMethodComparison:
         self, base_config, test_logger, rosenbrock_objective, rosenbrock_gradient_jax
     ):
         """Adam should converge similarly with FD and native gradients."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         n_params = 4
         base_config['ADAM_STEPS'] = 200
@@ -169,7 +169,7 @@ class TestGradientMethodComparison:
         self, base_config, test_logger, rosenbrock_objective, rosenbrock_gradient_jax
     ):
         """L-BFGS should converge similarly with FD and native gradients."""
-        from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
         n_params = 4
         base_config['LBFGS_STEPS'] = 100
@@ -218,7 +218,7 @@ class TestGradientSpeedup:
         self, base_config, test_logger, rosenbrock_objective, rosenbrock_gradient_jax
     ):
         """Native gradients should be faster than FD for many parameters."""
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
         n_params = 10  # More params = more FD evaluations
         n_steps = 20
@@ -290,7 +290,7 @@ class TestGradientAccuracy:
 
     def test_fd_approximates_native_gradient(self, base_config, test_logger):
         """FD gradient should approximate native gradient accurately."""
-        from symfluence.optimization.optimizers.algorithms.base_algorithm import OptimizationAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.base_algorithm import OptimizationAlgorithm
 
         # Simple quadratic for testing
         def loss_fn(x):
@@ -305,7 +305,7 @@ class TestGradientAccuracy:
             return -loss_fn(x)  # Negate for maximization
 
         # Create minimal algorithm for testing
-        from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+        from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
         algo = AdamAlgorithm(base_config, test_logger)
 
         # Test at several points

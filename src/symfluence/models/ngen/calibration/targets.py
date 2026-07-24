@@ -24,9 +24,11 @@ import pandas as pd
 
 from symfluence.core.logging_utils import log_once
 from symfluence.core.path_resolver import find_basin_shapefile
+from symfluence.core.registries import R
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 
+@R.calibration_targets.add('NGEN_STREAMFLOW')
 class NgenStreamflowTarget(StreamflowEvaluator):
     """NextGen-specific streamflow evaluator that handles nexus-style outputs."""
 

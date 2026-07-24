@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from symfluence.evaluation.metric_transformer import MetricTransformer
+from symfluence.core.metrics.metric_transformer import MetricTransformer
 
 
 class TestMetricTransformerDirection:

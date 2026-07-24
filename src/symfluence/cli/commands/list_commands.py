@@ -23,9 +23,9 @@ LIST_KINDS = [
 
 def _catalog() -> dict[str, list[str]]:
     """Build the live catalog from the registry + config schema (lazy imports)."""
+    from symfluence.core.calibration.optimizers.algorithms import list_algorithms
     from symfluence.core.config.canonical_mappings import FLAT_TO_NESTED_MAP
     from symfluence.core.registries import R
-    from symfluence.optimization.optimizers.algorithms import list_algorithms
     from symfluence.resources import list_config_templates
     from symfluence.workflow_steps import WORKFLOW_STEP_ITEMS
 

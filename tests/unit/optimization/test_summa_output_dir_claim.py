@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.optimization.workers.summa.model_execution import (
+from symfluence.models.summa.calibration.worker_impl.model_execution import (
     _cleanup_stale_output_files,
     _usable_output_dir,
 )

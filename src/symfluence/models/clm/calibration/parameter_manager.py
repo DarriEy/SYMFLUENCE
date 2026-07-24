@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import xarray as xr
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 # CLM5 parameter definitions:
 # (target_file, nc_variable_or_None, transform)

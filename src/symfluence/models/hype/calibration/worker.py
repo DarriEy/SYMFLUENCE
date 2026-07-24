@@ -14,13 +14,13 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.logging_utils import log_once
+from symfluence.core.metrics import kge, nse
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.evaluation.metrics import kge, nse
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @R.workers.add('HYPE')
@@ -53,10 +53,10 @@ class HYPEWorker(BaseWorker):
         if self._regionalization_cache is not None:
             return self._regionalization_cache
 
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_hype_bounds
         from symfluence.models.hype.calibration.hype_regionalization import (
             create_hype_regionalization,
         )
-        from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
 
         geoclass_path = settings_dir / 'GeoClass.txt'
         if not geoclass_path.exists():

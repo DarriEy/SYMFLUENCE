@@ -16,9 +16,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.exceptions import ConfigurationError
 from symfluence.core.registries import R
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 from .parameter_manager import (
     CoupledModelParameterManager,

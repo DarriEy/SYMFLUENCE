@@ -17,9 +17,9 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
+from symfluence.core.calibration.parameters.parameter_bounds_registry import get_gr_bounds
 from symfluence.core.registries import R
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds
 
 
 @R.parameter_managers.add('GR')

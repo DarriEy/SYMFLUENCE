@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing, fallback_simulation_dir
+from symfluence.core.calibration.optimizers.lifecycle import adjust_end_time_for_forcing, fallback_simulation_dir
 
 
 @pytest.mark.parametrize(
