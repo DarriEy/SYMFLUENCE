@@ -42,8 +42,28 @@ def get_base_settings_dir(model_name: str) -> Path:
         >>> fuse_dir = get_base_settings_dir('FUSE')
         >>> summa_dir = get_base_settings_dir('SUMMA')
     """
+    # Registry first: each model package registers the anchor package whose
+    # ``base_settings/`` data directory ships its template settings (in-tree
+    # packages and external plugins use the same path).
     try:
-        # Get the package data directory using importlib.resources
+        from symfluence.core.registries import R
+
+        anchor = R.base_settings.get(model_name)
+    except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
+        anchor = None
+    if anchor is not None:
+        try:
+            model_settings = files(anchor) / 'base_settings'
+            path = Path(model_settings) if hasattr(model_settings, '__fspath__') \
+                else Path(str(model_settings))
+            if path.exists():
+                return path
+        except (ModuleNotFoundError, AttributeError):
+            pass
+
+    try:
+        # Central fallback (framework-owned fixtures such as TEST, and any
+        # model whose package has not registered a base_settings anchor).
         base_settings_root = files('symfluence.resources.base_settings')
         model_settings = base_settings_root / model_name
 
@@ -66,9 +86,10 @@ def get_base_settings_dir(model_name: str) -> Path:
 
     except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
         raise FileNotFoundError(
-            f"Base settings for model '{model_name}' not found. "
-            f"Expected at: symfluence.resources.base_settings.{model_name}\n"
-            f"Available models: CLM, FUSE, MESH, NOAH, SUMMA, mizuRoute, troute"
+            f"Base settings for model '{model_name}' not found. It is served "
+            f"from the model package registered in R.base_settings (is the "
+            f"model package installed and registered?), with "
+            f"symfluence.resources.base_settings as the legacy fallback."
         ) from e
 
 

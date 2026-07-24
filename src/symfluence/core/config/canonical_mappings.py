@@ -17,7 +17,7 @@ import logging
 import threading
 from typing import Dict, Tuple
 
-from symfluence.core.config.legacy_aliases import LEGACY_FLAT_TO_NESTED_ALIASES
+from symfluence.core.config.legacy_aliases import iter_legacy_flat_to_nested_aliases
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,8 @@ class _LazyMap(dict):
         self.update(_generate_canonical_map())
         if self._include_legacy:
             # Legacy aliases have lower priority — only add missing keys
-            for key, path in LEGACY_FLAT_TO_NESTED_ALIASES.items():
+            # (framework entries + per-schema declarations from R.config_schemas)
+            for key, path in iter_legacy_flat_to_nested_aliases().items():
                 self.setdefault(key, path)
 
     # Override all read methods to ensure data is loaded before access.

@@ -21,10 +21,7 @@ logger = logging.getLogger(__name__)
 _WIDGET_KW = dict(sizing_mode='stretch_width', margin=(4, 5))
 _BTN_KW = dict(sizing_mode='stretch_width', margin=(8, 5, 4, 5))
 
-_HYDRO_MODELS = [
-    'SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM',
-]
-_ROUTING_MODELS = ['None', 'MIZUROUTE', 'DROUTE', 'TROUTE']
+from ..utils.model_choices import hydro_model_choices, routing_model_choices
 
 
 class ModelPanel(param.Parameterized):
@@ -53,16 +50,20 @@ class ModelPanel(param.Parameterized):
             except (AttributeError, TypeError):
                 pass
 
+        hydro_options = hydro_model_choices()
+        hydro_model = str(hydro_model).upper() if hydro_model else hydro_model
         self._hydrological_model = pn.widgets.Select(
             name='Hydrological Model',
-            options=_HYDRO_MODELS,
-            value=hydro_model if hydro_model in _HYDRO_MODELS else 'SUMMA',
+            options=hydro_options,
+            value=hydro_model if hydro_model in hydro_options else
+            ('SUMMA' if 'SUMMA' in hydro_options else hydro_options[0]),
             **_WIDGET_KW,
         )
+        routing_options = routing_model_choices()
         self._routing_model = pn.widgets.Select(
             name='Routing Model',
-            options=_ROUTING_MODELS,
-            value=routing_model if routing_model in _ROUTING_MODELS else 'None',
+            options=routing_options,
+            value=routing_model if routing_model in routing_options else 'None',
             **_WIDGET_KW,
         )
 

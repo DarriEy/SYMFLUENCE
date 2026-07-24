@@ -64,6 +64,7 @@ def register() -> None:
     R.result_extractors.add_lazy("NOAHMP", f"{base}.extractor.NoahMPResultExtractor")
     R.optimizers.add_lazy("NOAHMP", f"{base}.calibration.optimizer.NoahMPModelOptimizer")
     R.workers.add_lazy("NOAHMP", f"{base}.calibration.worker.NoahMPWorker")
+    R.base_settings.add("NOAH", "symfluence.models.noahmp")
     R.parameter_managers.add_lazy("NOAHMP", f"{base}.calibration.parameter_manager.NoahMPParameterManager")
 
 

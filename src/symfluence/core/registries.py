@@ -68,6 +68,11 @@ class Registries:
     optimizers: Registry = Registry("optimizers", normalize=_model_key, doc="Model-specific optimizer classes")
     workers: Registry = Registry("workers", normalize=_model_key, doc="Model-specific worker classes")
     parameter_managers: Registry = Registry("parameter_managers", normalize=_model_key, doc="Parameter manager classes")
+    base_settings: Registry = Registry(
+        "base_settings", normalize=_model_key,
+        doc="Package anchor (dotted module path) whose base_settings/ data dir "
+            "holds a model's template settings files",
+    )
     calibration_targets: Registry = Registry(
         "calibration_targets", doc="Calibration target classes (composite keys: MODEL_TARGET)"
     )

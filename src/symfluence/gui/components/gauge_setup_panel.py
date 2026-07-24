@@ -23,7 +23,8 @@ from ..utils.threading_utils import run_on_ui_thread
 logger = logging.getLogger(__name__)
 
 # Choices mirrored from argument_parser.py
-_MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
+from ..utils.model_choices import hydro_model_choices
+
 _FORCING = ['ERA5', 'RDRS', 'CARRA', 'CERRA', 'MSWEP', 'AORC', 'CONUS404']
 _DISCRETIZATION = ['lumped', 'point', 'subset', 'delineate']
 
@@ -56,7 +57,7 @@ class GaugeSetupPanel(param.Parameterized):
 
         # Form widgets
         self._domain_name = pn.widgets.TextInput(name='Domain Name', value='', width=320)
-        self._model = pn.widgets.Select(name='Model', options=_MODELS, value='SUMMA', width=320)
+        self._model = pn.widgets.Select(name='Model', options=hydro_model_choices(), value='SUMMA', width=320)
         self._forcing = pn.widgets.Select(name='Forcing', options=_FORCING, value='ERA5', width=320)
         self._discretization = pn.widgets.Select(
             name='Discretization', options=_DISCRETIZATION, value='lumped', width=320,

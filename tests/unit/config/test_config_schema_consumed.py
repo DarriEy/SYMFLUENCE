@@ -6,7 +6,7 @@
 Phase B made ``R.config_schemas`` the authority for model-specific typed configs:
 ``ModelConfig.auto_populate_model_configs`` instantiates the registered schema for a
 selected model, and ``config_resolution.get_config_schema`` resolves it. A schema can
-be registered (via ``IN_TREE_CONFIG_SCHEMAS`` or ``model_manifest(config_schema=...)``)
+be registered (via each model package's manifest/``register()`` or an external plugin's ``model_manifest(config_schema=...)``)
 yet never actually applied — e.g. under a key the resolution path never queries. That
 "accepted but unread" state is silent: the config validates, but the typed schema is
 ignored.

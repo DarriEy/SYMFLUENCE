@@ -95,6 +95,7 @@ def register() -> None:
         R.optimizers.add_lazy("IGNACIO", f"{base}.calibration.optimizer.IGNACIOModelOptimizer")
         R.workers.add_lazy("IGNACIO", f"{base}.calibration.worker.IGNACIOWorker")
         R.parameter_managers.add_lazy("IGNACIO", f"{base}.calibration.parameter_manager.IGNACIOParameterManager")
+        R.config_schemas.add_lazy("IGNACIO", f"{base}.config_schema.IGNACIOConfig")
     except Exception:  # noqa: BLE001 — optional dependency
         pass
 

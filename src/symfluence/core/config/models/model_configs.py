@@ -17,103 +17,42 @@ from symfluence.core.registries import R
 
 from .base import FROZEN_CONFIG
 from .model_config_types import SpatialModeType
-from .model_configs_hydrology import (
-    CLMConfig,
-    CRHMConfig,
-    CWatMConfig,
-    FUSEConfig,
-    GRConfig,
-    GSFLOWConfig,
-    HYPEConfig,
-    LisfloodConfig,
-    MESHConfig,
-    MHMConfig,
-    NGENConfig,
-    NoahMPConfig,
-    PCRGLOBWBConfig,
-    PRMSConfig,
-    RHESSysConfig,
-    SUMMAConfig,
-    SWATConfig,
-    VICConfig,
-    WATFLOODConfig,
-    WflowConfig,
-    WRFHydroConfig,
-)
-from .model_configs_integrated import (
-    CLMParFlowConfig,
-    MODFLOWConfig,
-    ParFlowConfig,
-    PIHMConfig,
-)
-from .model_configs_ml_fire import GNNConfig, IGNACIOConfig, LSTMConfig, WMFireConfig
 
-# DROUTE config schema now lives in the external ``droute`` package and registers itself via
-# ``model_manifest(config_schema=DRouteConfig)`` (JAX-model plugin pattern).
-from .model_configs_routing import MizuRouteConfig, TRouteConfig
-
-# Single source of truth mapping canonical model name (UPPER) -> its Pydantic
-# config schema, for every in-tree model that has a typed config. The attribute
-# name used on ``ModelConfig`` (and the ``model_specific`` key) is the lower-case
-# of the canonical name.
-#
-# These are registered into ``R.config_schemas`` at import time so the core
-# validation pipeline and the resolution helpers in
-# ``symfluence.models.config_resolution`` find in-tree schemas through the *same*
-# path an external plugin uses when it calls ``model_manifest(config_schema=...)``.
-# Before this, ``R.config_schemas`` was empty and the typed-config plugin contract
-# was notional (RTI review item 18).
-IN_TREE_CONFIG_SCHEMAS: dict[str, type[BaseModel]] = {
-    'SUMMA': SUMMAConfig,
-    'FUSE': FUSEConfig,
-    'GR': GRConfig,
-    'HYPE': HYPEConfig,
-    'NGEN': NGENConfig,
-    'MESH': MESHConfig,
-    'MIZUROUTE': MizuRouteConfig,
-    # 'DROUTE' is contributed by the external droute plugin via model_manifest(config_schema=...)
-    'TROUTE': TRouteConfig,
-    'LSTM': LSTMConfig,
-    'RHESSYS': RHESSysConfig,
-    'GNN': GNNConfig,
-    'IGNACIO': IGNACIOConfig,
-    'VIC': VICConfig,
-    'CLM': CLMConfig,
-    'MODFLOW': MODFLOWConfig,
-    'PARFLOW': ParFlowConfig,
-    'CLMPARFLOW': CLMParFlowConfig,
-    'SWAT': SWATConfig,
-    'MHM': MHMConfig,
-    'CRHM': CRHMConfig,
-    'WRFHYDRO': WRFHydroConfig,
-    'PRMS': PRMSConfig,
-    'PIHM': PIHMConfig,
-    'GSFLOW': GSFLOWConfig,
-    'WATFLOOD': WATFLOODConfig,
-    'WFLOW': WflowConfig,
-    'LISFLOOD': LisfloodConfig,
-    'PCRGLOBWB': PCRGLOBWBConfig,
-    'CWATM': CWatMConfig,
-    'NOAHMP': NoahMPConfig,
+# Per-model config schemas live with their model packages
+# (``symfluence.models.<model>.config_schema``) and register into
+# ``R.config_schemas`` through each package's manifest/``register()`` — the
+# same path an external plugin uses (``model_manifest(config_schema=...)``,
+# e.g. the droute package). Legacy class-name imports from this module keep
+# working via the registry-backed ``__getattr__`` below.
+_LEGACY_SCHEMA_EXPORTS: Dict[str, str] = {
+    'SUMMAConfig': 'SUMMA', 'FUSEConfig': 'FUSE', 'GRConfig': 'GR',
+    'HYPEConfig': 'HYPE', 'NGENConfig': 'NGEN', 'MESHConfig': 'MESH',
+    'RHESSysConfig': 'RHESSYS', 'VICConfig': 'VIC', 'CLMConfig': 'CLM',
+    'SWATConfig': 'SWAT', 'MHMConfig': 'MHM', 'CRHMConfig': 'CRHM',
+    'WRFHydroConfig': 'WRFHYDRO', 'PRMSConfig': 'PRMS',
+    'GSFLOWConfig': 'GSFLOW', 'WATFLOODConfig': 'WATFLOOD',
+    'WflowConfig': 'WFLOW', 'LisfloodConfig': 'LISFLOOD',
+    'PCRGLOBWBConfig': 'PCRGLOBWB', 'CWatMConfig': 'CWATM',
+    'NoahMPConfig': 'NOAHMP', 'MODFLOWConfig': 'MODFLOW',
+    'ParFlowConfig': 'PARFLOW', 'CLMParFlowConfig': 'CLMPARFLOW',
+    'PIHMConfig': 'PIHM', 'MizuRouteConfig': 'MIZUROUTE',
+    'TRouteConfig': 'TROUTE', 'LSTMConfig': 'LSTM', 'GNNConfig': 'GNN',
+    'IGNACIOConfig': 'IGNACIO', 'WMFireConfig': 'WMFIRE',
 }
 
 
-def _register_in_tree_config_schemas() -> None:
-    """Bridge in-tree config schemas into the unified ``R.config_schemas``.
-
-    Idempotent: skips names already registered (e.g. by a model package's
-    ``model_manifest(config_schema=...)`` call), so an explicit per-model
-    registration always wins over this bridge.
-    """
-    from symfluence.core.registries import R
-
-    for name, schema_cls in IN_TREE_CONFIG_SCHEMAS.items():
-        if name not in R.config_schemas:
-            R.config_schemas.add(name, schema_cls)
-
-
-_register_in_tree_config_schemas()
-
+def __getattr__(name: str):
+    key = _LEGACY_SCHEMA_EXPORTS.get(name)
+    if key is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    schema = R.config_schemas.get(key)
+    if schema is None:
+        raise AttributeError(
+            f"{name} is unavailable: no config schema registered for model "
+            f"'{key}' (is the model package installed and registered?)"
+        )
+    globals()[name] = schema
+    return schema
 
 # Selection keys (alias, field-name) whose value names a single model whose
 # typed config should be auto-created, in addition to the hydrological list.
@@ -289,34 +228,4 @@ class ModelConfig(BaseModel):
                     data.setdefault(key, value)
         return data
 
-__all__ = [
-    'SpatialModeType',
-    'ModelConfig',
-    'SUMMAConfig',
-    'FUSEConfig',
-    'GRConfig',
-    'HYPEConfig',
-    'NGENConfig',
-    'MESHConfig',
-    'MizuRouteConfig',
-    'TRouteConfig',
-    'LSTMConfig',
-    'WMFireConfig',
-    'RHESSysConfig',
-    'VICConfig',
-    'CLMConfig',
-    'MODFLOWConfig',
-    'ParFlowConfig',
-    'CLMParFlowConfig',
-    'PIHMConfig',
-    'GNNConfig',
-    'IGNACIOConfig',
-    'SWATConfig',
-    'MHMConfig',
-    'CRHMConfig',
-    'WRFHydroConfig',
-    'PRMSConfig',
-    'GSFLOWConfig',
-    'WATFLOODConfig',
-    'WflowConfig',
-]
+__all__ = ['SpatialModeType', 'ModelConfig', *sorted(_LEGACY_SCHEMA_EXPORTS)]

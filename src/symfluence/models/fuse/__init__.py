@@ -124,6 +124,7 @@ def register() -> None:
     )
     base = 'symfluence.models.fuse'
     R.preprocessors.add_lazy("FUSE", f"{base}.preprocessor.FUSEPreProcessor")
+    R.base_settings.add("FUSE", "symfluence.models.fuse")
     R.runners.add_lazy("FUSE", f"{base}.runner.FUSERunner", runner_method='run_fuse')
     R.postprocessors.add_lazy("FUSE", f"{base}.postprocessor.FUSEPostProcessor")
     R.visualizers.add_lazy("FUSE", f"{base}.visualizer.visualize_fuse")

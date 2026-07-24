@@ -55,19 +55,26 @@ from .evaluation import (
 from .forcing import EMEarthConfig, ERA5Config, ForcingConfig, LapseRateConfig, NexConfig
 
 # Model configs
-from .model_configs import (
-    FUSEConfig,
-    GNNConfig,
-    GRConfig,
-    HYPEConfig,
-    LSTMConfig,
-    MESHConfig,
-    MizuRouteConfig,
-    ModelConfig,
-    NGENConfig,
-    RHESSysConfig,
-    SUMMAConfig,
-)
+from .model_configs import ModelConfig
+
+# Per-model schema classes (SUMMAConfig, FUSEConfig, ...) live with their
+# model packages and resolve lazily through R.config_schemas; importing them
+# eagerly here would force registry resolution before model plugins load.
+_LAZY_MODEL_SCHEMA_NAMES = frozenset({
+    'FUSEConfig', 'GNNConfig', 'GRConfig', 'HYPEConfig', 'LSTMConfig',
+    'MESHConfig', 'MizuRouteConfig', 'NGENConfig', 'RHESSysConfig',
+    'SUMMAConfig',
+})
+
+
+def __getattr__(name: str):
+    if name in _LAZY_MODEL_SCHEMA_NAMES:
+        from . import model_configs
+
+        value = getattr(model_configs, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Optimization configs
 from .optimization import (
@@ -91,6 +98,7 @@ from .state_config import DataAssimilationConfig, EnKFConfig, StateConfig
 from .system import SystemConfig
 
 __all__ = [
+    *sorted(_LAZY_MODEL_SCHEMA_NAMES),
     # Root
     "SymfluenceConfig",
     # System
@@ -113,16 +121,6 @@ __all__ = [
     "ERA5Config",
     # Models
     "ModelConfig",
-    "SUMMAConfig",
-    "FUSEConfig",
-    "GRConfig",
-    "HYPEConfig",
-    "NGENConfig",
-    "MESHConfig",
-    "MizuRouteConfig",
-    "LSTMConfig",
-    "RHESSysConfig",
-    "GNNConfig",
     # Optimization
     "OptimizationConfig",
     "PSOConfig",

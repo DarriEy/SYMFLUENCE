@@ -4,8 +4,8 @@
 """
 IGNACIO Fire Model Configuration for SYMFLUENCE
 
-The full field set lives in the registered core schema
-(:class:`symfluence.core.config.models.model_configs_ml_fire.IGNACIOConfig`)
+The full field set lives in the registered schema
+(:class:`symfluence.models.ignacio.config_schema.IGNACIOConfig`)
 so flat ``IGNACIO_*`` keys transform into typed ``config.model.ignacio.*``
 fields. This module subclasses it to add the conversion to IGNACIO's own
 YAML configuration format.
@@ -14,9 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from symfluence.core.config.models.model_configs_ml_fire import (
-    IGNACIOConfig as CoreIGNACIOConfig,
-)
+from .config_schema import IGNACIOConfig as CoreIGNACIOConfig
 
 
 class IGNACIOConfig(CoreIGNACIOConfig):

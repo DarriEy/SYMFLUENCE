@@ -75,6 +75,7 @@ def register() -> None:
     )
     base = 'symfluence.models.troute'
     R.preprocessors.add_lazy("TROUTE", f"{base}.preprocessor.TRoutePreProcessor")
+    R.base_settings.add("TROUTE", "symfluence.models.troute")
     R.runners.add_lazy("TROUTE", f"{base}.runner.TRouteRunner", runner_method='run_troute')
     R.postprocessors.add_lazy("TROUTE", f"{base}.postprocessor.TRoutePostProcessor")
     R.result_extractors.add_lazy("TROUTE", f"{base}.extractor.TRouteResultExtractor")

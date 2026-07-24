@@ -94,6 +94,7 @@ src/symfluence/models/hype/extractor.py:HYPEResultExtractor._extract_from_text:r
 src/symfluence/models/hype/extractor.py:HYPEResultExtractor.extract_variable:raise ValueError(f"Could not extract {variable_type} from {output_file}")
 src/symfluence/models/hype/forcing_processor.py:HYPEForcingProcessor._convert_hourly_to_daily:raise ValueError(f"Unsupported stat: {stat}")
 src/symfluence/models/hype/geodata_manager.py:HYPEGeoDataManager._load_gis_stats:raise FileNotFoundError(
+src/symfluence/models/ignacio/config_schema.py:IGNACIOConfig.validate_ignition_date:raise ValueError(
 src/symfluence/models/ignacio/extractor.py:IGNACIOResultExtractor._extract_from_json:raise ValueError(
 src/symfluence/models/ignacio/extractor.py:IGNACIOResultExtractor._extract_from_shapefile:raise ValueError(
 src/symfluence/models/ignacio/extractor.py:IGNACIOResultExtractor.extract_variable:raise ValueError(
@@ -154,6 +155,7 @@ src/symfluence/models/modflow/extractor.py:MODFLOWResultExtractor._extract_heads
 src/symfluence/models/modflow/extractor.py:MODFLOWResultExtractor.extract_variable:raise ValueError(f"Unknown variable type: {variable_type}")
 src/symfluence/models/modflow/runner.py:MODFLOWRunner._verify_output:raise RuntimeError(
 src/symfluence/models/modflow/runner.py:MODFLOWRunner._verify_output:raise RuntimeError(f"MODFLOW head output file is empty: {f}")
+src/symfluence/models/ngen/config_schema.py:NGENConfig._validate_calibrate_subset:raise ValueError(
 src/symfluence/models/noahmp/config.py:NoahMPConfigAdapter.validate:raise ValueError(
 src/symfluence/models/noahmp/config.py:NoahMPConfigAdapter.validate:raise ValueError(
 src/symfluence/models/noahmp/extractor.py:NoahMPResultExtractor.extract_streamflow:raise FileNotFoundError(
@@ -268,6 +270,10 @@ src/symfluence/models/wflow/extractor.py:WflowResultExtractor.extract_variable:r
 src/symfluence/models/wflow/extractor.py:WflowResultExtractor.extract_variable:raise ValueError(f"Error reading Wflow output file {output_file}: {str(e)}") from e
 src/symfluence/models/wflow/preprocessor.py:WflowPreProcessor._extract_forcing_var:raise ValueError(f"None of {var_names} found in forcing. Available: {list(ds.data_vars)}")
 src/symfluence/models/wflow/preprocessor.py:WflowPreProcessor._generate_forcing:raise FileNotFoundError(
+src/symfluence/models/wmfire/config_schema.py:WMFireConfig.validate_ignition_point:raise ValueError(
+src/symfluence/models/wmfire/config_schema.py:WMFireConfig.validate_ignition_point:raise ValueError(f"Invalid ignition_point coordinates: {e}") from e
+src/symfluence/models/wmfire/config_schema.py:WMFireConfig.validate_ignition_point:raise ValueError(f"Latitude {lat} out of range [-90, 90]")
+src/symfluence/models/wmfire/config_schema.py:WMFireConfig.validate_ignition_point:raise ValueError(f"Longitude {lon} out of range [-180, 180]")
 src/symfluence/models/wmfire/fire_def_generator.py:validate_fire_def:raise ValueError(f"Fire def file not found: {file_path}")
 src/symfluence/models/wmfire/fire_def_generator.py:validate_fire_def:raise ValueError(f"Missing required parameter: {req}")
 src/symfluence/models/wmfire/fire_grid.py:FireGridManager.create_fire_grid:raise TypeError("catchment_gdf must be a GeoDataFrame")

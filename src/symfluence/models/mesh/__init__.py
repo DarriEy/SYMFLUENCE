@@ -118,6 +118,7 @@ def register() -> None:
     )
     base = 'symfluence.models.mesh'
     R.preprocessors.add_lazy("MESH", f"{base}.preprocessor.MESHPreProcessor")
+    R.base_settings.add("MESH", "symfluence.models.mesh")
     R.runners.add_lazy("MESH", f"{base}.runner.MESHRunner", runner_method='run_mesh')
     R.postprocessors.add_lazy("MESH", f"{base}.postprocessor.MESHPostProcessor")
     R.visualizers.add_lazy("MESH", f"{base}.visualizer.visualize_mesh")
