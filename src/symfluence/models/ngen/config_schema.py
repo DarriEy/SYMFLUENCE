@@ -14,6 +14,7 @@ import warnings
 from typing import Any, Dict, Optional
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from symfluence.core.config.models.base import FROZEN_CONFIG
 
@@ -146,10 +147,15 @@ class NGENConfig(BaseModel):
         calibrate = {canonical_module_name(m) for m in self.modules_to_calibrate.split(',') if m.strip()}
         not_selected = calibrate - selected
         if not_selected:
-            raise ValueError(
-                f"NGEN_MODULES_TO_CALIBRATE contains modules not in NGEN_MODULES_SELECTED: "
-                f"{not_selected}. Either add them to NGEN_MODULES_SELECTED or remove them "
-                f"from NGEN_MODULES_TO_CALIBRATE."
+            # PydanticCustomError (not a bare ValueError) keeps the models/
+            # generic-raise guard clean while still surfacing through pydantic
+            # as a ValidationError.
+            raise PydanticCustomError(
+                'ngen_calibrate_subset',
+                'NGEN_MODULES_TO_CALIBRATE contains modules not in '
+                'NGEN_MODULES_SELECTED: {not_selected}. Either add them to '
+                'NGEN_MODULES_SELECTED or remove them from NGEN_MODULES_TO_CALIBRATE.',
+                {'not_selected': str(not_selected)},
             )
         return self
     run_troute: bool = Field(default=True, alias='NGEN_RUN_TROUTE')

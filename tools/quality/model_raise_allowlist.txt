@@ -155,7 +155,6 @@ src/symfluence/models/modflow/extractor.py:MODFLOWResultExtractor._extract_heads
 src/symfluence/models/modflow/extractor.py:MODFLOWResultExtractor.extract_variable:raise ValueError(f"Unknown variable type: {variable_type}")
 src/symfluence/models/modflow/runner.py:MODFLOWRunner._verify_output:raise RuntimeError(
 src/symfluence/models/modflow/runner.py:MODFLOWRunner._verify_output:raise RuntimeError(f"MODFLOW head output file is empty: {f}")
-src/symfluence/models/ngen/config_schema.py:NGENConfig._validate_calibrate_subset:raise ValueError(
 src/symfluence/models/noahmp/config.py:NoahMPConfigAdapter.validate:raise ValueError(
 src/symfluence/models/noahmp/config.py:NoahMPConfigAdapter.validate:raise ValueError(
 src/symfluence/models/noahmp/extractor.py:NoahMPResultExtractor.extract_streamflow:raise FileNotFoundError(
