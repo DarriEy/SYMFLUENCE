@@ -295,7 +295,8 @@ def resample_timeseries(
             f"Must be one of: {', '.join(agg_methods.keys())}"
         )
 
-    return series.resample(freq).apply(agg_methods[aggregation])
+    # Not redundant: under pandas-stubs, .apply() is typed Series | DataFrame.
+    return cast(pd.Series, series.resample(freq).apply(agg_methods[aggregation]))
 
 
 def calculate_summary_statistics(data: np.ndarray) -> Dict[str, float]:

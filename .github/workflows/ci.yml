@@ -39,7 +39,7 @@ jobs:
           pip install ruff pyyaml actionlint-py==1.7.12.24 uv==0.10.4
 
       - name: Validate GitHub Actions workflows
-        run: actionlint
+        run: python scripts/run_actionlint.py
 
       - name: Validate universal dependency lock
         run: uv lock --check

@@ -69,8 +69,8 @@ from typing import Any, Protocol, runtime_checkable
 #: the version they target via ``AcquisitionBackend.interface_version`` /
 #: ``ObservationBackend.interface_version``.
 #:
-#: PRE-1.0 SEMANTICS: minor releases are additive and retain the existing
-#: backend surface. 0.2.0 added the
+#: PRE-1.0 SEMANTICS: each MINOR bump is additive-only — it never removes or
+#: changes an existing flavour's types. 0.2.0 added the
 #: observation flavour (``ObservationCapability`` / ``ObservationRequest`` /
 #: ``ObservationBackend``); 0.3.0 added the attribute flavour
 #: (``AttributeCapability`` / ``AttributeRequest`` / ``AttributeBackend``,
@@ -82,8 +82,15 @@ from typing import Any, Protocol, runtime_checkable
 #: ``dataset_doi`` / ``dataset_version`` / ``dataset_checksum`` on
 #: ``ObservationCapability``) so DATASET_ARTIFACT sources are admitted by a
 #: provenance gate (DOI+version+checksum+license) rather than the parity gate.
-#: 0.6.0 formalized that same-major community-service releases are mutually
-#: compatible; breaking changes require a major-version bump.
+#: 0.6.0 dropped the synchronized pip upper caps on the community-service
+#: packages: services release independently and the resolver picks each
+#: newest release, with compatibility enforced HERE at registration time
+#: rather than by pinning. Backends targeting an older-or-equal minor are
+#: compatible (additive-only minors mean they use only types the protocol
+#: still ships); FORWARD skew — a backend targeting a NEWER minor than the
+#: running framework — is declined by :func:`is_compatible`, never silently
+#: claimed compatible, because the framework may lack the newer flavour's
+#: types.
 PROTOCOL_VERSION = "0.6.0"
 
 #: Name of the sidecar manifest written next to acquired raw files. The
@@ -460,15 +467,20 @@ def parse_version(version: str) -> tuple[int, int, int]:
 def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION) -> bool:
     """Return True if a backend targeting *backend_version* may register.
 
-    Same major version is required. Minor and patch releases are additive-only
-    and never remove or change an existing flavour's types — 0.2.0 added observations on top of
+    Same major version always required. While the contract is pre-1.0
+    (major == 0), each MINOR bump is *additive-only* and never removes or
+    changes an existing flavour's types — 0.2.0 added observations on top of
     0.1.0's forcing surface, 0.3.0 added attributes on top of 0.2.0, 0.4.0
     added defaulted license fields, 0.5.0 added the defaulted source-kind tier
     (older backends omit them harmlessly). So a
-    backend targeting any release in the same major series is compatible.
-    Breaking changes must advance the major version. This lets independently
-    released community services move forward without forcing synchronized
-    framework releases.
+    backend targeting an OLDER-or-equal minor than the running protocol is
+    compatible (it uses only types the protocol still ships); FORWARD skew —
+    a backend targeting a NEWER minor than the framework's protocol — is the
+    breaking case and is declined (the framework lacks the newer flavour's
+    types). This runtime guard is what makes the uncapped community-service
+    pip requirements safe: services release independently, and a service
+    release that genuinely needs a newer contract is cleanly declined at
+    registration on an older framework instead of failing mid-run.
     """
     try:
         backend = parse_version(backend_version)
@@ -476,6 +488,8 @@ def is_compatible(backend_version: str, protocol_version: str = PROTOCOL_VERSION
     except ValueError:
         return False
     if backend[0] != protocol[0]:
+        return False
+    if protocol[0] == 0 and backend[1] > protocol[1]:
         return False
     return True
 
