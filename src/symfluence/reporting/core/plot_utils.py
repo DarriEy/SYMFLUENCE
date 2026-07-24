@@ -295,8 +295,13 @@ def resample_timeseries(
             f"Must be one of: {', '.join(agg_methods.keys())}"
         )
 
-    # Not redundant: under pandas-stubs, .apply() is typed Series | DataFrame.
-    return cast(pd.Series, series.resample(freq).apply(agg_methods[aggregation]))
+    result = series.resample(freq).apply(agg_methods[aggregation])
+    # Scalar-per-group aggregations always yield a Series; the isinstance
+    # narrowing (rather than a cast) stays valid across pandas-stubs versions
+    # that type .apply() as Series and as Series | DataFrame.
+    if isinstance(result, pd.DataFrame):
+        raise TypeError(f"Aggregation '{aggregation}' produced a DataFrame; expected scalar per group")
+    return result
 
 
 def calculate_summary_statistics(data: np.ndarray) -> Dict[str, float]:
