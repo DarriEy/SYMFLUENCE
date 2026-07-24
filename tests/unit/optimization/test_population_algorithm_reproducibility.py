@@ -19,9 +19,9 @@ import logging
 import numpy as np
 import pytest
 
-from symfluence.optimization.optimizers.algorithms.ga import GAAlgorithm
-from symfluence.optimization.optimizers.algorithms.moead import MOEADAlgorithm
-from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+from symfluence.core.calibration.optimizers.algorithms.ga import GAAlgorithm
+from symfluence.core.calibration.optimizers.algorithms.moead import MOEADAlgorithm
+from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
 CONFIG = {
     "OPTIMIZATION_METRIC": "KGE",

@@ -35,10 +35,25 @@ src/symfluence/cli/services/tool_validator.py:ToolValidator._run_test_command:ex
 src/symfluence/cli/services/tool_validator.py:ToolValidator.validate:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/core/_bootstrap.py:_discover_plugins:except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
 src/symfluence/core/base_manager.py:BaseManager._safe_visualize:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize.log_complex_batch:except Exception as e:  # noqa: BLE001
+src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
+src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
+src/symfluence/core/calibration/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/optimizers/final_evaluation/runner.py:FinalEvaluationRunner._worker_period_metrics:except Exception as e:  # noqa: BLE001 — resilience in final eval
 src/symfluence/core/config/models/root.py:SymfluenceConfig.validate_model_requirements:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/core/exceptions.py:symfluence_error_handler:except Exception as e:  # noqa: BLE001 — error handler implementation
 src/symfluence/core/hdf5_safety.py:_find_bundled_libhdf5:except Exception:  # noqa: BLE001
 src/symfluence/core/hdf5_safety.py:prepare_for_netcdf_operation:except Exception:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics._read_observations_store:except Exception as e:  # noqa: BLE001 — must-not-raise; CSV fallback follows
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.evaluate_streamflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.load_observations:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.aggregate_from_directory:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.import_from_file:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.track_dir_create:except Exception as e:  # noqa: BLE001 — monitoring thread
@@ -427,12 +442,6 @@ src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.run_sensit
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.analyze_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.run_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.visualize_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics._read_observations_store:except Exception as e:  # noqa: BLE001 — must-not-raise; CSV fallback follows
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.evaluate_streamflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/utilities/streamflow_metrics.py:StreamflowMetrics.load_observations:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/fews/id_map.py:IDMapper._load_yaml:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/fews/netcdf_cf.py:read_fews_netcdf:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/fews/netcdf_cf.py:write_fews_netcdf:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -1208,19 +1217,10 @@ src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_f
 src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_from_chrtout:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_from_ldasout:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/preprocessor.py:WRFHydroPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._evaluate_self_training_model:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize.log_complex_batch:except Exception as e:  # noqa: BLE001
-src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
-src/symfluence/optimization/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
-src/symfluence/optimization/optimizers/base_model_optimizer.py:BaseModelOptimizer._build_algorithm_callbacks.save_checkpoint:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/optimization/optimizers/final_evaluation/runner.py:FinalEvaluationRunner._worker_period_metrics:except Exception as e:  # noqa: BLE001 — resilience in final eval
 src/symfluence/project/logging_manager.py:CountingHandler.emit:except Exception:  # noqa: BLE001 — logging must never raise
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/system.py:SYMFLUENCE.run_all_diagnostics:except Exception as e:  # noqa: BLE001 — must-not-raise contract

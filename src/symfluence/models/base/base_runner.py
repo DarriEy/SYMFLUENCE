@@ -777,6 +777,15 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             # Registry mapping is best-effort; fall back to exe-name variants.
             pass
 
+        # Convention fallback: the npm bundle stages each tool under its
+        # install-directory name (installs/<tool>/... -> <tool>, lowercased).
+        # This keeps npm-only installs working when the build-instructions
+        # registry has no resolvable entry for the tool (plugin load order,
+        # partially initialized registries).
+        subpath_parts = default_install_subpath.replace("\\", "/").split("/")
+        if len(subpath_parts) >= 2 and subpath_parts[0] == "installs":
+            candidates.append(subpath_parts[1].lower())
+
         # Generic fallbacks derived from the source exe name.
         if exe_name:
             candidates.append(exe_name)

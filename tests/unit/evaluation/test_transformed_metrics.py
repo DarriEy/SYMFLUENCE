@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 
 from symfluence.core.config.models.optimization import OptimizationConfig
-from symfluence.evaluation.metric_transformer import MetricTransformer
-from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+from symfluence.core.metrics.metric_transformer import MetricTransformer
+from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ class TestKgeBoxCox:
         obs, sim = flows
         result = StreamflowMetrics().calculate_metrics(obs, sim, metrics=['kge_box_cox'])
 
-        from symfluence.evaluation.metrics_core import kge
+        from symfluence.core.metrics.metrics_core import kge
         epsilon = max(np.mean(obs) * 0.01, 1e-6)
         lam = 0.2
         obs_t = ((obs + epsilon) ** lam - 1) / lam
@@ -64,7 +64,7 @@ class TestKgeBoxCox:
 
 class TestConfigurableBoxCoxLambda:
     def _manual_box_cox_kge(self, obs, sim, lam):
-        from symfluence.evaluation.metrics_core import kge
+        from symfluence.core.metrics.metrics_core import kge
         epsilon = max(np.mean(obs) * 0.01, 1e-6)
         obs_t = ((obs + epsilon) ** lam - 1) / lam
         sim_t = ((sim + epsilon) ** lam - 1) / lam
@@ -88,7 +88,7 @@ class TestConfigurableBoxCoxLambda:
         assert result['kge_box_cox'] == pytest.approx(result['kge_log'])
 
     def test_base_worker_picks_up_configured_lambda(self):
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         class DummyWorker(BaseWorker):
             _streamflow_metrics = StreamflowMetrics()

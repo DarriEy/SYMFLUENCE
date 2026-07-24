@@ -1,40 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-Parameter Managers
+"""Model-specific parameter managers (deprecated aggregate import surface).
 
-Parameter manager classes that handle parameter transformations, bounds, and
-file modifications for each supported model during optimization.
+Canonical homes are ``symfluence.models.<model>.calibration.parameter_manager``;
+prefer the registry (``R.parameter_managers.get('<MODEL>')``). Names here are
+resolved lazily (PEP 562) so importing this module does not import the models
+layer at import time (optimization must not depend on models).
 
-Each parameter manager is responsible for:
-- Defining parameter bounds and transformations
-- Applying parameter values to model configuration files
-- Managing parameter-specific preprocessing
-
-Model-specific parameter managers are available via:
-1. Direct import: from symfluence.models.{model}.calibration.parameter_manager import {Model}ParameterManager
-2. Registry pattern: R.parameter_managers.get('{MODEL}')
-
-Registration happens via ``@R.parameter_managers.add`` decorators.  This module auto-discovers all model packages at import time
-so that every ``calibration/parameter_manager.py`` is imported and its
-decorator fires.
+Importing this package still triggers parameter-manager auto-discovery so that
+``R.parameter_managers`` is fully seeded, matching historical behaviour; the
+discovery loop tolerates an absent models layer.
 """
 from __future__ import annotations
 
+import importlib
+import logging
+
 
 def _register_parameter_managers():
-    """Auto-discover and import parameter managers from all model packages.
-
-    Scans ``symfluence.models.*`` for sub-packages that contain a
-    ``calibration.parameter_manager`` module and imports each one to
-    trigger its ``R.parameter_managers`` registration.  Models with no
-    calibration support are skipped silently; models whose parameter-manager
-    module *exists but fails to import* are surfaced at WARNING (see
-    ``discover_calibration_components``) instead of vanishing silently.
-    """
-    import logging
-
+    """Auto-discover and import parameter managers from all model packages."""
     from symfluence.optimization._autodiscover import discover_calibration_components
 
     discover_calibration_components('parameter_manager', logging.getLogger(__name__))
@@ -43,58 +28,42 @@ def _register_parameter_managers():
 # Trigger registration on import
 _register_parameter_managers()
 
-# Re-export in-tree parameter managers from their canonical locations.
-# (HBV / SAC-SMA / Xinanjiang come from the optional JAX plugins and are
-# re-exported lazily via __getattr__ below.)
-from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
-from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
-from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
-from symfluence.models.gsflow.calibration.parameter_manager import GSFLOWParameterManager
-from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
-from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
-from symfluence.models.modflow.calibration.parameter_manager import CoupledGWParameterManager
-from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
-from symfluence.models.pihm.calibration.parameter_manager import PIHMParameterManager
-from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
-from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
-from symfluence.models.watflood.calibration.parameter_manager import WATFLOODParameterManager
-
-__all__ = [
-    'FUSEParameterManager',
-    'GRParameterManager',
-    'HBVParameterManager',
-    'HYPEParameterManager',
-    'MESHParameterManager',
-    'NgenParameterManager',
-    'RHESSysParameterManager',
-    'SUMMAParameterManager',
-    'MLParameterManager',
-    'SacSmaParameterManager',
-    'XinanjiangParameterManager',
-    'CoupledGWParameterManager',
-    'PIHMParameterManager',
-    'GSFLOWParameterManager',
-    'WATFLOODParameterManager',
-]
+# In-tree managers, resolved lazily from their canonical model packages.
+_MANAGERS = {
+    'FUSEParameterManager': 'symfluence.models.fuse.calibration.parameter_manager',
+    'MLParameterManager': 'symfluence.models.gnn.calibration.parameter_manager',
+    'GRParameterManager': 'symfluence.models.gr.calibration.parameter_manager',
+    'GSFLOWParameterManager': 'symfluence.models.gsflow.calibration.parameter_manager',
+    'HYPEParameterManager': 'symfluence.models.hype.calibration.parameter_manager',
+    'MESHParameterManager': 'symfluence.models.mesh.calibration.parameter_manager',
+    'CoupledGWParameterManager': 'symfluence.models.modflow.calibration.parameter_manager',
+    'NgenParameterManager': 'symfluence.models.ngen.calibration.parameter_manager',
+    'PIHMParameterManager': 'symfluence.models.pihm.calibration.parameter_manager',
+    'RHESSysParameterManager': 'symfluence.models.rhessys.calibration.parameter_manager',
+    'SUMMAParameterManager': 'symfluence.models.summa.calibration.parameter_manager',
+    'WATFLOODParameterManager': 'symfluence.models.watflood.calibration.parameter_manager',
+}
 
 # HBV / SAC-SMA / Xinanjiang parameter managers live in the optional JAX model
-# plugins (the ``jax`` extra). Re-export them lazily (PEP 562) so importing this
-# package never requires the plugins, while
-# ``from ...parameter_managers import HBVParameterManager`` still works when they
-# are installed. Accessing one without the plugin raises a clear ImportError.
+# plugins (the ``jax`` extra). Accessing one without the plugin installed
+# raises a clear ImportError with the install hint.
 _OPTIONAL_JAX_PARAM_MANAGERS = {
     'HBVParameterManager': 'jhbv.calibration.parameter_manager',
     'SacSmaParameterManager': 'jsacsma.calibration.parameter_manager',
     'XinanjiangParameterManager': 'jxaj.calibration.parameter_manager',
 }
 
+__all__ = list(_MANAGERS) + list(_OPTIONAL_JAX_PARAM_MANAGERS)
 
-def __getattr__(name):
-    """Lazily resolve the optional JAX-plugin parameter managers (PEP 562)."""
+
+def __getattr__(name: str):
+    module_path = _MANAGERS.get(name)
+    if module_path is not None:
+        value = getattr(importlib.import_module(module_path), name)
+        globals()[name] = value
+        return value
     module_path = _OPTIONAL_JAX_PARAM_MANAGERS.get(name)
     if module_path is not None:
-        import importlib
-
         try:
             module = importlib.import_module(module_path)
         except ImportError as exc:

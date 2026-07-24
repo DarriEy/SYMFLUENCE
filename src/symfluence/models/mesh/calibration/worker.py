@@ -15,12 +15,12 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.core.metrics import kge, nse
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
-from symfluence.evaluation.metrics import kge, nse
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.mesh.runner import MESHRunner
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 
 
 @R.workers.add('MESH')

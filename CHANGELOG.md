@@ -9,7 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Calibration contract promoted to core** (service-decomposition prep for
+  extracting the model suite into its own package). The generic calibration
+  engine moved from `optimization/` into `core/calibration/` — optimizer base
+  (`BaseModelOptimizer`), the algorithm suite, evaluators, final-evaluation
+  pipeline, parallel-execution/results/retry/gradient mixins, worker bases
+  (`BaseWorker`, `InMemoryModelWorker`), parameter management
+  (`BaseParameterManager`, the parameter bounds registry) — so model adapter
+  packages subclass calibration bases from `symfluence.core` only. Performance
+  metrics moved from `evaluation/` to `core/metrics/`, and build-environment
+  snippet helpers from `cli/services/` to `core/build/` (models no longer
+  import the CLI layer). All historical import paths keep working via
+  back-compat shims.
+- **The models layer is now import-time removable**: `optimization/` no longer
+  imports `symfluence.models` at module level (model-specific aggregators —
+  `parameter_managers`, `calibration_targets`, the SUMMA optimizer mixin —
+  resolve lazily via PEP 562), and the SUMMA calibration worker internals
+  moved to their canonical home, `models/summa/calibration/worker_impl/`.
+  `scripts/check_core_layering.py` now also enforces these package boundaries
+  (no module-level imports of `models` outside `models/`; `models` imports no
+  interface layer), with every remaining call-time seam allow-listed with a
+  reason.
+- **Coupling process adapters resolve models through the registry**:
+  `coupling/adapters/process_adapters.py` looks up runners and result
+  extractors via `R.runners` / `R.result_extractors` instead of importing
+  model modules at call time, closing the last coupling→models seam.
+
+### Fixed
+- **Two silent parameter-bound collisions in the central catalogue** (found by
+  the new collision guard test): FUSE's snow bounds (`MBASE`, `MFMAX`,
+  `MFMIN`) were overridden by Snow-17's — different ranges *and* units
+  (mm/°C/6hr vs mm/(°C·day)) — so FUSE calibrated against Snow-17 melt
+  bounds; and CFE's deliberately tightened `soil_depth` (1–5 m, anti-segfault)
+  was overridden by RHESSys's 2–15 m. Colliding entries are now namespaced
+  (`fuse_*`, `rhessys_*`) with prefixes stripped in the per-model getters;
+  bare names keep Snow-17/CFE semantics for existing callers.
+- **`NgenStreamflowTarget` never registered with `R.calibration_targets`** —
+  the only in-tree target class missing its registration decorator; NGEN
+  target resolution always fell through to the import fallback.
+
 ### Added
+- **Parameter-bounds extension seam** — `register_model_bounds()` /
+  `get_model_bounds()` / `registered_bound_models()` in
+  `core.calibration.parameters`: external model packages register calibration
+  bounds (new definitions and/or catalogue-name compositions, with optional
+  prefix stripping) without editing core. The centralized catalogue remains
+  the single source of truth for shared parameters, per the recorded
+  architecture decision (now amended in the module docstring).
 - **The SYMFLUENCE agent interface** (`symfluence agent`): hands off to an
   installed coding-agent CLI (Claude Code, Codex, Gemini, ...) primed as the
   SYMFLUENCE agent through four provider-agnostic layers, each wired through

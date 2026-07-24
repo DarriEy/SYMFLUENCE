@@ -18,13 +18,8 @@ Note:
 """
 from __future__ import annotations
 
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.core.directory_conventions import (
-    DirectoryConventionRegistry,
-    ModelDirectoryConvention,
-    get_model_directories,
-)
-from symfluence.optimization.core.parameter_bounds_registry import (
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
+from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     ParameterBoundsRegistry,
     get_depth_bounds,
     get_fuse_bounds,
@@ -34,6 +29,11 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_ngen_noah_bounds,
     get_ngen_pet_bounds,
     get_registry,
+)
+from symfluence.optimization.core.directory_conventions import (
+    DirectoryConventionRegistry,
+    ModelDirectoryConvention,
+    get_model_directories,
 )
 from symfluence.optimization.core.transformers import TransformationManager
 

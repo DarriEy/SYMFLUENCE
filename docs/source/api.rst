@@ -452,7 +452,7 @@ Optimization API
 Base Optimizer
 --------------
 
-.. automodule:: symfluence.optimization.optimizers.base_model_optimizer
+.. automodule:: symfluence.core.calibration.optimizers.base_model_optimizer
    :members:
    :undoc-members:
    :show-inheritance:

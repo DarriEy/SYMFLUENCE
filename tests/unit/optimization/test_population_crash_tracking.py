@@ -15,11 +15,11 @@ import logging
 
 import pytest
 
-from symfluence.core.constants import ModelDefaults
-from symfluence.optimization.optimizers.evaluators.population_evaluator import (
+from symfluence.core.calibration.optimizers.evaluators.population_evaluator import (
     PopulationEvaluator,
 )
-from symfluence.optimization.optimizers.metrics_tracker import EvaluationMetricsTracker
+from symfluence.core.calibration.optimizers.metrics_tracker import EvaluationMetricsTracker
+from symfluence.core.constants import ModelDefaults
 
 PENALTY = ModelDefaults.PENALTY_SCORE
 

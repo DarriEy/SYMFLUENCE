@@ -119,7 +119,7 @@ def _assert_agrees(name, x_sym, x_ref, optimum, tol):
     ("sphere", 3), ("ill_conditioned", 3), ("rosenbrock", 2),
 ])
 def test_lbfgs_vs_scipy(problem, n, logger):
-    from symfluence.optimization.optimizers.algorithms.lbfgs import LBFGSAlgorithm
+    from symfluence.core.calibration.optimizers.algorithms.lbfgs import LBFGSAlgorithm
 
     fitness, optimum = {
         "sphere": sphere_interior(n),
@@ -152,7 +152,7 @@ def test_lbfgs_vs_scipy(problem, n, logger):
     ("sphere", 3), ("ill_conditioned", 3), ("rosenbrock", 2),
 ])
 def test_nelder_mead_vs_scipy(problem, n, logger):
-    from symfluence.optimization.optimizers.algorithms.nelder_mead import NelderMeadAlgorithm
+    from symfluence.core.calibration.optimizers.algorithms.nelder_mead import NelderMeadAlgorithm
 
     fitness, optimum = {
         "sphere": sphere_interior(n),
@@ -178,7 +178,7 @@ def test_nelder_mead_vs_scipy(problem, n, logger):
 @pytest.mark.parametrize("problem,n", [("sphere", 3), ("ill_conditioned", 3)])
 def test_adam_vs_torch(problem, n, logger):
     torch = pytest.importorskip("torch")
-    from symfluence.optimization.optimizers.algorithms.adam import AdamAlgorithm
+    from symfluence.core.calibration.optimizers.algorithms.adam import AdamAlgorithm
 
     if problem == "sphere":
         fitness, optimum = sphere_interior(n)
@@ -214,7 +214,7 @@ def test_adam_vs_torch(problem, n, logger):
 
 @pytest.mark.parametrize("problem,n", [("sphere", 3), ("rosenbrock", 2)])
 def test_de_vs_scipy(problem, n, logger):
-    from symfluence.optimization.optimizers.algorithms.de import DEAlgorithm
+    from symfluence.core.calibration.optimizers.algorithms.de import DEAlgorithm
 
     fitness, optimum = (sphere_interior(n) if problem == "sphere"
                         else rosenbrock(n))
@@ -233,7 +233,7 @@ def test_de_vs_scipy(problem, n, logger):
 # ---------------------------------------------------------------------------
 
 def test_simulated_annealing_vs_scipy(logger):
-    from symfluence.optimization.optimizers.algorithms.simulated_annealing import (
+    from symfluence.core.calibration.optimizers.algorithms.simulated_annealing import (
         SimulatedAnnealingAlgorithm,
     )
 
@@ -254,7 +254,7 @@ def test_simulated_annealing_vs_scipy(logger):
 # ---------------------------------------------------------------------------
 
 def test_basin_hopping_vs_scipy(logger):
-    from symfluence.optimization.optimizers.algorithms.basin_hopping import (
+    from symfluence.core.calibration.optimizers.algorithms.basin_hopping import (
         BasinHoppingAlgorithm,
     )
 
@@ -276,7 +276,7 @@ def test_basin_hopping_vs_scipy(logger):
 
 def test_sce_ua_vs_spotpy(logger):
     spotpy = pytest.importorskip("spotpy")
-    from symfluence.optimization.optimizers.algorithms.sce_ua import SCEUAAlgorithm
+    from symfluence.core.calibration.optimizers.algorithms.sce_ua import SCEUAAlgorithm
 
     n = 3
     fitness, optimum = sphere_interior(n)

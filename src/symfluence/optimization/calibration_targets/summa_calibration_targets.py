@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-SUMMA Calibration Targets (Backward Compatibility)
+"""Deprecated shim: import from ``symfluence.models.summa.calibration.targets`` instead.
 
-.. deprecated::
-    Moved to symfluence.models.summa.calibration.targets
+Resolved lazily so this module never imports the models layer at import
+time (optimization must not depend on models).
 """
 from __future__ import annotations
 
-from symfluence.models.summa.calibration.targets import SUMMAETTarget, SUMMASnowTarget, SUMMAStreamflowTarget
+import importlib
 
-__all__ = ['SUMMAStreamflowTarget', 'SUMMASnowTarget', 'SUMMAETTarget']
+_EXPORTS = ['SUMMAStreamflowTarget', 'SUMMASnowTarget', 'SUMMAETTarget']
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str):
+    if name in _EXPORTS:
+        value = getattr(importlib.import_module("symfluence.models.summa.calibration.targets"), name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

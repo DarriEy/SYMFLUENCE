@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 
 
 # NOTE: LSTM is a self-training model — its weights are learned during the run

@@ -13,7 +13,7 @@ that RHESSys links against when fire spread simulation is enabled.
 """
 from __future__ import annotations
 
-from symfluence.cli.services import get_common_build_environment
+from symfluence.core.build import get_common_build_environment
 from symfluence.core.registries import R
 
 

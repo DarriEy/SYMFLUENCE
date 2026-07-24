@@ -23,6 +23,8 @@ from dcoupler.core.component import (
 )
 from dcoupler.wrappers.process import ProcessComponent
 
+from symfluence.core.registries import R
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,11 +57,11 @@ class SUMMAProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.summa.runner import SUMMARunner
-            self._runner = SUMMARunner(config, logger)
-        except ImportError:
-            logger.warning("SUMMARunner not available; execute() will fail")
+        runner_cls = R.runners.get('SUMMA')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("SUMMARunner not registered; execute() will fail")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -127,11 +129,11 @@ class MizuRouteProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.mizuroute.runner import MizuRouteRunner
-            self._runner = MizuRouteRunner(config, logger)
-        except ImportError:
-            logger.warning("MizuRouteRunner not available")
+        runner_cls = R.runners.get('MIZUROUTE')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("MizuRouteRunner not registered")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -201,11 +203,11 @@ class ParFlowProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.parflow.runner import ParFlowRunner
-            self._runner = ParFlowRunner(config, logger)
-        except ImportError:
-            logger.warning("ParFlowRunner not available")
+        runner_cls = R.runners.get('PARFLOW')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("ParFlowRunner not registered")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -229,10 +231,12 @@ class ParFlowProcessComponent(ProcessComponent):
 
     def read_outputs(self, work_dir: Path) -> Dict[str, torch.Tensor]:
         try:
-            from symfluence.models.parflow.extractor import ParFlowResultExtractor
+            extractor_cls = R.result_extractors.get('PARFLOW')
+            if extractor_cls is None:
+                raise RuntimeError("PARFLOW result extractor not registered")
 
             output_dir = Path(self._model_config.get('PARFLOW_OUTPUT_DIR', work_dir))
-            extractor = ParFlowResultExtractor()
+            extractor = extractor_cls()
             kwargs = {
                 'start_date': self._model_config.get('SIMULATION_START', '2000-01-01'),
                 'timestep_hours': float(self._model_config.get('TIMESTEP_HOURS', 1.0)),
@@ -284,11 +288,11 @@ class MODFLOWProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.modflow.runner import MODFLOWRunner
-            self._runner = MODFLOWRunner(config, logger)
-        except ImportError:
-            logger.warning("MODFLOWRunner not available")
+        runner_cls = R.runners.get('MODFLOW')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("MODFLOWRunner not registered")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -313,10 +317,12 @@ class MODFLOWProcessComponent(ProcessComponent):
 
     def read_outputs(self, work_dir: Path) -> Dict[str, torch.Tensor]:
         try:
-            from symfluence.models.modflow.extractor import MODFLOWResultExtractor
+            extractor_cls = R.result_extractors.get('MODFLOW')
+            if extractor_cls is None:
+                raise RuntimeError("MODFLOW result extractor not registered")
 
             output_dir = Path(self._model_config.get('MODFLOW_OUTPUT_DIR', work_dir))
-            extractor = MODFLOWResultExtractor()
+            extractor = extractor_cls()
             kwargs = {
                 'start_date': self._model_config.get('SIMULATION_START', '2000-01-01'),
                 'stress_period_length': float(
@@ -360,11 +366,11 @@ class MESHProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.mesh.runner import MESHRunner
-            self._runner = MESHRunner(config, logger)
-        except ImportError:
-            logger.warning("MESHRunner not available")
+        runner_cls = R.runners.get('MESH')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("MESHRunner not registered")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -382,10 +388,12 @@ class MESHProcessComponent(ProcessComponent):
 
     def read_outputs(self, work_dir: Path) -> Dict[str, torch.Tensor]:
         try:
-            from symfluence.models.mesh.extractor import MESHResultExtractor
+            extractor_cls = R.result_extractors.get('MESH')
+            if extractor_cls is None:
+                raise RuntimeError("MESH result extractor not registered")
 
             output_dir = Path(self._model_config.get('EXPERIMENT_OUTPUT_MESH', work_dir))
-            extractor = MESHResultExtractor('MESH')
+            extractor = extractor_cls('MESH')
             kwargs = {
                 'start_date': self._model_config.get('SIMULATION_START', '2001-01-01'),
                 'aggregate': 'daily',
@@ -437,11 +445,11 @@ class TRouteProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.troute.runner import TRouteRunner
-            self._runner = TRouteRunner(config, logger)
-        except ImportError:
-            logger.warning("TRouteRunner not available")
+        runner_cls = R.runners.get('TROUTE')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("TRouteRunner not registered")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -517,11 +525,11 @@ class CLMProcessComponent(ProcessComponent):
 
     def bmi_initialize(self, config: dict) -> None:
         self._model_config = config
-        try:
-            from symfluence.models.clm.runner import CLMRunner
-            self._runner = CLMRunner(config, logger)
-        except ImportError:
-            logger.warning("CLMRunner not available; execute() will use raw subprocess")
+        runner_cls = R.runners.get('CLM')
+        if runner_cls is not None:
+            self._runner = runner_cls(config, logger)
+        else:
+            logger.warning("CLMRunner not registered; execute() will use raw subprocess")
         self._state = self.get_initial_state()
 
     def write_inputs(self, inputs: Dict[str, torch.Tensor], work_dir: Path) -> None:
@@ -554,10 +562,12 @@ class CLMProcessComponent(ProcessComponent):
 
     def read_outputs(self, work_dir: Path) -> Dict[str, torch.Tensor]:
         try:
-            from symfluence.models.clm.extractor import CLMResultExtractor
+            extractor_cls = R.result_extractors.get('CLM')
+            if extractor_cls is None:
+                raise RuntimeError("CLM result extractor not registered")
 
             output_dir = Path(self._model_config.get('EXPERIMENT_OUTPUT_CLM', work_dir))
-            extractor = CLMResultExtractor()
+            extractor = extractor_cls()
             kwargs = {
                 'catchment_area_km2': self._model_config.get('CATCHMENT_AREA_KM2'),
             }

@@ -12,8 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 from .parameter_manager import NoahMPParameterManager  # noqa: F401 — trigger registration
 from .worker import NoahMPWorker  # noqa: F401 — Import to trigger worker registration

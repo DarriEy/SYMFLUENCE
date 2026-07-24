@@ -44,6 +44,9 @@ from typing import List, Tuple, Type
 import pytest
 
 import symfluence  # noqa: F401 — import triggers bootstrap / entry-point registration
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
+from symfluence.core.calibration.workers.base_worker import BaseWorker
 from symfluence.core.registries import R
 
 # Base classes that registered components are expected to subclass.
@@ -54,9 +57,6 @@ from symfluence.models.base.base_extractor import ModelResultExtractor
 from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from symfluence.optimization.workers.base_worker import BaseWorker
 
 pytestmark = pytest.mark.unit
 

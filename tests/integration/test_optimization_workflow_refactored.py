@@ -124,9 +124,9 @@ class TestMigrationReadiness:
 
     def test_optimization_base_classes_available(self):
         """Test base classes for migration are available."""
-        from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
-        from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-        from symfluence.optimization.workers.base_worker import BaseWorker
+        from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
+        from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
+        from symfluence.core.calibration.workers.base_worker import BaseWorker
 
         assert BaseModelOptimizer is not None
         assert BaseWorker is not None

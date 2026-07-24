@@ -21,7 +21,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import ConfigValidationError, FileOperationError, ModelExecutionError
-from symfluence.evaluation.metrics import kge, kge_prime, mae, nse, rmse
+from symfluence.core.metrics import kge, kge_prime, mae, nse, rmse
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 
 # Import MizuRouteRunner at module level for test mocking,

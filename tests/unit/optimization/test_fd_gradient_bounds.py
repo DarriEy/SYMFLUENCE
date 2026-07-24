@@ -15,7 +15,7 @@ import logging
 import numpy as np
 import pytest
 
-from symfluence.optimization.mixins.gradient_optimization import GradientOptimizationMixin
+from symfluence.core.calibration.mixins.gradient_optimization import GradientOptimizationMixin
 
 
 class _Stub(GradientOptimizationMixin):

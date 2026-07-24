@@ -282,7 +282,7 @@ class ParFlowPostProcessor(StandardModelPostProcessor):
             return float(area)
 
         try:
-            from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+            from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
             metrics = StreamflowMetrics()
             return metrics.get_catchment_area(
                 self.config_dict, self.project_dir, self.domain_name,

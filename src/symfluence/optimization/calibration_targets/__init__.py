@@ -22,22 +22,18 @@ Base calibration targets (aliases from evaluation.evaluators):
 - TWSTarget: Terrestrial water storage calibration target
 - MultivariateTarget: Multivariate calibration combining multiple variables
 
-Model-specific calibration targets:
-- SUMMAStreamflowTarget: SUMMA model streamflow calibration
-- SUMMASnowTarget: SUMMA model snow calibration
-- SUMMAETTarget: SUMMA model ET calibration
-- GRStreamflowTarget: GR4J/GR6J model streamflow calibration
-- HYPEStreamflowTarget: HYPE model streamflow calibration
-- RHESSysStreamflowTarget: RHESSys model streamflow calibration
-- NgenStreamflowTarget: NextGen model streamflow calibration
-- FUSEStreamflowTarget: FUSE model streamflow calibration
-- FUSESnowTarget: FUSE model snow calibration
+Model-specific calibration targets (``SUMMAStreamflowTarget``,
+``GRStreamflowTarget``, ...) are resolved lazily (PEP 562) from their
+canonical homes under ``symfluence.models.<model>.calibration.targets`` —
+this package must not import the models layer at module level. Prefer the
+registry (``R.calibration_targets``) or ``create_calibration_target()``.
 
 Factory function for registry-based target creation:
 - create_calibration_target(): Creates targets using registry with fallback
 """
 from __future__ import annotations
 
+import importlib
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Type
@@ -52,24 +48,31 @@ from .base import (
     StreamflowTarget,
     TWSTarget,
 )
-from .gr_calibration_targets import GRStreamflowTarget
-from .hype_calibration_targets import HYPEStreamflowTarget
-from .ngen_calibration_targets import NgenStreamflowTarget
-from .rhessys_calibration_targets import RHESSysStreamflowTarget
 
-# Model-specific calibration targets
-# Note: FUSE targets are NOT imported here to avoid circular dependencies during migration.
-# They are available via:
-# 1. Direct import: from symfluence.optimization.calibration_targets.fuse_calibration_targets import ...
-# 2. Registry pattern: OptimizerRegistry.get_calibration_target('FUSE', 'streamflow')
-# 3. Factory function: create_calibration_target() (uses registry + fallback)
-from .summa_calibration_targets import (
-    SUMMAETTarget,
-    SUMMASnowTarget,
-    SUMMAStreamflowTarget,
-)
+# =========================================================================
+# Lazy access to model-specific targets (canonical home: the model package)
+# =========================================================================
 
-# FUSE targets: Use create_calibration_target() or import directly from .fuse_calibration_targets
+_MODEL_TARGET_EXPORTS: Dict[str, str] = {
+    'SUMMAStreamflowTarget': 'symfluence.models.summa.calibration.targets',
+    'SUMMASnowTarget': 'symfluence.models.summa.calibration.targets',
+    'SUMMAETTarget': 'symfluence.models.summa.calibration.targets',
+    'GRStreamflowTarget': 'symfluence.models.gr.calibration.targets',
+    'HYPEStreamflowTarget': 'symfluence.models.hype.calibration.targets',
+    'RHESSysStreamflowTarget': 'symfluence.models.rhessys.calibration.targets',
+    'NgenStreamflowTarget': 'symfluence.models.ngen.calibration.targets',
+    'FUSEStreamflowTarget': 'symfluence.models.fuse.calibration.targets',
+    'FUSESnowTarget': 'symfluence.models.fuse.calibration.targets',
+}
+
+
+def __getattr__(name: str):
+    module_path = _MODEL_TARGET_EXPORTS.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    target = getattr(importlib.import_module(module_path), name)
+    globals()[name] = target
+    return target
 
 
 # =========================================================================
@@ -97,28 +100,42 @@ _DEFAULT_TARGETS: Dict[str, Type[CalibrationTarget]] = {
     'multivariate': MultivariateTarget,
 }
 
-# Model-specific target overrides
-# Note: FUSE removed from this dict - use registry or factory function instead
-_MODEL_SPECIFIC_TARGETS: Dict[str, Dict[str, Type[CalibrationTarget]]] = {
+# Model-specific target fallbacks as exported names, imported only if the
+# registry lookup misses (e.g. the model package's decorator has not fired).
+_MODEL_SPECIFIC_TARGETS: Dict[str, Dict[str, str]] = {
     'SUMMA': {
-        'streamflow': SUMMAStreamflowTarget,
-        'snow': SUMMASnowTarget,
-        'et': SUMMAETTarget,
+        'streamflow': 'SUMMAStreamflowTarget',
+        'snow': 'SUMMASnowTarget',
+        'et': 'SUMMAETTarget',
     },
-    # 'FUSE': removed to avoid circular import - use OptimizerRegistry.get_calibration_target('FUSE', 'streamflow') instead
+    'FUSE': {
+        'streamflow': 'FUSEStreamflowTarget',
+        'snow': 'FUSESnowTarget',
+    },
     'NGEN': {
-        'streamflow': NgenStreamflowTarget,
+        'streamflow': 'NgenStreamflowTarget',
     },
     'GR': {
-        'streamflow': GRStreamflowTarget,
+        'streamflow': 'GRStreamflowTarget',
     },
     'HYPE': {
-        'streamflow': HYPEStreamflowTarget,
+        'streamflow': 'HYPEStreamflowTarget',
     },
     'RHESSYS': {
-        'streamflow': RHESSysStreamflowTarget,
+        'streamflow': 'RHESSysStreamflowTarget',
     },
 }
+
+
+def _resolve_model_target(model_key: str, target_key: str) -> Optional[Type[CalibrationTarget]]:
+    """Resolve a model-specific fallback target class, importing lazily."""
+    export_name = _MODEL_SPECIFIC_TARGETS.get(model_key, {}).get(target_key)
+    if export_name is None:
+        return None
+    try:
+        return __getattr__(export_name)
+    except (ImportError, AttributeError):
+        return None
 
 
 def create_calibration_target(
@@ -133,7 +150,7 @@ def create_calibration_target(
 
     This function provides a centralized way to create calibration targets:
     1. First checks OptimizerRegistry for registered model-specific targets
-    2. Falls back to model-specific target mappings
+    2. Falls back to model-specific target mappings (lazily imported)
     3. Falls back to default (model-agnostic) targets
 
     Args:
@@ -166,9 +183,9 @@ def create_calibration_target(
     # 1. Try registry first (for dynamically registered targets)
     target_cls = R.calibration_targets.get(f"{model_key}_{target_key.upper()}")
 
-    # 2. Try model-specific mapping
-    if target_cls is None and model_key in _MODEL_SPECIFIC_TARGETS:
-        target_cls = _MODEL_SPECIFIC_TARGETS[model_key].get(target_key)
+    # 2. Try model-specific mapping (lazy import from the model package)
+    if target_cls is None:
+        target_cls = _resolve_model_target(model_key, target_key)
 
     # 3. Fall back to default targets
     if target_cls is None:
@@ -224,8 +241,8 @@ __all__ = [
     'HYPEStreamflowTarget',
     'RHESSysStreamflowTarget',
     'NgenStreamflowTarget',
-    # Note: FUSE targets removed from __all__ to avoid circular import
-    # Available via: from symfluence.optimization.calibration_targets.fuse_calibration_targets import FUSEStreamflowTarget
+    'FUSEStreamflowTarget',
+    'FUSESnowTarget',
     # Factory functions
     'create_calibration_target',
     'get_available_target_types',

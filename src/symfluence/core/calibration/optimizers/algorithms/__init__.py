@@ -1,0 +1,174 @@
+#!/usr/bin/env python
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
+
+# -*- coding: utf-8 -*-
+
+"""
+Optimization Algorithms Package
+
+This package contains optimization algorithms implemented using the Strategy pattern.
+Each algorithm can be used interchangeably through the common OptimizationAlgorithm interface.
+
+Usage:
+    from symfluence.core.calibration.optimizers.algorithms import get_algorithm
+
+    algorithm = get_algorithm('dds', config, logger)
+    result = algorithm.optimize(...)
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, Type
+
+from .abc import ABCAlgorithm
+from .adam import AdamAlgorithm
+from .async_dds import AsyncDDSAlgorithm
+from .base_algorithm import OptimizationAlgorithm
+from .basin_hopping import BasinHoppingAlgorithm
+from .bayesian_optimization import BayesianOptimizationAlgorithm
+from .cmaes import CMAESAlgorithm
+from .config_schema import (
+    CMAESDefaults,
+    DREAMDefaults,
+    NSGA2Defaults,
+    PSODefaults,
+    get_algorithm_defaults,
+    validate_hyperparameters,
+)
+from .dds import DDSAlgorithm
+from .de import DEAlgorithm
+from .dream import DREAMAlgorithm
+from .ga import GAAlgorithm
+from .glue import GLUEAlgorithm
+from .lbfgs import LBFGSAlgorithm
+from .moead import MOEADAlgorithm
+from .nelder_mead import NelderMeadAlgorithm
+from .nsga2 import NSGA2Algorithm
+from .pso import PSOAlgorithm
+from .sce_ua import SCEUAAlgorithm
+from .simulated_annealing import SimulatedAnnealingAlgorithm
+
+# Algorithm registry mapping names to classes
+ALGORITHM_REGISTRY: Dict[str, Type[OptimizationAlgorithm]] = {
+    'dds': DDSAlgorithm,
+    'pso': PSOAlgorithm,
+    'de': DEAlgorithm,
+    'sce-ua': SCEUAAlgorithm,
+    'sce_ua': SCEUAAlgorithm,  # Alternative name
+    'sceua': SCEUAAlgorithm,   # Alternative name
+    'async_dds': AsyncDDSAlgorithm,
+    'asyncdds': AsyncDDSAlgorithm,  # Alternative name
+    'nsga2': NSGA2Algorithm,
+    'nsga-ii': NSGA2Algorithm,  # Alternative name
+    'adam': AdamAlgorithm,
+    'lbfgs': LBFGSAlgorithm,
+    'l-bfgs': LBFGSAlgorithm,  # Alternative name
+    'cmaes': CMAESAlgorithm,
+    'cma-es': CMAESAlgorithm,  # Alternative name
+    'dream': DREAMAlgorithm,
+    'glue': GLUEAlgorithm,
+    'basin_hopping': BasinHoppingAlgorithm,
+    'basinhopping': BasinHoppingAlgorithm,  # Alternative name
+    'bh': BasinHoppingAlgorithm,  # Short alias
+    'nelder_mead': NelderMeadAlgorithm,
+    'neldermead': NelderMeadAlgorithm,  # Alternative name
+    'nelder-mead': NelderMeadAlgorithm,  # Alternative name
+    'nm': NelderMeadAlgorithm,  # Short alias
+    'simplex': NelderMeadAlgorithm,  # Alternative name
+    'ga': GAAlgorithm,
+    'bayesian_opt': BayesianOptimizationAlgorithm,
+    'bayesian': BayesianOptimizationAlgorithm,  # Alternative name
+    'bo': BayesianOptimizationAlgorithm,  # Short alias
+    'moead': MOEADAlgorithm,
+    'moea_d': MOEADAlgorithm,  # Alternative name
+    'moea-d': MOEADAlgorithm,  # Alternative name
+    'simulated_annealing': SimulatedAnnealingAlgorithm,
+    'sa': SimulatedAnnealingAlgorithm,  # Short alias
+    'annealing': SimulatedAnnealingAlgorithm,  # Alternative name
+    'abc': ABCAlgorithm,
+    'abc_smc': ABCAlgorithm,  # Alternative name
+    'approximate_bayesian': ABCAlgorithm,  # Alternative name
+}
+
+
+def get_algorithm(
+    name: str,
+    config: Dict[str, Any],
+    logger: logging.Logger
+) -> OptimizationAlgorithm:
+    """
+    Get an optimization algorithm instance by name.
+
+    Args:
+        name: Algorithm name (case-insensitive). Supported values:
+              'dds', 'pso', 'de', 'sce-ua', 'async_dds', 'nsga2'
+        config: Configuration dictionary
+        logger: Logger instance
+
+    Returns:
+        Instantiated algorithm
+
+    Raises:
+        ValueError: If algorithm name is not recognized
+    """
+    name_lower = name.lower().replace('-', '_').replace(' ', '_')
+
+    if name_lower not in ALGORITHM_REGISTRY:
+        available = list(set(ALGORITHM_REGISTRY.keys()))
+        raise ValueError(
+            f"Unknown algorithm '{name}'. "
+            f"Available algorithms: {sorted(available)}"
+        )
+
+    algorithm_class = ALGORITHM_REGISTRY[name_lower]
+    return algorithm_class(config, logger)
+
+
+def list_algorithms() -> list:
+    """
+    List all available algorithm names.
+
+    Returns:
+        Sorted list of primary algorithm names
+    """
+    # Return only primary names (not aliases)
+    primary_names = ['dds', 'pso', 'de', 'sce-ua', 'async_dds', 'nsga2', 'adam', 'lbfgs', 'cmaes', 'dream', 'glue', 'basin_hopping', 'nelder_mead', 'ga', 'bayesian_opt', 'moead', 'simulated_annealing', 'abc']
+    return sorted(primary_names)
+
+
+__all__ = [
+    # Base class
+    'OptimizationAlgorithm',
+    # Algorithm classes
+    'DDSAlgorithm',
+    'PSOAlgorithm',
+    'DEAlgorithm',
+    'SCEUAAlgorithm',
+    'AsyncDDSAlgorithm',
+    'NSGA2Algorithm',
+    'AdamAlgorithm',
+    'LBFGSAlgorithm',
+    'CMAESAlgorithm',
+    'DREAMAlgorithm',
+    'GLUEAlgorithm',
+    'BasinHoppingAlgorithm',
+    'NelderMeadAlgorithm',
+    'GAAlgorithm',
+    'BayesianOptimizationAlgorithm',
+    'MOEADAlgorithm',
+    'SimulatedAnnealingAlgorithm',
+    'ABCAlgorithm',
+    # Config schema classes
+    'CMAESDefaults',
+    'NSGA2Defaults',
+    'DREAMDefaults',
+    'PSODefaults',
+    'get_algorithm_defaults',
+    'validate_hyperparameters',
+    # Factory functions
+    'get_algorithm',
+    'list_algorithms',
+    # Registry
+    'ALGORITHM_REGISTRY',
+]

@@ -18,7 +18,7 @@ import sys
 
 import pytest
 
-from symfluence.optimization.optimizers.run_lock import RunDirectoryLock, lock_name
+from symfluence.core.calibration.optimizers.run_lock import RunDirectoryLock, lock_name
 
 
 @pytest.fixture

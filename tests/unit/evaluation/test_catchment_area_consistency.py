@@ -15,7 +15,7 @@ import logging
 
 import pytest
 
-from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 
 
 @pytest.fixture

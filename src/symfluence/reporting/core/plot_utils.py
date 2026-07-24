@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional, Tuple, cast
 import numpy as np
 import pandas as pd
 
-from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
+from symfluence.core.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 
 
 def calculate_metrics(obs: np.ndarray, sim: np.ndarray) -> Dict[str, float]:

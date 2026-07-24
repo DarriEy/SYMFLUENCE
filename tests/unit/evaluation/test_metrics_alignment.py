@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from symfluence.evaluation.metrics_core import _clean_data, nse, rmse
+from symfluence.core.metrics.metrics_core import _clean_data, nse, rmse
 
 
 def _series(values, start):

@@ -318,7 +318,7 @@ class PopulationEvaluator:
         Returns:
             Fitness score
         """
-        from symfluence.optimization.workers.base_worker import WorkerTask
+        from symfluence.core.calibration.workers.base_worker import WorkerTask
 
         params = self.task_builder.param_manager.denormalize_parameters(normalized_params)
 

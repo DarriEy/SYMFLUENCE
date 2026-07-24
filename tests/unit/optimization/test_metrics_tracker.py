@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from symfluence.optimization.optimizers.metrics_tracker import EvaluationMetricsTracker
+from symfluence.core.calibration.optimizers.metrics_tracker import EvaluationMetricsTracker
 
 LOGGER_NAME = 'symfluence.test.metrics_tracker'
 

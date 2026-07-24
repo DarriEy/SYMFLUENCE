@@ -463,7 +463,7 @@ class TestFUSEBaseClassIntegration:
 
     def test_inherits_from_base(self, fuse_config, test_logger, tmp_path):
         """Test that FUSEParameterManager inherits from BaseParameterManager."""
-        from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
+        from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
         from symfluence.optimization.parameter_managers import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'

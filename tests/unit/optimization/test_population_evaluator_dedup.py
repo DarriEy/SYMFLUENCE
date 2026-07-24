@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from symfluence.optimization.optimizers.evaluators.population_evaluator import (
+from symfluence.core.calibration.optimizers.evaluators.population_evaluator import (
     PopulationEvaluator,
 )
 

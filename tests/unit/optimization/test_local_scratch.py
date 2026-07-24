@@ -66,7 +66,7 @@ def test_logger():
 
 def _make_scratch_manager(tmp_path, config, logger):
     """Create a LocalScratchManager for testing."""
-    from symfluence.optimization.mixins.parallel.local_scratch_manager import (
+    from symfluence.core.calibration.mixins.parallel.local_scratch_manager import (
         LocalScratchManager,
     )
 
@@ -207,7 +207,7 @@ class TestCoercionWarning:
         """Even when config is a plain dict (coercion failed), the
         _get_config_value dict_key fallback should still find
         USE_LOCAL_SCRATCH=True so it's not silently defaulted to False."""
-        from symfluence.optimization.optimizers.base_model_optimizer import (
+        from symfluence.core.calibration.optimizers.base_model_optimizer import (
             BaseModelOptimizer,
         )
 

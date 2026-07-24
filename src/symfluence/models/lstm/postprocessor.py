@@ -16,8 +16,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 from symfluence.core.registries import R
-from symfluence.evaluation.metrics import kge, kge_np, kge_prime, mae, nse, rmse
 from symfluence.models.base import StandardModelPostProcessor
 
 

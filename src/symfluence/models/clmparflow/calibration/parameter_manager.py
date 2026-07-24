@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.registries import R
 
@@ -45,7 +46,6 @@ from symfluence.models.parflow.calibration.parameter_manager import (
     _read_pfidb,
     _write_pfidb,
 )
-from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 # Same physically-based parameter bounds as ParFlow
 CLMPARFLOW_DEFAULT_BOUNDS = {

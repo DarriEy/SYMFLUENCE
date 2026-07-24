@@ -96,7 +96,7 @@ class TestSUMMAWorkerFunctions:
 
     def test_rewrite_mizuroute_control_for_run(self, tmp_path):
         """Test mizuRoute control paths are rewritten for the active run."""
-        from symfluence.optimization.workers.summa.model_execution import (
+        from symfluence.models.summa.calibration.worker_impl.model_execution import (
             _rewrite_mizuroute_control_for_run,
         )
 
@@ -142,7 +142,7 @@ class TestSUMMAWorkerFunctions:
 
     def test_summa_parameter_application(self, summa_config, test_logger, temp_project_dir):
         """Test applying parameters to SUMMA trial parameter file."""
-        from symfluence.optimization.workers.summa.parameter_application import _apply_parameters_worker
+        from symfluence.models.summa.calibration.worker_impl.parameter_application import _apply_parameters_worker
 
         # Create mock trial parameter file
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
@@ -167,7 +167,7 @@ class TestSUMMAWorkerFunctions:
         }
 
         # Mock the generator worker - patch in the actual module where it's called
-        with patch('symfluence.optimization.workers.summa.parameter_application._generate_trial_params_worker') as mock_gen:
+        with patch('symfluence.models.summa.calibration.worker_impl.parameter_application._generate_trial_params_worker') as mock_gen:
             mock_gen.return_value = True
 
             # Call parameter application

@@ -140,12 +140,12 @@ class TestNoahMPParameterBounds:
     """Tests for Noah-MP parameter bounds in registry."""
 
     def test_bounds_loaded(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_noahmp_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_noahmp_bounds
         bounds = get_noahmp_bounds()
         assert len(bounds) > 0
 
     def test_expected_params(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_noahmp_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_noahmp_bounds
         bounds = get_noahmp_bounds()
         expected = ['slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt',
                     'smcref', 'refkdt', 'noah_czil', 'rain_snow_thresh', 'ZREF']
@@ -153,12 +153,12 @@ class TestNoahMPParameterBounds:
             assert param in bounds, f"Missing expected parameter: {param}"
 
     def test_min_less_than_max(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_noahmp_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_noahmp_bounds
         bounds = get_noahmp_bounds()
         for name, b in bounds.items():
             assert b['min'] < b['max'], f"{name}: min ({b['min']}) >= max ({b['max']})"
 
     def test_dksat_log_transform(self):
-        from symfluence.optimization.core.parameter_bounds_registry import get_noahmp_bounds
+        from symfluence.core.calibration.parameters.parameter_bounds_registry import get_noahmp_bounds
         bounds = get_noahmp_bounds()
         assert bounds['dksat']['transform'] == 'log'

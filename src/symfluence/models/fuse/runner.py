@@ -1037,8 +1037,8 @@ class FUSERunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, Miz
                         f"para_def.nc has empty par dimension (0 records). "
                         f"Initializing with default values for {len(ds.data_vars)} variables."
                     )
+                    from symfluence.core.calibration.parameters.parameter_bounds_registry import get_fuse_bounds
                     from symfluence.models.fuse.calibration.parameter_application import parse_fuse_constraints_defaults
-                    from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
                     bounds = get_fuse_bounds()
 
                     # Read defaults from FUSE constraints file (authoritative source)

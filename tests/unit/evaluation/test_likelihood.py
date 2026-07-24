@@ -221,17 +221,17 @@ class TestMetricRegistration:
 
     def test_log_likelihood_in_registry(self):
         """log_likelihood should be in the metric registry."""
-        from symfluence.evaluation.metrics_registry import get_metric_info
+        from symfluence.core.metrics.metrics_registry import get_metric_info
         info = get_metric_info('log_likelihood')
         assert info is not None
         assert info.direction == 'maximize'
 
     def test_metric_transformer_direction(self):
         """MetricTransformer should know log_likelihood is maximize."""
-        from symfluence.evaluation.metric_transformer import MetricTransformer
+        from symfluence.core.metrics.metric_transformer import MetricTransformer
         assert MetricTransformer.get_direction('log_likelihood') == 'maximize'
 
     def test_transform_passes_through(self):
         """Log-likelihood values should pass through transform unchanged."""
-        from symfluence.evaluation.metric_transformer import MetricTransformer
+        from symfluence.core.metrics.metric_transformer import MetricTransformer
         assert MetricTransformer.transform_for_maximization('log_likelihood', -150.0) == -150.0

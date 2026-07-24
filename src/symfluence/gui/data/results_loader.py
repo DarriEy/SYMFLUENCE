@@ -294,7 +294,7 @@ class ResultsLoader:
             dict of {metric_name: value}, or empty dict on failure.
         """
         try:
-            from symfluence.evaluation.metrics import calculate_all_metrics
+            from symfluence.core.metrics import calculate_all_metrics
             return calculate_all_metrics(obs, sim)
         except Exception as exc:  # noqa: BLE001 — UI resilience
             logger.debug(f"Metrics calculation failed: {exc}")

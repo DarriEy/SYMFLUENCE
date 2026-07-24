@@ -14,11 +14,11 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.lisflood.runner import _find_pcraster_site_packages
-from symfluence.optimization.workers.base_worker import BaseWorker
 
 from .parameter_manager import PCRGLOBWBParameterManager
 

@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from symfluence.optimization.workers.summa.error_logging import (
+from symfluence.models.summa.calibration.worker_impl.error_logging import (
     ErrorLogger,
     _serialize_debug_info,
     _serialize_params,

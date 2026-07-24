@@ -23,9 +23,26 @@ Migration Context:
     New location: symfluence.models.summa.calibration.optimizer_mixin
 """
 
-# Backward compatibility re-export
+# Backward compatibility re-export, resolved lazily (PEP 562) so that this
+# module never imports the models layer at import time (optimization must not
+# depend on models).
 from __future__ import annotations
 
-from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
+import importlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 
 __all__ = ['SUMMAOptimizerMixin']
+
+
+def __getattr__(name: str):
+    if name == 'SUMMAOptimizerMixin':
+        module = importlib.import_module(
+            "symfluence.models.summa.calibration.optimizer_mixin"
+        )
+        value = module.SUMMAOptimizerMixin
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

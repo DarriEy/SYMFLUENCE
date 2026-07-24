@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from xml.etree import ElementTree as ET  # nosec B405
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 from .worker import LisfloodWorker  # noqa: F401
 

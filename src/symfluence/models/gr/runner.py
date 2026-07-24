@@ -241,7 +241,7 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             return
 
         try:
-            from symfluence.optimization.calibration_targets import GRStreamflowTarget
+            from symfluence.models.gr.calibration.targets import GRStreamflowTarget
 
             self.logger.debug("Calculating performance metrics...")
 

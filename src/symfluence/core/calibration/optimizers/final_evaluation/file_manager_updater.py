@@ -12,8 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.optimizers.lifecycle import adjust_end_time_for_forcing
 from symfluence.core.mixins import ConfigMixin
-from symfluence.optimization.optimizers.lifecycle import adjust_end_time_for_forcing
 
 
 class FileManagerUpdater(ConfigMixin):

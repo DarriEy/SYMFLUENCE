@@ -21,7 +21,7 @@ from typing import Dict
 import numpy as np
 
 from symfluence.core.logging_utils import get_worker_logger
-from symfluence.evaluation.metric_transformer import MetricTransformer
+from symfluence.core.metrics.metric_transformer import MetricTransformer
 
 from .error_logging import log_worker_failure
 from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives

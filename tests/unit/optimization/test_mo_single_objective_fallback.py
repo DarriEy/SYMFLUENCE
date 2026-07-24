@@ -16,8 +16,8 @@ import logging
 import numpy as np
 import pytest
 
-from symfluence.optimization.optimizers.algorithms.moead import MOEADAlgorithm
-from symfluence.optimization.optimizers.algorithms.nsga2 import NSGA2Algorithm
+from symfluence.core.calibration.optimizers.algorithms.moead import MOEADAlgorithm
+from symfluence.core.calibration.optimizers.algorithms.nsga2 import NSGA2Algorithm
 
 PENALTY = -1.0e6
 GOOD = 0.75

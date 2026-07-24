@@ -20,8 +20,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core import metrics
 from symfluence.core.mixins import ConfigurableMixin
-from symfluence.evaluation import metrics
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

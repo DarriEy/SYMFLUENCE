@@ -74,3 +74,15 @@ def test_allowed_deferred_entries_are_real():
             f"stale allowance: {path_suffix} no longer imports {mod_prefix} "
             f"(reason was: {reason})"
         )
+
+
+@pytest.mark.unit
+def test_no_package_boundary_violations():
+    """Monorepo-prep boundaries hold: the models layer is import-time removable
+    (no module-level imports of symfluence.models outside models/), and models
+    does not import interface layers (cli/gui/tui/agent/fews)."""
+    guard = _load_guard()
+    violations = guard.find_boundary_violations()
+    assert violations == [], "package-boundary violations:\n" + "\n".join(
+        v.describe() for v in violations
+    )

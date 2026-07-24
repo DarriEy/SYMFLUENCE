@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from symfluence.evaluation.metrics import (
+from symfluence.core.metrics import (
     _apply_transformation,
     _clean_data,
     bias,

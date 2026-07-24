@@ -16,10 +16,10 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 
+from symfluence.core.calibration.workers.base_worker import BaseWorker
 from symfluence.core.registries import R
 from symfluence.coupling.bmi_registry import BMIRegistry
 from symfluence.coupling.graph_builder import CouplingGraphBuilder
-from symfluence.optimization.workers.base_worker import BaseWorker
 
 logger = logging.getLogger(__name__)
 

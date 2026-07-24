@@ -20,7 +20,7 @@ WMFire Integration:
 """
 from __future__ import annotations
 
-from symfluence.cli.services import (
+from symfluence.core.build import (
     get_bison_detection_and_build,
     get_common_build_environment,
     get_flex_detection_and_build,

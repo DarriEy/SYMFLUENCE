@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.registries import R
-from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 
 from .worker import WflowWorker  # noqa: F401
 
