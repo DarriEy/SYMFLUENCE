@@ -181,9 +181,22 @@ class _XarrayMergetime:
     before any merging is attempted.
 
     CDO has no Windows build (conda-forge ships linux-64/osx only), so the
-    merge is reimplemented here with ``xarray.open_mfdataset``, which is what
-    ``mergetime`` does: concatenate the inputs along ``time``. This mirrors the
+    merge is reimplemented here with xarray: concatenate the inputs along
+    ``time``, which is what ``mergetime`` does. This mirrors the
     CDO-with-xarray-fallback that the HYPE forcing processor already uses.
+
+    The merge deliberately uses ``open_dataset`` (NumPy-backed) rather than
+    ``open_mfdataset`` (Dask-backed). MESH forcing NetCDFs are routinely written
+    with an on-disk ``time`` chunk size of 1, and ``open_mfdataset`` adopts that
+    chunking, yielding one Dask chunk per timestep — ~70k chunks for a decade of
+    hourly data. meshflow then layers transpose / ``convert_calendar`` / pint
+    operations on top of that graph, and the eventual ``to_netcdf`` compute spends
+    *hours* inside Dask graph optimisation (``cull`` / ``_cull_dependencies``,
+    which is superlinear in task count); a single-cell lumped domain was observed
+    to spin for 11+ h with no output. python-cdo's ``mergetime(returnXArray=...)``
+    returned an in-memory array with no Dask graph at all, so opening NumPy-backed
+    and materialising the result reproduces that behaviour and keeps the merge to
+    seconds regardless of the on-disk chunking.
     """
 
     def mergetime(self, input=None, returnXArray=None, output=None, **_kwargs):
@@ -206,23 +219,33 @@ class _XarrayMergetime:
             f"CDO binary not available; merging {len(files)} MESH forcing file(s) with xarray"
         )
 
-        ds = xr.open_mfdataset(
-            files,
-            combine='by_coords',
-            parallel=False,
-            data_vars='minimal',
-            coords='minimal',
-            compat='override',
-        )
-        if 'time' in ds.dims:
-            ds = ds.sortby('time')
+        # Open every file NumPy-backed (no Dask graph) and merge along time.
+        datasets = [xr.open_dataset(f) for f in files]
+        try:
+            if len(datasets) == 1:
+                ds = datasets[0]
+            else:
+                ds = xr.combine_by_coords(
+                    datasets,
+                    data_vars='minimal',
+                    coords='minimal',
+                    compat='override',
+                )
+            if 'time' in ds.dims:
+                ds = ds.sortby('time')
 
-        if output is not None:
-            ds.to_netcdf(output)
-            ds.close()
-            return output
+            if output is not None:
+                ds.to_netcdf(output)
+                return output
 
-        return ds[returnXArray] if returnXArray is not None else ds
+            result = ds[returnXArray] if returnXArray is not None else ds
+            # Materialise into memory so the returned object is self-contained
+            # once the source file handles are closed in ``finally`` — and so no
+            # Dask graph ever reaches meshflow's downstream operations.
+            return result.load()
+        finally:
+            for opened in datasets:
+                opened.close()
 
 
 class _XarrayCdoModule:

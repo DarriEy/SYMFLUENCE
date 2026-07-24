@@ -117,3 +117,23 @@ class TestXarrayMergetime:
 
         with pytest.raises(ModelExecutionError, match="No forcing files matched"):
             _XarrayMergetime().mergetime(input=str(tmp_path / "*.nc"))
+
+    def test_merged_result_is_not_dask_backed(self, forcing_chunks):
+        """The merge must return NumPy-backed data, never a Dask graph.
+
+        Regression guard for the runaway where ``open_mfdataset`` inherited the
+        forcing's on-disk time chunking (one chunk per timestep). meshflow then
+        stacked transpose / convert_calendar / pint ops on that graph and the
+        final ``to_netcdf`` spun for 11+ h inside Dask graph optimisation. A
+        NumPy-backed merge keeps that graph from ever existing.
+        """
+        merged = _XarrayMergetime().mergetime(
+            input=str(forcing_chunks / "*.nc"),
+            returnXArray=["air_temperature", "precipitation"],
+        )
+
+        for name, var in merged.variables.items():
+            assert not hasattr(var.data, "npartitions"), (
+                f"{name!r} is Dask-backed; the merge must materialise to NumPy "
+                "to avoid the graph-optimisation runaway"
+            )
