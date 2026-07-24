@@ -140,7 +140,9 @@ class SystemDepsRegistry:
         ``system_deps.yml``). Central definitions win on id collisions so
         shared toolchain entries stay the single source of truth.
         """
-        self.__init__()  # ensure the YAML registry is loaded
+        if self._registry is None:
+            # Normally loaded by the singleton's __init__; guard for direct use.
+            self._load_registry()
         deps = self._registry.setdefault("dependencies", {})
         for dep_id, definition in (extra_deps or {}).items():
             deps.setdefault(dep_id, definition)
