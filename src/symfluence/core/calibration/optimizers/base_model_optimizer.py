@@ -1442,15 +1442,44 @@ class BaseModelOptimizer(
             metrics = self.calibration_target.calculate_metrics(
                 final_output_dir,
                 calibration_only=False
-            )
-
-            if not metrics:
-                self.logger.error("Failed to calculate final evaluation metrics")
-                return None
+            ) or {}
 
             # Extract period-specific metrics
             calib_metrics = self._extract_period_metrics(metrics, 'Calib')
             eval_metrics = self._extract_period_metrics(metrics, 'Eval')
+
+            # Fallback: the generic calibration target can fail to produce a
+            # usable held-out evaluation slice for some models on this generic
+            # optimizer path. FUSE returns nothing at all (calculate_metrics is
+            # empty because of output-format / time-index quirks, so no JSON is
+            # ever saved); HEC-HMS reaches the saver but with empty metric
+            # dicts. When the target did NOT yield both a calibration and an
+            # evaluation slice, recompute them directly from the produced
+            # ``final_evaluation/`` output using the same daily align-and-slice
+            # recipe the calibration iterations used. This guarantees the
+            # evaluation score is a genuine out-of-sample slice to
+            # EVALUATION_PERIOD, never a copy of the calibration score.
+            eval_configured = bool(self._get_config_value(
+                lambda: self.config.domain.evaluation_period,
+                default='', dict_key='EVALUATION_PERIOD'
+            ))
+            if not calib_metrics or (eval_configured and not eval_metrics):
+                recomputed = self._recompute_final_eval_windows(final_output_dir)
+                if recomputed:
+                    if not calib_metrics and recomputed.get('Calib'):
+                        calib_metrics = recomputed['Calib']
+                    if not eval_metrics and recomputed.get('Eval'):
+                        eval_metrics = recomputed['Eval']
+                    # Reflect the recomputed windows in the saved final_metrics
+                    # without clobbering anything the target already provided.
+                    for k, v in recomputed.get('Calib', {}).items():
+                        metrics.setdefault(f'Calib_{k}', v)
+                    for k, v in recomputed.get('Eval', {}).items():
+                        metrics.setdefault(f'Eval_{k}', v)
+
+            if not calib_metrics and not eval_metrics:
+                self.logger.error("Failed to calculate final evaluation metrics")
+                return None
 
             # Log detailed results
             self._log_final_evaluation_results(calib_metrics, eval_metrics)
@@ -1474,6 +1503,120 @@ class BaseModelOptimizer(
             # Restore optimization settings
             self._restore_model_decisions_for_optimization()
             self._restore_file_manager_for_optimization()
+
+    def _recompute_final_eval_windows(
+        self, final_output_dir: Path
+    ) -> Optional[Dict[str, Dict[str, float]]]:
+        """Recompute calibration- and evaluation-window metrics from output.
+
+        Fallback for when ``calibration_target.calculate_metrics(
+        calibration_only=False)`` does not return a usable held-out evaluation
+        slice (observed for FUSE and HEC-HMS on the generic optimizer path).
+        Reads the simulated and observed daily series with the calibration
+        target's own readers, then slices each independently to
+        CALIBRATION_PERIOD and EVALUATION_PERIOD — the verified
+        ``align_and_filter``-twice recipe used by
+        ``repro_status/backfill_final_eval.py`` — so the evaluation score is a
+        genuine out-of-sample slice, not a copy of the calibration score.
+
+        Returns a mapping like ``{'Calib': {'KGE': ...}, 'Eval': {'KGE': ...}}``
+        with unprefixed metric names (matching ``_extract_period_metrics``
+        output), or None if the series could not be read. Never raises — this
+        runs on the live optimization path and must not abort a completed run.
+        """
+        target = self.calibration_target
+        # Only the streamflow-style evaluators expose the reader/slicer hooks
+        # this recompute relies on; bail out cleanly for any other target.
+        required = (
+            'get_simulation_files', 'extract_simulated_data',
+            '_load_observed_data', '_calculate_period_metrics',
+            '_parse_date_range',
+        )
+        if not all(hasattr(target, attr) for attr in required):
+            return None
+        try:
+            sim_files = target.get_simulation_files(final_output_dir)
+            if not sim_files:
+                self.logger.debug(
+                    "Final-eval fallback: no simulation files under "
+                    f"{final_output_dir}"
+                )
+                return None
+            sim = target.extract_simulated_data(sim_files)
+            obs = target._load_observed_data()
+            if sim is None or obs is None or len(sim) == 0 or len(obs) == 0:
+                return None
+
+            # Daily-normalise both series (matches the verified backfill recipe
+            # and sidesteps the sub-daily / hour-offset index intersection gaps
+            # that can leave the generic metric path with zero overlap).
+            sim = self._final_eval_daily_series(sim)
+            obs = self._final_eval_daily_series(obs)
+
+            periods = {
+                'Calib': self._get_config_value(
+                    lambda: self.config.domain.calibration_period,
+                    default='', dict_key='CALIBRATION_PERIOD'),
+                'Eval': self._get_config_value(
+                    lambda: self.config.domain.evaluation_period,
+                    default='', dict_key='EVALUATION_PERIOD'),
+            }
+            out: Dict[str, Dict[str, float]] = {}
+            for prefix, period_str in periods.items():
+                if not period_str:
+                    continue
+                period = target._parse_date_range(period_str)
+                if not (period[0] and period[1]):
+                    continue
+                prefixed = target._calculate_period_metrics(
+                    obs, sim, period, prefix
+                )
+                # Strip the "Calib_"/"Eval_" prefix so the shape matches
+                # _extract_period_metrics (which returns unprefixed names).
+                stripped = {
+                    k.replace(f'{prefix}_', ''): v
+                    for k, v in (prefixed or {}).items()
+                }
+                if stripped:
+                    out[prefix] = stripped
+            if out:
+                self.logger.info(
+                    f"Final-eval metrics recomputed from output: {out}"
+                )
+            return out or None
+        except Exception as e:  # noqa: BLE001 — resilience in final eval
+            self.logger.warning(f"Final-eval window recompute failed: {e}")
+            return None
+
+    @staticmethod
+    def _final_eval_daily_series(series: Any) -> Any:
+        """Normalise a streamflow series to a tz-naive daily-mean series.
+
+        Matches the verified backfill recipe: resampling to daily and dropping
+        any timezone sidesteps the sub-daily / hour-offset index-intersection
+        gaps that otherwise leave the generic metric path with no overlap.
+
+        Returns the series unchanged when its index is not date-like (e.g. a
+        purely positional RangeIndex) — coercing integer positions to datetimes
+        would fabricate a nonsensical 1970-epoch index and collapse the series.
+        """
+        import pandas as pd
+
+        s = series.copy()
+        if not isinstance(s.index, pd.DatetimeIndex):
+            # Never coerce a numeric/positional index — that maps ints to
+            # nanoseconds-since-epoch and destroys the series.
+            if pd.api.types.is_numeric_dtype(s.index):
+                return s
+            try:
+                s.index = pd.to_datetime(s.index)
+            except (ValueError, TypeError):
+                return s
+        if not isinstance(s.index, pd.DatetimeIndex):
+            return s
+        if s.index.tz is not None:
+            s.index = s.index.tz_localize(None)
+        return s.resample('D').mean()
 
     def _extract_period_metrics(self, all_metrics: Dict, period_prefix: str) -> Dict:
         """Extract metrics for a specific period. Delegates to FinalEvaluationOrchestrator."""
