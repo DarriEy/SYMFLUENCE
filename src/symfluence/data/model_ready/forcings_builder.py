@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -36,6 +37,27 @@ def _staging_suffix() -> str:
     the same shared artefact never share a staging path.
     """
     return f".staging.{os.getpid()}.{uuid.uuid4().hex[:8]}"
+
+
+def _publish(tmp: Path, dst: Path) -> None:
+    """Atomically publish a staged path over its destination.
+
+    POSIX rename replaces a destination another process holds open; Windows
+    MoveFileEx fails with EACCES until the handle closes. Retrying briefly
+    keeps the store's contract — concurrent readers see the old file or the
+    new one, never a missing or half-written one — cross-platform.
+    """
+    deadline = time.monotonic() + 5.0
+    delay = 0.01
+    while True:
+        try:
+            os.replace(tmp, dst)
+            return
+        except PermissionError:
+            if os.name != 'nt' or time.monotonic() >= deadline:
+                raise
+        time.sleep(delay)
+        delay = min(delay * 2, 0.25)
 
 
 class ForcingsStoreBuilder:
@@ -147,7 +169,7 @@ class ForcingsStoreBuilder:
                 # never a missing file.
                 tmp = dst.with_name(f"{dst.name}{_staging_suffix()}")
                 shutil.copy2(str(src_file), str(tmp))
-                os.replace(tmp, dst)
+                _publish(tmp, dst)
                 logger.debug("Copied %s -> %s", src_file.name, dst)
             else:
                 # Fast path: link already correct — touch nothing, no window.
@@ -157,7 +179,7 @@ class ForcingsStoreBuilder:
                 if tmp.is_symlink() or tmp.exists():
                     tmp.unlink()
                 os.symlink(resolved, tmp)
-                os.replace(tmp, dst)
+                _publish(tmp, dst)
                 logger.debug("Symlinked %s -> %s", src_file.name, dst)
 
     def _forcing_timestep_seconds(self, nc_files: list) -> Optional[float]:
@@ -281,7 +303,7 @@ class ForcingsStoreBuilder:
                                 if ak not in var.ncattrs():
                                     var.setncattr(ak, av)
 
-                os.replace(str(staged), str(src_file))
+                _publish(staged, src_file)
                 logger.debug("Enriched forcing metadata for %s", src_file.name)
 
             except Exception as e:  # noqa: BLE001 — preprocessing resilience
