@@ -32,7 +32,14 @@ from ..execution import SpatialOrchestrator
 from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..spatial_modes import SpatialMode
-from .r_environment import configure_r_dll_search, ensure_airgr_available, r_path, run_r_script
+from .r_environment import (
+    configure_r_dll_search,
+    describe_rpy2_import_failure,
+    ensure_airgr_available,
+    r_path,
+    rpy2_installed,
+    run_r_script,
+)
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -43,6 +50,13 @@ from .r_environment import configure_r_dll_search, ensure_airgr_available, r_pat
 # configure_r_dll_search() must run first: importing rpy2 starts the embedded
 # interpreter, and on Windows that interpreter can only dyn.load() compiled R
 # packages if R's own bin directory is already on PATH.
+#
+# The real exception is stashed in _RPY2_IMPORT_ERROR (via sys.exc_info so the
+# allowlisted `except Exception:` line stays byte-for-byte identical). When rpy2
+# is installed but this import fails — as it does when the embedded R cannot
+# start on a given platform — __init__ surfaces that captured cause instead of
+# the misleading "rpy2 is not installed" message.
+_RPY2_IMPORT_ERROR: Optional[BaseException] = None
 configure_r_dll_search()
 try:
     import contextlib
@@ -54,6 +68,8 @@ try:
         from rpy2.robjects.packages import importr
     HAS_RPY2 = True
 except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
+    import sys as _sys
+    _RPY2_IMPORT_ERROR = _sys.exc_info()[1]
     HAS_RPY2 = False
     robjects = None
     importr = None
@@ -107,8 +123,16 @@ class GRRunner(BaseModelRunner, SpatialOrchestrator, OutputConverterMixin, MizuR
             front rather than installed on demand: installing from CRAN
             mid-workflow is neither reproducible nor available offline.
         """
-        # GR-specific: Check rpy2 dependency BEFORE calling super()
+        # GR-specific: Check rpy2 dependency BEFORE calling super().
         if not HAS_RPY2:
+            # rpy2 installed but its import failed => the embedded R could not
+            # start. Surface the real, platform-specific cause (which the eager
+            # module-level import swallowed) rather than telling the user to
+            # install a package they already have.
+            if _RPY2_IMPORT_ERROR is not None and rpy2_installed():
+                raise ModelExecutionError(
+                    describe_rpy2_import_failure(_RPY2_IMPORT_ERROR)
+                ) from _RPY2_IMPORT_ERROR
             raise ImportError(
                 "GR models require R and rpy2, but rpy2 could not be imported. "
                 "The bootstrap installer attempts rpy2 by default; if it failed "
