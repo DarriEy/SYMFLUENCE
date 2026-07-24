@@ -95,27 +95,31 @@ class TestSemver:
         with pytest.raises(ValueError):
             parse_version('not-a-version')
 
-    def test_same_major_versions_are_compatible(self):
-        # Community-service minor releases are additive in both directions.
-        # Only a major-version change signals a breaking contract.
+    def test_pre_1_0_forward_minor_skew_is_breaking(self):
+        # Same/older minor is compatible (each pre-1.0 minor is additive-only:
+        # 0.3.0 only ADDED the attribute flavour over 0.2.0's surface, so a
+        # 0.2.0 backend uses only types the protocol still ships). FORWARD skew
+        # — a NEWER minor than the framework's protocol — is the breaking case.
+        # This runtime guard is what makes the uncapped community-service pip
+        # requirements safe.
         assert is_compatible(PROTOCOL_VERSION)
         major, minor, patch = parse_version(PROTOCOL_VERSION)
         assert is_compatible(f'{major}.{minor}.{patch + 1}')
         if minor > 0:
             assert is_compatible(f'{major}.{minor - 1}.0')  # older minor: additive-compatible
-        assert is_compatible(f'{major}.{minor + 1}.0')
+        assert not is_compatible(f'{major}.{minor + 1}.0')  # newer minor: forward skew
         assert not is_compatible(f'{major + 1}.0.0')
         assert not is_compatible('garbage')
 
     @pytest.mark.parametrize(
         "backend_version",
-        ["0.2.0", "0.3.7", "0.4.0", "0.5.12", "0.6.0", "0.99.0"],
+        ["0.2.0", "0.3.7", "0.4.0", "0.5.12", "0.6.0"],
     )
-    def test_community_protocol_minor_compatibility_matrix(self, backend_version):
+    def test_community_protocol_older_or_equal_minor_compatible(self, backend_version):
         assert is_compatible(backend_version, protocol_version="0.6.0")
 
-    @pytest.mark.parametrize("backend_version", ["1.0.0", "2.6.0"])
-    def test_community_protocol_rejects_major_skew(self, backend_version):
+    @pytest.mark.parametrize("backend_version", ["0.7.0", "0.99.0", "1.0.0", "2.6.0"])
+    def test_community_protocol_rejects_forward_and_major_skew(self, backend_version):
         assert not is_compatible(backend_version, protocol_version="0.6.0")
 
 

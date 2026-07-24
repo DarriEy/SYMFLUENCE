@@ -14,7 +14,6 @@ from pyproj.exceptions import CRSError
 from shapely.errors import GEOSException
 from shapely.geometry import Point, Polygon
 
-from symfluence.geospatial.exceptions import CoordinateError
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin, clean_geometry
 
 
@@ -75,10 +74,10 @@ class TestGeospatialUtilsMixinCentroid:
         assert abs(lon - 0.0) < 0.01
         assert abs(lat - 0.0) < 0.01
 
-    def test_feature_centroid_projection_failure_is_domain_error(
+    def test_feature_centroid_projection_failure_falls_back_with_warning(
         self, monkeypatch
     ):
-        """Never silently calculate projected centroids in angular degrees."""
+        """Projection failure degrades to an original-CRS centroid, loudly."""
         polygon = Polygon(
             [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
         )
@@ -90,12 +89,11 @@ class TestGeospatialUtilsMixinCentroid:
         monkeypatch.setattr(gdf, "to_crs", fail_projection)
         mixin = MockClass()
 
-        with pytest.raises(
-            CoordinateError,
-            match="projection to EPSG:3857 failed",
-        ):
-            mixin.calculate_feature_centroids(gdf)
-        mixin.logger.error.assert_called_once()
+        centroids = mixin.calculate_feature_centroids(gdf)
+        assert len(centroids) == 1
+        assert abs(centroids.iloc[0].x - 0.0) < 0.01
+        assert abs(centroids.iloc[0].y - 0.0) < 0.01
+        mixin.logger.warning.assert_called_once()
 
     def test_centroid_rectangle_northern_hemisphere(self):
         """Test centroid for a rectangle in northern hemisphere."""

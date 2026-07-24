@@ -66,11 +66,11 @@ repos:
     hooks:
       - id: actionlint
         name: Validate GitHub Actions workflows
-        entry: actionlint
+        entry: python scripts/run_actionlint.py
         language: python
         additional_dependencies: [actionlint-py==1.7.12.24]
         pass_filenames: false
-        files: ^\.github/workflows/.*\.ya?ml$
+        files: ^(\.github/workflows/.*\.ya?ml|scripts/run_actionlint\.py)$
       - id: check-npm-bin-shebangs
         name: Guard npm bin wrapper shebangs
         entry: python scripts/check_npm_bin_shebangs.py
