@@ -161,12 +161,12 @@ cas = [
   "community-attribute-service>=0.4.0",
 ]
 csfs = [
-  "community-streamflow-service>=0.2.0",
+  "community-streamflow-service>=0.4.0",
 ]
 community = [
   "community-forcing-service>=0.6.0",
   "community-attribute-service>=0.4.0",
-  "community-streamflow-service>=0.2.0",
+  "community-streamflow-service>=0.4.0",
 ]
 # Development tools
 dev = [

@@ -723,7 +723,7 @@ wheels = [
 
 [[package]]
 name = "community-streamflow-service"
-version = "0.2.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cdsapi" },
@@ -741,9 +741,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fc/78/87f51b2b9c7f0c1a9e5deb5edf8be53fa0868457818838b72aa681605e6e/community_streamflow_service-0.2.0.tar.gz", hash = "sha256:bf8173c60584bc3270cc6396e1d0dbfb22813970a06c5f5c6bc022341d5ce5dd", size = 395577, upload-time = "2026-06-11T17:48:52.816Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/bf/a3b1641de0d9669f760dd14f358cce5327d24435e53967a6b18ef8c2d0f6/community_streamflow_service-0.4.0.tar.gz", hash = "sha256:8821db5f03b2b7563828e3dc356481e00c47042f5d0f20196f63a6a578b57662", size = 1654751, upload-time = "2026-07-24T00:50:41.69Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/73/e7/e0e073b56d57f57aa2f559c2f9a0616758555e65e12f8d8b7f7a1efdb1f2/community_streamflow_service-0.2.0-py3-none-any.whl", hash = "sha256:2f8ce9ff0eebb45cef891958ee1874466bfe7e1365c9672c407a4493c8023128", size = 315569, upload-time = "2026-06-11T17:48:51.391Z" },
+    { url = "https://files.pythonhosted.org/packages/44/2e/d38f9322be8a914623cf80571a3615effb47e43302f8a91de352a976f51f/community_streamflow_service-0.4.0-py3-none-any.whl", hash = "sha256:0d579fc560d6d7a4192e75726080bbae07142594584e47ffbd371c77b347c9d8", size = 395780, upload-time = "2026-07-24T00:50:40.247Z" },
 ]
 
 [[package]]
@@ -5565,8 +5565,8 @@ requires-dist = [
     { name = "community-attribute-service", marker = "extra == 'community'", specifier = ">=0.4.0" },
     { name = "community-forcing-service", marker = "extra == 'cfs'", specifier = ">=0.6.0" },
     { name = "community-forcing-service", marker = "extra == 'community'", specifier = ">=0.6.0" },
-    { name = "community-streamflow-service", marker = "extra == 'community'", specifier = ">=0.2.0" },
-    { name = "community-streamflow-service", marker = "extra == 'csfs'", specifier = ">=0.2.0" },
+    { name = "community-streamflow-service", marker = "extra == 'community'", specifier = ">=0.4.0" },
+    { name = "community-streamflow-service", marker = "extra == 'csfs'", specifier = ">=0.4.0" },
     { name = "contextily" },
     { name = "dcoupler", marker = "extra == 'all'", specifier = ">=0.2.0" },
     { name = "dcoupler", marker = "extra == 'ml'", specifier = ">=0.2.0" },

@@ -78,8 +78,10 @@ jobs:
       - name: Type check with mypy
         continue-on-error: false
         run: |
-          # Install type stubs
-          pip install mypy pandas-stubs types-PyYAML types-requests types-psutil
+          # Pinned to match the pre-commit mirrors-mypy hook — the two gates
+          # must run the same toolchain or casts valid under one stub version
+          # fail the other. Bump both together.
+          pip install mypy==2.3.0 pandas-stubs==3.0.3.260530 types-PyYAML types-requests types-psutil
           # Run mypy on source directory
           mypy src/symfluence
 
