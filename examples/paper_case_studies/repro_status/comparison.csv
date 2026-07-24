@@ -418,6 +418,7 @@ cal_ensemble_hechms_nsga2@HECHMS,KGE,macos,0.876271,native_windows,0.813025,0.06
 cal_ensemble_hechms_pso@HECHMS,KGE,macos,0.890619,native_windows,0.890619,0.000000,OK
 cal_ensemble_hechms_sa@HECHMS,KGE,macos,0.771654,native_windows,0.771654,0.000000,OK
 cal_ensemble_hechms_sceua@HECHMS,KGE,macos,0.760275,native_windows,0.760275,0.000000,OK
+cal_ensemble_hype_abc@HYPE,KGE,macos,0.686033,native_windows,0.686033,0.000000,OK
 cal_ensemble_hype_ga@HYPE,KGE,macos,0.741416,native_windows,0.054442,0.686974,DIFF
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -803,6 +804,7 @@ cal_ensemble_hechms_nsga2@HECHMS,KGE,macos_p3repro,0.876271,native_windows,0.813
 cal_ensemble_hechms_pso@HECHMS,KGE,macos_p3repro,0.890619,native_windows,0.890619,0.000000,OK
 cal_ensemble_hechms_sa@HECHMS,KGE,macos_p3repro,0.771654,native_windows,0.771654,0.000000,OK
 cal_ensemble_hechms_sceua@HECHMS,KGE,macos_p3repro,0.760275,native_windows,0.760275,0.000000,OK
+cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.686033,native_windows,0.686033,0.000000,OK
 cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.741416,native_windows,0.054442,0.686974,DIFF
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -1124,6 +1126,7 @@ cal_ensemble_hbv_de@HBV,KGE,native_windows,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream@HBV,KGE,native_windows,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga@HBV,KGE,native_windows,0.916071,wsl,0.917801,0.001730,OK
 cal_ensemble_hbv_glue@HBV,KGE,native_windows,0.907066,wsl,0.907066,0.000000,OK
+cal_ensemble_hype_abc@HYPE,KGE,native_windows,0.686033,wsl,0.686033,0.000000,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
