@@ -130,12 +130,16 @@ jobs:
       - name: Core coverage gate
         # Stricter ratchet for the fully-testable core spine, reusing the
         # .coverage data from the step above. Instrumentation-only modules
-        # (profiling, npm packaging) are excluded. One-way ratchet: only raise.
+        # (profiling, npm packaging) are excluded. The calibration engine,
+        # metrics stack, and build helpers promoted into core keep their
+        # previous governance (the global floor): they exercise model binaries
+        # and observation files that can't run in CI. Omit list mirrors the
+        # gate in ci.yml. One-way ratchet: only raise.
         if: matrix.os == 'ubuntu-24.04'
         run: |
           coverage report \
             --include='src/symfluence/core/*' \
-            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py' \
+            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py,src/symfluence/core/calibration/*,src/symfluence/core/metrics/*,src/symfluence/core/build/*' \
             --fail-under=80
 
       - name: Upload coverage artifact
