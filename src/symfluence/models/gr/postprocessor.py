@@ -15,11 +15,18 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.registries import R
 
 from ..base import BaseModelPostProcessor
 from ..spatial_modes import SpatialMode
-from .r_environment import configure_r_dll_search, r_path, run_r_script
+from .r_environment import (
+    configure_r_dll_search,
+    describe_rpy2_import_failure,
+    r_path,
+    rpy2_installed,
+    run_r_script,
+)
 
 # Optional R/rpy2 support - only needed for GR models
 # Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
@@ -27,6 +34,8 @@ from .r_environment import configure_r_dll_search, r_path, run_r_script
 # incompatible versions, etc.). We must catch all to provide graceful fallback.
 # rpy2 prints noisy messages to stderr during R initialization — redirect to suppress.
 # configure_r_dll_search() must precede the rpy2 import: see r_environment.
+# _RPY2_IMPORT_ERROR keeps the real cause (see the runner for the full rationale).
+_RPY2_IMPORT_ERROR: Optional[BaseException] = None
 configure_r_dll_search()
 try:
     import contextlib
@@ -37,6 +46,8 @@ try:
         from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
 except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
+    import sys as _sys
+    _RPY2_IMPORT_ERROR = _sys.exc_info()[1]
     HAS_RPY2 = False
     robjects = None
     pandas2ri = None
@@ -59,6 +70,12 @@ class GRPostProcessor(BaseModelPostProcessor):
         """Set up GR-specific paths and check dependencies."""
         # Check for R/rpy2 dependency
         if not HAS_RPY2:
+            # Installed-but-unimportable rpy2 => surface the real embedded-R
+            # failure the module-level import swallowed, not "not installed".
+            if _RPY2_IMPORT_ERROR is not None and rpy2_installed():
+                raise ModelExecutionError(
+                    describe_rpy2_import_failure(_RPY2_IMPORT_ERROR)
+                ) from _RPY2_IMPORT_ERROR
             raise ImportError(
                 "GR models require R and rpy2. "
                 "Please install R and rpy2, or use a different model. "

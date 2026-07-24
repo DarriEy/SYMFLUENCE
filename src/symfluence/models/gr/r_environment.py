@@ -377,6 +377,67 @@ def ensure_airgr_available(robjects: Any, force: bool = False) -> None:
     _raise_airgr_error(diagnosis)
 
 
+def rpy2_installed() -> bool:
+    """Return True when the ``rpy2`` package is importable *as a package*.
+
+    This only checks that the distribution is on disk (via ``find_spec``); it
+    says nothing about whether the embedded R interpreter can actually start.
+    A machine can have rpy2 installed yet fail to ``import rpy2.robjects``
+    because R was not built as a shared library, R's shared objects are not on
+    the loader path, or (on Windows) ``R CMD config`` cannot run without a
+    POSIX shell and make. Distinguishing those two cases is the whole point of
+    :func:`describe_rpy2_import_failure`.
+    """
+    from importlib.util import find_spec
+
+    return find_spec("rpy2") is not None
+
+
+def describe_rpy2_import_failure(error: BaseException) -> str:
+    """Explain an ``import rpy2.robjects`` failure that the eager import swallowed.
+
+    The GR runner and postprocessor import rpy2 at module load inside a broad
+    ``except`` that only records a boolean, so the real reason the embedded R
+    could not start is lost. When rpy2 is installed but that import failed, the
+    generic "rpy2 is not installed, run pip install rpy2" message is actively
+    misleading. This renders the actual, platform-specific cause instead.
+
+    Args:
+        error: The exception raised by ``import rpy2.robjects`` (or one of the
+            robjects sub-APIs the runner needs).
+
+    Returns:
+        A multi-line, actionable message naming the real exception. Callers
+        should raise :class:`ModelExecutionError` with this text and chain the
+        original exception with ``raise ... from error``.
+    """
+    detail = f"{type(error).__name__}: {error}"
+    if sys.platform == "win32":
+        platform_hint = (
+            "On Windows, rpy2 runs `R CMD config --ldflags` as it starts the "
+            "embedded R; that needs a POSIX shell and make (e.g. Rtools or "
+            "MSYS2) on PATH and R's bin directory (R_HOME/bin/x64) discoverable. "
+            "Without them the config call returns nothing and rpy2 aborts with "
+            "an IndexError deep inside rpy2.situation."
+        )
+    else:
+        platform_hint = (
+            "On Linux/macOS this usually means R was not built as a shared "
+            "library (no libR.so / libR.dylib), or that library is not on the "
+            "loader path. Check `R CMD config --ldflags`, that R was configured "
+            "with --enable-R-shlib, and that its lib directory is on "
+            "LD_LIBRARY_PATH (or DYLD_LIBRARY_PATH)."
+        )
+    return (
+        "GR models need the embedded R interpreter (rpy2). rpy2 IS installed, "
+        f"but importing it failed: {detail}. This is an R runtime problem, not "
+        "a missing Python package — installing rpy2 again will not help. "
+        f"{platform_hint} Reproduce the underlying failure directly with "
+        "`python -c \"import rpy2.robjects\"` in this environment to see the "
+        "full R startup output."
+    )
+
+
 def verify_gr_r_runtime() -> None:
     """Check the whole GR R stack (rpy2 + embedded R + airGR) in one call.
 
