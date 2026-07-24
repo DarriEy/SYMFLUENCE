@@ -122,6 +122,7 @@ def register() -> None:
     )
     base = 'symfluence.models.mizuroute'
     R.preprocessors.add_lazy("MIZUROUTE", f"{base}.preprocessor.MizuRoutePreProcessor")
+    R.base_settings.add("MIZUROUTE", "symfluence.models.mizuroute")
     R.runners.add_lazy("MIZUROUTE", f"{base}.runner.MizuRouteRunner", runner_method='run_mizuroute')
     R.result_extractors.add_lazy("MIZUROUTE", f"{base}.extractor.MizuRouteResultExtractor")
 

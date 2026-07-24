@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional, Tuple
 from symfluence.core.config.legacy_aliases import (
     CANONICAL_KEYS,
     DEPRECATED_KEYS,
-    LEGACY_FLAT_TO_NESTED_ALIASES,
+    iter_legacy_flat_to_nested_aliases,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,15 +90,16 @@ def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
                 include_model_overrides=False,
             )
 
-            # Merge legacy aliases (lower priority — only add missing keys)
-            for key, path in LEGACY_FLAT_TO_NESTED_ALIASES.items():
+            # Merge legacy aliases (lower priority — only add missing keys;
+            # framework entries + per-schema declarations from R.config_schemas)
+            for key, path in iter_legacy_flat_to_nested_aliases().items():
                 _AUTO_GENERATED_MAP.setdefault(key, path)
 
             logger.info(f"Auto-generated {len(_AUTO_GENERATED_MAP)} configuration mappings")
 
         except (ImportError, AttributeError, TypeError, ValueError, RuntimeError) as e:
             logger.debug(f"Auto-generation failed: {e}, using legacy aliases only")
-            _AUTO_GENERATED_MAP = dict(LEGACY_FLAT_TO_NESTED_ALIASES)
+            _AUTO_GENERATED_MAP = iter_legacy_flat_to_nested_aliases()
 
     return _AUTO_GENERATED_MAP
 

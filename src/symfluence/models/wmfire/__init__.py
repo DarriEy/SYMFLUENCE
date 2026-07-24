@@ -68,6 +68,9 @@ def register() -> None:
     R.postprocessors.add_lazy(
         'WMFire', 'symfluence.models.wmfire.postprocessor.WMFirePostProcessor'
     )
+    R.config_schemas.add_lazy(
+        'WMFIRE', 'symfluence.models.wmfire.config_schema.WMFireConfig'
+    )
     # Import build instructions to register with BuildInstructionsRegistry
     try:
         from . import build_instructions  # noqa: F401

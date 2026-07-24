@@ -123,6 +123,38 @@ class SystemDepsRegistry:
         with open(registry_path, "r", encoding="utf-8") as f:
             self._registry = yaml.safe_load(f)
 
+    # ── Contribution seam (service decomposition) ───────────────────
+
+    def register_tool_requirements(
+        self,
+        tool_name: str,
+        required: Optional[List[str]] = None,
+        optional: Optional[List[str]] = None,
+        extra_deps: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> None:
+        """Register a tool's system-dependency requirements at runtime.
+
+        The seam for model packages (in-tree or external): declare which
+        dependency ids the tool builds against, and optionally contribute new
+        dependency definitions (same shape as the ``dependencies:`` entries in
+        ``system_deps.yml``). Central definitions win on id collisions so
+        shared toolchain entries stay the single source of truth.
+        """
+        if self._registry is None:
+            # Normally loaded by the singleton's __init__; guard for direct use.
+            self._load_registry()
+        deps = self._registry.setdefault("dependencies", {})
+        for dep_id, definition in (extra_deps or {}).items():
+            deps.setdefault(dep_id, definition)
+        tools = self._registry.setdefault("tool_requirements", {})
+        entry = tools.setdefault(tool_name.lower(), {"required": [], "optional": []})
+        for dep_id in required or []:
+            if dep_id not in entry.setdefault("required", []):
+                entry["required"].append(dep_id)
+        for dep_id in optional or []:
+            if dep_id not in entry.setdefault("optional", []):
+                entry["optional"].append(dep_id)
+
     # ── Platform detection ───────────────────────────────────────────
 
     @staticmethod

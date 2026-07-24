@@ -83,79 +83,43 @@ CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
     ("model", "mizuroute", "exe"): "MIZUROUTE_EXE",
 }
 
-# Flat keys that remain supported for backward compatibility but are not canonical.
+# Flat keys that remain supported for backward compatibility but are not
+# canonical. Framework-level entries only: per-model legacy keys are declared
+# by each model's config schema (a ``LEGACY_FLAT_ALIASES`` class attribute
+# mapping legacy flat key -> schema field name) and collected from
+# ``R.config_schemas`` by :func:`iter_legacy_flat_to_nested_aliases` — the
+# same declaration path an external plugin uses (e.g. dRoute).
 LEGACY_FLAT_TO_NESTED_ALIASES: Dict[str, Tuple[str, ...]] = {
     "MPI_PROCESSES": ("system", "num_processes"),
     "OPTIMIZATION_MAX_ITERATIONS": ("optimization", "iterations"),
-    "INSTALL_PATH_MIZUROUTE": ("model", "mizuroute", "install_path"),
-    "EXE_NAME_MIZUROUTE": ("model", "mizuroute", "exe"),
     "OPTIMIZATION_TARGET2": ("optimization", "nsga2", "secondary_target"),
     "OPTIMIZATION_METRIC2": ("optimization", "nsga2", "secondary_metric"),
-    # Legacy mizuRoute settings keys
-    "SETTINGS_MIZU_PATH": ("model", "mizuroute", "settings_path"),
-    "SETTINGS_MIZU_WITHIN_BASIN": ("model", "mizuroute", "within_basin"),
-    "SETTINGS_MIZU_ROUTING_DT": ("model", "mizuroute", "routing_dt"),
-    "SETTINGS_MIZU_ROUTING_UNITS": ("model", "mizuroute", "routing_units"),
-    "SETTINGS_MIZU_ROUTING_VAR": ("model", "mizuroute", "routing_var"),
-    "SETTINGS_MIZU_OUTPUT_FREQ": ("model", "mizuroute", "output_freq"),
-    "SETTINGS_MIZU_OUTPUT_VARS": ("model", "mizuroute", "output_vars"),
-    "SETTINGS_MIZU_MAKE_OUTLET": ("model", "mizuroute", "make_outlet"),
-    "SETTINGS_MIZU_NEEDS_REMAP": ("model", "mizuroute", "needs_remap"),
-    "SETTINGS_MIZU_TOPOLOGY": ("model", "mizuroute", "topology"),
-    "SETTINGS_MIZU_PARAMETERS": ("model", "mizuroute", "parameters"),
-    "SETTINGS_MIZU_CONTROL_FILE": ("model", "mizuroute", "control_file"),
-    "SETTINGS_MIZU_REMAP": ("model", "mizuroute", "remap"),
-    "SETTINGS_MIZU_OUTPUT_VAR": ("model", "mizuroute", "output_var"),
-    "SETTINGS_MIZU_PARAMETER_FILE": ("model", "mizuroute", "parameter_file"),
-    "SETTINGS_MIZU_REMAP_FILE": ("model", "mizuroute", "remap_file"),
-    "SETTINGS_MIZU_TOPOLOGY_FILE": ("model", "mizuroute", "topology_file"),
-    # Legacy t-route settings keys
-    "SETTINGS_TROUTE_PATH": ("model", "troute", "settings_path"),
-    "SETTINGS_TROUTE_TOPOLOGY": ("model", "troute", "topology_file"),
-    "SETTINGS_TROUTE_CONFIG_FILE": ("model", "troute", "config_file"),
-    "SETTINGS_TROUTE_DT_SECONDS": ("model", "troute", "dt_seconds"),
-    # NOTE: SETTINGS_DROUTE_PATH is NOT declared here — dRoute is an external plugin package
-    # (like the JAX models) and declares its own config aliases via DRouteConfig +
-    # model_manifest(config_schema=...). Keeping it here would duplicate the plugin's declaration.
-    "SETTINGS_FUSE_PATH": ("model", "fuse", "settings_path"),
-    "SETTINGS_GR_PATH": ("model", "gr", "settings_path"),
-    "SETTINGS_GSFLOW_PATH": ("model", "gsflow", "settings_path"),
-    "SETTINGS_HYPE_PATH": ("model", "hype", "settings_path"),
-    "SETTINGS_MESH_PATH": ("model", "mesh", "settings_path"),
-    "SETTINGS_RHESSYS_PATH": ("model", "rhessys", "settings_path"),
-    "SETTINGS_SUMMA_PATH": ("model", "summa", "settings_path"),
-    "SETTINGS_WATFLOOD_PATH": ("model", "watflood", "settings_path"),
-    # Legacy SUMMA settings keys
-    "SETTINGS_SUMMA_FILEMANAGER": ("model", "summa", "filemanager"),
-    "SETTINGS_SUMMA_FORCING_LIST": ("model", "summa", "forcing_list"),
-    "SETTINGS_SUMMA_COLDSTATE": ("model", "summa", "coldstate"),
-    "SETTINGS_SUMMA_TRIALPARAMS": ("model", "summa", "trialparams"),
-    "SETTINGS_SUMMA_ATTRIBUTES": ("model", "summa", "attributes"),
-    "SETTINGS_SUMMA_OUTPUT": ("model", "summa", "output"),
-    "SETTINGS_SUMMA_BASIN_PARAMS_FILE": ("model", "summa", "basin_params_file"),
-    "SETTINGS_SUMMA_LOCAL_PARAMS_FILE": ("model", "summa", "local_params_file"),
-    "SETTINGS_SUMMA_CONNECT_HRUS": ("model", "summa", "connect_hrus"),
-    "SETTINGS_SUMMA_TRIALPARAM_N": ("model", "summa", "trialparam_n"),
-    "SETTINGS_SUMMA_TRIALPARAM_1": ("model", "summa", "trialparam_1"),
-    "SETTINGS_SUMMA_USE_PARALLEL_SUMMA": ("model", "summa", "use_parallel"),
-    "SETTINGS_SUMMA_PARALLEL_BACKEND": ("model", "summa", "parallel_backend"),
-    "SETTINGS_SUMMA_CPUS_PER_TASK": ("model", "summa", "cpus_per_task"),
-    "SETTINGS_SUMMA_TIME_LIMIT": ("model", "summa", "time_limit"),
-    "SETTINGS_SUMMA_MEM": ("model", "summa", "mem"),
-    "SETTINGS_SUMMA_GRU_COUNT": ("model", "summa", "gru_count"),
-    "SETTINGS_SUMMA_GRU_PER_JOB": ("model", "summa", "gru_per_job"),
-    "SETTINGS_SUMMA_PARALLEL_PATH": ("model", "summa", "parallel_path"),
-    "SETTINGS_SUMMA_PARALLEL_EXE": ("model", "summa", "parallel_exe"),
-    "SETTINGS_SUMMA_GLACIER_MODE": ("model", "summa", "glacier_mode"),
-    "SETTINGS_SUMMA_GLACIER_ATTRIBUTES": ("model", "summa", "glacier_attributes"),
-    "SETTINGS_SUMMA_GLACIER_COLDSTATE": ("model", "summa", "glacier_coldstate"),
-    "SETTINGS_SUMMA_SOILPROFILE": ("model", "summa", "soilprofile"),
-    "SETTINGS_FUSE_FILEMANAGER": ("model", "fuse", "filemanager"),
-    "SETTINGS_FUSE_PARAMS_TO_CALIBRATE": ("model", "fuse", "params_to_calibrate"),
-    "SETTINGS_GR_CONTROL": ("model", "gr", "control"),
-    "SETTINGS_HYPE_INFO": ("model", "hype", "info_file"),
-    "SETTINGS_MESH_INPUT": ("model", "mesh", "input_file"),
 }
+
+
+def iter_legacy_flat_to_nested_aliases() -> Dict[str, Tuple[str, ...]]:
+    """All legacy flat->nested aliases: framework entries + schema-declared.
+
+    Every schema registered in ``R.config_schemas`` may declare a
+    ``LEGACY_FLAT_ALIASES`` class attribute mapping a legacy flat key to one of
+    its field names; each expands to ``('model', <model key lower>, <field>)``.
+    Central entries win on collision.
+    """
+    merged: Dict[str, Tuple[str, ...]] = {}
+    try:
+        from symfluence.core.registries import R
+
+        for model_key, schema in list(R.config_schemas.items()):
+            aliases = getattr(schema, "LEGACY_FLAT_ALIASES", None)
+            if not isinstance(aliases, dict):
+                continue
+            prefix = ("model", str(model_key).lower())
+            for flat_key, field_name in aliases.items():
+                merged[flat_key] = (*prefix, field_name)
+    except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
+        pass
+    merged.update(LEGACY_FLAT_TO_NESTED_ALIASES)
+    return merged
 
 # Recognized flat keys that are intentionally read in flat form — via
 # ``config.get('KEY')`` or ``_get_config_value(..., dict_key='KEY')`` — and

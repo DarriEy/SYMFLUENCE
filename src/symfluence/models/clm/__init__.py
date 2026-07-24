@@ -101,6 +101,7 @@ def register() -> None:
     R.result_extractors.add_lazy("CLM", f"{base}.extractor.CLMResultExtractor")
     R.optimizers.add_lazy("CLM", f"{base}.calibration.optimizer.CLMModelOptimizer")
     R.workers.add_lazy("CLM", f"{base}.calibration.worker.CLMWorker")
+    R.base_settings.add("CLM", "symfluence.models.clm")
     R.parameter_managers.add_lazy("CLM", f"{base}.calibration.parameter_manager.CLMParameterManager")
 
 

@@ -10,6 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Model-specific data decentralized** (service-decomposition prep, tail):
+  - Base settings templates moved from `resources/base_settings/` into their
+    model packages (`models/<model>/base_settings/`), resolved through the new
+    `R.base_settings` registry (package-anchor per model, external plugins use
+    the same path); `symfluence.resources.base_settings` remains as fallback
+    for framework fixtures (TEST) and unregistered models.
+  - `SystemDepsRegistry.register_tool_requirements()`: model packages can
+    declare build-time system dependencies (and contribute new dependency
+    definitions) at runtime; the central `system_deps.yml` keeps the shared
+    toolchain catalogue.
+  - Per-model legacy flat-key aliases (`SETTINGS_SUMMA_*`, `SETTINGS_MIZU_*`,
+    …, 60 keys across 10 models) moved from `core/config/legacy_aliases.py`
+    onto each model's config schema (`LEGACY_FLAT_ALIASES` class attribute),
+    collected via `R.config_schemas` at map-generation time; core keeps only
+    framework-level aliases.
+  - GUI model selectors derive their choices from `R.config_schemas` instead
+    of hardcoded lists (new external models appear automatically).
+- **Per-model config schemas moved into their model packages**
+  (service-decomposition prep, continued): the 31 typed schema classes
+  (`SUMMAConfig`, `FUSEConfig`, …) moved from
+  `core/config/models/model_configs_*.py` to
+  `models/<model>/config_schema.py`. Each reaches the core config system
+  through `R.config_schemas` — via the model manifest's config adapter (29
+  models) or an explicit `add_lazy` registration (ignacio, wmfire) — the same
+  path an external plugin uses (`model_manifest(config_schema=...)`). The
+  `IN_TREE_CONFIG_SCHEMAS` bridge is gone; legacy import paths under
+  `symfluence.core.config.models` keep working via registry-backed PEP 562
+  shims, and a guard test keeps core/config free of model schema classes.
+  WMFire's schema is now registered under `WMFIRE` (previously reachable only
+  nested inside `RHESSysConfig`).
 - **Calibration contract promoted to core** (service-decomposition prep for
   extracting the model suite into its own package). The generic calibration
   engine moved from `optimization/` into `core/calibration/` — optimizer base

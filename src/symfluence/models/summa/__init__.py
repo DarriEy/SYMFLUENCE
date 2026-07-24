@@ -139,6 +139,7 @@ def register() -> None:
     )
     base = 'symfluence.models.summa'
     R.preprocessors.add_lazy("SUMMA", f"{base}.preprocessor.SummaPreProcessor")
+    R.base_settings.add("SUMMA", "symfluence.models.summa")
     R.runners.add_lazy("SUMMA", f"{base}.runner.SummaRunner", runner_method='run_summa')
     R.postprocessors.add_lazy("SUMMA", f"{base}.postprocessor.SUMMAPostProcessor")
     R.visualizers.add_lazy("SUMMA", f"{base}.visualizer.visualize_summa")

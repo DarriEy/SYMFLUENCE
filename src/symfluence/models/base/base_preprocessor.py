@@ -351,6 +351,20 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         )
         if code_dir_value:
             code_dir = Path(code_dir_value)
+            # Registry anchor -> src-layout path of the model package's
+            # base_settings/ (e.g. symfluence.models.summa -> src/symfluence/
+            # models/summa/base_settings).
+            try:
+                from symfluence.core.registries import R
+
+                anchor = R.base_settings.get(self.model_name)
+            except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
+                anchor = None
+            if anchor:
+                pkg_settings = code_dir / "src" / Path(*anchor.split(".")) / "base_settings"
+                if pkg_settings.exists():
+                    return pkg_settings
+            # Legacy central layout.
             base_settings_src = code_dir / "src" / "symfluence" / "resources" / "base_settings" / self.model_name
             if base_settings_src.exists():
                 return base_settings_src
