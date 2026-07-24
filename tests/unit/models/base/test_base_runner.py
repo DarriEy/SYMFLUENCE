@@ -1060,6 +1060,28 @@ class TestNpmExecutableFallback:
         )
         assert result.resolve() == (npm_bin / "customtool").resolve()
 
+    def test_npm_canonical_name_resolves_with_empty_registry(self, runner, temp_dir, monkeypatch):
+        """Canonical resolution must not depend on live registry state.
+
+        In a full-suite worker the build-instructions registry can be empty or
+        partially resolved (plugin load order); the install-directory
+        convention (installs/<tool>/... -> <tool>) must still resolve the npm
+        binary so npm-only installs work regardless.
+        """
+        from symfluence.core.registries import R
+
+        npm_bin = temp_dir / "npm" / "dist" / "bin"
+        npm_bin.mkdir(parents=True)
+        (npm_bin / "summa").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(npm_bin))
+        monkeypatch.setattr(R.build_instructions, "items", lambda: [])
+
+        result = runner.get_model_executable(
+            "SUMMA_INSTALL_PATH", "installs/summa/bin",
+            default_exe_name="summa_sundials.exe",
+        )
+        assert result.resolve() == (npm_bin / "summa").resolve()
+
     def test_must_exist_raises_when_neither_source_nor_npm(self, runner, temp_dir, monkeypatch):
         """must_exist still raises if neither source nor npm has the binary."""
         npm_bin = temp_dir / "npm" / "dist" / "bin"
