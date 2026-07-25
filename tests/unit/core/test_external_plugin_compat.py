@@ -17,8 +17,9 @@ import pytest
 pytest.importorskip("jhbv", reason="requires the jax extra (pip install 'symfluence[jax]')")
 
 import symfluence  # noqa: E402,F401 — triggers plugin registration
-
-from symfluence.core.calibration.workers.inmemory_worker import InMemoryModelWorker  # noqa: E402
+from symfluence.core.calibration.workers.inmemory_worker import (  # noqa: E402
+    InMemoryModelWorker,
+)
 from symfluence.core.registries import R  # noqa: E402
 
 
