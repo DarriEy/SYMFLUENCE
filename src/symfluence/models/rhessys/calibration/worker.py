@@ -305,9 +305,14 @@ class RHESSysWorker(BaseWorker):
             env = os.environ.copy()
             lib_paths = []
             rhessys_bin_dir = rhessys_exe.parent
+            # libwmfire.so ships inside the RHESSys install tree (installs/rhessys/lib),
+            # NOT under installs/wmfire/lib. Mirror RHESSysRunner._get_run_environment():
+            # without this dir on the search path, the binary fails at dynamic-link time
+            # ("libwmfire.so: cannot open shared object file") on every calibration eval.
+            rhessys_lib_dir = rhessys_bin_dir.parent / "lib"
             wmfire_lib_dir = data_dir / "installs" / "wmfire" / "lib"
 
-            for lib_dir in [rhessys_bin_dir, wmfire_lib_dir]:
+            for lib_dir in [rhessys_bin_dir, rhessys_lib_dir, wmfire_lib_dir]:
                 if lib_dir.exists():
                     lib_paths.append(str(lib_dir))
 
