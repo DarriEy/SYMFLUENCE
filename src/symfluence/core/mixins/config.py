@@ -137,6 +137,22 @@ class ConfigMixin:
 
         return default
 
+    @property
+    def forcing_discretization(self) -> Optional[str]:
+        """The run's spatial discretization (``SUB_GRID_DISCRETIZATION``).
+
+        Identifies which catchment discretization this run uses (``lumped``,
+        ``elevation``, ``grus``, ...) — i.e. the HRU set its forcing was remapped
+        onto. Pass it to
+        :func:`symfluence.data.model_ready.forcing_reader.open_canonical_forcing`
+        so a model reads only the forcing matching ITS discretization when a
+        domain's store holds more than one (issue #339).
+        """
+        return self._get_config_value(
+            lambda: self.config.domain.discretization,
+            dict_key='SUB_GRID_DISCRETIZATION',
+        )
+
     def _resolve_point_bbox(self) -> Optional[str]:
         """Derive a square bounding box from the pour point for point domains.
 

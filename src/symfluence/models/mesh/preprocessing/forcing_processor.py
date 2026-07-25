@@ -62,6 +62,15 @@ class MESHForcingProcessor:
             from symfluence.core.exceptions import ModelExecutionError
             raise ModelExecutionError("No forcing files found")
 
+        # Scope to THIS run's discretization so a store holding more than one
+        # (lumped hru=1 beside elevation hru=12) does not collide on the
+        # by_coords merge below (issue #339). A no-op when the discretization is
+        # unknown or unnamespaced (legacy stores), so nothing regresses.
+        from symfluence.data.model_ready.forcing_reader import select_forcing_files
+        discretization = self.config.get(
+            'SUB_GRID_DISCRETIZATION', self.config.get('DOMAIN_DISCRETIZATION'))
+        forcing_files = [str(f) for f in select_forcing_files(forcing_files, discretization)]
+
         self.logger.info(f"Loading {len(forcing_files)} forcing files")
 
         ds = xr.open_mfdataset(forcing_files, combine='by_coords', parallel=False, data_vars='minimal', coords='minimal', compat='override')

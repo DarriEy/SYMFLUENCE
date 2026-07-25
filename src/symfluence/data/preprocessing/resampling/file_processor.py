@@ -75,6 +75,15 @@ class FileProcessor(ConfigMixin):
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')
         input_stem = input_file.stem
 
+        # Namespace the remapped forcing by the run's spatial discretization so a
+        # lumped (hru=1) remap and, say, a 12-band elevation (hru=12) remap of the
+        # SAME domain get distinct, self-describing names instead of colliding
+        # under a shared {domain}_{forcing}_remapped_* namespace (issue #339).
+        from symfluence.data.model_ready.forcing_reader import discretization_token
+        disc = self._get_config_value(
+            lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')
+        token = discretization_token(disc)
+
         # Try to extract a date from the filename
         date_tag = None
 
@@ -98,7 +107,7 @@ class FileProcessor(ConfigMixin):
                     pass
 
         if date_tag:
-            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{date_tag}.nc"
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{date_tag}.nc"
         else:
             # Fallback logic: prevent redundant prefixing
             clean_stem = input_stem
@@ -111,7 +120,7 @@ class FileProcessor(ConfigMixin):
             clean_stem = clean_stem.replace(f"{forcing_dataset.lower()}_", "")
             clean_stem = clean_stem.replace("remapped_", "").replace("merged_", "")
 
-            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{clean_stem}.nc"
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{clean_stem}.nc"
 
         return self.output_dir / output_filename
 

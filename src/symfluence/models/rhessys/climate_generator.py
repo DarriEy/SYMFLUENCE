@@ -307,8 +307,12 @@ class RHESSysClimateGenerator:
             open_canonical_forcing,
             resample_canonical_forcing,
         )
+        # Scope to THIS run's discretization so a store holding more than one
+        # (e.g. lumped hru=1 beside elevation hru=12) does not collide (issue #339).
+        discretization = self.config.get(
+            'SUB_GRID_DISCRETIZATION', self.config.get('DOMAIN_DISCRETIZATION'))
         try:
-            ds = open_canonical_forcing(forcing_files)
+            ds = open_canonical_forcing(forcing_files, discretization=discretization)
         except (FileNotFoundError, OSError, ValueError, KeyError) as e:
             self.logger.warning(f"Canonical reader failed ({e}); falling back to open_mfdataset")
             ds = xr.open_mfdataset(

@@ -122,16 +122,16 @@ class ForcingsStoreBuilder:
             logger.info("No NetCDF files in %s, skipping forcings store", self.source_dir)
             return None
 
-        # Refuse to publish a store that mixes discretizations. A remapped
-        # forcing for a *different* discretization (e.g. a 12-band elevation
-        # remap, hru=12) can collide into this domain's basin_averaged_data
-        # under the shared {domain}_{forcing}_remapped_* namespace and sit
-        # beside the lumped hru=1 forcing (issue #339). Linking both would hand
-        # every model a store whose 'hru' size is ambiguous {1, 12}; the models
-        # then either crash on the merge or silently "complete" with penalty
-        # evals. Fail loudly HERE, at the write boundary, naming the stray file,
-        # so the store never reaches a model in a corrupt state.
-        self._assert_single_discretization(nc_files)
+        # A store may legitimately hold more than one discretization of the same
+        # domain — a lumped hru=1 forcing beside a 12-band elevation hru=12
+        # forcing HYPE built — provided each lives under its own namespaced
+        # {domain}_{forcing}_remapped_{token}_* filename so readers can select
+        # the one matching their discretization (issue #339). Verify each
+        # namespace is internally size-consistent, and fail loudly at the write
+        # boundary — naming the stray file — only on a genuine collision WITHIN a
+        # namespace (including two legacy untokened files of different sizes, the
+        # original #339 signature), so a corrupt namespace never reaches a model.
+        self._assert_consistent_within_discretization(nc_files)
 
         self.target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,17 +149,19 @@ class ForcingsStoreBuilder:
     # Internal
     # ------------------------------------------------------------------
 
-    def _assert_single_discretization(self, nc_files: list) -> None:
-        """Reject a source set that mixes forcing discretizations.
+    def _assert_consistent_within_discretization(self, nc_files: list) -> None:
+        """Reject a source set that collides WITHIN a single discretization.
 
-        Delegates to the reader's spatial-dimension check so the writer and the
-        reader enforce exactly one contract: a store holds a single ``hru``
-        (and ``gru``) size. Raises ``ValueError`` naming the offending file(s)
-        when it does not.
+        Delegates to the reader's namespace-aware check so the writer and the
+        reader enforce one contract: within each ``_remapped_{token}_``
+        namespace every file shares the same ``hru`` (and ``gru``) size, while
+        distinct namespaces (a lumped hru=1 forcing beside an elevation hru=12
+        forcing) coexist. Raises ``ValueError`` naming the offending file(s) on a
+        genuine intra-namespace collision.
         """
-        from .forcing_reader import assert_consistent_spatial_dims
+        from .forcing_reader import assert_consistent_within_discretization
 
-        assert_consistent_spatial_dims([Path(f) for f in nc_files])
+        assert_consistent_within_discretization([Path(f) for f in nc_files])
 
     def _create_links(self, nc_files: list) -> None:
         """Create symlinks or copies from source to target directory.

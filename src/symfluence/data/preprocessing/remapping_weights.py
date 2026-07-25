@@ -506,17 +506,25 @@ class RemappingWeightApplier(ConfigMixin):
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')
         input_stem = input_file.stem
 
+        # Namespace the remapped forcing by the run's spatial discretization
+        # (issue #339) — see the twin in resampling/file_processor.py. Both
+        # builders must agree, so both go through discretization_token().
+        from symfluence.data.model_ready.forcing_reader import discretization_token
+        disc = self._get_config_value(
+            lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')
+        token = discretization_token(disc)
+
         if forcing_dataset.lower() in ('rdrs', 'casr'):
-            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{input_stem}.nc"
 
         elif forcing_dataset.lower() in ('carra', 'cerra'):
             start_str = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
             try:
                 dt_start = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
                 time_tag = dt_start.strftime("%Y-%m-%d-%H-%M-%S")
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{time_tag}.nc"
             except (ValueError, TypeError):
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{input_stem}.nc"
 
         elif forcing_dataset.lower() == 'era5':
             date_match = re.search(r"(\d{8})$", input_stem) or re.search(r"(\d{6})$", input_stem)
@@ -528,12 +536,12 @@ class RemappingWeightApplier(ConfigMixin):
                 else:
                     dt = datetime.strptime(date_str, "%Y%m%d")
                     time_tag = dt.strftime("%Y-%m-%d-00-00-00")
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{time_tag}.nc"
             else:
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{input_stem}.nc"
 
         else:
-            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{token}_{input_stem}.nc"
 
         return self.output_dir / output_filename
 

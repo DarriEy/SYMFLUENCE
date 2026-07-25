@@ -197,7 +197,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             forcing_timestep_seconds,
             open_canonical_forcing,
         )
-        ds = open_canonical_forcing(forcing_files)
+        ds = open_canonical_forcing(forcing_files, discretization=self.forcing_discretization)
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
 
         airtemp = ds['air_temperature'].values.squeeze()      # K

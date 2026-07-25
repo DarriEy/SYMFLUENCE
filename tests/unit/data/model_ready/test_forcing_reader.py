@@ -286,3 +286,112 @@ def test_store_builder_rejects_mixed_discretization(tmp_path):
     )
     with pytest.raises(ValueError, match="#339"):
         builder.build()
+
+
+# --- discretization-namespaced forcing store (issue #339 true-source fix) ----
+
+def test_discretization_token_sanitizes():
+    from symfluence.data.model_ready.forcing_reader import discretization_token
+
+    assert discretization_token("lumped") == "lumped"
+    assert discretization_token("Elevation") == "elevation"
+    # Comma-separated composite discretizations flatten to a single safe token.
+    assert discretization_token("elevation,landclass") == "elevation-landclass"
+    # Empty / unknown falls back to a stable, letter-initial default.
+    assert discretization_token(None) == "default"
+    assert discretization_token("") == "default"
+
+
+def test_select_forcing_files_picks_matching_discretization():
+    """Each discretization selects only its own namespaced files."""
+    from symfluence.data.model_ready.forcing_reader import select_forcing_files
+
+    files = [
+        "Bow_ERA5_remapped_lumped_2002-01-01-00-00-00.nc",
+        "Bow_ERA5_remapped_lumped_2003-01-01-00-00-00.nc",
+        "Bow_ERA5_remapped_elevation_2002-01-01-00-00-00.nc",
+    ]
+    lumped = [p.name for p in select_forcing_files(files, "lumped")]
+    elevation = [p.name for p in select_forcing_files(files, "elevation")]
+    assert lumped == [
+        "Bow_ERA5_remapped_lumped_2002-01-01-00-00-00.nc",
+        "Bow_ERA5_remapped_lumped_2003-01-01-00-00-00.nc",
+    ]
+    assert elevation == ["Bow_ERA5_remapped_elevation_2002-01-01-00-00-00.nc"]
+
+
+def test_select_forcing_files_falls_back_for_legacy_untokened_store():
+    """A store predating namespacing (no token) is returned whole, not empty."""
+    from symfluence.data.model_ready.forcing_reader import select_forcing_files
+
+    legacy = [
+        "Bow_ERA5_remapped_2002-01-01-00-00-00.nc",
+        "Bow_ERA5_remapped_2003-01-01-00-00-00.nc",
+    ]
+    # No file carries the 'lumped' token -> fall back to the full list so
+    # single-discretization / pre-fix stores never regress or read as empty.
+    assert [p.name for p in select_forcing_files(legacy, "lumped")] == legacy
+    # A falsy discretization is an explicit "do not scope".
+    assert [p.name for p in select_forcing_files(legacy, None)] == legacy
+
+
+def test_open_canonical_forcing_selects_by_discretization(tmp_path):
+    """Each model reads the forcing matching ITS discretization from one store.
+
+    The store holds a lumped hru=1 forcing beside a 12-band elevation hru=12
+    forcing (the domain_Bow_at_Banff_lumped_era5 case). With the run's
+    discretization supplied, the reader must return only that discretization's
+    data instead of colliding on ``conflicting dimension sizes: {1, 12}``.
+    """
+    lumped = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_lumped_2020-01.nc", 1)
+    elevation = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_elevation_2020-01.nc", 12)
+    store = [lumped, elevation]
+
+    ds_lumped = open_canonical_forcing(store, discretization="lumped")
+    assert ds_lumped.sizes["hru"] == 1
+
+    ds_elev = open_canonical_forcing(store, discretization="elevation")
+    assert ds_elev.sizes["hru"] == 12
+
+
+def test_namespaced_discretizations_coexist_but_intra_namespace_collision_fails(tmp_path):
+    """The write-boundary check allows distinct namespaces, rejects a real collision."""
+    from symfluence.data.model_ready.forcing_reader import (
+        assert_consistent_within_discretization,
+    )
+
+    lumped = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_lumped_2020-01.nc", 1)
+    elevation = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_elevation_2020-01.nc", 12)
+    # Distinct namespaces (hru=1 vs hru=12) coexist without error.
+    assert_consistent_within_discretization([lumped, elevation])
+
+    # A genuine collision WITHIN one namespace (same token, disagreeing sizes)
+    # must still fail loudly.
+    bad = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_lumped_2021-01.nc", 12)
+    with pytest.raises(ValueError, match="#339"):
+        assert_consistent_within_discretization([lumped, bad])
+
+
+def test_store_builder_allows_namespaced_multi_discretization(tmp_path):
+    """The store writer must PUBLISH a namespaced multi-discretization source set."""
+    from symfluence.data.model_ready.forcings_builder import ForcingsStoreBuilder
+
+    source = tmp_path / "domain_x" / "forcing" / "basin_averaged_data"
+    source.mkdir(parents=True)
+    _write_hru_forcing(source / "x_ERA5_remapped_lumped_2002.nc", 1)
+    _write_hru_forcing(source / "x_ERA5_remapped_elevation_2002.nc", 12)
+
+    builder = ForcingsStoreBuilder(
+        project_dir=tmp_path / "domain_x",
+        domain_name="x",
+        forcing_dataset="ERA5",
+        strategy="copy",  # symlinks may be unavailable in CI
+    )
+    target = builder.build()
+    assert target is not None
+    linked = {p.name for p in target.glob("*.nc")}
+    assert linked == {"x_ERA5_remapped_lumped_2002.nc", "x_ERA5_remapped_elevation_2002.nc"}
+    # And each model reads only its own discretization back out of the store.
+    files = sorted(target.glob("*.nc"))
+    assert open_canonical_forcing(files, discretization="lumped").sizes["hru"] == 1
+    assert open_canonical_forcing(files, discretization="elevation").sizes["hru"] == 12

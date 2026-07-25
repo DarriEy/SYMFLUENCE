@@ -98,6 +98,15 @@ class ForcingDataProcessor:
         if not forcing_files:
             raise FileNotFoundError(f"No forcing files matching '{pattern}' in {forcing_path}")
 
+        # Scope to THIS run's spatial discretization so a store holding more than
+        # one discretization of the domain (a lumped hru=1 forcing beside an
+        # elevation hru=12 forcing) does not collapse into a conflicting-'hru'
+        # merge below (issue #339). A no-op when the discretization is unknown or
+        # the store's names predate namespacing, so single-discretization and
+        # legacy stores never regress.
+        from symfluence.data.model_ready.forcing_reader import select_forcing_files
+        forcing_files = list(select_forcing_files(forcing_files, self._get_discretization()))
+
         self.logger.info(f"Loading {len(forcing_files)} forcing files from {forcing_path}")
 
         try:
@@ -509,6 +518,26 @@ class ForcingDataProcessor:
                 ds = self.apply_unit_conversion(ds, var, conversion)
 
         return ds
+
+    def _get_discretization(self) -> Optional[str]:
+        """Resolve the run's spatial discretization from dict or typed config.
+
+        Reads ``SUB_GRID_DISCRETIZATION`` (canonical) with the legacy
+        ``DOMAIN_DISCRETIZATION`` alias, or ``config.domain.discretization`` on a
+        typed config. Returns ``None`` when unset, which makes forcing selection a
+        no-op.
+        """
+        cfg = self.config
+        if isinstance(cfg, dict):
+            return cfg.get('SUB_GRID_DISCRETIZATION') or cfg.get('DOMAIN_DISCRETIZATION')
+        domain = getattr(cfg, 'domain', None)
+        disc = getattr(domain, 'discretization', None) if domain is not None else None
+        if disc:
+            return disc
+        getter = getattr(cfg, 'get', None)
+        if callable(getter):
+            return cfg.get('SUB_GRID_DISCRETIZATION') or cfg.get('DOMAIN_DISCRETIZATION')
+        return None
 
     def _get_config_str(self, key: str, default: str) -> str:
         """Extract a string config value from config dict or typed config."""
