@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Data handlers are now consumed registry-first everywhere**
+  (community-service liftoff prep): the five remaining direct handler
+  imports outside `data/` (MODIS-ET and FLUXNET-ET acquisition in the ET
+  evaluator; LamaH-ICE streamflow helpers in the FUSE/SUMMA/HYPE workers)
+  resolve through `R.observation_handlers`/`R.acquisition_handlers`, which
+  now self-seed on first lookup like the other deferred registries. The
+  layering guard forbids handler-module imports from outside `data/`.
+
 ### Deprecated
 - **Back-compat shim import paths** left by the service-decomposition
   promotions (`symfluence.models.{base,mixins,execution,state,templates,

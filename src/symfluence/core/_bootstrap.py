@@ -52,7 +52,27 @@ def bootstrap() -> None:
     R.optimizers.set_seeder(_seed_model_optimizers)
     R.workers.set_seeder(_seed_model_optimizers)
     R.parameter_managers.set_seeder(_seed_model_optimizers)
+    # Deferred: data handlers self-register via decorators when their package
+    # imports; consumers resolve them registry-first (never by importing a
+    # handler module directly — the backend/registry seam for the community-
+    # service liftoff), so first lookup triggers the import.
+    R.acquisition_handlers.set_seeder(_seed_acquisition_handlers)
+    R.observation_handlers.set_seeder(_seed_observation_handlers)
     _discover_plugins()
+
+
+def _seed_acquisition_handlers() -> None:
+    """Import the acquisition package so its handler decorators register."""
+    import importlib
+
+    importlib.import_module("symfluence.data.acquisition")
+
+
+def _seed_observation_handlers() -> None:
+    """Import the observation package so its handler decorators register."""
+    import importlib
+
+    importlib.import_module("symfluence.data.observation")
 
 
 def _seed_delineation_strategies() -> None:

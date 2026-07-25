@@ -160,6 +160,15 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
     """Handles LamaH-ICE streamflow data processing, with auto-download
     from HydroShare when the local dataset is missing."""
 
+    # Registry-facing alias: callers resolve the class via
+    # R.observation_handlers.get('lamah_ice_streamflow') and call this,
+    # instead of importing the module function directly. Late-binding (module
+    # global resolved at call time) so tests patching the module function
+    # keep working.
+    @staticmethod
+    def ensure_streamflow(*args, **kwargs):
+        return ensure_lamah_ice_streamflow(*args, **kwargs)
+
     obs_type = "streamflow"
     source_name = "LAMAH_ICE"
     SOURCE_INFO = {

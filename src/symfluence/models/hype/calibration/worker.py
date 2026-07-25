@@ -574,7 +574,7 @@ class HYPEWorker(BaseWorker):
         discharge from ``timeCOUT.txt`` and compare against LamaH-ICE
         observations at each gauge.
         """
-        from symfluence.data.observation.handlers.lamah_ice import ensure_lamah_ice_streamflow
+        from symfluence.core.registries import R
 
         from .multi_gauge_metrics import HYPEMultiGaugeMetrics, ensure_hype_gauge_mapping
 
@@ -592,7 +592,7 @@ class HYPEWorker(BaseWorker):
         else:
             lamah_root = Path(data_dir) / 'lamah_ice'
 
-        lamah_root = ensure_lamah_ice_streamflow(lamah_root, self.logger)
+        lamah_root = R.observation_handlers.get('lamah_ice_streamflow').ensure_streamflow(lamah_root, self.logger)
         obs_daily_dir = lamah_root / 'D_gauges' / '2_timeseries' / 'daily'
 
         # Gauge→subbasin mapping
