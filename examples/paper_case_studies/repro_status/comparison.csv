@@ -659,6 +659,7 @@ domain_Bow_at_Banff_lumped_elev_sd_routing:river_network/Bow_at_Banff_lumped_ele
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/Bow_at_Banff_lumped_era5/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/benchmark/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_elevation.shp,n_features,macos,12.000000,wsl,12.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_basins/Bow_at_Banff_lumped_era5_riverBasins_lumped.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_network/Bow_at_Banff_lumped_era5_riverNetwork_lumped.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_land_classes:catchment/lumped/Bow_at_Banff_lumped_land_classes/Bow_at_Banff_lumped_land_classes_HRUs_landclass.shp,n_features,macos,9.000000,wsl,9.000000,0.000000,OK
@@ -707,9 +708,11 @@ forcing_ensemble_conus404@SUMMA,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,
 forcing_ensemble_rdrs@SUMMA,RMSE,macos,-208.590593,wsl,-211.913747,3.323155,OK
 run_1@CRHM,KGE,macos,0.935546,wsl,0.935546,0.000000,OK
 run_1@FUSE,KGE,macos,0.940298,wsl,0.940298,0.000000,OK
+run_1@GR,KGE,macos,0.946389,wsl,0.946389,0.000000,OK
 run_1@GSFLOW,KGE,macos,0.797764,wsl,0.800698,0.002934,OK
 run_1@HBV,KGE,macos,0.887206,wsl,0.887254,0.000048,OK
 run_1@HECHMS,KGE,macos,0.820375,wsl,0.852517,0.032141,DIFF
+run_1@MHM,KGE,macos,0.951193,wsl,0.951193,0.000000,OK
 run_1@SACSMA,KGE,macos,0.881687,wsl,0.881684,0.000003,OK
 run_1@SUMMA,KGE,macos,0.892932,wsl,0.791400,0.101532,EXPLAINED
 run_1@SWAT,KGE,macos,0.784240,wsl,0.788872,0.004632,OK
@@ -747,9 +750,11 @@ domain_Bow_at_Banff_lumped:river_basins/Bow_at_Banff_lumped_riverBasins_lumped.s
 domain_Bow_at_Banff_lumped:river_network/Bow_at_Banff_lumped_riverNetwork_lumped.shp,n_features,macos_dev,1.000000,wsl,1.000000,0.000000,OK
 run_1@CRHM,?,macos_dev,0.919096,wsl,0.935546,0.016450,OK
 run_1@FUSE,?,macos_dev,0.874262,wsl,0.940298,0.066036,DIFF
+run_1@GR,?,macos_dev,0.949379,wsl,0.946389,0.002991,OK
 run_1@GSFLOW,?,macos_dev,0.817654,wsl,0.800698,0.016956,DIFF
 run_1@HBV,?,macos_dev,0.936495,wsl,0.887254,0.049241,DIFF
 run_1@HECHMS,?,macos_dev,0.870889,wsl,0.852517,0.018372,DIFF
+run_1@MHM,?,macos_dev,0.901851,wsl,0.951193,0.049342,DIFF
 run_1@SACSMA,?,macos_dev,0.898095,wsl,0.881684,0.016411,OK
 run_1@SUMMA,?,macos_dev,0.906350,wsl,0.791400,0.114950,EXPLAINED
 run_1@SWAT,?,macos_dev,0.811536,wsl,0.788872,0.022664,DIFF
@@ -1045,6 +1050,7 @@ domain_Bow_at_Banff_lumped_elev_sd_routing:river_network/Bow_at_Banff_lumped_ele
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/Bow_at_Banff_lumped_era5/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/benchmark/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_elevation.shp,n_features,macos_p3repro,12.000000,wsl,12.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_basins/Bow_at_Banff_lumped_era5_riverBasins_lumped.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_network/Bow_at_Banff_lumped_era5_riverNetwork_lumped.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_land_classes:catchment/lumped/Bow_at_Banff_lumped_land_classes/Bow_at_Banff_lumped_land_classes_HRUs_landclass.shp,n_features,macos_p3repro,9.000000,wsl,9.000000,0.000000,OK
@@ -1093,9 +1099,11 @@ forcing_ensemble_conus404@SUMMA,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0
 forcing_ensemble_rdrs@SUMMA,RMSE,macos_p3repro,-202.854354,wsl,-211.913747,9.059394,DIFF
 run_1@CRHM,KGE,macos_p3repro,0.935776,wsl,0.935546,0.000230,OK
 run_1@FUSE,KGE,macos_p3repro,0.939322,wsl,0.940298,0.000976,OK
+run_1@GR,KGE,macos_p3repro,0.942604,wsl,0.946389,0.003785,OK
 run_1@GSFLOW,KGE,macos_p3repro,0.863662,wsl,0.800698,0.062965,DIFF
 run_1@HBV,KGE,macos_p3repro,0.891596,wsl,0.887254,0.004341,OK
 run_1@HECHMS,KGE,macos_p3repro,0.853200,wsl,0.852517,0.000684,OK
+run_1@MHM,KGE,macos_p3repro,0.946660,wsl,0.951193,0.004533,OK
 run_1@SACSMA,KGE,macos_p3repro,0.886959,wsl,0.881684,0.005275,OK
 run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.783299,wsl,0.788872,0.005572,OK
@@ -1206,6 +1214,7 @@ domain_Bow_at_Banff_lumped_elev_sd_routing:river_network/Bow_at_Banff_lumped_ele
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/Bow_at_Banff_lumped_era5/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/benchmark/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_era5:catchment/lumped/run_1/Bow_at_Banff_lumped_era5_HRUs_elevation.shp,n_features,native_windows,12.000000,wsl,12.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_basins/Bow_at_Banff_lumped_era5_riverBasins_lumped.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_era5:river_network/Bow_at_Banff_lumped_era5_riverNetwork_lumped.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_land_classes:catchment/lumped/Bow_at_Banff_lumped_land_classes/Bow_at_Banff_lumped_land_classes_HRUs_landclass.shp,n_features,native_windows,9.000000,wsl,9.000000,0.000000,OK
@@ -1244,6 +1253,7 @@ domain_Iceland_regional:river_network/Iceland_regional_riverNetwork_semidistribu
 domain_paradise_snotel_wa_era5:catchment/point/paradise_snotel_wa_era5/paradise_snotel_wa_era5_HRUs_GRUs.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 domain_paradise_snotel_wa_era5:river_basins/paradise_snotel_wa_era5_riverBasins_point.shp,n_features,native_windows,1.000000,wsl,1.000000,0.000000,OK
 run_1@FUSE,KGE,native_windows,0.940298,wsl,0.940298,0.000000,OK
+run_1@GR,KGE,native_windows,0.946389,wsl,0.946389,0.000000,OK
 run_1@GSFLOW,KGE,native_windows,0.800698,wsl,0.800698,0.000000,OK
 run_1@HBV,KGE,native_windows,0.887254,wsl,0.887254,0.000000,OK
 run_1@HECHMS,KGE,native_windows,0.852517,wsl,0.852517,0.000000,OK
