@@ -106,6 +106,63 @@ def _dedupe_forcing_time(ds: xr.Dataset, files: List[Path]) -> xr.Dataset:
     return ds.isel(time=np.where(~dup_mask)[0])
 
 
+# Spatial dimensions that identify the discretization of a forcing file.
+_SPATIAL_DIMS = ('hru', 'gru', 'subbasin')
+
+
+def assert_consistent_spatial_dims(files: List[Path]) -> None:
+    """Fail loudly when a multi-file forcing store mixes discretizations.
+
+    A model-ready forcing store must hold ONE discretization per (domain,
+    discretization): every file shares the same ``hru`` (and ``gru``) size.
+    A cross-discretization filename collision (issue #339) can leave a lumped
+    ``hru=1`` forcing and, say, a 12-band elevation ``hru=12`` forcing side by
+    side under the shared ``{domain}_{forcing}_remapped_*`` namespace. Merging
+    them with ``xr.open_mfdataset(combine='by_coords')`` then raises the cryptic
+    ``cannot reindex or align along dimension 'hru' because of conflicting
+    dimension sizes: {1, 12}`` — or, on the concat fallback, an even more opaque
+    "could not find any dimension coordinates" — with no hint at WHICH file is
+    the stray. This pre-flight opens each file's header, groups them by spatial
+    size, and raises a clear, actionable error naming every file and its size so
+    the offending remap can be quarantined.
+
+    Args:
+        files: the forcing NetCDF paths about to be merged (len >= 2).
+
+    Raises:
+        ValueError: if the files disagree on any spatial dimension size.
+    """
+    if len(files) < 2:
+        return
+    # dim -> {size -> [file names]}
+    sizes: dict = {}
+    for f in files:
+        try:
+            with xr.open_dataset(f) as ds:
+                for dim in _SPATIAL_DIMS:
+                    if dim in ds.sizes:
+                        sizes.setdefault(dim, {}).setdefault(int(ds.sizes[dim]), []).append(Path(f).name)
+        except (OSError, ValueError) as e:
+            # A header we cannot read is not a discretization conflict; let the
+            # subsequent open surface the real I/O error with full context.
+            logger.debug("Could not read spatial dims of %s: %s", Path(f).name, e)
+    for dim, by_size in sizes.items():
+        if len(by_size) > 1:
+            groups = '; '.join(
+                f"{dim}={size} in [{', '.join(names)}]"
+                for size, names in sorted(by_size.items())
+            )
+            raise ValueError(
+                f"Model-ready forcing store mixes conflicting '{dim}' dimension "
+                f"sizes {sorted(by_size)} across files: {groups}. A store must hold "
+                "one discretization per domain; this is a cross-discretization "
+                "forcing collision (see issue #339). Quarantine the stray remap "
+                "(the file whose spatial size does not match this domain's "
+                "discretization) from data/model_ready/forcings and its "
+                "forcing/basin_averaged_data source, then rebuild the store."
+            )
+
+
 def open_canonical_forcing(
     forcing_files: Union[Path, List[Path]],
 ) -> xr.Dataset:
@@ -127,6 +184,10 @@ def open_canonical_forcing(
     if len(files) == 1:
         ds = xr.open_dataset(files[0])
     else:
+        # Pre-flight: refuse to merge a store that mixes discretizations, and
+        # name the offending file, instead of letting xarray raise the cryptic
+        # "conflicting dimension sizes: {1, 12}" deep inside the merge.
+        assert_consistent_spatial_dims(files)
         try:
             ds = xr.open_mfdataset(files, combine='by_coords', data_vars='minimal',
                                    coords='minimal', compat='override')

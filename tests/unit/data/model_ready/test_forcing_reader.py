@@ -226,3 +226,63 @@ def test_resample_daily_to_hourly_conserves_precip():
     out_total = float((out["precipitation_flux"] * 3600).sum())
     src_total = float((ds["precipitation_flux"] * 86400).sum())
     assert out_total == pytest.approx(src_total, rel=1e-9)
+
+
+# --- conflicting-discretization guard (issue #339) --------------------------
+
+def _write_hru_forcing(path, n_hru, periods=8):
+    """Write a minimal forcing file with an ``hru`` spatial dimension."""
+    times = pd.date_range("2020-01-01", periods=periods, freq="D")
+    ds = xr.Dataset(
+        {"precipitation_flux": (("time", "hru"), np.ones((periods, n_hru)) * 1e-4)},
+        coords={"time": times, "hru": np.arange(n_hru)},
+    )
+    ds.to_netcdf(path)
+    return path
+
+
+def test_conflicting_hru_dims_raise_actionable_error(tmp_path):
+    """A store mixing hru=1 and hru=12 must fail loudly, naming the stray file.
+
+    Reproduces the domain_Bow_at_Banff_lumped_era5 corruption: a lumped hru=1
+    forcing and a 12-band elevation hru=12 remap collided in one store. Instead
+    of xarray's cryptic "conflicting dimension sizes: {1, 12}", the reader must
+    raise a clear message that identifies the offending file and points at #339.
+    """
+    lumped = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_CDS_2002_2009.nc", 1)
+    stray = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_4ae454551262b9b7.nc", 12)
+    with pytest.raises(ValueError) as exc:
+        open_canonical_forcing([lumped, stray])
+    msg = str(exc.value)
+    assert "hru" in msg
+    assert "1" in msg and "12" in msg
+    assert "4ae454551262b9b7" in msg  # names the stray file
+    assert "#339" in msg
+
+
+def test_consistent_hru_dims_pass_the_guard(tmp_path):
+    """Two time-chunks that share the same hru size must NOT trip the guard."""
+    from symfluence.data.model_ready.forcing_reader import assert_consistent_spatial_dims
+
+    jan = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_2020-01.nc", 12)
+    feb = _write_hru_forcing(tmp_path / "Bow_ERA5_remapped_2020-02.nc", 12)
+    # Must not raise: same discretization across a legitimately-chunked store.
+    assert_consistent_spatial_dims([jan, feb])
+
+
+def test_store_builder_rejects_mixed_discretization(tmp_path):
+    """The store writer must refuse to publish a mixed-hru source set."""
+    from symfluence.data.model_ready.forcings_builder import ForcingsStoreBuilder
+
+    source = tmp_path / "domain_x" / "forcing" / "basin_averaged_data"
+    source.mkdir(parents=True)
+    _write_hru_forcing(source / "x_ERA5_remapped_CDS_2002_2009.nc", 1)
+    _write_hru_forcing(source / "x_ERA5_remapped_4ae454551262b9b7.nc", 12)
+
+    builder = ForcingsStoreBuilder(
+        project_dir=tmp_path / "domain_x",
+        domain_name="x",
+        forcing_dataset="ERA5",
+    )
+    with pytest.raises(ValueError, match="#339"):
+        builder.build()

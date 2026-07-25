@@ -122,6 +122,17 @@ class ForcingsStoreBuilder:
             logger.info("No NetCDF files in %s, skipping forcings store", self.source_dir)
             return None
 
+        # Refuse to publish a store that mixes discretizations. A remapped
+        # forcing for a *different* discretization (e.g. a 12-band elevation
+        # remap, hru=12) can collide into this domain's basin_averaged_data
+        # under the shared {domain}_{forcing}_remapped_* namespace and sit
+        # beside the lumped hru=1 forcing (issue #339). Linking both would hand
+        # every model a store whose 'hru' size is ambiguous {1, 12}; the models
+        # then either crash on the merge or silently "complete" with penalty
+        # evals. Fail loudly HERE, at the write boundary, naming the stray file,
+        # so the store never reaches a model in a corrupt state.
+        self._assert_single_discretization(nc_files)
+
         self.target_dir.mkdir(parents=True, exist_ok=True)
 
         # Enrich before linking so that a 'copy' strategy store carries the
@@ -137,6 +148,18 @@ class ForcingsStoreBuilder:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _assert_single_discretization(self, nc_files: list) -> None:
+        """Reject a source set that mixes forcing discretizations.
+
+        Delegates to the reader's spatial-dimension check so the writer and the
+        reader enforce exactly one contract: a store holds a single ``hru``
+        (and ``gru``) size. Raises ``ValueError`` naming the offending file(s)
+        when it does not.
+        """
+        from .forcing_reader import assert_consistent_spatial_dims
+
+        assert_consistent_spatial_dims([Path(f) for f in nc_files])
 
     def _create_links(self, nc_files: list) -> None:
         """Create symlinks or copies from source to target directory.
