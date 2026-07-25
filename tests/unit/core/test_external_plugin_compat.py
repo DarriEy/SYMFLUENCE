@@ -44,11 +44,11 @@ def test_historical_base_import_paths_alias_core_classes():
     from symfluence.core.calibration.optimizers.base_model_optimizer import (
         BaseModelOptimizer as core_bmo,
     )
-    from symfluence.core.modeling.base import BaseModelRunner as core_bmr
-    from symfluence.models.base import BaseModelRunner as legacy_bmr
-    from symfluence.optimization.optimizers.base_model_optimizer import (
+    from symfluence.core.calibration.optimizers.base_model_optimizer import (
         BaseModelOptimizer as legacy_bmo,
     )
+    from symfluence.core.modeling.base import BaseModelRunner as core_bmr
+    from symfluence.core.modeling.base import BaseModelRunner as legacy_bmr
 
     assert legacy_bmr is core_bmr
     assert legacy_bmo is core_bmo

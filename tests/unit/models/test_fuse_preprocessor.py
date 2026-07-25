@@ -284,7 +284,9 @@ class TestFUSEBaseClassIntegration:
         assert dem_path is not None
 
         base_settings_dir = preprocessor.get_base_settings_source_dir()
-        assert base_settings_dir.name == 'FUSE'
+        # Per-package layout: models/<pkg>/base_settings (resolved via R.base_settings)
+        assert base_settings_dir.name == 'base_settings'
+        assert base_settings_dir.parent.name == 'fuse'
 
 
 if __name__ == '__main__':

@@ -102,9 +102,10 @@ def setup_test_directories(temp_dir, base_config):
     code_dir.mkdir(parents=True, exist_ok=True)
     domain_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create base settings directories for models
-    for model in ['SUMMA', 'FUSE', 'GR', 'HYPE']:
-        base_settings = code_dir / 'src' / 'symfluence' / 'resources' / 'base_settings' / model
+    # Create base settings directories for models (per-package layout: each
+    # model package ships its own base_settings/, resolved via R.base_settings)
+    for model, pkg in [('SUMMA', 'summa'), ('FUSE', 'fuse'), ('GR', 'gr'), ('HYPE', 'hype')]:
+        base_settings = code_dir / 'src' / 'symfluence' / 'models' / pkg / 'base_settings'
         base_settings.mkdir(parents=True, exist_ok=True)
 
         # Create dummy settings files

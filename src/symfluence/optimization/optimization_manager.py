@@ -434,9 +434,9 @@ class OptimizationManager(BaseManager):
             Path to the saved final-evaluation JSON, or None if the run output
             or observations are unavailable.
         """
-        from symfluence.evaluation.metrics_core import calculate_all_metrics
+        from symfluence.core.calibration.optimizers.final_evaluation.results_saver import FinalResultsSaver
+        from symfluence.core.metrics.metrics_core import calculate_all_metrics
         from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
-        from symfluence.optimization.optimizers.final_evaluation.results_saver import FinalResultsSaver
 
         try:
             import xarray as xr

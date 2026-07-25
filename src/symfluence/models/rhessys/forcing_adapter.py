@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+from symfluence.core.modeling.adapters import ForcingAdapter
 from symfluence.core.registries import R
-from symfluence.models.adapters import ForcingAdapter
 
 
 @R.forcing_adapters.add('RHESSYS')

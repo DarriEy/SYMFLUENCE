@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.optimization.parameter_managers import HYPEParameterManager
+from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
 
 
 @pytest.fixture

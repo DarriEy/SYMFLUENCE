@@ -101,7 +101,7 @@ class TestFUSEParameterManagerInitialization:
 
     def test_init_parses_fuse_params(self, fuse_config, test_logger, tmp_path):
         """Test that FUSE parameters are parsed from config."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -113,7 +113,7 @@ class TestFUSEParameterManagerInitialization:
 
     def test_init_sets_paths_correctly(self, fuse_config, test_logger, fuse_project_structure):
         """Test that paths are set correctly."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         manager = FUSEParameterManager(
             fuse_config, test_logger, fuse_project_structure['setup_dir']
@@ -132,7 +132,7 @@ class TestFUSEParameterManagerInitialization:
         rather than resulting in no parameters. This ensures calibration can
         proceed even if user omits the parameter list.
         """
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         config = fuse_config.copy()
         config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = ''
@@ -155,7 +155,7 @@ class TestFUSEParameterNames:
 
     def test_get_parameter_names_returns_fuse_params(self, fuse_config, test_logger, tmp_path):
         """Test that _get_parameter_names returns FUSE params."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -169,7 +169,7 @@ class TestFUSEParameterNames:
 
     def test_all_param_names_property(self, fuse_config, test_logger, tmp_path):
         """Test all_param_names property."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -184,7 +184,7 @@ class TestFUSEParameterBounds:
 
     def test_load_parameter_bounds_returns_dict(self, fuse_config, test_logger, tmp_path):
         """Test that bounds are loaded as dictionary."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -196,7 +196,7 @@ class TestFUSEParameterBounds:
 
     def test_bounds_have_min_max(self, fuse_config, test_logger, tmp_path):
         """Test that each bound has min and max."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -211,7 +211,7 @@ class TestFUSEParameterBounds:
 
     def test_default_fuse_bounds_are_reasonable(self, fuse_config, test_logger, tmp_path):
         """Test that default FUSE bounds are physically reasonable."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -231,7 +231,7 @@ class TestFUSEParameterBounds:
 
     def test_bounds_for_all_requested_params(self, fuse_config, test_logger, tmp_path):
         """Test that bounds exist for all requested parameters."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -252,7 +252,7 @@ class TestFUSENormalization:
 
     def test_normalize_fuse_params(self, fuse_config, test_logger, tmp_path):
         """Test normalizing FUSE parameters."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -272,7 +272,7 @@ class TestFUSENormalization:
 
     def test_denormalize_fuse_params(self, fuse_config, test_logger, tmp_path):
         """Test denormalizing FUSE parameters."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -291,7 +291,7 @@ class TestFUSENormalization:
 
     def test_roundtrip_consistency(self, fuse_config, test_logger, tmp_path):
         """Test normalize → denormalize roundtrip."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -322,7 +322,7 @@ class TestFUSEParameterUpdate:
 
     def test_update_model_files_signature(self, fuse_config, test_logger, tmp_path):
         """Test that update_model_files has correct signature."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -338,7 +338,7 @@ class TestFUSEParameterUpdate:
         self, mock_open, fuse_config, test_logger, fuse_project_structure, mock_netcdf_dataset
     ):
         """Test that validate_parameters accepts a valid parameter set."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         mock_open.return_value.__enter__ = Mock(return_value=mock_netcdf_dataset)
         mock_open.return_value.__exit__ = Mock(return_value=False)
@@ -368,7 +368,7 @@ class TestFUSEInitialParameters:
 
     def test_get_initial_parameters_returns_dict(self, fuse_config, test_logger, tmp_path):
         """Test that get_initial_parameters returns dictionary."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -380,7 +380,7 @@ class TestFUSEInitialParameters:
 
     def test_initial_params_within_bounds(self, fuse_config, test_logger, tmp_path):
         """Test that initial parameters are within bounds."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -409,7 +409,7 @@ class TestFUSEEdgeCases:
 
     def test_handles_missing_param_file(self, fuse_config, test_logger, tmp_path):
         """Test handling of missing parameter file."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -424,7 +424,7 @@ class TestFUSEEdgeCases:
 
     def test_handles_unknown_parameter(self, fuse_config, test_logger, tmp_path):
         """Test handling of unknown parameter in config."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         config = fuse_config.copy()
         config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MBASE,UNKNOWN_PARAM'
@@ -440,7 +440,7 @@ class TestFUSEEdgeCases:
 
     def test_handles_whitespace_in_params(self, fuse_config, test_logger, tmp_path):
         """Test handling of whitespace in parameter list."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         config = fuse_config.copy()
         config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = '  MBASE , MAXWATR_1  ,  BASERTE  '
@@ -464,7 +464,7 @@ class TestFUSEBaseClassIntegration:
     def test_inherits_from_base(self, fuse_config, test_logger, tmp_path):
         """Test that FUSEParameterManager inherits from BaseParameterManager."""
         from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -475,7 +475,7 @@ class TestFUSEBaseClassIntegration:
 
     def test_implements_abstract_methods(self, fuse_config, test_logger, tmp_path):
         """Test that all abstract methods are implemented."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)

@@ -212,7 +212,7 @@ class TestSUMMAParameterConstraints:
 
     def test_enforce_theta_sat_res_constraint(self, summa_config, test_logger, temp_project_dir):
         """Test theta_sat > theta_res constraint."""
-        from symfluence.optimization.parameter_managers import SUMMAParameterManager
+        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
 
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
         summa_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -249,7 +249,7 @@ class TestSUMMAParameterConstraints:
 
     def test_enforce_field_capacity_constraint(self, summa_config, test_logger, temp_project_dir):
         """Test theta_sat > fieldCapacity > theta_res constraint."""
-        from symfluence.optimization.parameter_managers import SUMMAParameterManager
+        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
 
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
         summa_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -282,7 +282,7 @@ class TestSUMMAParamCheckEnvelope:
 
     @staticmethod
     def _manager(summa_config, test_logger, temp_project_dir):
-        from symfluence.optimization.parameter_managers import SUMMAParameterManager
+        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
 
         settings_dir = temp_project_dir / "settings" / "SUMMA"
         settings_dir.mkdir(parents=True, exist_ok=True)
@@ -432,7 +432,7 @@ class TestFUSECalibrationTargets:
 
     def test_fuse_structure_specific_params(self, fuse_config, test_logger, temp_project_dir):
         """Test FUSE structure-specific parameter handling."""
-        from symfluence.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
 
         fuse_settings_dir = temp_project_dir / "settings" / "FUSE"
         fuse_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -457,7 +457,7 @@ class TestFUSECalibrationTargets:
                 FUSE_STRUCTURE=structure
             )
 
-            from symfluence.optimization.parameter_managers import FUSEParameterManager
+            from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
             manager = FUSEParameterManager(config, test_logger, fuse_settings_dir)
 
             param_bounds = manager.get_parameter_bounds()
@@ -533,7 +533,7 @@ class TestNGENCalibrationTargets:
 
     def test_ngen_catchment_specific_params(self, ngen_config, test_logger, temp_project_dir):
         """Test NGEN catchment-specific parameter handling."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         ngen_settings_dir = temp_project_dir / "settings" / "ngen"
         ngen_settings_dir.mkdir(parents=True, exist_ok=True)

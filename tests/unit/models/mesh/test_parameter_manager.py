@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.optimization.parameter_managers import MESHParameterManager
+from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
 
 
 @pytest.fixture
