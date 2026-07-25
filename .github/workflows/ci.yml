@@ -136,23 +136,10 @@ jobs:
             --cov --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Core coverage gate
-        # The global floor (25%) blends in model-binary/live-API code that can't
-        # run in CI. The core spine (config parsing, registry, path resolution,
-        # mixins) IS fully testable, so it gets its own stricter ratchet, reusing
-        # the .coverage data from the step above. Instrumentation-only modules
-        # (profiling, npm packaging) are excluded, mirroring the gui/tui/fews omit.
-        # The calibration engine, metrics stack, build helpers, and the model-
-        # adapter tier (core/modeling) promoted into core by the service-
-        # decomposition prep keep their previous governance (the global floor):
-        # they exercise model binaries, SLURM, and observation files that can't
-        # run in CI, so they are excluded from the spine ratchet just as they
-        # were when they lived in optimization/, evaluation/, cli/, and models/.
-        # One-way ratchet: raise as coverage improves, never lower.
-        run: |
-          coverage report \
-            --include='src/symfluence/core/*' \
-            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py,src/symfluence/core/calibration/*,src/symfluence/core/metrics/*,src/symfluence/core/build/*,src/symfluence/core/modeling/*' \
-            --fail-under=80
+        # Single shared definition (scope, omits, threshold rationale) lives in
+        # scripts/check_core_coverage.py — never inline this command; the
+        # duplicated copies in ci.yml and cross-platform.yml once drifted.
+        run: python scripts/check_core_coverage.py
 
       - name: Package import smoke test
         run: |

@@ -128,19 +128,11 @@ jobs:
           pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Core coverage gate
-        # Stricter ratchet for the fully-testable core spine, reusing the
-        # .coverage data from the step above. Instrumentation-only modules
-        # (profiling, npm packaging) are excluded. The calibration engine,
-        # metrics stack, and build helpers promoted into core keep their
-        # previous governance (the global floor): they exercise model binaries
-        # and observation files that can't run in CI. Omit list mirrors the
-        # gate in ci.yml. One-way ratchet: only raise.
+        # Single shared definition (scope, omits, threshold rationale) lives in
+        # scripts/check_core_coverage.py — never inline this command; the
+        # duplicated copies in ci.yml and cross-platform.yml once drifted.
         if: matrix.os == 'ubuntu-24.04'
-        run: |
-          coverage report \
-            --include='src/symfluence/core/*' \
-            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py,src/symfluence/core/calibration/*,src/symfluence/core/metrics/*,src/symfluence/core/build/*' \
-            --fail-under=80
+        run: python scripts/check_core_coverage.py
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04' && always()

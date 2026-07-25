@@ -18,9 +18,13 @@ def _isolated_cache(monkeypatch, tmp_path):
 
 
 def _answer_when_pending(approved: bool, message: str = ''):
-    """Background thread playing the TUI: replies to the first pending request."""
+    """Background thread playing the TUI: replies to the first pending request.
+
+    Polls well past the requester's window: equal-magnitude timeouts made the
+    denial reply land just after the deadline on loaded macOS CI runners.
+    """
     def _run():
-        deadline = time.time() + 10
+        deadline = time.time() + 60
         while time.time() < deadline:
             pending = approvals.list_pending()
             if pending:
@@ -35,7 +39,7 @@ def _answer_when_pending(approved: bool, message: str = ''):
 def test_approved_request_allows_with_original_input():
     _answer_when_pending(True)
     verdict = approvals.request_approval(
-        'Edit', {'file_path': 'config.yaml'}, timeout_s=10)
+        'Edit', {'file_path': 'config.yaml'}, timeout_s=30)
     assert verdict == {'behavior': 'allow',
                        'updatedInput': {'file_path': 'config.yaml'}}
     assert approvals.list_pending() == []  # cleaned up
@@ -44,7 +48,7 @@ def test_approved_request_allows_with_original_input():
 def test_denied_request_carries_message():
     _answer_when_pending(False, 'not on my watch')
     verdict = approvals.request_approval('Bash', {'command': 'rm -rf /'},
-                                         timeout_s=10)
+                                         timeout_s=30)
     assert verdict['behavior'] == 'deny'
     assert 'not on my watch' in verdict['message']
 
