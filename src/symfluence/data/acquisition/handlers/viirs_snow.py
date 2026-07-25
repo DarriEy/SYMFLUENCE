@@ -35,8 +35,7 @@ import requests
 import xarray as xr
 
 from symfluence.core.registries import R
-
-from .earthaccess_base import BaseEarthaccessAcquirer
+from symfluence.data.acquisition.earthaccess_base import BaseEarthaccessAcquirer
 
 APPEEARS_BASE = "https://appeears.earthdatacloud.nasa.gov/api"
 

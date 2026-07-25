@@ -1,7 +1,7 @@
 # ADR-0010: Destination mapping for the in-tree data handlers (community-service liftoff)
 
 Date: 2026-07-25
-Status: **Draft — destination decisions pending for the "Ambiguous" section**
+Status: **Accepted** (destinations decided 2026-07-25)
 
 ## Context
 
@@ -36,8 +36,10 @@ framework-side as schema-driven preprocessing — see Ambiguous.
 `glhymps`, `glwd`, `gssurgo`, `hydrolakes`, `hydrosheds`, `landcover`,
 `merit_basins`, `merit_hydro`, `pelletier`, `polaris`,
 `root_zone_storage`, `soilgrids`, `soilgrids_properties`, `tdx_hydro`,
-`wokam`, `modis_lai`, `modis_ndvi` (as static/climatological attributes;
-see Ambiguous for the MODIS split), plus
+`wokam`, `nws_hydrofabric`, and the **entire MODIS family** (the shared
+`modis` base, `modis_utils`, and all products: `modis_et`, `modis_lai`,
+`modis_lst`, `modis_ndvi`, `modis_sca`, `modis_snow` — one service owns
+MODIS, acquisition and observation flavours alike), plus
 `preprocessing/attribute_processors/` (the external path is already proven
 by climaclass via the `symfluence.attribute_processors` entry point).
 
@@ -50,8 +52,10 @@ Observation handlers: `usgs`, `wsc`, `grdc`, `ana`, `dga`, `hubeau`,
 
 `ascat_sm`, `canswe`, `cmc_snow`, `cnes_grgs_tws`, `esa_cci_sm`,
 `fluxcom`/`fluxcom_et`, `ggmn`, `gldas_tws`, `gleam`/`gleam_et`,
-`globsnow`, `grace`, `ims_snow`, `ismn`, `jrc_water`, `modis_et`,
-`modis_lst`, `modis_sca`, `modis_snow`, `openet`, `sentinel1_sm`,
+`globsnow`, `grace`, `ims_snow`, `ismn`, `jrc_water`, `openet`,
+`sentinel1_sm`, `fluxnet` (observation flavour), the observation
+flavours of `chirps`/`daymet`/`era5_land`/`gpm`/`mswep` (their
+acquisition flavours live with CFS — dual-service datasets),
 `sentinel2_snow`, `smap`, `smos_sm`, `snodas`, `snotel`, `soil_moisture`,
 `ssebop`, `viirs_snow`.
 
@@ -63,19 +67,33 @@ registries and base classes, `model_ready/`, `cache/`, `preprocessing/`
 core (resampling, remapping, alignment), shared infra bases
 (`earthaccess_base`, `appeears_base` — see Ambiguous).
 
-## Ambiguous — decisions needed
+## Decisions (resolved 2026-07-25)
 
-| Handler / piece | Options | Recommendation |
-|---|---|---|
-| `fluxnet` (acq + obs; towers feed both ET evaluation and forcing-adjacent use) | COS vs CFS | **COS** — it is consumed as observations (ET evaluator resolves `FLUXNET_ET`) |
-| `camels`, `lamah_ice` (basin bundles: streamflow + attributes + forcing) | CSFS vs split per component | **CSFS** — primary consumer is streamflow calibration; document that their attribute/forcing components ride along |
-| `nwm3_retrospective` (modeled streamflow used as pseudo-obs) | CSFS vs COS | **CSFS** — consumed on the streamflow path |
-| `nws_hydrofabric` (geofabric/attributes for NGEN) | CAS vs stay (models-adjacent) | **CAS** |
-| MODIS family split (`modis` base + et/lai/lst/ndvi/sca) | split CAS/COS (shared `modis`/`modis_utils` base duplicated or extracted to a shared lib) | **split as tabled above**, `modis` base travels to COS with CAS importing it cross-service — needs a call on the shared-base mechanics |
-| Obs-side `chirps`, `daymet`, `era5_land`, `gpm`, `mswep` (forcing datasets consumed as precipitation/temperature observations) | COS vs CFS-with-obs-flavor | **COS** — the contract's flavour system already distinguishes forcing vs observation delivery, but the obs handlers are thin and their home should follow the consumer |
-| `earthaccess_base`, `appeears_base`, `cds_datasets` (shared acquisition infra) | duplicate per service vs shared runtime lib in framework core-data vs a fifth micro-package | **keep in framework** (`data/acquisition/` base tier) — services import symfluence anyway |
-| `preprocessing/dataset_handlers/` (per-dataset forcing preprocessing, SchemaId-dispatched) | travel to CFS vs stay schema-driven in framework | **stay initially** — the sidecar-manifest schema dispatch was built precisely so preprocessing needn't know which backend delivered the artifact; revisit if CFS gains datasets with novel schemas |
-| Parity-gating endgame | keep native as reference until each family fully migrates vs flip `DATA_ACCESS` default to community per family | **migrate family-by-family**: a handler family leaves the tree only when its community counterpart holds a LIVE parity grade; `DATA_ACCESS` default flips per family at that moment |
+1. **fluxnet** → COS (consumed as observations; the ET evaluator resolves it
+   registry-first).
+2. **CAMELS / LamaH-ICE bundles** → CSFS whole; their attribute/forcing
+   components ride along with the bundle.
+3. **nwm3_retrospective** → CSFS (pseudo-observations on the streamflow path).
+4. **MODIS family** → CAS, wholly: the shared base and every product travel
+   together so no cross-service base dependency exists. Consumers keep
+   resolving products registry-first (e.g. the ET evaluator's `modis_et`),
+   served by CAS after liftoff.
+5. **Dual-flavour datasets** (`chirps`, `daymet`, `era5_land`, `gpm`,
+   `mswep`) → both services: acquisition (forcing) flavour with CFS,
+   observation flavour with COS. The contract's flavour system already keeps
+   the two deliveries distinct.
+6. **Shared acquisition infrastructure** (`earthaccess_base`,
+   `appeears_base`, `cds_datasets`) → moved upstream out of `handlers/` into
+   `data/acquisition/` (implemented alongside this ADR; shims left at the
+   old paths). The framework keeps it; services import it from symfluence.
+7. **`preprocessing/dataset_handlers/`** → machinery (base, registry,
+   schema dispatch) stays framework-side — it is already seam-shaped:
+   per-dataset ``*_utils`` self-register via ``@R.dataset_handlers.add`` and
+   the package loads them fail-safe, so each is individually extractable
+   with its CFS dataset later.
+8. **Parity-gating endgame** → family-by-family: a handler family leaves the
+   tree only when its community counterpart holds a LIVE parity grade, and
+   the ``DATA_ACCESS`` default flips per family at that moment.
 
 ## Consequences
 
