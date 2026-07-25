@@ -122,12 +122,13 @@ def test_distributed_same_multi_hru_chunks_all_kept(tmp_path):
 
 
 def test_selection_prevents_silent_shape_contamination(tmp_path):
-    """End-to-end guard: a blind merge corrupts the lumped grid; selection doesn't.
+    """End-to-end guard: a blind merge fails loudly; selection isolates the file.
 
-    Merging the whole store either crashes on hru alignment or -- as here, where
-    the files carry an ``hru`` coordinate -- silently outer-joins to hru=12 with
-    NaN-filled cells: exactly the kind of quiet wrong-shape that fed fabricated
-    weather downstream. Selection returns only the single-HRU file.
+    Historically, merging the whole store silently outer-joined to hru=12 with
+    NaN-filled cells -- the quiet wrong-shape that fed fabricated weather
+    downstream. The #339 read-boundary guard now rejects a mixed-discretization
+    set outright, so the blind path fails loudly and actionably; per-model
+    selection remains the way to obtain the right file from a shared store.
     """
     from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
 
@@ -135,10 +136,9 @@ def test_selection_prevents_silent_shape_contamination(tmp_path):
     good = _write_forcing(store / "test_domain_ERA5_remapped_CDS.nc", hru=1)
     _write_forcing(store / "test_domain_ERA5_remapped_stray.nc", hru=12)
 
-    # A blind merge of the whole store does not yield the lumped (hru=1) grid.
-    merged = open_canonical_forcing(sorted(store.glob("*.nc")))
-    assert merged.sizes.get("hru", 1) != 1
-    merged.close()
+    # A blind merge of the whole mixed store is refused at the read boundary.
+    with pytest.raises(ValueError, match="cross-discretization forcing collision"):
+        open_canonical_forcing(sorted(store.glob("*.nc")))
 
     # Selection isolates the correct file, which then opens as a true lumped grid.
     h = _Sel(store, mode="lumped")
