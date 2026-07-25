@@ -112,7 +112,11 @@ test suite or serves as a reference implementation).
 This is not gatekeeping — it is the mechanism by which the project scales
 without concentrating maintenance burden on the core team. A plugin that works
 today will continue to work as long as the interface contracts are maintained,
-regardless of what happens to the core repository.
+regardless of what happens to the core repository. Those contracts are
+versioned per family (`models`, `calibration`, `metrics`, `geospatial-utils`,
+plus the acquisition-backend contract) in `symfluence.core.contracts` — see
+[ADR-0009](docs/adr/0009-per-family-contract-versioning.md); plugins declare
+the family versions they target and are declined cleanly on skew.
 
 ### 3.3 Rationale
 

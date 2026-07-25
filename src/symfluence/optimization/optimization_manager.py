@@ -436,7 +436,7 @@ class OptimizationManager(BaseManager):
         """
         from symfluence.core.calibration.optimizers.final_evaluation.results_saver import FinalResultsSaver
         from symfluence.core.metrics.metrics_core import calculate_all_metrics
-        from symfluence.evaluation.utilities.streamflow_metrics import StreamflowMetrics
+        from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 
         try:
             import xarray as xr
