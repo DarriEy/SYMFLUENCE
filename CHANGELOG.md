@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+- **Back-compat shim import paths** left by the service-decomposition
+  promotions (`symfluence.models.{base,mixins,execution,state,templates,
+  utilities,adapters,spatial_modes}`, `symfluence.optimization.{optimizers,
+  mixins,workers.base_worker,workers.inmemory_worker,workers.summa,
+  core.base_parameter_manager,core.parameter_bounds_registry,
+  parameter_managers}`, `symfluence.evaluation.metrics*`,
+  `symfluence.cli.services.build_snippets*`,
+  `symfluence.geospatial.geometry_utils`): external packages should migrate
+  to the canonical `symfluence.core.*` paths. The shims will be removed at
+  2.0. In-tree code no longer uses them (guard-enforced).
+
 ### Changed
 - **Forcing-adapter base promoted to `core/modeling/adapters/`** (completes
   the adapter contract tier; the per-model `forcing_adapter` modules keep

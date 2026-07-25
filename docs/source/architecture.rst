@@ -72,14 +72,31 @@ Directory Structure
 .. code-block:: text
 
    symfluence/
-   ├── core/                      # Core framework infrastructure
+   ├── core/                      # Foundation + every contract surface
    │   ├── base_manager.py       # Abstract base for all managers
    │   ├── registry.py           # Registry + model_manifest()
    │   ├── registries.py         # Unified registry facade (R)
+   │   ├── contracts.py          # Per-family contract versions (ADR-0009)
    │   ├── config/               # Configuration system
    │   │   ├── models/           # SymfluenceConfig (Pydantic) package
    │   │   ├── transformers.py   # Flat ↔ nested conversion
-   │   │   └── validators.py     # Custom validation rules
+   │   │   └── legacy_aliases.py # Framework-level aliases (+ schema-declared)
+   │   ├── modeling/             # Model-adapter contract tier
+   │   │   ├── base/             # Runner/pre/post/extractor bases
+   │   │   ├── adapters/         # ForcingAdapter base + registry
+   │   │   ├── mixins/           # Adapter mixins (subprocess, SLURM, ...)
+   │   │   ├── execution/        # ModelExecutor, spatial orchestration
+   │   │   ├── state/            # Model state management
+   │   │   ├── templates/        # New-model scaffolding
+   │   │   ├── utilities/        # Shared adapter utilities
+   │   │   └── config_schema.py  # ConfigKey schema machinery
+   │   ├── calibration/          # Generic calibration engine
+   │   │   ├── optimizers/       # BaseModelOptimizer + algorithms/
+   │   │   ├── workers/          # BaseWorker, InMemoryModelWorker
+   │   │   └── parameters/       # BaseParameterManager, bounds registry
+   │   ├── metrics/              # KGE, NSE, ... + metric registry
+   │   ├── build/                # Build-environment snippet helpers
+   │   ├── geometry_utils.py     # Catchment geometry utilities
    │   ├── exceptions.py         # Custom exception hierarchy
    │   ├── constants.py          # Unit conversions, defaults
    │   └── mixins/               # Shared functionality mixins
@@ -104,34 +121,47 @@ Directory Structure
    │   ├── geofabric/            # River network extraction
    │   └── discretization/       # HRU generation methods
    │
-   ├── models/                    # Hydrological model integrations
+   ├── models/                    # Model adapters + their data (extraction-
+   │   │                          # ready: nothing imports it at module level)
    │   ├── model_manager.py      # Model execution coordinator
-   │   ├── base/                 # Base classes for model components
-   │   │   ├── base_preprocessor.py
-   │   │   ├── base_runner.py
-   │   │   └── base_postprocessor.py
-   │   └── {model}/              # Model-specific implementations
-   │       ├── preprocessor.py
-   │       ├── runner.py
-   │       ├── postprocessor.py
-   │       └── config.py
+   │   └── {model}/              # One adapter package per model
+   │       ├── preprocessor.py   #   (subclasses core.modeling bases,
+   │       ├── runner.py         #    registers via model_manifest /
+   │       ├── postprocessor.py  #    R.* — the same path external
+   │       ├── config_schema.py  #    plugin packages use)
+   │       └── base_settings/    # Template settings (package data)
    │
-   ├── optimization/             # Calibration & optimization
+   ├── optimization/             # Calibration orchestration
    │   ├── optimization_manager.py
-   │   ├── optimizers/           # Algorithm implementations
-   │   │   ├── algorithms/       # DE, DDS, PSO, ADAM, L-BFGS
-   │   │   └── base_model_optimizer.py
-   │   ├── parameter_managers/   # Model-specific parameter handling
-   │   └── workers/              # Parallel evaluation workers
+   │   ├── calibration_targets/  # Target factory (registry-first)
+   │   ├── objectives/           # Objective functions
+   │   └── regionalization/      # Parameter regionalization
    │
-   ├── evaluation/               # Performance metrics & analysis
+   ├── evaluation/               # Output evaluation & analysis
    │   ├── analysis_manager.py
-   │   ├── metrics/              # KGE, NSE, RMSE, etc.
-   │   └── evaluators/           # Streamflow, snow, etc.
+   │   └── evaluators/           # Streamflow, snow, ET, ...
    │
    └── reporting/                # Visualization & output
        ├── reporting_manager.py
        └── plotters/             # Specialized plot generators
+
+Historical import paths for everything promoted into ``core`` (e.g.
+``symfluence.models.base``, ``symfluence.optimization.optimizers``,
+``symfluence.evaluation.metrics``) remain available as back-compat shims for
+external packages; in-tree code imports the canonical ``core`` paths only
+(enforced by a guard test). Shims are scheduled for removal at 2.0.
+
+Contract families
+=================
+
+External packages build against four independently versioned contract
+families declared in ``symfluence.core.contracts`` (ADR-0009): ``models``
+(the adapter contract: ``model_manifest()`` + the registry namespaces),
+``calibration`` (the engine bases and seams), ``metrics``, and
+``geospatial-utils``. Versioning follows the acquisition-backend contract's
+semantics: same major required; pre-1.0 minors are additive-only, and a
+package targeting a newer minor than the framework provides is declined at
+registration (``assert_compatible``).
 
 Core Design Patterns
 ====================

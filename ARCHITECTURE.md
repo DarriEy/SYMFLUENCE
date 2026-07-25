@@ -33,10 +33,14 @@ The source tree under `src/symfluence/` divides into three layers:
 
 - **`core/`** is the foundation: the Pydantic configuration models, the
   component registry, the path resolver, shared mixins, the exception
-  hierarchy, profiling hooks, and the contract surface model packages build
-  against — performance metrics (`core/metrics/`), the generic calibration
-  engine (`core/calibration/`: optimizer bases, algorithms, workers, parameter
-  management), and build-environment helpers (`core/build/`). Everything
+  hierarchy, profiling hooks, and every contract surface external packages
+  build against — the model-adapter tier (`core/modeling/`: runner/adapter
+  bases, mixins, execution, state, templates), the generic calibration
+  engine (`core/calibration/`), performance metrics (`core/metrics/`),
+  build-environment helpers (`core/build/`), geometry utilities, and the
+  per-family contract versions (`core/contracts.py`, ADR-0009). Historical
+  import paths for promoted code remain as shims for external packages
+  (removal at 2.0); in-tree code uses canonical core paths only. Everything
   depends on it; **it depends on nothing above it.** That rule is enforced,
   not aspirational — see `scripts/check_core_layering.py` (CI + pre-commit),
   which also guards the package boundaries that keep the model suite
