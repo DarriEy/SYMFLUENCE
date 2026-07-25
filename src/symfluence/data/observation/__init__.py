@@ -31,7 +31,13 @@ Usage:
 """
 from __future__ import annotations
 
-from . import handlers
+# The handlers subpackage is absent-tolerant (community-service liftoff:
+# handlers migrate to external packages that register through the same
+# decorators). Import it for registration side effects only.
+try:
+    from . import handlers  # noqa: F401
+except ImportError:
+    handlers = None  # type: ignore[assignment]
 from .base import (
     STANDARD_COLUMNS,
     BaseObservationHandler,

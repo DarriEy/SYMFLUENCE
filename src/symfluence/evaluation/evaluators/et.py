@@ -767,9 +767,15 @@ class ETEvaluator(ModelEvaluator):
             None (catches exceptions, logs warning, continues)
         """
         try:
-            from symfluence.data.observation.handlers.modis_et import MODISETHandler
+            from symfluence.core.registries import R
 
-            handler = MODISETHandler(self.config, self.logger)
+            handler_cls = R.observation_handlers.get('modis_et')
+            if handler_cls is None:
+                self.logger.warning(
+                    "MODIS ET observation handler not registered - skipping acquisition")
+                return
+
+            handler = handler_cls(self.config, self.logger)
             raw_dir = handler.acquire()
             handler.process(raw_dir)
             self.logger.info("MOD16 ET data acquisition completed")
@@ -811,12 +817,18 @@ class ETEvaluator(ModelEvaluator):
             None (catches exceptions, logs warning, returns None)
         """
         try:
-            from symfluence.data.acquisition.handlers.fluxnet import FLUXNETETAcquirer
+            from symfluence.core.registries import R
+
+            acquirer_cls = R.acquisition_handlers.get('FLUXNET_ET')
+            if acquirer_cls is None:
+                self.logger.warning(
+                    "FLUXNET ET acquisition handler not registered - skipping acquisition")
+                return None
 
             output_dir = self.project_observations_dir / "et" / "preprocessed"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            acquirer = FLUXNETETAcquirer(self.config, self.logger)
+            acquirer = acquirer_cls(self.config, self.logger)
             result_path = acquirer.download(output_dir)
             self.logger.info(f"FLUXNET ET data acquisition completed: {result_path}")
             return result_path

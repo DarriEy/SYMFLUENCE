@@ -123,13 +123,13 @@ src/symfluence/coupling/worker.py:DCouplerWorker.calculate_metrics:except Except
 src/symfluence/coupling/worker.py:DCouplerWorker.run_model:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/acquisition/acquisition_service.py:AcquisitionService._route_community_nonstreamflow_obs:except Exception as exc:  # noqa: BLE001 — best-effort; fall back to native
 src/symfluence/data/acquisition/base.py:BaseAcquisitionHandler.plot_diagnostics:except Exception as e:  # noqa: BLE001 — diagnostic plots are non-critical
+src/symfluence/data/acquisition/cds_datasets.py:CDSRegionalReanalysisHandler._retrieve_with_retry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/acquisition/handlers/__init__.py:<module>:except Exception as _e:  # noqa: BLE001 — optional handler import resilience
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer._download_latlon_grid:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer.download:except Exception as fallback_err:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/aorc.py:AORCAcquirer.download:except Exception as primary_err:  # noqa: BLE001
 src/symfluence/data/acquisition/handlers/ascat_sm.py:ASCATSMAcquirer.download:except Exception as exc:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/ascat_sm.py:ASCATSMAcquirer.download:except Exception as exc:  # noqa: BLE001 — data acquisition resilience
-src/symfluence/data/acquisition/handlers/cds_datasets.py:CDSRegionalReanalysisHandler._retrieve_with_retry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data/acquisition/handlers/chirps.py:CHIRPSAcquirer._subset_and_merge:except Exception as e:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/chirps.py:CHIRPSAcquirer.download:except Exception as e:  # noqa: BLE001 — data acquisition resilience
 src/symfluence/data/acquisition/handlers/cnes_grgs_tws.py:CNESGRGSAcquirer.download:except Exception as e:  # noqa: BLE001 — data acquisition resilience

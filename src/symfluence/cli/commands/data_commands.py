@@ -70,7 +70,7 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        import symfluence.data.acquisition  # noqa: F401 — package import triggers handler registration
         from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         dataset_name = args.dataset
@@ -178,7 +178,7 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        import symfluence.data.acquisition  # noqa: F401 — package import triggers handler registration
         from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         datasets = AcquisitionRegistry.list_datasets()
@@ -213,7 +213,7 @@ class DataCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        import symfluence.data.acquisition.handlers  # noqa: F401 — triggers registration
+        import symfluence.data.acquisition  # noqa: F401 — package import triggers handler registration
         from symfluence.data.acquisition.registry import AcquisitionRegistry
 
         dataset_name = args.dataset

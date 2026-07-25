@@ -444,14 +444,12 @@ class SUMMAWorker(BaseWorker):
 
             if 'D_gauges' in obs_dir.parts and not obs_dir.exists():
                 try:
-                    from symfluence.data.observation.handlers.lamah_ice import (
-                        ensure_lamah_ice_streamflow,
-                    )
+                    from symfluence.core.registries import R
                     lamah_root = obs_dir
                     while lamah_root.name != 'D_gauges' and lamah_root.parent != lamah_root:
                         lamah_root = lamah_root.parent
                     lamah_root = lamah_root.parent
-                    ensure_lamah_ice_streamflow(lamah_root, self.logger)
+                    R.observation_handlers.get('lamah_ice_streamflow').ensure_streamflow(lamah_root, self.logger)
                 except Exception as exc:  # noqa: BLE001
                     self.logger.warning(f"LaMAH-Ice auto-download skipped: {exc}")
 

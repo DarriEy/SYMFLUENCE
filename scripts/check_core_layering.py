@@ -315,6 +315,40 @@ BOUNDARY_RULES: List[BoundaryRule] = [
         ("symfluence.models",),
         [],
     ),
+    # ---- Data-handler encapsulation (community-service liftoff prep) ----
+    # Handlers are consumed registry-first (R.acquisition_handlers /
+    # R.observation_handlers) or through the AcquisitionBackend protocol —
+    # never by importing a handler module from outside data/.
+    (
+        "evaluation",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "models",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "optimization",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "project",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "geospatial",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "cli",
+        ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
     (
         "geospatial",
         ("symfluence.models",),
