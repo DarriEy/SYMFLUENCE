@@ -4,7 +4,10 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+# Root-anchored: an unanchored build/ silently swallowed the
+# src/symfluence/core/build/ source package (its __init__.py never reached
+# git and every fresh clone got a bare namespace package).
+/build/
 
 # Requirements - auto-generated from pyproject.toml
 /requirements.txt
