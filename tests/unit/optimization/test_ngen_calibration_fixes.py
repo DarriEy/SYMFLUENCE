@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from symfluence.optimization.parameter_managers import NgenParameterManager
+from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
 
 def test_soil_depth_mapping(tmp_path):

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
+from symfluence.core.modeling.adapters import ForcingAdapter, ForcingAdapterRegistry
 from symfluence.core.registries import R
-from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
 
 
 class TestForcingAdapterRegistration:

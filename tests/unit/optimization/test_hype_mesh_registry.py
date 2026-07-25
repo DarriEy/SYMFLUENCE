@@ -100,7 +100,7 @@ class TestHYPERegistration:
     def test_hype_optimizer_creates_hype_parameter_manager(self, hype_config, logger, temp_dir):
         """Test that HYPE optimizer creates HYPEParameterManager."""
         from symfluence.models.hype.calibration.optimizer import HYPEModelOptimizer
-        from symfluence.optimization.parameter_managers import HYPEParameterManager
+        from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
 
         optimizer = HYPEModelOptimizer(hype_config, logger, temp_dir)
         param_manager = optimizer._create_parameter_manager()
@@ -145,7 +145,7 @@ class TestMESHRegistration:
     def test_mesh_optimizer_creates_mesh_parameter_manager(self, mesh_config, logger, temp_dir):
         """Test that MESH optimizer creates MESHParameterManager."""
         from symfluence.models.mesh.calibration.optimizer import MESHModelOptimizer
-        from symfluence.optimization.parameter_managers import MESHParameterManager
+        from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
 
         optimizer = MESHModelOptimizer(mesh_config, logger, temp_dir)
         param_manager = optimizer._create_parameter_manager()

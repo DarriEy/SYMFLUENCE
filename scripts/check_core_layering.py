@@ -76,6 +76,13 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "for a uniform read-only view; resolved at call time only.",
     ),
     (
+        "modeling/adapters/adapter_registry.py",
+        "symfluence.models",
+        "Forcing-adapter auto-discovery iterates installed model packages at "
+        "call time to trigger their registration decorators; tolerates an "
+        "absent models layer via per-module ImportError handling.",
+    ),
+    (
         "modeling/base/base_postprocessor.py",
         "symfluence.data.model_ready.cf_conventions",
         "Postprocessors stamp CF-convention metadata on model output at call "

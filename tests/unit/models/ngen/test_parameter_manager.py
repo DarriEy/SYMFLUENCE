@@ -108,7 +108,7 @@ class TestNgenParameterManagerInitialization:
 
     def test_init_parses_modules(self, ngen_config, test_logger, tmp_path):
         """Test that modules to calibrate are parsed from config."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -120,7 +120,7 @@ class TestNgenParameterManagerInitialization:
 
     def test_init_parses_module_params(self, ngen_config, test_logger, tmp_path):
         """Test that parameters for each module are parsed."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -136,7 +136,7 @@ class TestNgenParameterManagerInitialization:
 
     def test_init_defaults_to_cfe(self, tmp_path, test_logger):
         """Test that initialization defaults to CFE if no modules specified."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -154,7 +154,7 @@ class TestNgenParameterManagerInitialization:
 
     def test_init_ignores_invalid_modules(self, tmp_path, test_logger, caplog):
         """Test that invalid modules are ignored with warning."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -183,7 +183,7 @@ class TestNgenParameterNaming:
 
     def test_parameter_names_use_module_prefix(self, ngen_config, test_logger, tmp_path):
         """Test that parameter names use module.param format."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -202,7 +202,7 @@ class TestNgenParameterNaming:
 
     def test_get_parameter_names_returns_all_modules(self, ngen_config, test_logger, tmp_path):
         """Test that _get_parameter_names includes all module params."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -220,7 +220,7 @@ class TestNgenParameterNaming:
 
     def test_single_module_naming(self, ngen_cfe_only_config, test_logger, tmp_path):
         """Test naming with single module."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -242,7 +242,7 @@ class TestNgenParameterBounds:
 
     def test_bounds_use_module_prefix(self, ngen_config, test_logger, tmp_path):
         """Test that bounds use module.param format."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -256,7 +256,7 @@ class TestNgenParameterBounds:
 
     def test_bounds_have_min_max(self, ngen_config, test_logger, tmp_path):
         """Test that each bound has min and max."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -271,7 +271,7 @@ class TestNgenParameterBounds:
 
     def test_default_bounds_for_cfe_params(self, ngen_cfe_only_config, test_logger, tmp_path):
         """Test default bounds for CFE parameters."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -289,7 +289,7 @@ class TestNgenParameterBounds:
 
     def test_unknown_param_gets_default_bounds(self, tmp_path, test_logger, caplog):
         """Test that unknown parameters get default bounds with warning."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -322,7 +322,7 @@ class TestNgenNormalization:
 
     def test_normalize_multimodule_params(self, ngen_config, test_logger, tmp_path):
         """Test normalizing parameters from multiple modules."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -350,7 +350,7 @@ class TestNgenNormalization:
 
     def test_denormalize_preserves_module_prefix(self, ngen_config, test_logger, tmp_path):
         """Test that denormalized params keep module prefix."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -367,7 +367,7 @@ class TestNgenNormalization:
 
     def test_roundtrip_consistency(self, ngen_config, test_logger, tmp_path):
         """Test normalize → denormalize roundtrip."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -397,7 +397,7 @@ class TestNgenConfigUpdate:
 
     def test_update_model_files_signature(self, ngen_config, test_logger, tmp_path):
         """Test that update_model_files has correct signature."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -409,7 +409,7 @@ class TestNgenConfigUpdate:
 
     def test_update_config_files_parses_module_params(self, ngen_config, test_logger, ngen_project_structure):
         """Test that update parses module.param format."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         manager = NgenParameterManager(
             ngen_config, test_logger, ngen_project_structure['setup_dir']
@@ -435,7 +435,7 @@ class TestNgenInitialParameters:
 
     def test_get_initial_parameters_returns_dict(self, ngen_config, test_logger, tmp_path):
         """Test that get_initial_parameters returns dictionary."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -446,7 +446,7 @@ class TestNgenInitialParameters:
 
     def test_get_default_parameters(self, ngen_config, test_logger, tmp_path):
         """Test get_default_parameters method."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -471,7 +471,7 @@ class TestNgenEdgeCases:
 
     def test_handles_whitespace_in_modules(self, tmp_path, test_logger):
         """Test handling of whitespace in module list."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -492,7 +492,7 @@ class TestNgenEdgeCases:
 
     def test_handles_whitespace_in_params(self, tmp_path, test_logger):
         """Test handling of whitespace in parameter list."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -512,7 +512,7 @@ class TestNgenEdgeCases:
 
     def test_handles_case_insensitive_modules(self, tmp_path, test_logger):
         """Test that module names are normalized to uppercase."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -534,7 +534,7 @@ class TestNgenEdgeCases:
 
     def test_handles_empty_param_list_for_module(self, tmp_path, test_logger):
         """Test handling of empty parameter list for a module."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         config = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
@@ -564,7 +564,7 @@ class TestNgenBaseClassIntegration:
     def test_inherits_from_base(self, ngen_config, test_logger, tmp_path):
         """Test that NgenParameterManager inherits from BaseParameterManager."""
         from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -575,7 +575,7 @@ class TestNgenBaseClassIntegration:
 
     def test_implements_abstract_methods(self, ngen_config, test_logger, tmp_path):
         """Test that all abstract methods are implemented."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)
@@ -596,7 +596,7 @@ class TestNgenBaseClassIntegration:
 
     def test_uses_base_normalization(self, ngen_config, test_logger, tmp_path):
         """Test that base class normalization is used."""
-        from symfluence.optimization.parameter_managers import NgenParameterManager
+        from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
 
         settings_dir = tmp_path / 'settings'
         settings_dir.mkdir(parents=True)

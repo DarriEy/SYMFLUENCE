@@ -1,34 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-Model Forcing Adapters for SYMFLUENCE.
-
-This package provides adapters that convert CFIF (CF-Intermediate Format)
-forcing data into model-specific formats.
-
-Architecture:
-    CFIF Data → ForcingAdapter → Model-Specific Format
-
-Each model registers its own adapter in its package directory
-(e.g., models/summa/forcing_adapter.py). The adapter registry
-provides dynamic discovery of adapters without hardcoded model names.
-
-Usage:
-    >>> from symfluence.models.adapters import ForcingAdapterRegistry
-    >>> adapter = ForcingAdapterRegistry.get_adapter('SUMMA', config)
-    >>> model_forcing = adapter.transform(cfif_dataset)
-
-See Also:
-    - ForcingAdapter: Abstract base class for adapters
-    - ForcingAdapterRegistry: Registry for adapter discovery
-"""
+"""Back-compat shim: moved to ``symfluence.core.modeling.adapters`` (adapter contract tier)."""
 from __future__ import annotations
 
-from .adapter_registry import ForcingAdapterRegistry
-from .base_adapter import ForcingAdapter
+import symfluence.core.modeling.adapters as _impl
+from symfluence.core.modeling.adapters import *  # noqa: F401,F403
 
-__all__ = [
-    'ForcingAdapter',
-    'ForcingAdapterRegistry',
-]
+
+def __getattr__(name: str):
+    return getattr(_impl, name)

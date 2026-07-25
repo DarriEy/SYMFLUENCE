@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Forcing-adapter base promoted to `core/modeling/adapters/`** (completes
+  the adapter contract tier; the per-model `forcing_adapter` modules keep
+  registering through it). In-tree code and tests no longer import any
+  back-compat shim path (shims now exist solely for external packages),
+  and model test fixtures use the per-package `base_settings` layout.
 - **Adapter contract tier promoted to `core/modeling/`** (phase-2 step 0):
   `models/{base,mixins,execution,state,templates,utilities,spatial_modes}`
   (~9k LOC) — the runner/preprocessor/postprocessor/extractor bases, adapter
