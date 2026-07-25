@@ -9,9 +9,8 @@ Handles extraction of routed streamflow from t-route NetCDF outputs.
 """
 from __future__ import annotations
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('TROUTE')

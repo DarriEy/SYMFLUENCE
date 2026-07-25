@@ -26,8 +26,8 @@ from typing import Optional
 import numpy as np
 
 from symfluence.core.mixins.project import resolve_forcing_basin_path
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 

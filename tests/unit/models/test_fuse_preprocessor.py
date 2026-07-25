@@ -246,7 +246,7 @@ class TestFUSEPETCalculator:
 
     def test_has_pet_calculator_mixin(self, fuse_config, mock_logger, setup_test_directories):
         """Test that FUSE preprocessor has PET calculator functionality."""
-        from symfluence.models.mixins import PETCalculatorMixin
+        from symfluence.core.modeling.mixins import PETCalculatorMixin
 
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
@@ -259,7 +259,7 @@ class TestFUSEBaseClassIntegration:
 
     def test_inherits_from_base_preprocessor(self, fuse_config, mock_logger, setup_test_directories):
         """Test that FUSE inherits from BaseModelPreProcessor."""
-        from symfluence.models.base import BaseModelPreProcessor
+        from symfluence.core.modeling.base import BaseModelPreProcessor
 
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 

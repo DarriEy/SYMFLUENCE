@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import netCDF4 as nc4
 import numpy as np
 
-from symfluence.models.utilities.base_topology_generator import BaseTopologyGenerator, TopologyData
+from symfluence.core.modeling.utilities.base_topology_generator import BaseTopologyGenerator, TopologyData
 
 if TYPE_CHECKING:
     from symfluence.models.troute.preprocessor import TRoutePreProcessor

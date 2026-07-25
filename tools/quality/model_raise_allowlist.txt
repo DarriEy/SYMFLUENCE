@@ -5,14 +5,6 @@
 # the migrated adapters (summa/fuse/ngen/mizuroute) must stay clean.
 src/symfluence/models/adapters/adapter_registry.py:ForcingAdapterRegistry.get_adapter:raise ValueError(
 src/symfluence/models/adapters/base_adapter.py:ForcingAdapter._validate_input:raise ValueError(
-src/symfluence/models/base/base_postprocessor.py:BaseModelPostProcessor.get_catchment_area_km2:raise FileNotFoundError(f"River basins shapefile not found: {basin_path}")
-src/symfluence/models/base/base_postprocessor.py:BaseModelPostProcessor.get_catchment_area_km2:raise ValueError(f"GRU_area field not found in {basin_path}")
-src/symfluence/models/base/base_postprocessor.py:BaseModelPostProcessor.read_netcdf_streamflow:raise FileNotFoundError(f"NetCDF file not found: {file_path}")
-src/symfluence/models/base/base_postprocessor.py:BaseModelPostProcessor.read_netcdf_streamflow:raise ValueError(f"Variable '{variable_name}' not found in {file_path}")
-src/symfluence/models/base/base_runner.py:BaseModelRunner.get_install_path:raise FileNotFoundError(
-src/symfluence/models/base/base_runner.py:BaseModelRunner.get_model_executable:raise FileNotFoundError(
-src/symfluence/models/base/base_runner.py:BaseModelRunner.get_model_executable:raise FileNotFoundError(
-src/symfluence/models/base/base_runner.py:BaseModelRunner.verify_required_files:raise FileNotFoundError(error_msg)
 src/symfluence/models/clm/config.py:CLMConfigAdapter.validate:raise ValueError(
 src/symfluence/models/clm/extractor.py:CLMResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/clm/extractor.py:CLMResultExtractor.extract_variable:raise ValueError(f"Could not open CLM output: {output_file}")
@@ -28,7 +20,6 @@ src/symfluence/models/clmparflow/extractor.py:CLMParFlowResultExtractor._extract
 src/symfluence/models/clmparflow/extractor.py:CLMParFlowResultExtractor.extract_variable:raise ValueError(f"Unknown variable type: {variable_type}")
 src/symfluence/models/clmparflow/runner.py:CLMParFlowRunner._verify_output:raise RuntimeError(
 src/symfluence/models/clmparflow/runner.py:CLMParFlowRunner._verify_output:raise RuntimeError(f"CLMParFlow pressure output file is empty: {f}")
-src/symfluence/models/config/model_config_schema.py:get_model_schema:raise KeyError(f"Unknown model: {model_name}. Available: {available}")
 src/symfluence/models/crhm/config.py:CRHMConfigAdapter.validate:raise ValueError(
 src/symfluence/models/crhm/config.py:CRHMConfigAdapter.validate:raise ValueError(
 src/symfluence/models/crhm/config.py:CRHMConfigAdapter.validate:raise ValueError(
@@ -45,10 +36,6 @@ src/symfluence/models/cwatm/extractor.py:CWatMResultExtractor.extract_variable:r
 src/symfluence/models/cwatm/preprocessor.py:CWatMPreProcessor._extract_forcing_var:raise ValueError(
 src/symfluence/models/cwatm/preprocessor.py:CWatMPreProcessor._generate_forcing:raise FileNotFoundError(f"No forcing files found in {forcing_path}")
 src/symfluence/models/cwatm/runner.py:CWatMRunner.run:raise FileNotFoundError(f"CWatM config not found: {ini_path}")
-src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator._create_routing_dataset:raise ValueError(
-src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator._create_routing_dataset:raise ValueError(
-src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator.convert_to_routing_format:raise FileNotFoundError(f"Input file not found: {input_file}")
-src/symfluence/models/execution/spatial_orchestrator.py:SpatialOrchestrator.convert_to_routing_format:raise FileNotFoundError(f"No NetCDF output files found in directory: {input_file}")
 src/symfluence/models/gnn/extractor.py:GNNResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/gnn/model.py:GNNModel.__init__:raise ValueError(f"dropout_rate must be in [0, 1), got {dropout_rate}")
 src/symfluence/models/gnn/model.py:GNNModel.__init__:raise ValueError(f"gnn_output_size must be positive, got {gnn_output_size}")
@@ -132,17 +119,6 @@ src/symfluence/models/mhm/extractor.py:MHMResultExtractor.extract_streamflow:rai
 src/symfluence/models/mhm/extractor.py:MHMResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/mhm/extractor.py:MHMResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/mhm/preprocessor.py:MHMPreProcessor._load_forcing_data:raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path}")
-src/symfluence/models/mixins/dataset_builder.py:DatasetBuilderMixin.add_variable_with_spatial_dims:raise ValueError(
-src/symfluence/models/mixins/dataset_builder.py:DatasetBuilderMixin.create_distributed_forcing_coords:raise ValueError(f"subcatchment_dim must be 'latitude' or 'longitude', got {subcatchment_dim}")
-src/symfluence/models/mixins/observation_loader.py:ObservationLoaderMixin._read_observation_file:raise ValueError(f"No readable data in NetCDF file: {file_path}")
-src/symfluence/models/mixins/observation_loader.py:ObservationLoaderMixin.load_streamflow_observations:raise FileNotFoundError("Streamflow observation file not found")
-src/symfluence/models/mixins/pet_calculator.py:PETCalculatorMixin._get_robust_temp_c:raise ValueError(f"Temperature data has unexpected range. Mean={temp_mean:.2f}")
-src/symfluence/models/mixins/pet_calculator.py:PETCalculatorMixin._get_robust_temp_c:raise ValueError(f"Temperature data has unexpected range. Mean={temp_mean:.2f}")
-src/symfluence/models/mixins/pet_calculator.py:PETCalculatorMixin._get_robust_temp_c:raise ValueError(f"Unrealistic temperature after conversion: {temp_mean_C:.2f}°C")
-src/symfluence/models/mixins/slurm_execution.py:SlurmExecutionMixin.execute_in_mode:raise ValueError("slurm_config required for SLURM execution")
-src/symfluence/models/mixins/slurm_execution.py:SlurmExecutionMixin.execute_in_mode:raise ValueError(f"Unknown execution mode: {mode}")
-src/symfluence/models/mixins/slurm_execution.py:SlurmExecutionMixin.submit_slurm_job:raise RuntimeError("SLURM 'sbatch' command not found")
-src/symfluence/models/mixins/spatial_mode_mixin.py:SpatialModeDetectionMixin._validate_spatial_mode_for_model:raise ValueError(warning_msg)
 src/symfluence/models/modflow/calibration/parameter_manager.py:CoupledGWParameterManager._create_land_parameter_manager:raise ValueError(
 src/symfluence/models/modflow/calibration/worker.py:CoupledGWWorker.land_worker:raise ValueError(
 src/symfluence/models/modflow/config.py:MODFLOWConfigAdapter.validate:raise ValueError(
@@ -214,7 +190,6 @@ src/symfluence/models/rhessys/runner.py:RHESSysRunner._build_run_command:raise R
 src/symfluence/models/rhessys/worldfile_generator.py:RHESSysWorldfileGenerator.generate_worldfile:raise FileNotFoundError(
 src/symfluence/models/rhessys/worldfile_generator.py:RHESSysWorldfileGenerator.generate_worldfile:raise RuntimeError(
 src/symfluence/models/rhessys/worldfile_generator.py:RHESSysWorldfileGenerator.generate_worldfile:raise ValueError(
-src/symfluence/models/spatial_modes.py:SpatialMode.from_string:raise ValueError(f"Unknown spatial mode: {value}. Valid: {list(mapping.keys())}")
 src/symfluence/models/swat/config.py:SWATConfigAdapter.validate:raise ValueError(
 src/symfluence/models/swat/config.py:SWATConfigAdapter.validate:raise ValueError(
 src/symfluence/models/swat/config.py:SWATConfigAdapter.validate:raise ValueError("SWAT txtinout_dir must not be empty.")
@@ -226,28 +201,12 @@ src/symfluence/models/swat/extractor.py:SWATResultExtractor.extract_variable:rai
 src/symfluence/models/swat/extractor.py:SWATResultExtractor.extract_variable:raise ValueError(f"SWAT output file not found: {output_file}")
 src/symfluence/models/swat/preprocessor.py:SWATPreProcessor._load_forcing_data:raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path}")
 src/symfluence/models/swat/runner.py:SWATRunner._assemble_txtinout:raise FileNotFoundError(
-src/symfluence/models/templates/model_template.py:create_model_runner:raise KeyError(f"No runner registered for model: {model_name}")
 src/symfluence/models/troute/config.py:TRouteConfigAdapter.validate:raise ValueError(
 src/symfluence/models/troute/config.py:TRouteConfigAdapter.validate:raise ValueError(
 src/symfluence/models/troute/config.py:TRouteConfigAdapter.validate:raise ValueError(
 src/symfluence/models/troute/extractor.py:TRouteResultExtractor.extract_variable:raise ValueError(
 src/symfluence/models/troute/plotter.py:TRoutePlotter._load_routed_discharge:raise FileNotFoundError(
 src/symfluence/models/troute/runner.py:TRouteRunner._prepare_runoff_file:raise ValueError(f"No runoff variable found in {runoff_filepath}")
-src/symfluence/models/utilities/base_forcing_processor.py:BaseForcingProcessor._load_forcing_files:raise FileNotFoundError(
-src/symfluence/models/utilities/base_remap_generator.py:_create_easymore_instance:raise AttributeError("easymore module does not expose an Easymore class")
-src/symfluence/models/utilities/base_topology_generator.py:BaseTopologyGenerator._build_grid_topology:raise FileNotFoundError(f"Grid basins shapefile not found: {grid_path}")
-src/symfluence/models/utilities/base_topology_generator.py:BaseTopologyGenerator._build_lumped_to_distributed_topology:raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
-src/symfluence/models/utilities/data_quality_handler.py:DataQualityHandler.detect_outliers:raise ValueError(f"Unknown outlier detection method: {method}")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.apply_unit_conversion:raise ValueError(f"Unknown conversion: {conversion}")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.extract_forcing_variables:raise ValueError(
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.get_spatial_mean:raise ValueError(f"Variable '{variable}' not found in dataset")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.load_forcing_data:raise FileNotFoundError(f"No forcing files matching '{pattern}' in {forcing_path}")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.resample_to_frequency:raise ValueError(f"Unknown resample method: {method}")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.standardize_temperature_units:raise ValueError(f"Unknown target unit: {target_unit}. Use 'celsius' or 'kelvin'")
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.subset_to_time_window:raise ValueError(
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.validate_temporal_completeness:raise ValueError(
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.validate_temporal_completeness:raise ValueError(
-src/symfluence/models/utilities/forcing_data_processor.py:ForcingDataProcessor.validate_temporal_completeness:raise ValueError(f"Unknown missing data strategy: {strategy}")
 src/symfluence/models/vic/config.py:VICConfigAdapter.validate:raise ValueError(
 src/symfluence/models/vic/config.py:VICConfigAdapter.validate:raise ValueError(
 src/symfluence/models/vic/extractor.py:VICResultExtractor.aggregate_to_basin:raise ValueError(f"Variable type {variable_type} not found")

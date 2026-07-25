@@ -4,7 +4,7 @@
 """Worker utilities.
 
 - StreamflowMetrics: shared metric calculation utilities
-- RoutingDecider: lives in ``symfluence.models.utilities``; resolved lazily
+- RoutingDecider: lives in ``symfluence.core.modeling.utilities``; resolved lazily
   here for backward compatibility (optimization must not import models at
   module level).
 """
@@ -17,7 +17,7 @@ __all__ = ['RoutingDecider', 'StreamflowMetrics']
 
 def __getattr__(name: str):
     if name == 'RoutingDecider':
-        from symfluence.models.utilities.routing_decider import RoutingDecider
+        from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
         globals()[name] = RoutingDecider
         return RoutingDecider
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

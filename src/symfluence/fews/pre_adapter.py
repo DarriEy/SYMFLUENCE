@@ -101,7 +101,7 @@ class FEWSPreAdapter:
             # Use StateManager if model runner is available and state-capable
             model_runner = getattr(self, '_model_runner', None)
             if model_runner and hasattr(model_runner, 'supports_state') and model_runner.supports_state:
-                from symfluence.models.state import StateManager
+                from symfluence.core.modeling.state import StateManager
                 StateManager.import_from_fews(run_info.state_input_dir, model_runner)
                 if diag:
                     diag.info("Imported state files via StateManager")

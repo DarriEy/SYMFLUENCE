@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from symfluence.models.base import ModelResultExtractor
+from symfluence.core.modeling.base import ModelResultExtractor
 
 
 class PCRGLOBWBResultExtractor(ModelResultExtractor):

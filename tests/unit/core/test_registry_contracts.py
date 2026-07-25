@@ -47,16 +47,16 @@ import symfluence  # noqa: F401 — import triggers bootstrap / entry-point regi
 from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.calibration.parameters.base_parameter_manager import BaseParameterManager
 from symfluence.core.calibration.workers.base_worker import BaseWorker
+from symfluence.core.modeling.base.base_config import ModelConfigAdapter
+from symfluence.core.modeling.base.base_extractor import ModelResultExtractor
+from symfluence.core.modeling.base.base_postprocessor import BaseModelPostProcessor
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
+from symfluence.core.modeling.base.base_runner import BaseModelRunner
 from symfluence.core.registries import R
 
 # Base classes that registered components are expected to subclass.
 from symfluence.data.acquisition.base import BaseAcquisitionHandler
 from symfluence.data.observation.base import BaseObservationHandler
-from symfluence.models.base.base_config import ModelConfigAdapter
-from symfluence.models.base.base_extractor import ModelResultExtractor
-from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.models.base.base_runner import BaseModelRunner
 
 pytestmark = pytest.mark.unit
 

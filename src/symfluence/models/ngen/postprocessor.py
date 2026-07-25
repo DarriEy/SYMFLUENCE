@@ -16,8 +16,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('NGEN')

@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, cast
 
 import pandas as pd
 
+from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.hype.config_manager import HYPEConfigManager
@@ -26,8 +27,6 @@ from symfluence.models.hype.geodata_manager import (
     HYPEGeoDataManager,
     load_elevation_band_table,
 )
-
-from ..base import BaseModelPreProcessor
 
 
 @R.preprocessors.add('HYPE')

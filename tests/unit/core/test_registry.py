@@ -269,7 +269,7 @@ class TestLifecycle:
 
 class TestProtocolValidation:
     def test_protocol_warns_on_missing_attrs(self):
-        from symfluence.models.base.protocols import ModelRunner
+        from symfluence.core.modeling.base.protocols import ModelRunner
 
         reg = Registry("runners", protocol=ModelRunner)
         with warnings.catch_warnings(record=True) as w:
@@ -284,7 +284,7 @@ class TestProtocolValidation:
             assert len(protocol_warnings) >= 1
 
     def test_protocol_no_warn_on_conformant(self):
-        from symfluence.models.base.protocols import ModelRunner
+        from symfluence.core.modeling.base.protocols import ModelRunner
 
         reg = Registry("runners", protocol=ModelRunner)
         with warnings.catch_warnings(record=True) as w:
@@ -484,8 +484,8 @@ class TestPluginDiscovery:
 
         exc = ImportError(
             "cannot import name 'StandardModelPostprocessor' from "
-            "'symfluence.models.base.standard_postprocessor'",
-            name="symfluence.models.base.standard_postprocessor",
+            "'symfluence.core.modeling.base.standard_postprocessor'",
+            name="symfluence.core.modeling.base.standard_postprocessor",
         )
         monkeypatch.setattr(
             importlib.metadata, "entry_points", lambda group: [self._ep_raising(exc)]
@@ -506,8 +506,8 @@ class TestPluginDiscovery:
         from symfluence.core import _bootstrap
 
         exc = ModuleNotFoundError(
-            "No module named 'symfluence.models.base.standard_postprocessor'",
-            name="symfluence.models.base.standard_postprocessor",
+            "No module named 'symfluence.core.modeling.base.standard_postprocessor'",
+            name="symfluence.core.modeling.base.standard_postprocessor",
         )
         monkeypatch.setattr(
             importlib.metadata, "entry_points", lambda group: [self._ep_raising(exc)]

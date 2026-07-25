@@ -16,9 +16,8 @@ from typing import Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base import RoutedModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import RoutedModelPostProcessor
 
 
 @R.postprocessors.add('SUMMA')

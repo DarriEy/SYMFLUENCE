@@ -16,10 +16,10 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.modeling.base import BaseModelPostProcessor
+from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.registries import R
 
-from ..base import BaseModelPostProcessor
-from ..spatial_modes import SpatialMode
 from .r_environment import (
     configure_r_dll_search,
     describe_rpy2_import_failure,

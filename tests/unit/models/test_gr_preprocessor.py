@@ -39,7 +39,7 @@ with patch.dict('sys.modules', {
 }):
     from symfluence.models.gr.preprocessor import GRPreProcessor
 
-from symfluence.models.spatial_modes import SpatialMode
+from symfluence.core.modeling.spatial_modes import SpatialMode
 
 
 class TestGRPreProcessorModeDetection:

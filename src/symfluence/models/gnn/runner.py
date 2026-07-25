@@ -26,10 +26,10 @@ except ImportError as _err:
     ) from _err
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base import BaseModelRunner
+from symfluence.core.modeling.execution import SpatialOrchestrator
 from symfluence.core.registries import R
 
-from ..base import BaseModelRunner
-from ..execution import SpatialOrchestrator
 from .model import GNNModel
 from .postprocessor import GNNPostProcessor
 from .preprocessor import GNNPreProcessor

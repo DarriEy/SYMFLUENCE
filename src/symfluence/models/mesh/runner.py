@@ -18,9 +18,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.registries import R
-
-from ..base import BaseModelRunner
 
 
 @R.runners.add('MESH', runner_method='run_mesh')

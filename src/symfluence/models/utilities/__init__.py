@@ -1,49 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-Shared utilities for model preprocessors.
+"""Back-compat shim: moved to ``symfluence.core.modeling.utilities``.
 
-Provides common functionality for time window management, forcing data
-processing, data quality handling, and dataset alignment that is used
-across multiple model preprocessors (SUMMA, FUSE, NGEN, GR, MESH).
-
-Also includes RoutingDecider for unified routing decision logic across models.
+Also restores two historical re-exports that now live with the data layer
+(they could not travel to core: core must not import data at module level).
 """
 from __future__ import annotations
 
-from symfluence.data.preprocessing.dataset_alignment_manager import DatasetAlignmentManager, align_forcing_datasets
-from symfluence.data.preprocessing.time_window_manager import TimeWindowManager
-
-from .base_forcing_processor import BaseForcingProcessor
-from .base_remap_generator import BaseRemapGenerator, RemapData
-from .base_topology_generator import BaseTopologyGenerator, TopologyData
-from .data_quality_handler import DataQualityHandler
-from .forcing_data_processor import ForcingDataProcessor
-from .routing_decider import RoutingDecider
-from .runoff_loader import (
-    MODEL_CONFIGS,
-    ModelRunoffConfig,
-    detect_runoff_variable,
-    fix_time_precision,
-    resolve_runoff_file,
+import symfluence.core.modeling.utilities as _impl
+from symfluence.core.modeling.utilities import *  # noqa: F401,F403
+from symfluence.data.preprocessing.dataset_alignment_manager import (  # noqa: F401
+    DatasetAlignmentManager,
+    align_forcing_datasets,
 )
+from symfluence.data.preprocessing.time_window_manager import TimeWindowManager  # noqa: F401
 
-__all__ = [
-    'TimeWindowManager',
-    'ForcingDataProcessor',
-    'DataQualityHandler',
-    'DatasetAlignmentManager',
-    'align_forcing_datasets',
-    'BaseForcingProcessor',
-    'BaseRemapGenerator',
-    'BaseTopologyGenerator',
-    'MODEL_CONFIGS',
-    'ModelRunoffConfig',
-    'RemapData',
-    'RoutingDecider',
-    'TopologyData',
-    'detect_runoff_variable',
-    'fix_time_precision',
-    'resolve_runoff_file',
-]
+
+def __getattr__(name: str):
+    return getattr(_impl, name)

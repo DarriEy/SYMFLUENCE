@@ -16,8 +16,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base.standard_postprocessor import StandardModelPostProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 
 @R.postprocessors.add('GNN')

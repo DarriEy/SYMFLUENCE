@@ -26,7 +26,7 @@ try:
 except ImportError:
     HAS_JFUSE = False
 
-from symfluence.models.spatial_modes import SpatialMode
+from symfluence.core.modeling.spatial_modes import SpatialMode
 
 if HAS_JFUSE:
     import jax

@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 
 
 @R.runners.add('MIZUROUTE', runner_method='run_mizuroute')

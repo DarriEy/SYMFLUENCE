@@ -55,7 +55,7 @@ def test_mixin_applies_a_backstop_when_no_timeout_is_given(monkeypatch, tmp_path
     """
     import logging
 
-    from symfluence.models.mixins import subprocess_execution as se
+    from symfluence.core.modeling.mixins import subprocess_execution as se
 
     seen = {}
 

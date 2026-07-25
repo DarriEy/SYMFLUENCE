@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from symfluence.models.base import ConfigValidationError
+from symfluence.core.modeling.base import ConfigValidationError
 
 
 class TestHYPEConfigAdapter:

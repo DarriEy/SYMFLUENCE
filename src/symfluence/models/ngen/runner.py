@@ -18,9 +18,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 
 
 @R.runners.add('NGEN', runner_method='run_ngen')

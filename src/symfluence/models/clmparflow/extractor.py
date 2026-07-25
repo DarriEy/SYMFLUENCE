@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from symfluence.models.base.base_extractor import ModelResultExtractor
+from symfluence.core.modeling.base.base_extractor import ModelResultExtractor
 
 logger = logging.getLogger(__name__)
 

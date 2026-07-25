@@ -119,7 +119,7 @@ class FEWSPostAdapter:
             # Use StateManager if model runner is available and state-capable
             model_runner = getattr(self, '_model_runner', None)
             if model_runner and hasattr(model_runner, 'supports_state') and model_runner.supports_state:
-                from symfluence.models.state import StateManager
+                from symfluence.core.modeling.state import StateManager
                 StateManager.export_to_fews(model_runner, run_info.state_output_dir)
                 if diag:
                     diag.info("Exported state files via StateManager")

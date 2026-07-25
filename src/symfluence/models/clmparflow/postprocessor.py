@@ -16,8 +16,8 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
+from symfluence.core.modeling.base.standard_postprocessor import StandardModelPostProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.standard_postprocessor import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 

@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from symfluence.core.geometry_utils import GeospatialUtilsMixin
+from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.troute.mixins import TRouteConfigMixin
 
 
@@ -92,7 +92,7 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, TRouteConf
 
     def create_troute_yaml_config(self):
         """Creates the t-route YAML configuration file from SYMFLUENCE config settings."""
-        from symfluence.models.utilities.runoff_loader import get_model_config
+        from symfluence.core.modeling.utilities.runoff_loader import get_model_config
 
         self.logger.info("Creating t-route YAML configuration file...")
 

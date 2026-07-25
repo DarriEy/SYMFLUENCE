@@ -8,7 +8,7 @@ This module contains the FuseForcingProcessor class which handles all forcing da
 processing operations including spatial mode transformations, PET calculation,
 observation loading, and NetCDF formatting for FUSE model compatibility.
 
-Uses shared utilities from symfluence.models.utilities for common operations.
+Uses shared utilities from symfluence.core.modeling.utilities for common operations.
 """
 from __future__ import annotations
 
@@ -20,11 +20,10 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.modeling.spatial_modes import SpatialMode
+from symfluence.core.modeling.utilities import BaseForcingProcessor, DataQualityHandler, ForcingDataProcessor
 from symfluence.core.path_resolver import find_catchment_subfile
 from symfluence.data.utils.variable_utils import VariableHandler
-
-from ..spatial_modes import SpatialMode
-from ..utilities import BaseForcingProcessor, DataQualityHandler, ForcingDataProcessor
 
 
 class FuseForcingProcessor(BaseForcingProcessor):

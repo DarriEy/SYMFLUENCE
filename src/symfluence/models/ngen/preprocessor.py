@@ -23,10 +23,11 @@ import xarray as xr
 import yaml
 
 from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.modeling.base import BaseModelPreProcessor
+from symfluence.core.modeling.utilities import ForcingDataProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelPreProcessor
+from symfluence.data.preprocessing.time_window_manager import TimeWindowManager
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
-from symfluence.models.utilities import ForcingDataProcessor, TimeWindowManager
 
 
 @R.preprocessors.add('NGEN')

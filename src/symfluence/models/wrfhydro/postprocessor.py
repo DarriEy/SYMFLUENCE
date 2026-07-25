@@ -15,9 +15,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('WRFHYDRO')

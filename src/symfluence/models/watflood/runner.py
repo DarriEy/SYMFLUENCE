@@ -15,8 +15,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.process_exec import run as run_subprocess
-from symfluence.models.base import BaseModelRunner
 
 logger = logging.getLogger(__name__)
 

@@ -17,8 +17,8 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.metrics import kge, kge_np, kge_prime, mae, nse, rmse
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('LSTM')

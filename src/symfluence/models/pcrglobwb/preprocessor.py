@@ -15,13 +15,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.data.model_ready.forcing_reader import (
     forcing_timestep_seconds,
     open_canonical_forcing,
 )
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 _OPENDAP_BASE = (
     "https://opendap.4tu.nl/thredds/dodsC/data2/"
@@ -499,7 +499,7 @@ class PCRGLOBWBPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _estimate_pet(self, temp_c, times, lat_deg):
         """Estimate PET and return values in m/day."""
-        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+        from symfluence.core.modeling.mixins.pet_calculator import PETCalculatorMixin
 
         pet_method = self._get_config_value(
             lambda: self.config.model.pcrglobwb.pet_method,

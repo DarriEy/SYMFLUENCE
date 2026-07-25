@@ -17,8 +17,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from symfluence.core.modeling.base.base_postprocessor import BaseModelPostProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.base_postprocessor import BaseModelPostProcessor
 
 if TYPE_CHECKING:
     pass

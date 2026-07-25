@@ -19,8 +19,8 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import ConfigValidationError
+from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelPreProcessor
 
 # Local imports
 from .attributes_manager import SummaAttributesManager
