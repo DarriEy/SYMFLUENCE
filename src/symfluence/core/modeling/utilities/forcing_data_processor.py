@@ -19,6 +19,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.mixins.logging import _class_logger_name
+from symfluence.core.modeling.forcing_naming import select_forcing_files
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,6 @@ class ForcingDataProcessor:
         # merge below (issue #339). A no-op when the discretization is unknown or
         # the store's names predate namespacing, so single-discretization and
         # legacy stores never regress.
-        from symfluence.data.model_ready.forcing_reader import select_forcing_files
         forcing_files = list(select_forcing_files(forcing_files, self._get_discretization()))
 
         self.logger.info(f"Loading {len(forcing_files)} forcing files from {forcing_path}")

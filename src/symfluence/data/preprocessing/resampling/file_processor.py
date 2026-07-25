@@ -79,7 +79,7 @@ class FileProcessor(ConfigMixin):
         # lumped (hru=1) remap and, say, a 12-band elevation (hru=12) remap of the
         # SAME domain get distinct, self-describing names instead of colliding
         # under a shared {domain}_{forcing}_remapped_* namespace (issue #339).
-        from symfluence.data.model_ready.forcing_reader import discretization_token
+        from symfluence.core.modeling.forcing_naming import discretization_token
         disc = self._get_config_value(
             lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')
         token = discretization_token(disc)
