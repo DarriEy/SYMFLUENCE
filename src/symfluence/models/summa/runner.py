@@ -27,11 +27,11 @@ import geopandas as gpd
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.execution import ExecutionResult, SlurmJobConfig
+from symfluence.core.modeling.state import ModelState, StateCapableMixin, StateFormat, StateMetadata
+from symfluence.core.modeling.templates import ModelRunResult, UnifiedModelRunner
 from symfluence.core.registries import R
 
-from ..execution import ExecutionResult, SlurmJobConfig
-from ..state import ModelState, StateCapableMixin, StateFormat, StateMetadata
-from ..templates import ModelRunResult, UnifiedModelRunner
 from .parallel_gru_execution import run_summa_gru_parallel
 
 
@@ -220,7 +220,7 @@ class SummaRunner(UnifiedModelRunner, StateCapableMixin):  # type: ignore[misc]
         restart_files = sorted(state_dir.glob(self.get_state_file_pattern()))
 
         if not restart_files:
-            from ..state.exceptions import StateError
+            from symfluence.core.modeling.state.exceptions import StateError
             raise StateError(f"No SUMMA restart files found in {state_dir}")
 
         newest = max(restart_files, key=lambda p: p.stat().st_mtime)

@@ -27,9 +27,8 @@ import xarray as xr
 
 from symfluence.core.constants import PhysicalConstants
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
+from symfluence.core.modeling.utilities import BaseForcingProcessor
 from symfluence.models.summa.forcing_time import infer_forcing_step_from_filenames
-
-from ..utilities import BaseForcingProcessor
 
 
 class SummaForcingProcessor(BaseForcingProcessor):

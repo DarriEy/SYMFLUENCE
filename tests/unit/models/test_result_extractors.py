@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
+from symfluence.core.modeling.base import ModelResultExtractor
 from symfluence.core.registries import R
-from symfluence.models.base import ModelResultExtractor
 
 
 class TestResultExtractorRegistration:

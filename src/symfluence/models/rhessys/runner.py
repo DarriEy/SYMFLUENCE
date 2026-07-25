@@ -14,9 +14,9 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 
 
 @R.runners.add('RHESSys')

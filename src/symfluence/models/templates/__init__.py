@@ -1,22 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-Model Templates Module.
-
-Provides base classes and templates for implementing new hydrological models
-using the unified execution framework.
-"""
+"""Back-compat shim: moved to ``symfluence.core.modeling.templates`` (adapter contract tier)."""
 from __future__ import annotations
 
-from .model_template import (
-    ModelRunResult,
-    UnifiedModelRunner,
-    create_model_runner,
-)
+import symfluence.core.modeling.templates as _impl
+from symfluence.core.modeling.templates import *  # noqa: F401,F403
 
-__all__ = [
-    'UnifiedModelRunner',
-    'ModelRunResult',
-    'create_model_runner',
-]
+
+def __getattr__(name: str):
+    return getattr(_impl, name)

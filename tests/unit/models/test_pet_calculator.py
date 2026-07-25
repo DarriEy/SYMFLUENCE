@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+from symfluence.core.modeling.mixins.pet_calculator import PETCalculatorMixin
 
 
 class MockPreProcessor(PETCalculatorMixin):

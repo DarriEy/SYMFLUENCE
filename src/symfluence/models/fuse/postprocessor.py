@@ -14,9 +14,8 @@ from typing import Any, Dict
 import numpy as np
 import xarray as xr
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('FUSE')

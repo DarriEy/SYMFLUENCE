@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from symfluence.models.utilities.forcing_data_processor import ForcingDataProcessor
+from symfluence.core.modeling.utilities.forcing_data_processor import ForcingDataProcessor
 
 
 def _make_hourly_dataset(

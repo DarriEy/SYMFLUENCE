@@ -136,17 +136,17 @@ class TestDeduplication:
 
     def test_config_validation_error_single_identity_via_base(self):
         from symfluence.core.exceptions import ConfigValidationError as core_cls
-        from symfluence.models.base import ConfigValidationError as base_cls
+        from symfluence.core.modeling.base import ConfigValidationError as base_cls
         assert core_cls is base_cls
 
     def test_config_validation_error_single_identity_via_config(self):
         from symfluence.core.exceptions import ConfigValidationError as core_cls
-        from symfluence.models.base.base_config import ConfigValidationError as config_cls
+        from symfluence.core.modeling.base.base_config import ConfigValidationError as config_cls
         assert core_cls is config_cls
 
     def test_config_validation_error_single_identity_via_extractor(self):
         from symfluence.core.exceptions import ConfigValidationError as core_cls
-        from symfluence.models.base.base_extractor import ConfigValidationError as ext_cls
+        from symfluence.core.modeling.base.base_extractor import ConfigValidationError as ext_cls
         assert core_cls is ext_cls
 
 

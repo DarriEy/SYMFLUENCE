@@ -68,7 +68,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             True if routing is needed, False otherwise
         """
         if self._routing_needed is None:
-            from symfluence.models.utilities.routing_decider import RoutingDecider
+            from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
             decider = RoutingDecider()
             settings_dir = self.project_dir / "settings" / "SUMMA"
             self._routing_needed = decider.needs_routing(

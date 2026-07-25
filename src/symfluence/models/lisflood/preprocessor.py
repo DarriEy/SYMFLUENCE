@@ -14,12 +14,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
 from symfluence.data.model_ready.forcing_reader import (
     forcing_timestep_seconds,
     open_canonical_forcing,
 )
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 
 @R.preprocessors.add("LISFLOOD")
@@ -408,7 +408,7 @@ class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
         # PET at source resolution (mm/timestep)
         doy = np.array([t.timetuple().tm_yday for t in raw_times])
-        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+        from symfluence.core.modeling.mixins.pet_calculator import PETCalculatorMixin
 
         pet_mm_day = PETCalculatorMixin.oudin_pet_numpy(temp, doy, props["lat"])
         pet = pet_mm_day * (source_dt / 86400.0)
@@ -464,7 +464,7 @@ class LisfloodPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         raise ValueError(f"None of {var_names} found in forcing. Available: {list(ds.data_vars)}")
 
     def _estimate_pet(self, temp_c, times, lat_deg):
-        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+        from symfluence.core.modeling.mixins.pet_calculator import PETCalculatorMixin
 
         pet_method = self._get_config_value(
             lambda: self.config.model.lisflood.pet_method, default="oudin", dict_key="LISFLOOD_PET_METHOD"

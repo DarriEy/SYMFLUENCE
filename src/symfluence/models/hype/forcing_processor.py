@@ -22,7 +22,7 @@ import pandas as pd
 import xarray as xr
 from tqdm import tqdm
 
-from ..utilities import BaseForcingProcessor
+from symfluence.core.modeling.utilities import BaseForcingProcessor
 
 
 class HYPEForcingProcessor(BaseForcingProcessor):

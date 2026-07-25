@@ -294,7 +294,7 @@ class SubprocessEnsembleManager(EnsembleManager):
 
     def extract_states(self) -> np.ndarray:
         """Extract states from all member runners via StateCapableMixin."""
-        from symfluence.models.state import StateCapableMixin
+        from symfluence.core.modeling.state import StateCapableMixin
 
         all_states = []
         for runner in self.member_runners:
@@ -312,7 +312,7 @@ class SubprocessEnsembleManager(EnsembleManager):
 
     def inject_states(self, updated_states: np.ndarray) -> None:
         """Inject updated states back into member runners."""
-        from symfluence.models.state import ModelState, StateCapableMixin, StateMetadata
+        from symfluence.core.modeling.state import ModelState, StateCapableMixin, StateMetadata
 
         for i, runner in enumerate(self.member_runners):
             if not isinstance(runner, StateCapableMixin):

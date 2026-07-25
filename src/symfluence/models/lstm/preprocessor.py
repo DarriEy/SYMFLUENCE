@@ -25,9 +25,9 @@ except ImportError as _err:
         "The LSTM model requires PyTorch. Install with: pip install 'symfluence[ml]'"
     ) from _err
 
+from symfluence.core.modeling.base import BaseModelPreProcessor
+from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelPreProcessor
-from symfluence.models.spatial_modes import SpatialMode
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

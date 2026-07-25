@@ -23,8 +23,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from symfluence.core.config.models import SymfluenceConfig
-from symfluence.models.base.base_runner import BaseModelRunner
-from symfluence.models.execution.model_executor import (
+from symfluence.core.modeling.base.base_runner import BaseModelRunner
+from symfluence.core.modeling.execution.model_executor import (
     ExecutionMode,
     ExecutionResult,
     SlurmJobConfig,
@@ -169,7 +169,7 @@ class TestExecuteModelSubprocess:
         """Test successful subprocess execution."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -187,7 +187,7 @@ class TestExecuteModelSubprocess:
         log_file = temp_dir / 'test.log'
         custom_message = "Custom success!"
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -204,7 +204,7 @@ class TestExecuteModelSubprocess:
         """Test non-zero return code when check=False."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 1
             mock_run.return_value = mock_result
@@ -222,7 +222,7 @@ class TestExecuteModelSubprocess:
         """Test subprocess failure when check=True."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'test_cmd')
 
             with pytest.raises(subprocess.CalledProcessError):
@@ -242,7 +242,7 @@ class TestExecuteModelSubprocess:
             'ld_library_path': '/usr/lib'
         }
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'test_cmd')
 
             with pytest.raises(subprocess.CalledProcessError):
@@ -259,7 +259,7 @@ class TestExecuteModelSubprocess:
         """Test subprocess timeout."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired('test_cmd', 10)
 
             with pytest.raises(subprocess.TimeoutExpired):
@@ -281,7 +281,7 @@ class TestExecuteModelSubprocess:
         log_file = temp_dir / 'test.log'
         custom_env = {'CUSTOM_VAR': 'custom_value'}
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -301,7 +301,7 @@ class TestExecuteModelSubprocess:
         """Test that log directory is created if it doesn't exist."""
         log_file = temp_dir / 'subdir' / 'nested' / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -548,7 +548,7 @@ class TestAugmentCondaLibraryPaths:
     def test_linux_ld_library_path(self):
         """Test that CONDA_PREFIX/lib is prepended to LD_LIBRARY_PATH on Linux."""
         env = {'CONDA_PREFIX': '/opt/conda', 'LD_LIBRARY_PATH': '/usr/lib'}
-        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+        with patch('symfluence.core.modeling.execution.model_executor.sys') as mock_sys:
             mock_sys.platform = 'linux'
             augment_conda_library_paths(env)
         conda_lib = os.path.join('/opt/conda', 'lib')
@@ -558,7 +558,7 @@ class TestAugmentCondaLibraryPaths:
     def test_macos_dyld_library_path(self):
         """Test that CONDA_PREFIX/lib is prepended to DYLD_LIBRARY_PATH on macOS."""
         env = {'CONDA_PREFIX': '/opt/conda', 'DYLD_LIBRARY_PATH': '/usr/lib'}
-        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+        with patch('symfluence.core.modeling.execution.model_executor.sys') as mock_sys:
             mock_sys.platform = 'darwin'
             augment_conda_library_paths(env)
         conda_lib = os.path.join('/opt/conda', 'lib')
@@ -569,7 +569,7 @@ class TestAugmentCondaLibraryPaths:
         """Test that CONDA_PREFIX/Library/bin is prepended to PATH on Windows."""
         conda_lib = os.path.join('/opt/conda', 'Library', 'bin')
         env = {'CONDA_PREFIX': '/opt/conda', 'PATH': '/usr/bin'}
-        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+        with patch('symfluence.core.modeling.execution.model_executor.sys') as mock_sys:
             mock_sys.platform = 'win32'
             augment_conda_library_paths(env)
         assert conda_lib in env['PATH']
@@ -592,7 +592,7 @@ class TestAugmentCondaLibraryPaths:
     def test_idempotent(self):
         """Test that calling twice doesn't duplicate the path."""
         env = {'CONDA_PREFIX': '/opt/conda', 'LD_LIBRARY_PATH': '/usr/lib'}
-        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+        with patch('symfluence.core.modeling.execution.model_executor.sys') as mock_sys:
             mock_sys.platform = 'linux'
             augment_conda_library_paths(env)
             first_value = env['LD_LIBRARY_PATH']
@@ -602,7 +602,7 @@ class TestAugmentCondaLibraryPaths:
     def test_empty_existing_path(self):
         """Test augmentation when the library path variable is empty."""
         env = {'CONDA_PREFIX': '/opt/conda'}
-        with patch('symfluence.models.execution.model_executor.sys') as mock_sys:
+        with patch('symfluence.core.modeling.execution.model_executor.sys') as mock_sys:
             mock_sys.platform = 'linux'
             augment_conda_library_paths(env)
         assert env['LD_LIBRARY_PATH'] == os.path.join('/opt/conda', 'lib')
@@ -611,9 +611,9 @@ class TestAugmentCondaLibraryPaths:
         """Test that execute_model_subprocess passes conda-augmented env to subprocess."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run, \
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run, \
              patch.dict(os.environ, {'CONDA_PREFIX': '/opt/conda'}, clear=False), \
-             patch('symfluence.models.mixins.subprocess_execution.augment_conda_library_paths') as mock_augment:
+             patch('symfluence.core.modeling.mixins.subprocess_execution.augment_conda_library_paths') as mock_augment:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -633,7 +633,7 @@ class TestExecuteSubprocess:
         """Test that execute_subprocess returns an ExecutionResult."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -655,7 +655,7 @@ class TestExecuteSubprocess:
         """Test non-zero exit code returns ExecutionResult with success=False."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 42
             mock_result.stdout = None
@@ -677,7 +677,7 @@ class TestExecuteSubprocess:
         """Test that check=True raises CalledProcessError on non-zero exit."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 1
             mock_result.stdout = None
@@ -695,7 +695,7 @@ class TestExecuteSubprocess:
         """Test that timeout returns ExecutionResult rather than raising."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired('test_cmd', 5)
 
             result = runner.execute_subprocess(
@@ -714,7 +714,7 @@ class TestExecuteSubprocess:
         """Test that execution duration is tracked."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -733,7 +733,7 @@ class TestExecuteSubprocess:
         """Test that custom env vars are merged."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -754,7 +754,7 @@ class TestExecuteSubprocess:
         """Test that log directory is created if missing."""
         log_file = temp_dir / 'deep' / 'nested' / 'dir' / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -773,7 +773,7 @@ class TestExecuteSubprocess:
         """Test custom success message is logged."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -797,7 +797,7 @@ class TestExecuteModelSubprocessDeprecation:
         """Test that execute_model_subprocess emits a DeprecationWarning."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -815,7 +815,7 @@ class TestExecuteModelSubprocessDeprecation:
         """Test that deprecated method still returns CompletedProcess."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock(spec=subprocess.CompletedProcess)
             mock_result.returncode = 0
             mock_run.return_value = mock_result
@@ -886,7 +886,7 @@ class TestSlurmMethodsOnBaseRunner:
         """Test execute_in_mode with LOCAL mode delegates to execute_subprocess."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -916,7 +916,7 @@ class TestSlurmMethodsOnBaseRunner:
         """Test run_with_retry succeeds on first attempt."""
         log_file = temp_dir / 'test.log'
 
-        with patch('symfluence.models.mixins.subprocess_execution.run_subprocess') as mock_run:
+        with patch('symfluence.core.modeling.mixins.subprocess_execution.run_subprocess') as mock_run:
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = None
@@ -940,7 +940,7 @@ class TestRunnerHierarchyBackwardCompat:
 
     def test_pattern_c_with_model_executor(self, base_config, mock_logger):
         """Test Pattern C: BaseModelRunner + ModelExecutor works."""
-        from symfluence.models.execution.model_executor import ModelExecutor
+        from symfluence.core.modeling.execution.model_executor import ModelExecutor
 
         class PatternCRunner(BaseModelRunner, ModelExecutor):
             def _get_model_name(self):
@@ -957,7 +957,7 @@ class TestRunnerHierarchyBackwardCompat:
 
     def test_pattern_b_with_unified_executor(self, base_config, mock_logger):
         """Test Pattern B: BaseModelRunner + UnifiedModelExecutor works."""
-        from symfluence.models.execution.unified_executor import UnifiedModelExecutor
+        from symfluence.core.modeling.execution.unified_executor import UnifiedModelExecutor
 
         class PatternBRunner(BaseModelRunner, UnifiedModelExecutor):
             def _get_model_name(self):

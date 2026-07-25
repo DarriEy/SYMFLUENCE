@@ -23,8 +23,8 @@ import numpy as np
 import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 
 
 def _check_troute_available() -> bool:
@@ -115,7 +115,7 @@ class TRouteRunner(BaseModelRunner):  # type: ignore[misc]
         Returns:
             Path to the prepared runoff file (copy with renamed variable).
         """
-        from symfluence.models.utilities.runoff_loader import (
+        from symfluence.core.modeling.utilities.runoff_loader import (
             detect_runoff_variable,
             fix_time_precision,
             resolve_runoff_file,

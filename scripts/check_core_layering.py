@@ -76,6 +76,12 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "for a uniform read-only view; resolved at call time only.",
     ),
     (
+        "modeling/base/base_postprocessor.py",
+        "symfluence.data.model_ready.cf_conventions",
+        "Postprocessors stamp CF-convention metadata on model output at call "
+        "time; the conventions catalogue lives with the data layer.",
+    ),
+    (
         "calibration/optimizers/component_factory.py",
         "symfluence.optimization.calibration_targets",
         "The component factory resolves calibration targets through the "
@@ -259,31 +265,16 @@ BOUNDARY_RULES: List[BoundaryRule] = [
         [],
     ),
     (
+        # State management moved to core.modeling.state with the adapter tier.
         "fews",
         ("symfluence.models",),
-        [
-            (
-                "pre_adapter.py",
-                "symfluence.models.state",
-                "Resolves the model state manager at call time.",
-            ),
-            (
-                "post_adapter.py",
-                "symfluence.models.state",
-                "Resolves the model state manager at call time.",
-            ),
-        ],
+        [],
     ),
     (
+        # State management moved to core.modeling.state with the adapter tier.
         "data_assimilation",
         ("symfluence.models",),
-        [
-            (
-                "enkf/ensemble_manager.py",
-                "symfluence.models.state",
-                "EnKF resolves state-capable model interfaces at call time.",
-            ),
-        ],
+        [],
     ),
     (
         "cli",

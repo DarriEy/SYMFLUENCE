@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 from symfluence.models.lisflood.runner import _find_pcraster_site_packages
 
 

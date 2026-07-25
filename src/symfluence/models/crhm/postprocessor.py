@@ -12,9 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('CRHM')

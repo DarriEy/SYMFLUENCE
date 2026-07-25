@@ -26,12 +26,12 @@ import xarray as xr
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
 from symfluence.core.geometry_utils import GeospatialUtilsMixin
+from symfluence.core.modeling.base import BaseModelPreProcessor
+from symfluence.core.modeling.mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
+from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.registries import R
 from symfluence.data.utils.variable_utils import VariableHandler
 
-from ..base import BaseModelPreProcessor
-from ..mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
-from ..spatial_modes import SpatialMode
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator

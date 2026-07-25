@@ -16,8 +16,8 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
 from symfluence.core.registries import R
-from symfluence.models.utilities.routing_decider import RoutingDecider
 
 
 class ModelManager(BaseManager):

@@ -19,8 +19,7 @@ import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins import ConfigMixin
-
-from ..spatial_modes import SpatialMode
+from symfluence.core.modeling.spatial_modes import SpatialMode
 
 
 class FuseElevationBandManager(ConfigMixin):

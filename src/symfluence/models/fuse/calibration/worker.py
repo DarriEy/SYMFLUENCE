@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
@@ -46,7 +47,6 @@ from symfluence.models.fuse.calibration.parameter_application import (
     update_para_def_nc,
 )
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
-from symfluence.models.utilities.routing_decider import RoutingDecider
 from symfluence.optimization.multi_gauge.metrics import MultiGaugeMetrics
 
 # Suppress xarray FutureWarning about timedelta64 decoding

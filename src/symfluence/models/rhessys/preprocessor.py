@@ -25,8 +25,8 @@ from typing import Tuple
 import geopandas as gpd
 import pandas as pd
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.rhessys.climate_generator import RHESSysClimateGenerator
 from symfluence.models.rhessys.definitions_generator import RHESSysDefinitionsGenerator
 from symfluence.models.rhessys.fire_generator import RHESSysFireGenerator

@@ -5,7 +5,7 @@ Tests routing decision logic for various model configurations.
 """
 from __future__ import annotations
 
-from symfluence.models.utilities.routing_decider import RoutingDecider, needs_routing
+from symfluence.core.modeling.utilities.routing_decider import RoutingDecider, needs_routing
 
 
 class TestRoutingDecider:
@@ -100,7 +100,7 @@ class TestRoutingDeciderBackwardCompatibility:
 
     def test_import_from_models_utilities(self):
         """Test new import path."""
-        from symfluence.models.utilities import RoutingDecider as NewRoutingDecider
+        from symfluence.core.modeling.utilities import RoutingDecider as NewRoutingDecider
 
         decider = NewRoutingDecider()
         config = {'ROUTING_MODEL': 'mizuroute'}

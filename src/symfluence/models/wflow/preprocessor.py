@@ -14,12 +14,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
 from symfluence.data.model_ready.forcing_reader import (
     forcing_timestep_seconds,
     open_canonical_forcing,
 )
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 
 @R.preprocessors.add("WFLOW")
@@ -260,7 +260,7 @@ class WflowPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
 
     def _estimate_pet(self, temp_c, times, lat_deg):
         """Estimate PET using configured method (default: Oudin)."""
-        from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
+        from symfluence.core.modeling.mixins.pet_calculator import PETCalculatorMixin
 
         pet_method = self._get_config_value(
             lambda: self.config.model.wflow.pet_method,

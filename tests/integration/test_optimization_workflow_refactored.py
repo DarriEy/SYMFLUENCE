@@ -49,7 +49,7 @@ class TestModelUtilitiesAccessible:
 
     def test_routing_decider_accessible_from_models(self):
         """Test routing_decider is accessible from new location."""
-        from symfluence.models.utilities.routing_decider import RoutingDecider
+        from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
 
         decider = RoutingDecider()
         config = {'ROUTING_MODEL': 'mizuroute'}
@@ -100,7 +100,7 @@ class TestNoCircularDependencies:
     def test_models_utilities_independent(self):
         """Test models utilities can be used without optimization."""
         # Import only from models, not optimization
-        from symfluence.models.utilities import RoutingDecider
+        from symfluence.core.modeling.utilities import RoutingDecider
 
         # Should work without importing optimization
         decider = RoutingDecider()

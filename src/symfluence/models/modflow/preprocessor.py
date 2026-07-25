@@ -27,8 +27,8 @@ import logging
 import math
 from pathlib import Path
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 

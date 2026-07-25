@@ -9,9 +9,8 @@ from typing import Optional
 
 import numpy as np
 
+from symfluence.core.modeling.base import StandardModelPostProcessor
 from symfluence.core.registries import R
-
-from ..base import StandardModelPostProcessor
 
 
 @R.postprocessors.add('WFLOW')

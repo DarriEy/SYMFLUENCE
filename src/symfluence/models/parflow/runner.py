@@ -18,10 +18,10 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.modeling.base.base_runner import BaseModelRunner
 from symfluence.core.mpi_utils import find_mpirun
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.models.base.base_runner import BaseModelRunner
 
 logger = logging.getLogger(__name__)
 

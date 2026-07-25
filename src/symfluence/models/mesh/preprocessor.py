@@ -14,9 +14,9 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.registries import R
 
-from ..base import BaseModelPreProcessor
 from .preprocessing import (
     MESHConfigDefaults,
     MESHConfigGenerator,

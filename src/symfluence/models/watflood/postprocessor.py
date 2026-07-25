@@ -14,7 +14,7 @@ from typing import Optional
 
 import pandas as pd
 
-from symfluence.models.base import StandardModelPostProcessor
+from symfluence.core.modeling.base import StandardModelPostProcessor
 
 logger = logging.getLogger(__name__)
 

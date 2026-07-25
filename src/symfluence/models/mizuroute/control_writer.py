@@ -373,7 +373,7 @@ class ControlFileWriter(ConfigurableMixin):
               case the caller keeps the configured value.
         """
         try:
-            from symfluence.models.utilities.runoff_loader import (
+            from symfluence.core.modeling.utilities.runoff_loader import (
                 detect_runoff_variable,
                 resolve_runoff_file,
             )

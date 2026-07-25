@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Adapter contract tier promoted to `core/modeling/`** (phase-2 step 0):
+  `models/{base,mixins,execution,state,templates,utilities,spatial_modes}`
+  (~9k LOC) — the runner/preprocessor/postprocessor/extractor bases, adapter
+  mixins, execution and state infrastructure, scaffolding templates, and
+  shared adapter utilities every model package subclasses — now live in core
+  (the `models` contract family). Historical `symfluence.models.*` paths
+  remain as shims (verified to alias the same class objects, exercised by a
+  new external-plugin compat test against the installed JAX packages). The
+  ConfigKey schema machinery moved to `core/modeling/config_schema.py` with
+  per-model definitions staying in `models/config` and registering through
+  it; `spatial_orchestrator` resolves mizuRoute/t-route through `R.runners`/
+  `R.preprocessors` instead of importing model packages; fews and
+  data-assimilation now import model state from core (their models
+  allow-list entries removed — both packages are fully models-clean).
+
 ### Added
 - **Per-family contract versioning** (ADR-0009): `symfluence.core.contracts`
   declares independent semantic versions for the `models`, `calibration`,

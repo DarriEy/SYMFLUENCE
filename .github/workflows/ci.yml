@@ -141,16 +141,17 @@ jobs:
         # mixins) IS fully testable, so it gets its own stricter ratchet, reusing
         # the .coverage data from the step above. Instrumentation-only modules
         # (profiling, npm packaging) are excluded, mirroring the gui/tui/fews omit.
-        # The calibration engine, metrics stack, and build helpers promoted into
-        # core by the service-decomposition prep keep their previous governance
-        # (the global floor): they exercise model binaries and observation files
-        # that can't run in CI, so they are excluded from the spine ratchet just
-        # as they were when they lived in optimization/, evaluation/, and cli/.
+        # The calibration engine, metrics stack, build helpers, and the model-
+        # adapter tier (core/modeling) promoted into core by the service-
+        # decomposition prep keep their previous governance (the global floor):
+        # they exercise model binaries, SLURM, and observation files that can't
+        # run in CI, so they are excluded from the spine ratchet just as they
+        # were when they lived in optimization/, evaluation/, cli/, and models/.
         # One-way ratchet: raise as coverage improves, never lower.
         run: |
           coverage report \
             --include='src/symfluence/core/*' \
-            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py,src/symfluence/core/calibration/*,src/symfluence/core/metrics/*,src/symfluence/core/build/*' \
+            --omit='src/symfluence/core/profiling/*,src/symfluence/core/npm_bundle.py,src/symfluence/core/calibration/*,src/symfluence/core/metrics/*,src/symfluence/core/build/*,src/symfluence/core/modeling/*' \
             --fail-under=80
 
       - name: Package import smoke test

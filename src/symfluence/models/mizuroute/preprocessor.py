@@ -15,8 +15,8 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional
 
 from symfluence.core.geometry_utils import GeospatialUtilsMixin
+from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.mizuroute.control_writer import ControlFileWriter
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
 

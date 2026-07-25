@@ -17,7 +17,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.exceptions import ModelExecutionError
-from symfluence.models.base import ModelResultExtractor
+from symfluence.core.modeling.base import ModelResultExtractor
 
 
 class SUMMAResultExtractor(ModelResultExtractor):

@@ -19,12 +19,12 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
 from symfluence.data.model_ready.forcing_reader import (
     forcing_timestep_seconds,
     open_canonical_forcing,
 )
-from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 logger = logging.getLogger(__name__)
 

@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.mpi_utils import find_mpirun
 from symfluence.core.registries import R
-from symfluence.models.base import BaseModelRunner
 
 
 @R.runners.add('WRFHYDRO')

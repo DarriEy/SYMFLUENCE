@@ -1,22 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""
-State management exceptions.
-
-Provides specific exception types for model state operations.
-Reuses StateExchangeError from fews.exceptions for I/O failures.
-"""
+"""Back-compat shim: moved to ``symfluence.core.modeling.state.exceptions`` (adapter contract tier)."""
 from __future__ import annotations
 
-from symfluence.core.exceptions import SYMFLUENCEError
+import symfluence.core.modeling.state.exceptions as _impl
+from symfluence.core.modeling.state.exceptions import *  # noqa: F401,F403
 
 
-class StateError(SYMFLUENCEError):
-    """Base exception for state management errors."""
-    pass
-
-
-class StateValidationError(StateError):
-    """Raised when a state is incompatible with the target model."""
-    pass
+def __getattr__(name: str):
+    return getattr(_impl, name)

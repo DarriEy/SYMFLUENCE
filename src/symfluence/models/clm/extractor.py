@@ -16,8 +16,8 @@ from typing import Dict, List, Optional
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.modeling.base.base_extractor import ModelResultExtractor
 from symfluence.core.registries import R
-from symfluence.models.base.base_extractor import ModelResultExtractor
 
 logger = logging.getLogger(__name__)
 
