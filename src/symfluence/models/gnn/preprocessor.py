@@ -16,12 +16,12 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from symfluence.core.exceptions import OptionalDependencyError
+
 try:
     import torch
 except ImportError as _err:
-    raise ImportError(
-        "The GNN model requires PyTorch. Install with: pip install 'symfluence[ml]'"
-    ) from _err
+    raise OptionalDependencyError("The GNN model", "ml", dependency="torch") from _err
 
 # Import LSTM Preprocessor to inherit/reuse data loading logic
 from ..lstm.preprocessor import LSTMPreProcessor

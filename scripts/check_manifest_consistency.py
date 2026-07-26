@@ -2,23 +2,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 """
-Fail CI if the three install manifests disagree on a core dependency.
+Fail CI if the two authoritative install manifests disagree.
 
 Review item 16 (Tier 2): the seven install paths must stay at release quality.
-``pyproject.toml`` (pip/uv/pipx), ``pixi.toml`` (pixi/conda), and
-``environment.yml`` (conda) each declare the dependency stack independently, so
-they drift — a package gets a new upper bound in one and not the others, or is
-dropped from one entirely. That drift is exactly how an install method silently
-starts resolving a different (sometimes broken) version than the others.
+``pyproject.toml`` owns Python package metadata and ``pixi.toml`` owns the
+Conda/system environment. Their shared packages must agree without flattening
+optional groups into the base environment.
 
 This guard checks, for a curated set of CORE packages that must stay consistent:
 
-  1. **Presence** — each core package is declared in all three manifests
+  1. **Presence** — each core package is declared in both manifests
      (accounting for PyPI vs conda naming: netCDF4/netcdf4, torch/pytorch,
-     pvlib/pvlib-python, pint_xarray/pint-xarray, SALib/salib).
+     pvlib/pvlib-python and pint_xarray/pint-xarray).
   2. **Version bounds** — where both pyproject.toml and pixi.toml pin bounds,
      the lower (>=) and upper (<) bounds agree once normalised (2.0 == 2.0.0).
-     environment.yml is intentionally unpinned and is checked for presence only.
+  3. **Groups** — curated optional packages remain in their matching Pixi
+     feature rather than leaking into Pixi's default environment.
 
 Packages that are deliberately ecosystem-specific (gdal as an optional/system
 extra, conda-only build tools, dev-only Jupyter) are simply absent from the
@@ -34,14 +33,11 @@ import tomllib
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-import yaml
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 PIXI = REPO_ROOT / "pixi.toml"
-ENVIRONMENT = REPO_ROOT / "environment.yml"
 
-# Core packages that MUST stay consistent across all three install paths.
+# Core packages that MUST stay consistent across both authoritative manifests.
 # `names` lists every spelling the package goes by across PyPI and conda so the
 # presence check matches regardless of ecosystem naming. `check_version` is
 # False for packages pixi/pyproject intentionally leave unpinned ("*").
@@ -54,7 +50,6 @@ CORE_PACKAGES: List[Dict] = [
     {"canonical": "numexpr", "names": {"numexpr"}},
     {"canonical": "bottleneck", "names": {"bottleneck"}},
     {"canonical": "networkx", "names": {"networkx"}},
-    {"canonical": "scikit-learn", "names": {"scikit-learn"}},
     {"canonical": "netcdf4", "names": {"netcdf4"}},
     {"canonical": "h5netcdf", "names": {"h5netcdf"}},
     {"canonical": "geopandas", "names": {"geopandas"}},
@@ -62,7 +57,6 @@ CORE_PACKAGES: List[Dict] = [
     {"canonical": "pyproj", "names": {"pyproj"}},
     {"canonical": "shapely", "names": {"shapely"}},
     {"canonical": "fiona", "names": {"fiona"}},
-    {"canonical": "torch", "names": {"torch", "pytorch"}},
     {"canonical": "matplotlib", "names": {"matplotlib"}},
     {"canonical": "seaborn", "names": {"seaborn"}},
     {"canonical": "plotly", "names": {"plotly"}},
@@ -72,7 +66,6 @@ CORE_PACKAGES: List[Dict] = [
     {"canonical": "tqdm", "names": {"tqdm"}},
     {"canonical": "rich", "names": {"rich"}},
     {"canonical": "pydantic", "names": {"pydantic"}},
-    {"canonical": "salib", "names": {"salib"}},
     {"canonical": "pvlib", "names": {"pvlib", "pvlib-python"}},
     {"canonical": "cdsapi", "names": {"cdsapi"}},
     {"canonical": "distributed", "names": {"distributed"}},
@@ -80,6 +73,19 @@ CORE_PACKAGES: List[Dict] = [
     {"canonical": "contextily", "names": {"contextily"}},
     {"canonical": "rasterstats", "names": {"rasterstats"}},
 ]
+
+OPTIONAL_FEATURE_PACKAGES = {
+    "ml": [
+        {"canonical": "scikit-learn", "pypi": {"scikit-learn"}, "pixi": {"scikit-learn"}},
+        {"canonical": "torch", "pypi": {"torch"}, "pixi": {"pytorch"}},
+    ],
+    "sensitivity": [
+        {"canonical": "salib", "pypi": {"salib"}, "pixi": {"salib"}},
+    ],
+    "conus404": [
+        {"canonical": "intake-xarray", "pypi": {"intake-xarray"}, "pixi": {"intake-xarray"}},
+    ],
+}
 
 
 def normalize(name: str) -> str:
@@ -116,22 +122,22 @@ def bounds_disagree(a: Dict[str, Tuple[int, ...]], b: Dict[str, Tuple[int, ...]]
     return diffs
 
 
-def load_pyproject(path: Path) -> Dict[str, str]:
-    """Return {normalized_name: version_spec} from [project] deps + optional deps."""
+def load_pyproject(path: Path) -> Tuple[Dict[str, str], Dict[str, Dict[str, str]]]:
+    """Return the base and grouped Python dependency specifications."""
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     project = data.get("project", {})
     specs: Dict[str, str] = {}
-    entries = list(project.get("dependencies", []))
-    for group in project.get("optional-dependencies", {}).values():
-        entries.extend(group)
-    for entry in entries:
+    for entry in project.get("dependencies", []):
         name = normalize(entry)
         specs[name] = entry
-    return specs
+    groups = {}
+    for group, entries in project.get("optional-dependencies", {}).items():
+        groups[group] = {normalize(entry): entry for entry in entries}
+    return specs, groups
 
 
-def load_pixi(path: Path) -> Dict[str, str]:
-    """Return {normalized_name: version_spec} from pixi [dependencies] + [pypi-dependencies]."""
+def load_pixi(path: Path) -> Tuple[Dict[str, str], Dict[str, Dict[str, str]]]:
+    """Return Pixi's default and feature dependency specifications."""
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     specs: Dict[str, str] = {}
     for section in ("dependencies", "pypi-dependencies"):
@@ -139,20 +145,16 @@ def load_pixi(path: Path) -> Dict[str, str]:
             if isinstance(val, dict):  # {version = "...", channel = "..."}
                 val = val.get("version", "*")
             specs[normalize(name)] = str(val)
-    return specs
-
-
-def load_environment(path: Path) -> Set[str]:
-    """Return the set of normalized package names declared in environment.yml."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    names: Set[str] = set()
-    for dep in data.get("dependencies", []):
-        if isinstance(dep, str):
-            names.add(normalize(dep))
-        elif isinstance(dep, dict):  # the `pip:` sub-list
-            for pip_dep in dep.get("pip", []):
-                names.add(normalize(pip_dep))
-    return names
+    features = {}
+    for feature, config in data.get("feature", {}).items():
+        feature_specs = {}
+        for section in ("dependencies", "pypi-dependencies"):
+            for name, val in config.get(section, {}).items():
+                if isinstance(val, dict):
+                    val = val.get("version", "*")
+                feature_specs[normalize(name)] = str(val)
+        features[feature] = feature_specs
+    return specs, features
 
 
 def _present(names: Set[str], declared: Set[str]) -> bool:
@@ -168,9 +170,8 @@ def _spec_for(names: Set[str], specs: Dict[str, str]) -> Optional[str]:
 
 def check_consistency() -> List[str]:
     """Return a list of human-readable consistency issues (empty == consistent)."""
-    pyproject = load_pyproject(PYPROJECT)
-    pixi = load_pixi(PIXI)
-    env = load_environment(ENVIRONMENT)
+    pyproject, pyproject_groups = load_pyproject(PYPROJECT)
+    pixi, pixi_features = load_pixi(PIXI)
     pyproject_names, pixi_names = set(pyproject), set(pixi)
 
     issues: List[str] = []
@@ -182,7 +183,6 @@ def check_consistency() -> List[str]:
             for label, declared in (
                 ("pyproject.toml", pyproject_names),
                 ("pixi.toml", pixi_names),
-                ("environment.yml", env),
             )
             if not _present(names, declared)
         ]
@@ -198,6 +198,18 @@ def check_consistency() -> List[str]:
                 f"{canon}: version bounds disagree (pyproject '{py_spec}' vs pixi '{px_spec}'): "
                 + "; ".join(diffs)
             )
+
+    for feature, packages in OPTIONAL_FEATURE_PACKAGES.items():
+        py_group = pyproject_groups.get(feature, {})
+        pixi_group = pixi_features.get(feature, {})
+        for pkg in packages:
+            canonical = pkg["canonical"]
+            if not _present(pkg["pypi"], set(py_group)):
+                issues.append(f"{canonical}: missing from pyproject extra '{feature}'")
+            if not _present(pkg["pixi"], set(pixi_group)):
+                issues.append(f"{canonical}: missing from pixi feature '{feature}'")
+            if _present(pkg["pixi"], pixi_names):
+                issues.append(f"{canonical}: optional package leaked into pixi default dependencies")
     return issues
 
 
@@ -217,7 +229,7 @@ def main() -> int:
         for issue in issues:
             print(f"  ❌ {issue}")
         print(
-            "\nKeep pyproject.toml, pixi.toml, and environment.yml in sync for the listed packages.\n"
+            "\nKeep pyproject.toml and pixi.toml in sync for the listed packages.\n"
             "If a divergence is intentional, drop the package from CORE_PACKAGES in this script."
         )
         return 1

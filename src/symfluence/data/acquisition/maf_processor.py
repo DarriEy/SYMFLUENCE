@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from symfluence.core.mixins import ConfigMixin
-from symfluence.data.utils.variable_utils import VariableHandler
+from symfluence.core.modeling.variable_utils import VariableHandler
 
 
 class DataAcquisitionProcessor(ConfigMixin):

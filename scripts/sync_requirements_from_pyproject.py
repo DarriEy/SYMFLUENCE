@@ -2,10 +2,9 @@
 """
 Generate requirements.txt from pyproject.toml project dependencies.
 
-The `jax` extra is included by default: the JAX-native models (jHBV, jSACSMA,
-jXAJ, jHECHMS, jTOPMODEL, jSnow17) are first-class registry members, and an
-environment without them registers five fewer models with no error — the
-install looks complete and silently is not.
+This is a compatibility export for tools that cannot consume ``pyproject.toml``
+or ``uv.lock``. It contains the base runtime dependencies by default; optional
+feature groups must be requested explicitly.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from pathlib import Path
 from typing import List
 
 # Optional-dependency groups folded into requirements.txt by default.
-DEFAULT_EXTRAS = ("jax", "ml")
+DEFAULT_EXTRAS: tuple[str, ...] = ()
 
 
 def load_pyproject(path: Path) -> dict:

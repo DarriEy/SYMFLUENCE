@@ -431,7 +431,11 @@ class ModelManager(BaseManager):
 
     def _try_dcoupler_execution(self, workflow: List[str]) -> bool:
         """Try graph-based execution via dCoupler. Returns True if successful."""
-        from symfluence.coupling import INSTALL_SUGGESTION, is_dcoupler_available
+        from symfluence.core.modeling.coupling import (
+            INSTALL_SUGGESTION,
+            build_coupling_graph,
+            is_dcoupler_available,
+        )
 
         if not is_dcoupler_available():
             self.logger.info(INSTALL_SUGGESTION)
@@ -439,10 +443,7 @@ class ModelManager(BaseManager):
             return False
 
         try:
-            from symfluence.coupling import CouplingGraphBuilder
-
-            builder = CouplingGraphBuilder()
-            graph = builder.build(self.config_dict)
+            graph = build_coupling_graph(self.config_dict)
             self.logger.info(
                 f"Executing {len(workflow)} models via dCoupler graph "
                 f"({len(graph.components)} components, "
@@ -497,6 +498,11 @@ class ModelManager(BaseManager):
                 self.logger.info(f"Running model: {model}")
                 runner_class = R.runners.get(model)
                 if runner_class is None:
+                    if model.upper() in {'LSTM', 'GNN'}:
+                        from symfluence.core.exceptions import OptionalDependencyError
+                        raise OptionalDependencyError(
+                            f"The {model.upper()} model", "ml", dependency="torch"
+                        )
                     self.logger.error(f"Unknown hydrological model or no runner registered: {model}")
                     continue
 

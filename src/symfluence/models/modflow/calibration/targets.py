@@ -19,8 +19,8 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
+from symfluence.core.modeling.evaluators.streamflow import StreamflowEvaluator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 
 logger = logging.getLogger(__name__)
 

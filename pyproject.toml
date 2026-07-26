@@ -46,9 +46,9 @@ dependencies = [
   "contextily",
   # Cloud and data access
   "gcsfs>=2023.0.0",
-  "intake-xarray",
   "netCDF4>=1.6.0,<2.0.0",
   "h5netcdf>=1.1.0,<2.0.0",
+  "zarr>=2.18.0,<4.0.0",
   # DAP2 client for NASA Hyrax OPeNDAP endpoints (gridded Daymet). The
   # libnetcdf DAP route cannot authenticate via Earthdata sessions and the
   # Hyrax deployment rejects plain DAP4 constraints, so pydap is required.
@@ -63,9 +63,7 @@ dependencies = [
   "cftime>=1.6.0,<2.0.0",
   # Hydrology specific
   "hydrobm",
-  # Note: baseflow is optional due to Python version constraints (see [project.optional-dependencies])
   # Utilities
-  "SALib>=1.4.0,<2.0.0",
   "psutil>=5.9.0,<6.0.0",
   "tqdm>=4.64.0,<5.0.0",
   "pyyaml>=6.0.0,<7.0.0",
@@ -80,6 +78,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Global sensitivity methods (Sobol and RBD-FAST). Correlation and VISCOUS
+# sensitivity analysis remain available from the default installation.
+#   pip install "symfluence[sensitivity]"
+sensitivity = [
+  "SALib>=1.4.0,<2.0.0",
+]
+# CONUS404 access through the HyTEST Intake catalog. Intake 2.0.9 currently
+# has an unfixed advisory, so it is isolated from the default installation.
+conus404 = [
+  "intake-xarray",
+]
 # PyTorch-based features: LSTM and GNN models, and the dCoupler differentiable
 # coupling framework. Optional: a plain install stays ~1 GB lighter; the LSTM/
 # GNN plugins and dCoupler graph coupling activate when this extra is present.
@@ -124,10 +133,6 @@ gdal = [
 # Install manually:
 #   uv pip install git+https://github.com/kasra-keshavarz/hydrant.git
 #   uv pip install git+https://github.com/CH-Earth/meshflow.git@main
-# Baseflow separation (requires Python <3.10 due to numba constraints)
-baseflow = [
-  "baseflow",
-]
 # R integration (requires R and libgcc to be installed)
 r = [
   "rpy2>=3.5.0,<4.0.0",
@@ -190,6 +195,7 @@ test = [
   # (the baseline install does not).
   "symfluence[jax]",
   "symfluence[ml]",
+  "symfluence[sensitivity]",
 ]
 # Documentation tools
 docs = [
@@ -222,9 +228,11 @@ alos = [
 hpc = [
   "mpi4py>=3.0.0,<4.0.0",
 ]
-# All development dependencies
-all = [
-  "symfluence[r,dev,test,docs,notebook,gui,tui,alos,jax,ml]",
+# Complete supported development environment. Platform/system integrations
+# (GDAL, MPI/HPC, dRoute) and independently released community services remain
+# explicit opt-ins because they need external libraries or release separately.
+dev-all = [
+  "symfluence[r,dev,test,docs,notebook,gui,tui,alos]",
 ]
 
 [project.scripts]
@@ -301,6 +309,12 @@ include = [
   "MANIFEST.in",
   "examples/"
 ]
+exclude = [
+  "/.*",
+  "/venv/",
+  "/repro_runs_native/",
+  "/domain_*/",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/symfluence"]
@@ -310,6 +324,18 @@ packages = ["src/symfluence"]
 
 [tool.hatch.version]
 path = "src/symfluence/symfluence_version.py"
+
+# Linux and Windows CI/development use PyTorch's CPU wheels. macOS uses PyPI,
+# where the native wheel does not carry the Linux CUDA dependency stack.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" },
+]
 
 [tool.ruff]
 # Target Python 3.11

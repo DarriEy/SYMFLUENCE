@@ -98,7 +98,7 @@ class LisfloodModelOptimizer(BaseModelOptimizer):
                 return None
 
             # Calculate metrics for calibration and evaluation periods
-            from symfluence.evaluation.utilities import StreamflowMetrics
+            from symfluence.core.metrics import StreamflowMetrics
 
             sim = self._load_final_discharge(final_output_dir)
             obs = self._load_observations()

@@ -550,7 +550,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             dat = dat.copy()
 
             # 0. NORMALIZE LEGACY VARIABLE NAMES TO CFIF
-            from symfluence.data.preprocessing.cfif.variables import normalize_to_cfif
+            from symfluence.core.modeling.cfif.variables import normalize_to_cfif
             dat = normalize_to_cfif(dat)
 
             # 1. FIX TIME COORDINATE FIRST
@@ -656,7 +656,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             }
 
             # Rename CFIF variables to SUMMA-native names for the Fortran executable
-            from symfluence.data.preprocessing.cfif.variables import CFIF_TO_SUMMA_MAPPING
+            from symfluence.core.modeling.cfif.variables import CFIF_TO_SUMMA_MAPPING
             summa_renames = {k: v for k, v in CFIF_TO_SUMMA_MAPPING.items() if k in dat}
             if summa_renames:
                 dat = dat.rename(summa_renames)
@@ -1342,7 +1342,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         with reasonable defaults and log a warning.
         """
         # Auto-rename legacy SUMMA-style variable names to CFIF if present
-        from symfluence.data.preprocessing.cfif.variables import normalize_to_cfif
+        from symfluence.core.modeling.cfif.variables import normalize_to_cfif
         dataset = normalize_to_cfif(dataset)
 
         required_vars = ['air_temperature', 'surface_air_pressure', 'specific_humidity', 'wind_speed', 'precipitation_flux', 'surface_downwelling_longwave_flux', 'surface_downwelling_shortwave_flux']

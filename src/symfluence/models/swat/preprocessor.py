@@ -343,7 +343,7 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path}")
 
         logger.info(f"Loading forcing from {len(forcing_files)} files")
-        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
+        from symfluence.core.modeling.model_ready.forcing_reader import open_canonical_forcing
         ds = open_canonical_forcing(forcing_files)
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds

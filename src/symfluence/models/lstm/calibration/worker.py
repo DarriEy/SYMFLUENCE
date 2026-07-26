@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.calibration.targets import create_calibration_target
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 from symfluence.models.lstm import LSTMRunner
 
@@ -47,8 +48,11 @@ class LSTMWorker(BaseWorker):
 
             # 3. Calculate score
             # Optimization results are in output_dir (or sim_dir)
-            from symfluence.optimization.calibration_targets import StreamflowTarget
-            target = StreamflowTarget(eval_config, Path(eval_config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{eval_config.get('DOMAIN_NAME')}", self.logger)
+            target = create_calibration_target(
+                'streamflow', eval_config,
+                Path(eval_config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{eval_config.get('DOMAIN_NAME')}",
+                self.logger,
+            )
 
             # Determine output directory (if routing was used, score comes from routed output)
             sim_dir = runner.output_dir
@@ -112,8 +116,6 @@ class LSTMWorker(BaseWorker):
             Dictionary of metric names to values
         """
         try:
-            from symfluence.optimization.calibration_targets import StreamflowTarget
-
             # Determine the correct simulation directory
             sim_dir = output_dir
             routing_model = config.get('ROUTING_MODEL', 'none').lower()
@@ -132,7 +134,7 @@ class LSTMWorker(BaseWorker):
             domain_name = config.get('DOMAIN_NAME', '')
             project_dir = data_dir / f"domain_{domain_name}"
 
-            target = StreamflowTarget(config, project_dir, self.logger)
+            target = create_calibration_target('streamflow', config, project_dir, self.logger)
             metrics = target.calculate_metrics(sim_dir)
 
             return metrics or {'KGE': self.penalty_score}

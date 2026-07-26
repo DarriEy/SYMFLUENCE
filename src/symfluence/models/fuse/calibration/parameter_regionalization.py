@@ -5,7 +5,7 @@
 FUSE-specific parameter regionalization defaults.
 
 The framework classes have moved to:
-    symfluence.optimization.regionalization.strategies
+    symfluence.core.calibration.regionalization.strategies
 """
 from __future__ import annotations
 

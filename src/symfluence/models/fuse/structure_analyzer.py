@@ -22,7 +22,7 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.metrics import kge, kge_prime, mae, nse, rmse
-from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
+from symfluence.core.modeling.structure_ensemble import BaseStructureEnsembleAnalyzer
 from symfluence.models.fuse.runner import FUSERunner
 
 # Known bad decision combinations that cause 100% failure in FUSE.

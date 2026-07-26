@@ -17,12 +17,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.exceptions import OptionalDependencyError
+
 try:
     import torch
     from sklearn.preprocessing import StandardScaler
 except ImportError as _err:
-    raise ImportError(
-        "The LSTM model requires PyTorch. Install with: pip install 'symfluence[ml]'"
+    raise OptionalDependencyError(
+        "The LSTM model", "ml", dependency="torch and scikit-learn"
     ) from _err
 
 from symfluence.core.modeling.base import BaseModelPreProcessor
@@ -172,7 +174,7 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         forcing_df = combined_ds.to_dataframe().reset_index()
 
         # Auto-rename legacy SUMMA-style variable names to CFIF if present
-        from symfluence.data.preprocessing.cfif.variables import SUMMA_TO_CFIF_MAPPING
+        from symfluence.core.modeling.cfif.variables import SUMMA_TO_CFIF_MAPPING
         legacy_col_renames = {k: v for k, v in SUMMA_TO_CFIF_MAPPING.items() if k in forcing_df.columns and v not in forcing_df.columns}
         if legacy_col_renames:
             forcing_df = forcing_df.rename(columns=legacy_col_renames)

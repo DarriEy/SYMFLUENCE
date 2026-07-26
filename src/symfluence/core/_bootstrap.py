@@ -254,6 +254,11 @@ def _discover_plugins() -> None:
     """
     import sys
 
+    from symfluence.core.contracts import (
+        ContractCompatibilityError,
+        assert_plugin_compatible,
+    )
+
     if sys.version_info >= (3, 12):
         from importlib.metadata import entry_points
     else:
@@ -271,15 +276,28 @@ def _discover_plugins() -> None:
     for ep in eps:
         try:
             plugin_fn = ep.load()
+            assert_plugin_compatible(plugin_fn)
             plugin_fn()
             logger.debug("Loaded plugin %r from %s", ep.name, ep.value)
             if ep.value.startswith("symfluence.models."):
                 in_tree_loaded += 1
+        except ContractCompatibilityError as exc:
+            logger.warning(
+                "Plugin %r (%s) targets an incompatible SYMFLUENCE contract: "
+                "%s. Registration was not attempted.",
+                ep.name,
+                ep.value,
+                exc,
+            )
         except ImportError as exc:
+            from symfluence.core.exceptions import OptionalDependencyError
             missing_module = getattr(exc, "name", None) or ""
             if (
-                isinstance(exc, ModuleNotFoundError)
-                and missing_module.partition(".")[0] not in ("", "symfluence")
+                isinstance(exc, OptionalDependencyError)
+                or (
+                    isinstance(exc, ModuleNotFoundError)
+                    and missing_module.partition(".")[0] not in ("", "symfluence")
+                )
             ):
                 # A missing *third-party* module almost always means an optional
                 # dependency isn't installed (e.g. an MPI/GPU model on a

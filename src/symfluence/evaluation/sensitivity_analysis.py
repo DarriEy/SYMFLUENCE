@@ -13,12 +13,19 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from SALib.analyze import rbd_fast, sobol
-from SALib.sample import sobol as sobol_sample
 from scipy.stats import spearmanr
 from tqdm import tqdm
 
+from symfluence.core.exceptions import OptionalDependencyError
 from symfluence.core.mixins import ConfigMixin
+
+try:
+    from SALib.analyze import rbd_fast, sobol
+    from SALib.sample import sobol as sobol_sample
+except ImportError:  # SALib is provided by the optional ``sensitivity`` extra.
+    rbd_fast = None
+    sobol = None
+    sobol_sample = None
 
 # Hoist pyviscous to module scope so the VISCOUS path is patchable from
 # tests (see test_sa_viscous_nan_handling). Leaving the import inside
@@ -63,6 +70,15 @@ _NON_PARAM_COLS = frozenset({
     # must be named here so they don't pollute the sensitivity output.
     'acceptance_rate', 'n_chains',
 })
+
+
+def _require_salib():
+    """Return SALib modules or explain how to enable global methods."""
+    if rbd_fast is None or sobol is None or sobol_sample is None:
+        raise OptionalDependencyError(
+            "Sobol and RBD-FAST sensitivity analysis", "sensitivity", dependency="SALib"
+        )
+    return rbd_fast, sobol, sobol_sample
 
 
 def _parameter_columns_for_sa(samples) -> list:
@@ -308,6 +324,7 @@ class SensitivityAnalyzer(ConfigMixin):
         Returns:
             pd.Series: Total-order Sobol indices for each parameter.
         """
+        _, salib_sobol, salib_sobol_sample = _require_salib()
         self.logger.info(f"Performing Sobol analysis using {metric} metric")
         parameter_columns = _parameter_columns_for_sa(samples)
 
@@ -349,7 +366,7 @@ class SensitivityAnalyzer(ConfigMixin):
             'bounds': bounds,
         }
 
-        param_values = sobol_sample.sample(problem, 1024)
+        param_values = salib_sobol_sample.sample(problem, 1024)
 
         Y = np.zeros(param_values.shape[0])
         for i in range(param_values.shape[0]):
@@ -360,7 +377,7 @@ class SensitivityAnalyzer(ConfigMixin):
                                                      samples[metric].values[samples[col].argsort()]))
             Y[i] = np.mean(interpolated_values)
 
-        Si = sobol.analyze(problem, Y)
+        Si = salib_sobol.analyze(problem, Y)
 
         self.logger.info("Sobol analysis completed")
         return pd.Series(Si['ST'], index=parameter_columns)
@@ -379,6 +396,7 @@ class SensitivityAnalyzer(ConfigMixin):
         Returns:
             pd.Series: First-order sensitivity indices (S1) for each parameter.
         """
+        salib_rbd_fast, _, _ = _require_salib()
         self.logger.info(f"Performing RBD-FAST analysis using {metric} metric")
         parameter_columns = _parameter_columns_for_sa(samples)
 
@@ -391,7 +409,7 @@ class SensitivityAnalyzer(ConfigMixin):
         X = samples[parameter_columns].values
         Y = samples[metric].values
 
-        rbd_results = rbd_fast.analyze(problem, X, Y)
+        rbd_results = salib_rbd_fast.analyze(problem, X, Y)
         self.logger.info("RBD-FAST analysis completed")
         return pd.Series(rbd_results['S1'], index=parameter_columns)
 

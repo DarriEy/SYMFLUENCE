@@ -39,6 +39,8 @@ src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMi
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
+src/symfluence/core/calibration/multi_gauge/metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize.log_complex_batch:except Exception as e:  # noqa: BLE001
 src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001
 src/symfluence/core/calibration/optimizers/algorithms/sce_ua.py:SCEUAAlgorithm.optimize:except Exception as e:  # noqa: BLE001 - best-effort path setup
@@ -50,6 +52,7 @@ src/symfluence/core/config/models/root.py:SymfluenceConfig.validate_model_requir
 src/symfluence/core/exceptions.py:symfluence_error_handler:except Exception as e:  # noqa: BLE001 — error handler implementation
 src/symfluence/core/hdf5_safety.py:_find_bundled_libhdf5:except Exception:  # noqa: BLE001
 src/symfluence/core/hdf5_safety.py:prepare_for_netcdf_operation:except Exception:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/metrics/likelihood.py:load_fluxnet_uncertainties:except Exception as e:  # noqa: BLE001 — optional feature, must not break evaluation
 src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics._read_observations_store:except Exception as e:  # noqa: BLE001 — must-not-raise; CSV fallback follows
 src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/metrics/streamflow_metrics.py:StreamflowMetrics.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -70,6 +73,43 @@ src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostPro
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor._extract_from_text:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor._read_single_output_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_likelihood_metrics:except Exception as e:  # noqa: BLE001 — optional feature, must not break metrics
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_performance_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_period_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._load_observed_data_from_netcdf:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._load_observed_data_from_path:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._parse_date_range:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._resample_to_timestep:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._apply_fluxnet_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._apply_gleam_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._apply_modis_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._sum_et_components:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._try_acquire_fluxnet_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator._try_acquire_mod16_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/et.py:ETEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/groundwater.py:GroundwaterEvaluator._extract_total_water_storage:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/groundwater.py:GroundwaterEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/groundwater.py:GroundwaterEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/groundwater.py:GroundwaterEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/snow.py:SnowEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/snow.py:SnowEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/soil_moisture.py:SoilMoistureEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/soil_moisture.py:SoilMoistureEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/streamflow.py:StreamflowEvaluator._extract_summa_streamflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/streamflow.py:StreamflowEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception as exc:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/evaluators/tws.py:TWSEvaluator.get_diagnostic_data:except Exception as exc:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/modeling/execution/spatial_orchestrator.py:SpatialOrchestrator._create_mizuroute_control_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/execution/spatial_orchestrator.py:SpatialOrchestrator._run_droute:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/execution/spatial_orchestrator.py:SpatialOrchestrator._run_mizuroute:except Exception as e:  # noqa: BLE001 — model execution resilience
@@ -81,9 +121,20 @@ src/symfluence/core/modeling/mixins/observation_loader.py:ObservationLoaderMixin
 src/symfluence/core/modeling/mixins/observation_loader.py:ObservationLoaderMixin._read_observation_file:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/mixins/observation_loader.py:ObservationLoaderMixin.load_streamflow_observations:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/core/modeling/mixins/subprocess_execution.py:SubprocessExecutionMixin.execute_model_subprocess:except Exception as read_error:  # noqa: BLE001 — model execution resilience
+src/symfluence/core/modeling/model_ready/attributes_reader.py:open_canonical_attributes:except Exception as e:  # noqa: BLE001 — absent/corrupt store ⇒ legacy fallback
 src/symfluence/core/modeling/state/manager.py:StateManager.export_to_fews:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/core/modeling/structure_ensemble.py:BaseStructureEnsembleAnalyzer.analyze_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/structure_ensemble.py:BaseStructureEnsembleAnalyzer.run_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/structure_ensemble.py:BaseStructureEnsembleAnalyzer.visualize_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/modeling/utilities/base_topology_generator.py:BaseTopologyGenerator._find_closest_segment_to_pour_point:except Exception as e:  # noqa: BLE001
+src/symfluence/core/modeling/utilities/dataset_alignment_manager.py:DatasetAlignmentManager._align_single_dataset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/core/modeling/utilities/forcing_data_processor.py:ForcingDataProcessor.load_forcing_data:except Exception as e:  # noqa: BLE001 — model execution resilience
+src/symfluence/core/modeling/utilities/time_window_manager.py:TimeWindowManager.get_forcing_time_range:except Exception as e:  # noqa: BLE001 — preprocessing resilience
+src/symfluence/core/modeling/variable_utils.py:VariableHandler._convert_units:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/variable_utils.py:VariableHandler._convert_units:except Exception as pe:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/modeling/variable_utils.py:VariableHandler.load_mappings:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/variable_utils.py:VariableHandler.process_forcing_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/variable_utils.py:VariableHandler.save_mappings:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.aggregate_from_directory:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.import_from_file:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/profiling/io_profiler.py:IOProfiler.track_dir_create:except Exception as e:  # noqa: BLE001 — monitoring thread
@@ -100,6 +151,10 @@ src/symfluence/core/profiling/profiler_context.py:_register_worker_export:except
 src/symfluence/core/profiling/system_io_profiler.py:_SubprocessProfiler.run:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/registry.py:Registry._validate_protocol:except Exception:  # noqa: BLE001 — advisory only, never fail
 src/symfluence/core/registry.py:_LazyEntry.resolve:except Exception:  # noqa: BLE001
+src/symfluence/core/reporting/base_plotter.py:BasePlotter._plot_safe.decorator.wrapper:except Exception as e:  # noqa: BLE001 — plotting resilience
+src/symfluence/core/reporting/base_plotter.py:BasePlotter._save_and_close:except Exception as e:  # noqa: BLE001 — plotting resilience
+src/symfluence/core/reporting/shapefile_helper.py:ShapefileHelper._load_shapefile:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/reporting/shapefile_helper.py:ShapefileHelper.get_basin_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.execute:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.execute:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/coupling/adapters/process_adapters.py:CLMProcessComponent.read_outputs:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -252,7 +307,6 @@ src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._b
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hru_identity_group:except Exception:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._build_hydrogeology_group:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/attributes_builder.py:AttributesNetCDFBuilder._read_shapefile:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/model_ready/attributes_reader.py:open_canonical_attributes:except Exception as e:  # noqa: BLE001 — absent/corrupt store ⇒ legacy fallback
 src/symfluence/data/model_ready/forcings_builder.py:ForcingsStoreBuilder._enrich_metadata:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/forcings_builder.py:ForcingsStoreBuilder._forcing_timestep_seconds:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/model_ready/observations_builder.py:ObservationsNetCDFBuilder._read_timeseries_csv:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -345,7 +399,6 @@ src/symfluence/data/preprocessing/attribute_processors/landcover.py:LandCoverPro
 src/symfluence/data/preprocessing/attribute_processors/plugins.py:discover_attribute_plugins:except Exception as exc:  # noqa: BLE001 - a bad plugin must not break the run
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._check_and_set_nodata_value:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/attribute_processors/soil.py:SoilProcessor._read_scale_and_offset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/preprocessing/dataset_alignment_manager.py:DatasetAlignmentManager._align_single_dataset:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/dataset_handlers/__init__.py:<module>:except Exception as _e:  # noqa: BLE001 — optional dependency
 src/symfluence/data/preprocessing/dataset_handlers/aorc_utils.py:AORCHandler.merge_forcings:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/dataset_handlers/aorc_utils.py:AORCHandler.merge_forcings:except Exception as e:  # noqa: BLE001 — preprocessing resilience
@@ -415,63 +468,16 @@ src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager._validat
 src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager.align_longitude_frame:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager.ensure_unique_hru_ids:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data/preprocessing/shapefile_manager.py:ShapefileManager.ensure_wgs84:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/data/preprocessing/time_window_manager.py:TimeWindowManager.get_forcing_time_range:except Exception as e:  # noqa: BLE001 — preprocessing resilience
 src/symfluence/data/utils/archive_utils.py:tar_directory:except Exception as e:  # noqa: BLE001 — preprocessing resilience
-src/symfluence/data/utils/variable_utils.py:VariableHandler._convert_units:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/data/utils/variable_utils.py:VariableHandler._convert_units:except Exception as pe:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/data/utils/variable_utils.py:VariableHandler.load_mappings:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/data/utils/variable_utils.py:VariableHandler.process_forcing_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/data/utils/variable_utils.py:VariableHandler.save_mappings:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/data_assimilation/da_manager.py:DataAssimilationManager.run_data_assimilation:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data_assimilation/enkf/ensemble_manager.py:SubprocessEnsembleManager.extract_predictions:except Exception:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/data_assimilation/enkf/ensemble_manager.py:SubprocessEnsembleManager.forecast_step:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/analysis_manager.py:AnalysisManager.run_sensitivity_analysis:except Exception as exc:  # noqa: BLE001 — aggregate per-model failures for the post-loop decision
 src/symfluence/evaluation/benchmarking.py:Benchmarker._save_results:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/evaluation/benchmarking.py:Benchmarker.run_benchmarking:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._calculate_likelihood_metrics:except Exception as e:  # noqa: BLE001 — optional feature, must not break metrics
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._calculate_performance_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._calculate_period_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._load_observed_data_from_netcdf:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._load_observed_data_from_path:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._parse_date_range:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator._resample_to_timestep:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/base.py:ModelEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._apply_fluxnet_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._apply_gleam_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._apply_modis_qc:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._sum_et_components:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._try_acquire_fluxnet_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator._try_acquire_mod16_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/et.py:ETEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/groundwater.py:GroundwaterEvaluator._extract_total_water_storage:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/groundwater.py:GroundwaterEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/groundwater.py:GroundwaterEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/groundwater.py:GroundwaterEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/snow.py:SnowEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/snow.py:SnowEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/soil_moisture.py:SoilMoistureEvaluator._load_observed_data:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/soil_moisture.py:SoilMoistureEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/streamflow.py:StreamflowEvaluator._extract_summa_streamflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/streamflow.py:StreamflowEvaluator._get_catchment_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/streamflow.py:StreamflowEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception as exc:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.calculate_metrics:except Exception:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.extract_simulated_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/evaluation/evaluators/tws.py:TWSEvaluator.get_diagnostic_data:except Exception as exc:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/koopman_analysis.py:KoopmanAnalyzer.run_koopman_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/likelihood.py:load_fluxnet_uncertainties:except Exception as e:  # noqa: BLE001 — optional feature, must not break evaluation
 src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.perform_sensitivity_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/evaluation/sensitivity_analysis.py:SensitivityAnalyzer.run_sensitivity_analysis:except Exception as e:  # noqa: BLE001 — resilience across SA methods
-src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.analyze_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.run_analysis:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/evaluation/structure_ensemble.py:BaseStructureEnsembleAnalyzer.visualize_results:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/fews/id_map.py:IDMapper._load_yaml:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/fews/netcdf_cf.py:read_fews_netcdf:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/fews/netcdf_cf.py:write_fews_netcdf:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -1222,8 +1228,6 @@ src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_f
 src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_from_chrtout:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/postprocessor.py:WRFHydroPostProcessor._extract_from_ldasout:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/wrfhydro/preprocessor.py:WRFHydroPreProcessor.run_preprocessing:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._extract_simulated_at_segment:except Exception as e:  # noqa: BLE001 — calibration resilience
-src/symfluence/optimization/multi_gauge/metrics.py:MultiGaugeMetrics._load_observed_streamflow:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._evaluate_self_training_model:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/project/logging_manager.py:CountingHandler.emit:except Exception:  # noqa: BLE001 — logging must never raise
@@ -1233,10 +1237,6 @@ src/symfluence/project/system.py:SYMFLUENCE.run_diagnostics_for_step:except Exce
 src/symfluence/project/system.py:SYMFLUENCE.run_workflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_individual_steps:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/workflow_orchestrator.py:WorkflowOrchestrator.run_workflow:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/reporting/core/base_plotter.py:BasePlotter._plot_safe.decorator.wrapper:except Exception as e:  # noqa: BLE001 — plotting resilience
-src/symfluence/reporting/core/base_plotter.py:BasePlotter._save_and_close:except Exception as e:  # noqa: BLE001 — plotting resilience
-src/symfluence/reporting/core/shapefile_helper.py:ShapefileHelper._load_shapefile:except Exception as e:  # noqa: BLE001 — must-not-raise contract
-src/symfluence/reporting/core/shapefile_helper.py:ShapefileHelper.get_basin_area:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/reporting/panels/metrics_table_panel.py:MetricsTablePanel._apply_cell_colors:except Exception as e:  # noqa: BLE001 — reporting resilience
 src/symfluence/reporting/plotters/analysis_plotter.py:AnalysisPlotter.plot_streamflow_comparison:except Exception as e:  # noqa: BLE001 — reporting resilience
 src/symfluence/reporting/plotters/analysis_plotter.py:AnalysisPlotter.plot_streamflow_comparison:except Exception as e:  # noqa: BLE001 — reporting resilience

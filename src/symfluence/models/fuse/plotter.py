@@ -14,8 +14,8 @@ from typing import List, Optional, Tuple
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.core.shapefile_helper import resolve_default_name
+from symfluence.core.reporting.base_plotter import BasePlotter
+from symfluence.core.reporting.shapefile_helper import resolve_default_name
 
 
 @R.plotters.add('FUSE')
@@ -48,7 +48,7 @@ class FUSEPlotter(BasePlotter):
         import xarray as xr
 
         from symfluence.core.constants import UnitConversion
-        from symfluence.reporting.core.plot_utils import calculate_metrics
+        from symfluence.core.reporting.plot_utils import calculate_metrics
 
         try:
             plot_dir = self._ensure_output_dir('results')

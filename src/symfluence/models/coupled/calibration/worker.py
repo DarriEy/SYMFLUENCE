@@ -109,7 +109,7 @@ class CoupledModelWorker(BaseWorker):
         if backend != 'dcoupler':
             return False
         try:
-            from symfluence.coupling import is_dcoupler_available
+            from symfluence.core.modeling.coupling import is_dcoupler_available
             return bool(is_dcoupler_available())
         except ImportError:
             return False
@@ -117,8 +117,8 @@ class CoupledModelWorker(BaseWorker):
     def _run_dcoupler(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs) -> bool:
         import torch
 
-        from symfluence.coupling.graph_builder import CouplingGraphBuilder
-        graph = CouplingGraphBuilder().build(config)
+        from symfluence.core.modeling.coupling import build_coupling_graph
+        graph = build_coupling_graph(config)
         outputs = graph.forward(external_inputs=kwargs.get('external_inputs', {}),
                                 n_timesteps=kwargs.get('n_timesteps', 1),
                                 dt=kwargs.get('dt', 86400.0))

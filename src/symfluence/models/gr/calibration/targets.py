@@ -20,9 +20,9 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.constants import UnitConversion
+from symfluence.core.modeling.evaluators import StreamflowEvaluator
+from symfluence.core.modeling.output_file_locator import OutputFileLocator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators import StreamflowEvaluator
-from symfluence.evaluation.output_file_locator import OutputFileLocator
 
 if TYPE_CHECKING:
     pass

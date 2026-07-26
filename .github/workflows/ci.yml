@@ -44,6 +44,12 @@ jobs:
       - name: Validate universal dependency lock
         run: uv lock --check
 
+      - name: Audit locked runtime dependencies
+        run: |
+          uv export --quiet --locked --no-dev --no-emit-project \
+            --output-file /tmp/symfluence-runtime.txt
+          uvx pip-audit -r /tmp/symfluence-runtime.txt --no-deps
+
       - name: Lint with ruff
         run: |
           # Lint only src and tests, exclude examples (notebooks can be informal)
@@ -122,6 +128,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6
+        with:
+          version: "0.10.4"
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -129,21 +140,21 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
+          uv sync --locked --extra test --extra gui
+          # On x86_64 Linux, h5py 3.15 and netCDF4 wheels both bundle HDF5
+          # 1.14 with unversioned globals. Loading both corrupts dimension-scale
+          # state. h5py 3.16 bundles HDF5 2.0, keeping the private symbols
+          # isolated. ARM wheels require the opposite pin; this matrix is x64.
+          uv pip install --reinstall --only-binary :all: 'h5py>=3.16' netCDF4
           if command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
-            pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
+            uv pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
           fi
-          # CPU-only torch to save space/time
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          # Package + test extras (pytest, pytest-xdist, hypothesis, jax/llm) from pyproject
-          # gui+baseflow extras so the optional-feature unit tests run here
-          # instead of skipping (panel-based GUI, baseflow hydrology signatures).
-          pip install -e ".[test,gui,baseflow]"
 
       - name: Run unit tests with coverage
         run: |
-          pytest --timeout=300 -v --tb=short -m "unit" -n auto \
+          # --no-sync preserves the system-matched GDAL binding installed above.
+          uv run --no-sync pytest --timeout=300 -v --tb=short -m "unit" -n auto \
             --cov --cov-report=term-missing --cov-fail-under=25 tests/unit/
 
       - name: Core coverage gate
@@ -153,11 +164,11 @@ jobs:
         # Coverage is a property of the codebase, not of the interpreter, so it
         # is gated once rather than per matrix leg.
         if: matrix.python-version == '3.11'
-        run: python scripts/check_core_coverage.py
+        run: uv run --no-sync python scripts/check_core_coverage.py
 
       - name: Package import smoke test
         run: |
-          python -c "import symfluence; from symfluence.core.registries import R; \
+          uv run --no-sync python -c "import symfluence; from symfluence.core.registries import R; \
             assert R.runners.get('SUMMA') is not None, 'SUMMA not registered via entry points'; \
             print('import + entry-point registration OK')"
 
@@ -168,7 +179,7 @@ jobs:
         # native backend. Guards against a community package becoming a hidden
         # hard dependency. See docs/community_services_full_coverage_plan.md.
         run: |
-          python -c "import importlib.util; \
+          uv run --no-sync python -c "import importlib.util; \
             absent = [p for p in ('cfs', 'cas', 'csfs', 'cos') if importlib.util.find_spec(p) is None]; \
             assert absent == ['cfs', 'cas', 'csfs', 'cos'], f'community package unexpectedly installed: {sorted(set([\"cfs\",\"cas\",\"csfs\",\"cos\"]) - set(absent))}'; \
             from symfluence.data.backends.selection import select_backend; \
@@ -183,4 +194,4 @@ jobs:
         # cannot turn a wall-clock threshold into a coin flip.
         if: matrix.python-version == '3.11'
         run: |
-          pytest --timeout=300 -m performance -n 0 tests/performance/
+          uv run --no-sync pytest --timeout=300 -m performance -n 0 tests/performance/

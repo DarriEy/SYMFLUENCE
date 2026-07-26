@@ -133,6 +133,9 @@ def test_model_exposes_register(model):
     assert callable(getattr(mod, "register", None)), (
         f"symfluence.models.{model}.register must be callable"
     )
+    from symfluence.core.contracts import declared_plugin_contracts
+
+    assert declared_plugin_contracts(mod.register) == symfluence.models.__symfluence_contracts__
 
 
 # ----------------------------------------------------------------------
@@ -141,15 +144,23 @@ def test_model_exposes_register(model):
 
 
 def test_representative_models_register_into_R():
-    """After import, representative in-tree models are present in the registry.
+    """Representative in-tree entry-point callables populate the registry.
 
     SUMMA, FUSE, GR and VIC all register a result_extractor and have no exotic
-    runtime dependencies, so they are reliably available via the entry-point path.
+    runtime dependencies. Invoke their entry-point targets explicitly so this
+    source-tree contract does not depend on editable-install metadata freshness;
+    installed-metadata parity is covered separately below.
     """
-    import symfluence  # noqa: F401 - triggers bootstrap entry-point discovery
     from symfluence.core.registries import R
 
-    for name in ("SUMMA", "FUSE", "GR", "VIC"):
+    for name, package in (
+        ("SUMMA", "summa"),
+        ("FUSE", "fuse"),
+        ("GR", "gr"),
+        ("VIC", "vic"),
+    ):
+        register = importlib.import_module(f"symfluence.models.{package}").register
+        register()
         assert R.result_extractors.get(name) is not None, f"{name} not registered"
 
 

@@ -15,11 +15,12 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.calibration.multi_gauge.metrics import MultiGaugeMetrics
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.modeling.utilities.routing_decider import RoutingDecider
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import (
     resolve_fuse_id,
     update_fuse_file_manager,
@@ -47,7 +48,6 @@ from symfluence.models.fuse.calibration.parameter_application import (
     update_para_def_nc,
 )
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
-from symfluence.optimization.multi_gauge.metrics import MultiGaugeMetrics
 
 # Suppress xarray FutureWarning about timedelta64 decoding
 warnings.filterwarnings('ignore',

@@ -65,7 +65,7 @@ def write_fews_netcdf(
     path = Path(path)
 
     try:
-        from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
+        from symfluence.core.modeling.netcdf_utils import create_netcdf_encoding
     except ImportError:
         create_netcdf_encoding = None
 

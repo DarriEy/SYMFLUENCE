@@ -55,18 +55,23 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
     # (_bootstrap.py seeding of R.metrics is no longer an upward edge: the
     # metric registry moved into core.metrics with the calibration promotion.)
     (
+        "calibration/targets.py",
+        "symfluence.optimization",
+        "Model adapters request generic calibration targets through a core "
+        "capability facade; the host implementation is resolved only when used.",
+    ),
+    (
+        "modeling/coupling.py",
+        "symfluence.coupling.graph_builder",
+        "The model-facing facade resolves the optional coupling capability only "
+        "when graph execution is explicitly requested.",
+    ),
+    (
         "config/factories.py",
         "symfluence.cli.init_presets",
         "from_preset factory resolves a named CLI init preset at call time; the "
         "preset catalogue transitively needs the models layer, and from_preset "
         "is a public SymfluenceConfig classmethod, so this stays a call-time seam.",
-    ),
-    (
-        "calibration/optimizers/base_model_optimizer.py",
-        "symfluence.evaluation.registry",
-        "Final evaluation resolves the EvaluationRegistry at call time to score "
-        "the calibrated run; evaluation is a capability package core must not "
-        "import at module level.",
     ),
     (
         "contracts.py",
@@ -81,12 +86,6 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "Forcing-adapter auto-discovery iterates installed model packages at "
         "call time to trigger their registration decorators; tolerates an "
         "absent models layer via per-module ImportError handling.",
-    ),
-    (
-        "modeling/base/base_postprocessor.py",
-        "symfluence.data.model_ready.cf_conventions",
-        "Postprocessors stamp CF-convention metadata on model output at call "
-        "time; the conventions catalogue lives with the data layer.",
     ),
     (
         "calibration/optimizers/component_factory.py",
@@ -327,6 +326,22 @@ BOUNDARY_RULES: List[BoundaryRule] = [
     (
         "models",
         ("symfluence.data.acquisition.handlers", "symfluence.data.observation.handlers"),
+        [],
+    ),
+    (
+        "models",
+        (
+            "symfluence.coupling",
+            "symfluence.optimization",
+            "symfluence.reporting",
+            "symfluence.evaluation",
+            "symfluence.data.preprocessing.cfif.variables",
+            "symfluence.data.preprocessing.dataset_alignment_manager",
+            "symfluence.data.preprocessing.time_window_manager",
+            "symfluence.data.model_ready",
+            "symfluence.data.utils.netcdf_utils",
+            "symfluence.data.utils.variable_utils",
+        ),
         [],
     ),
     (

@@ -11,7 +11,7 @@ Provides calibration target classes for ngen model outputs.
 Currently supports streamflow calibration with plans for snow, ET, etc.
 
 Note: This module has been refactored to use the centralized evaluators in
-symfluence.evaluation.evaluators.
+symfluence.core.modeling.evaluators.
 """
 from __future__ import annotations
 
@@ -23,9 +23,9 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.logging_utils import log_once
+from symfluence.core.modeling.evaluators import StreamflowEvaluator
 from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 
 @R.calibration_targets.add('NGEN_STREAMFLOW')

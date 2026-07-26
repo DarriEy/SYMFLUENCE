@@ -125,12 +125,12 @@ import xarray as xr
 
 from symfluence.core.mixins import ConfigurableMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.modeling.variable_utils import VariableHandler
 from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.data.acquisition.maf_pipeline import datatoolRunner, gistoolRunner
 from symfluence.data.acquisition.registry import AcquisitionRegistry
 from symfluence.data.acquisition.request_planning import expected_forcing_times, forcing_request_facts
 from symfluence.data.cache import RawForcingCache
-from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
 
 if TYPE_CHECKING:

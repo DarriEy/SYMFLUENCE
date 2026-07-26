@@ -15,6 +15,7 @@ hdf5 = ">=1.14"
 h5py = "*"
 netcdf4 = ">=1.6,<2"
 h5netcdf = ">=1.1,<2"
+zarr = ">=2.18,<4"
 
 # Geospatial — upper bounds match pyproject.toml to avoid conda↔PyPI conflicts
 gdal = "*"
@@ -35,14 +36,9 @@ cftime = ">=1.6,<2"
 numexpr = ">=2.8,<3"
 bottleneck = ">=1.3,<2"
 networkx = ">=3.0,<4"
-scikit-learn = ">=1.2,<2"
 pint-xarray = "*"
 dask = "*"
 distributed = "*"
-
-# PyTorch (CPU) — upper bound matches pyproject.toml
-pytorch = { version = ">=2.0,<3", channel = "pytorch" }
-cpuonly = { version = "*", channel = "pytorch" }
 
 # Visualization — upper bounds match pyproject.toml
 matplotlib = ">=3.7,<4"
@@ -56,7 +52,6 @@ psutil = ">=5.9,<6"
 tqdm = ">=4.64,<5"
 rich = ">=13.0,<14"
 pydantic = ">=2.0,<3"
-salib = ">=1.4,<2"
 pvlib-python = "*"
 # cdsapi >=0.7 speaks the post-Sept-2024 CDS endpoint; <0.7 silently 404s.
 # Keep in sync with pyproject.toml (enforced by check_manifest_consistency.py).
@@ -79,10 +74,8 @@ pip = "*"
 easymore = "*"
 pyviscous = "*"
 hydrobm = "*"
-openai = ">=1.0,<2"
 cdo = ">=1.6,<3"
 gcsfs = ">=2023.0"
-intake-xarray = "*"
 s3fs = ">=2023.0"
 
 [feature.test.dependencies]
@@ -91,6 +84,17 @@ pytest-xdist = ">=3.0"
 pytest-cov = ">=4.0"
 pytest-timeout = ">=2.0"
 hypothesis = ">=6.0"
+
+[feature.ml.dependencies]
+scikit-learn = ">=1.2,<2"
+pytorch = { version = ">=2.0,<3", channel = "pytorch" }
+cpuonly = { version = "*", channel = "pytorch" }
+
+[feature.sensitivity.dependencies]
+salib = ">=1.4,<2"
+
+[feature.conus404.pypi-dependencies]
+intake-xarray = "*"
 
 # Build feature — CI uses this to compile external hydrological models.
 # Provides compilers, build tools, and libraries needed by the model
@@ -126,5 +130,6 @@ perl = "*"
 
 [environments]
 default = { features = [], solve-group = "default" }
-test = { features = ["test"], solve-group = "default" }
+test = { features = ["test", "ml", "sensitivity"], solve-group = "default" }
+conus404 = { features = ["conus404"], solve-group = "default" }
 build = { features = ["build"] }

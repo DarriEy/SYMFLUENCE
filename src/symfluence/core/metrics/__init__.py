@@ -13,9 +13,11 @@ package. ``symfluence.core.metrics`` re-exports the stable facade from
 from __future__ import annotations
 
 from symfluence.core.metrics import metrics as _facade
+from symfluence.core.metrics.metric_transformer import MetricTransformer
 from symfluence.core.metrics.metrics import *  # noqa: F401,F403
+from symfluence.core.metrics.streamflow_metrics import StreamflowMetrics
 
-__all__ = list(_facade.__all__)
+__all__ = [*_facade.__all__, "MetricTransformer", "StreamflowMetrics"]
 
 
 def __getattr__(name: str):

@@ -51,6 +51,16 @@ import warnings
 
 logger = logging.getLogger(__name__)
 
+# Distribution-level contract declaration. Every entry-point callable under
+# ``symfluence.models.*`` inherits these targets during central discovery.
+# Keeping this once at the package root avoids 30+ decorators drifting apart.
+__symfluence_contracts__ = {
+    "models": "0.2.0",
+    "calibration": "0.2.0",
+    "metrics": "0.1.0",
+    "geospatial-utils": "0.1.0",
+}
+
 # Suppress experimental module warnings and missing optional dependency warnings
 warnings.filterwarnings('ignore', message='.*is an EXPERIMENTAL module.*')
 warnings.filterwarnings('ignore', message='.*import failed.*')

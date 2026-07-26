@@ -281,10 +281,10 @@ def apply_regionalization(
     import netCDF4 as nc
     import pandas as pd
 
+    from symfluence.core.calibration.regionalization.strategies import RegionalizationFactory
     from symfluence.models.fuse.calibration.parameter_regionalization import (
         FUSE_DEFAULT_PARAM_CONFIG,
     )
-    from symfluence.optimization.regionalization.strategies import RegionalizationFactory
 
     log = log or logger
     params_updated: set = set()

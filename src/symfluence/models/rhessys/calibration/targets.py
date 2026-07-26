@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
 
+from symfluence.core.modeling.evaluators import StreamflowEvaluator
+from symfluence.core.modeling.output_file_locator import OutputFileLocator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators import StreamflowEvaluator
-from symfluence.evaluation.output_file_locator import OutputFileLocator
 
 if TYPE_CHECKING:
     pass

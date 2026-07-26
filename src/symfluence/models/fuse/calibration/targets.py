@@ -11,7 +11,7 @@ Provides calibration target classes specifically designed for FUSE model output.
 Handles both lumped FUSE output and distributed FUSE + mizuRoute output.
 
 Note: This module has been refactored to use the centralized evaluators in
-symfluence.evaluation.evaluators.
+symfluence.core.modeling.evaluators.
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ warnings.filterwarnings('ignore',
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.modeling.evaluators import SnowEvaluator, StreamflowEvaluator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators import SnowEvaluator, StreamflowEvaluator
 
 
 @R.calibration_targets.add('FUSE_STREAMFLOW')

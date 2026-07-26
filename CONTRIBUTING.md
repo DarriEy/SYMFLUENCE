@@ -21,9 +21,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
    the external model binaries (the first run can take a long time).
    If you prefer manual setup:
    ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -e ".[dev]"
+   uv sync --locked --extra dev-all
    ```
 
 3. **Verify installation**
@@ -151,9 +149,10 @@ config-model work (none are wired into CI — run them by hand):
   `src/symfluence/symfluence_version.py` (single source of truth) and
   `npm/package.json`, then runs `scripts/check_version_sync.sh` to verify.
   Run before tagging a release.
-- `scripts/sync_requirements_from_pyproject.py` — regenerates the local
-  (gitignored) `requirements.txt` from `pyproject.toml` for workflows that
-  need a flat requirements file.
+- `scripts/sync_requirements_from_pyproject.py` — compatibility helper that
+  regenerates a local (gitignored) base `requirements.txt` for tools that
+  cannot consume `pyproject.toml` or `uv.lock`. Pass `--extras ...` explicitly
+  when such a tool also needs optional feature groups.
 - `scripts/insert_template_keys.py` — inserts documented config-template
   entries for Pydantic-aliased fields when promoting flat keys into typed
   config models (see its docstring for usage).

@@ -16,8 +16,8 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel as PydanticBaseModel
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 
 logger = logging.getLogger(__name__)
 

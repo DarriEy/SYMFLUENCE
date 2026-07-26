@@ -16,14 +16,14 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from symfluence.core.exceptions import OptionalDependencyError
+
 try:
     import torch
     import torch.nn as nn
     import torch.optim as optim
 except ImportError as _err:
-    raise ImportError(
-        "The GNN model requires PyTorch. Install with: pip install 'symfluence[ml]'"
-    ) from _err
+    raise OptionalDependencyError("The GNN model", "ml", dependency="torch") from _err
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.modeling.base import BaseModelRunner

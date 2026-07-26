@@ -26,8 +26,8 @@ from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.modeling.mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
 from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.modeling.utilities import ForcingDataProcessor
+from symfluence.core.modeling.variable_utils import VariableHandler
 from symfluence.core.registries import R
-from symfluence.data.utils.variable_utils import VariableHandler
 
 from .r_environment import configure_r_dll_search, verify_gr_r_runtime
 

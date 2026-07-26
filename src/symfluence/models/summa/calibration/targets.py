@@ -17,8 +17,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.modeling.evaluators import ETEvaluator, SnowEvaluator, StreamflowEvaluator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators import ETEvaluator, SnowEvaluator, StreamflowEvaluator
 
 
 @R.calibration_targets.add('SUMMA_STREAMFLOW')

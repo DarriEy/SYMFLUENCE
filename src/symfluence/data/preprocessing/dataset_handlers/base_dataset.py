@@ -29,7 +29,7 @@ from symfluence.core.mixins.config import ConfigMixin
 
 def _get_cfif_variable_attributes() -> Dict[str, Dict[str, str]]:
     """Lazy load CFIF variable attributes to avoid circular imports."""
-    from symfluence.data.preprocessing.cfif.variables import CFIF_VARIABLES
+    from symfluence.core.modeling.cfif.variables import CFIF_VARIABLES
     return {
         name: {
             'units': attrs['units'],

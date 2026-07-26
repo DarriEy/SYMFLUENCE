@@ -40,10 +40,19 @@ extras for optional feature sets:
 
    pip install "symfluence[ml]"    # PyTorch stack: LSTM and GNN models, dCoupler differentiable coupling
    pip install "symfluence[jax]"   # JAX conceptual models (Snow-17, SAC-SMA, HBV, ...) and autodiff calibration
+   pip install "symfluence[sensitivity]" # Sobol and RBD-FAST sensitivity methods
+   pip install "symfluence[conus404]" # HyTEST Intake catalog access for CONUS404
    pip install "symfluence[gdal]"  # GDAL Python bindings (a system GDAL install is auto-detected otherwise)
 
 Without ``[ml]``, selecting ``HYDROLOGICAL_MODEL: LSTM`` or ``GNN`` fails with
 an actionable install hint; everything else works.
+
+.. warning::
+
+   The optional ``[conus404]`` catalog stack currently includes ``intake``,
+   which is affected by CVE-2026-33310 with no fixed upstream release. It is
+   intentionally excluded from the default installation and runtime security
+   audit until a fixed version is available.
 
 **Option 2: npm (bundled pre-built binaries)**
 
@@ -96,9 +105,8 @@ If you prefer to manage the environment yourself:
 
 .. code-block:: bash
 
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -e .
+   uv sync --locked --extra dev-all
+   uv run symfluence --help
 
 System Prerequisites
 --------------------

@@ -183,7 +183,7 @@ class WATFLOODPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # renaming aliases like pptrate/airtemp — and records the real timestep
         # on ds.attrs so precip integrates over the ACTUAL step (e.g. 3-hourly
         # CARRA) rather than a hardcoded hour.
-        from symfluence.data.model_ready.forcing_reader import (
+        from symfluence.core.modeling.model_ready.forcing_reader import (
             forcing_timestep_seconds,
             open_canonical_forcing,
         )

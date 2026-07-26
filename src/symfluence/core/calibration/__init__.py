@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.core.calibration.parameters import BaseParameterManager, ParameterBoundsRegistry
+from symfluence.core.calibration.targets import create_calibration_target, resolve_calibration_target
 from symfluence.core.calibration.workers import (
     BaseWorker,
     InMemoryModelWorker,
@@ -30,7 +31,9 @@ from symfluence.core.calibration.workers import (
 __all__ = [
     'BaseModelOptimizer',
     'BaseParameterManager',
+    'create_calibration_target',
     'ParameterBoundsRegistry',
+    'resolve_calibration_target',
     'BaseWorker',
     'InMemoryModelWorker',
     'WorkerResult',

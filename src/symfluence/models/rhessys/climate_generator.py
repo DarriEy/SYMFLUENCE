@@ -24,7 +24,7 @@ import xarray as xr
 
 from symfluence.core.exceptions import FileOperationError
 from symfluence.core.mixins.project import resolve_data_subdir, resolve_forcing_basin_path
-from symfluence.data.utils.variable_utils import VariableHandler
+from symfluence.core.modeling.variable_utils import VariableHandler
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +303,7 @@ class RHESSysClimateGenerator:
 
         self.logger.info(f"Loading forcing from {len(forcing_files)} files")
 
-        from symfluence.data.model_ready.forcing_reader import (
+        from symfluence.core.modeling.model_ready.forcing_reader import (
             open_canonical_forcing,
             resample_canonical_forcing,
         )

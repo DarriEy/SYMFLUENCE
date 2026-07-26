@@ -193,7 +193,7 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # Canonical model-ready forcing: variables under the canonical vocabulary
         # (pptrate kg m-2 s-1, airtemp K) with the timestep on
         # ds.attrs['timestep_seconds'] -- no per-model alias lists or hardcoded step.
-        from symfluence.data.model_ready.forcing_reader import (
+        from symfluence.core.modeling.model_ready.forcing_reader import (
             forcing_timestep_seconds,
             open_canonical_forcing,
         )

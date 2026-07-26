@@ -97,7 +97,7 @@ class CoupledGWWorker(BaseWorker):
             return False
         # Auto-detect
         try:
-            from symfluence.coupling import is_dcoupler_available
+            from symfluence.core.modeling.coupling import is_dcoupler_available
             return is_dcoupler_available()
         except ImportError:
             return False
@@ -228,9 +228,7 @@ class CoupledGWWorker(BaseWorker):
     ) -> bool:
         """Run coupled models via dCoupler CouplingGraph."""
         try:
-            from symfluence.coupling.graph_builder import CouplingGraphBuilder
-
-            builder = CouplingGraphBuilder()
+            from symfluence.core.modeling.coupling import build_coupling_graph
             # Graph builder reads HYDROLOGICAL_MODEL for the land component,
             # so override it with the actual land surface model name.
             # Also remove ROUTING_MODEL if set to 'none' so the graph builder
@@ -241,7 +239,7 @@ class CoupledGWWorker(BaseWorker):
             routing = str(graph_config.get('ROUTING_MODEL', '')).upper()
             if routing in ('NONE', 'N/A', ''):
                 graph_config.pop('ROUTING_MODEL', None)
-            graph = builder.build(graph_config)
+            graph = build_coupling_graph(graph_config)
 
             outputs = graph.forward(
                 external_inputs={},

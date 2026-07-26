@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.modeling.model_ready.cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 
-from .cf_conventions import CF_STANDARD_NAMES, build_global_attrs
 from .source_metadata import SourceMetadata
 
 if TYPE_CHECKING:
