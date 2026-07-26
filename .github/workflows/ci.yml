@@ -141,6 +141,11 @@ jobs:
       - name: Install Python dependencies
         run: |
           uv sync --locked --extra test --extra gui
+          # On x86_64 Linux, h5py 3.15 and netCDF4 wheels both bundle HDF5
+          # 1.14 with unversioned globals. Loading both corrupts dimension-scale
+          # state. h5py 3.16 bundles HDF5 2.0, keeping the private symbols
+          # isolated. ARM wheels require the opposite pin; this matrix is x64.
+          uv pip install --reinstall --only-binary :all: 'h5py>=3.16' netCDF4
           if command -v gdal-config >/dev/null 2>&1; then
             GDAL_VERSION=$(gdal-config --version)
             uv pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"

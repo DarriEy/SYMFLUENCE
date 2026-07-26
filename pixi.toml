@@ -15,6 +15,7 @@ hdf5 = ">=1.14"
 h5py = "*"
 netcdf4 = ">=1.6,<2"
 h5netcdf = ">=1.1,<2"
+zarr = ">=2.18,<4"
 
 # Geospatial — upper bounds match pyproject.toml to avoid conda↔PyPI conflicts
 gdal = "*"

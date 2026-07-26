@@ -48,6 +48,7 @@ dependencies = [
   "gcsfs>=2023.0.0",
   "netCDF4>=1.6.0,<2.0.0",
   "h5netcdf>=1.1.0,<2.0.0",
+  "zarr>=2.18.0,<4.0.0",
   # DAP2 client for NASA Hyrax OPeNDAP endpoints (gridded Daymet). The
   # libnetcdf DAP route cannot authenticate via Earthdata sessions and the
   # Hyrax deployment rejects plain DAP4 constraints, so pydap is required.
