@@ -19,6 +19,26 @@ def pytest_collection_modifyitems(items):
         if "unit" not in {m.name for m in item.iter_markers()}:
             item.add_marker(unit_marker)
 
+
+@pytest.fixture(autouse=True)
+def _isolate_npm_bundle(monkeypatch, tmp_path):
+    """Keep executable resolution off any real ``npm install -g symfluence``.
+
+    ``get_model_executable`` falls back to the npm bundle when the source
+    install is absent (#156 G6), and ``npm_bundle_bin()`` finds it via
+    ``npm root -g`` whenever ``SYMFLUENCE_NPM_DIST_BIN`` is unset. On a
+    developer machine that has the npm package installed, that fallback reaches
+    a real ``dist/bin`` full of real binaries, so a test asserting "this
+    executable is missing" resolves one instead — passing in CI and failing
+    locally. Pointing the override at a path that does not exist makes
+    ``npm_bundle_bin()`` return None (its documented contract for a
+    non-directory override) and also spares every such test the ``npm root -g``
+    subprocess. Tests that exercise the fallback set the variable themselves in
+    the test body, which runs after this fixture and wins.
+    """
+    monkeypatch.setenv("SYMFLUENCE_NPM_DIST_BIN", str(tmp_path / "no-npm-bundle"))
+
+
 # ============================================================================
 # Common Mock Fixtures
 # ============================================================================
