@@ -509,7 +509,7 @@ class RemappingWeightApplier(ConfigMixin):
         # Namespace the remapped forcing by the run's spatial discretization
         # (issue #339) — see the twin in resampling/file_processor.py. Both
         # builders must agree, so both go through discretization_token().
-        from symfluence.data.model_ready.forcing_reader import discretization_token
+        from symfluence.core.modeling.forcing_naming import discretization_token
         disc = self._get_config_value(
             lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')
         token = discretization_token(disc)

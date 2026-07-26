@@ -44,13 +44,23 @@ def _reset_module_state(monkeypatch):
 
 @pytest.fixture
 def fake_r_home(tmp_path, monkeypatch):
-    """A minimal Windows R installation tree."""
+    """A minimal Windows R installation tree, pinned as the only candidate.
+
+    Tests of the Windows path fake ``sys.platform``, and the real
+    ``_candidate_r_homes()`` probes ``shutil.which()`` — which reads the *true*
+    platform and, from Python 3.12, dereferences ``_winapi`` (``None`` off
+    Windows) once it believes it is on win32. Pinning the candidate list keeps
+    those tests on their actual subject (PATH handling) instead of the host
+    interpreter's version. ``_candidate_r_homes`` itself is covered natively by
+    :class:`TestCandidateRHomes`.
+    """
     r_home = tmp_path / "R-4.6.1"
     bin_dir = r_home / "bin" / "x64"
     bin_dir.mkdir(parents=True)
     (bin_dir / "R.dll").write_bytes(b"MZ")
     (bin_dir / "Rlapack.dll").write_bytes(b"MZ")
     monkeypatch.setenv("R_HOME", str(r_home))
+    monkeypatch.setattr(r_environment, "_candidate_r_homes", lambda: [r_home])
     return r_home, bin_dir
 
 
@@ -125,6 +135,28 @@ class TestConfigureRDllSearch:
 
 def _unreachable():
     raise AssertionError("detection should not run twice")
+
+
+class TestCandidateRHomes:
+    """Candidate discovery, exercised on the host's real platform.
+
+    These deliberately do not fake ``sys.platform``: ``_candidate_r_homes``
+    calls ``shutil.which()``, whose behaviour is defined by the true platform.
+    """
+
+    def test_env_r_home_is_the_first_candidate(self, monkeypatch, tmp_path):
+        """An explicit R_HOME outranks anything discovered on PATH."""
+        r_home = tmp_path / "R-4.6.1"
+        r_home.mkdir()
+        monkeypatch.setenv("R_HOME", str(r_home))
+
+        assert r_environment._candidate_r_homes()[0] == r_home
+
+    def test_no_env_r_home_still_returns_a_list(self, monkeypatch):
+        """Without R_HOME the probe degrades to whatever PATH offers, never raising."""
+        monkeypatch.delenv("R_HOME", raising=False)
+
+        assert isinstance(r_environment._candidate_r_homes(), list)
 
 
 class TestEnsureAirgrAvailable:

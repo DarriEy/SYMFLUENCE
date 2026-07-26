@@ -19,7 +19,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.mixins.logging import _class_logger_name
-from symfluence.core.modeling.forcing_selection import select_forcing_files
+from symfluence.core.modeling.forcing_naming import select_forcing_files
 
 logger = logging.getLogger(__name__)
 

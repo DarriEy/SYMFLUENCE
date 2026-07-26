@@ -91,15 +91,26 @@ jobs:
           # Run mypy on source directory
           mypy src/symfluence
 
-  # Fast unit-test gate (ubuntu/3.11). The full OS matrix lives in
+  # Fast unit-test gate (ubuntu). The full OS matrix lives in
   # cross-platform.yml (develop/nightly/release); this keeps PRs quick while
   # still gating on tests + coverage.
+  #
+  # The interpreter matrix is here rather than in cross-platform.yml because a
+  # version-specific break must fail the PR, not develop: three tests faking
+  # sys.platform='win32' sat broken on 3.12 for as long as CI only ran 3.11,
+  # because stdlib shutil.which grew a _winapi call on that branch in 3.12.
+  # The legs run in parallel, so covering the declared range costs runner
+  # minutes, not wall-clock. Keep in step with requires-python in pyproject.toml.
   unit-tests:
-    name: Unit Tests (ubuntu, Python 3.11)
+    name: Unit Tests (ubuntu, Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     # The `-m "unit" -n auto` suite runs right up against 20 min on slower
     # runners (intermittent timeout-cancellations); 30 gives headroom.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
     steps:
       - name: Free up disk space
         run: |
@@ -111,10 +122,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install uv
@@ -145,6 +156,9 @@ jobs:
         # Single shared definition (scope, omits, threshold rationale) lives in
         # scripts/check_core_coverage.py — never inline this command; the
         # duplicated copies in ci.yml and cross-platform.yml once drifted.
+        # Coverage is a property of the codebase, not of the interpreter, so it
+        # is gated once rather than per matrix leg.
+        if: matrix.python-version == '3.11'
         run: uv run --no-sync python scripts/check_core_coverage.py
 
       - name: Package import smoke test
@@ -170,6 +184,9 @@ jobs:
 
       - name: CLI performance regression tests
         # Lazy-import guard: fails if a heavy dependency creeps into CLI
-        # startup. Serial (-n 0) so subprocess wall-clock timings are stable.
+        # startup. Serial (-n 0) so subprocess wall-clock timings are stable —
+        # and on one leg only, so a second interpreter's startup characteristics
+        # cannot turn a wall-clock threshold into a coin flip.
+        if: matrix.python-version == '3.11'
         run: |
           uv run --no-sync pytest --timeout=300 -m performance -n 0 tests/performance/

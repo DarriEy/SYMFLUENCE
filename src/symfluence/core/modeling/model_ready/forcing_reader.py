@@ -22,22 +22,23 @@ from typing import List, Union
 import numpy as np
 import xarray as xr
 
-from symfluence.core.modeling.forcing_selection import (
-    discretization_key_from_name as _discretization_key_from_name,
+from symfluence.core.modeling.forcing_naming import (
+    discretization_key_from_name,
 )
-from symfluence.core.modeling.forcing_selection import (
+from symfluence.core.modeling.forcing_naming import (
     discretization_token as discretization_token,
 )
-from symfluence.core.modeling.forcing_selection import (
+from symfluence.core.modeling.forcing_naming import (
     forcing_name_matches_discretization as forcing_name_matches_discretization,
 )
-from symfluence.core.modeling.forcing_selection import (
+from symfluence.core.modeling.forcing_naming import (
     select_forcing_files as select_forcing_files,
 )
 
 from .cf_conventions import CANONICAL_FORCING
 
 logger = logging.getLogger(__name__)
+_discretization_key_from_name = discretization_key_from_name
 
 # Deltas within this tolerance (seconds) of each other count as one cadence.
 _CADENCE_TOLERANCE_S = 1.0
