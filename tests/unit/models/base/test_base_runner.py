@@ -1000,10 +1000,6 @@ class TestNpmExecutableFallback:
     runner must fall back to the npm bundle so workflows run on npm-only installs.
     """
 
-    @pytest.fixture(autouse=True)
-    def _clear_npm_env(self, monkeypatch):
-        monkeypatch.delenv("SYMFLUENCE_NPM_DIST_BIN", raising=False)
-
     def test_source_install_preferred_over_npm(self, runner, temp_dir, monkeypatch):
         """When the source-install exe exists, the npm bundle is not consulted."""
         src = temp_dir / "data" / "installs" / "summa" / "bin"
@@ -1126,10 +1122,6 @@ class TestWindowsExeSuffixFallback:
     this fix the runtime resolver did not, so a GSFLOW that had built
     perfectly well was reported as "Model executable not found".
     """
-
-    @pytest.fixture(autouse=True)
-    def _clear_npm_env(self, monkeypatch):
-        monkeypatch.delenv("SYMFLUENCE_NPM_DIST_BIN", raising=False)
 
     @pytest.fixture
     def _as_windows(self, monkeypatch):
