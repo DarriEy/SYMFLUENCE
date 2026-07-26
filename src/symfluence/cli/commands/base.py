@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional
 from symfluence.core.exceptions import (
     ConfigurationError,
     ModelExecutionError,
+    OptionalDependencyError,
     SYMFLUENCEError,
 )
 
@@ -50,6 +51,9 @@ def cli_exception_handler(func: Callable[..., int]) -> Callable[..., int]:
     def wrapper(args: Namespace) -> int:
         try:
             return func(args)
+        except OptionalDependencyError as e:
+            from ..optional_dependencies import handle_optional_dependency
+            return handle_optional_dependency(e, BaseCommand._console)
         except ConfigurationError as e:
             BaseCommand._console.error(f"Configuration error: {e}")
             if getattr(args, 'debug', False):
@@ -113,6 +117,10 @@ def cli_exception_handler_with_profiling(func: Callable[..., int]) -> Callable[.
 
             exit_code = func(args)
             return exit_code
+
+        except OptionalDependencyError as e:
+            from ..optional_dependencies import handle_optional_dependency
+            exit_code = handle_optional_dependency(e, BaseCommand._console)
 
         except ConfigurationError as e:
             BaseCommand._console.error(f"Configuration error: {e}")

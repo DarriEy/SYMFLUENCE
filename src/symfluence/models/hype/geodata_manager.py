@@ -513,7 +513,7 @@ class HYPEGeoDataManager:
         same intersection shapefiles the CSV/shapefile fallback reads.
         """
         try:
-            from symfluence.data.model_ready import open_canonical_attributes
+            from symfluence.core.modeling.model_ready import open_canonical_attributes
 
             data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
             domain = self.config.get('DOMAIN_NAME')

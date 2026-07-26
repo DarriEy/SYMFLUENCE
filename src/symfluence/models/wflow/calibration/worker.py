@@ -14,9 +14,9 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 
 
 @R.workers.add('WFLOW')

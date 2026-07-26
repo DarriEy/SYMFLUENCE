@@ -15,9 +15,9 @@ from typing import Any, Dict, Optional
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.logging_utils import get_worker_logger
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -420,7 +420,7 @@ class SUMMAWorker(BaseWorker):
         LaMAH-Ice gauge observations.
         """
         try:
-            from symfluence.optimization.multi_gauge.metrics import MultiGaugeMetrics
+            from symfluence.core.calibration.multi_gauge.metrics import MultiGaugeMetrics
 
             gauge_mapping_path = config.get('GAUGE_SEGMENT_MAPPING')
             obs_dir = config.get('MULTI_GAUGE_OBS_DIR')
@@ -534,7 +534,7 @@ class SUMMAWorker(BaseWorker):
 
         domain_name = config.get('DOMAIN_NAME', '')
         try:
-            from symfluence.optimization.multi_gauge.gauge_mapping import ensure_gauge_mapping
+            from symfluence.core.calibration.multi_gauge.gauge_mapping import ensure_gauge_mapping
             return ensure_gauge_mapping(
                 project_dir, lamah_path, domain_name,
                 output_subdir='mizuRoute',

@@ -375,6 +375,36 @@ class TestPluginDiscovery:
         _bootstrap._discover_plugins()
         called.assert_called_once()
 
+    def test_discover_declines_incompatible_plugin_before_call(self, monkeypatch, caplog):
+        """Contract skew is rejected before a plugin mutates registries."""
+        import importlib.metadata
+        import logging as _logging
+        from unittest.mock import MagicMock
+
+        from symfluence.core import _bootstrap
+        from symfluence.core.contracts import plugin_contracts
+
+        called = MagicMock()
+        incompatible = plugin_contracts(models="0.99.0")(called)
+
+        class _FakeEP:
+            name = "future_model_plugin"
+            value = "future_package:register"
+
+            def load(self):
+                return incompatible
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", lambda group: [_FakeEP()])
+        with caplog.at_level(_logging.WARNING, logger="symfluence.core._bootstrap"):
+            _bootstrap._discover_plugins()
+
+        called.assert_not_called()
+        assert any(
+            "incompatible SYMFLUENCE contract" in record.getMessage()
+            and "Registration was not attempted" in record.getMessage()
+            for record in caplog.records
+        )
+
     def test_broken_plugin_does_not_raise(self, monkeypatch):
         """A plugin that raises is logged and skipped, not propagated."""
         from symfluence.core import _bootstrap

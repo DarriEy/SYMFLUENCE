@@ -4,7 +4,7 @@
 """FUSE ParameterTransferManager.
 
 Transfer function base classes have moved to:
-    symfluence.optimization.regionalization.transfer_functions
+    symfluence.core.calibration.regionalization.transfer_functions
 """
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from symfluence.models.fuse.calibration.parameter_regionalization import (
-    FUSE_DEFAULT_PARAM_CONFIG,
-)
-from symfluence.optimization.regionalization.transfer_functions import (
+from symfluence.core.calibration.regionalization.transfer_functions import (
     FlexiblePowerTF,
     TransferFunction,
+)
+from symfluence.models.fuse.calibration.parameter_regionalization import (
+    FUSE_DEFAULT_PARAM_CONFIG,
 )
 
 

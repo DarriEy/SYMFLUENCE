@@ -16,12 +16,12 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
-from symfluence.core.process_exec import run as run_subprocess
-from symfluence.core.registries import R
-from symfluence.data.model_ready.forcing_reader import (
+from symfluence.core.modeling.model_ready.forcing_reader import (
     forcing_timestep_seconds,
     open_canonical_forcing,
 )
+from symfluence.core.process_exec import run as run_subprocess
+from symfluence.core.registries import R
 
 _OPENDAP_BASE = (
     "https://opendap.4tu.nl/thredds/dodsC/data2/"

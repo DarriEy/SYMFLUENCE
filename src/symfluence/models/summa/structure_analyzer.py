@@ -22,7 +22,7 @@ import xarray as xr
 
 from symfluence.core.exceptions import ConfigValidationError, FileOperationError, ModelExecutionError
 from symfluence.core.metrics import kge, kge_prime, mae, nse, rmse
-from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
+from symfluence.core.modeling.structure_ensemble import BaseStructureEnsembleAnalyzer
 
 # Import MizuRouteRunner at module level for test mocking,
 # but still use lazy loading in the property to avoid circular imports
@@ -183,7 +183,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
     def _calculate_evaluator_metrics(self, opt_target: str) -> Dict[str, float]:
         """Delegate metric calculation to the appropriate evaluator."""
-        from symfluence.evaluation.registry import EvaluationRegistry
+        from symfluence.core.modeling.evaluation_registry import EvaluationRegistry
 
         target_to_family = {
             'swe': 'SNOW', 'sca': 'SNOW', 'snow_depth': 'SNOW', 'snow': 'SNOW',

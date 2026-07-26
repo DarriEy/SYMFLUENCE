@@ -14,7 +14,7 @@ from typing import Optional
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.reporting.base_plotter import BasePlotter
 
 
 @R.plotters.add('LSTM')
@@ -53,7 +53,7 @@ class LSTMPlotter(BasePlotter):
         plt, _ = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec
 
-        from symfluence.reporting.core.plot_utils import calculate_metrics
+        from symfluence.core.reporting.plot_utils import calculate_metrics
 
         try:
             sim_dates, sim_q = results_df.index, results_df['predicted_streamflow']

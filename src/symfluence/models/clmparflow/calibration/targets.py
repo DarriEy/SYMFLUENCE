@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.modeling.evaluators.streamflow import StreamflowEvaluator
 from symfluence.core.registries import R
-from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
 
 # Reuse ParFlow's linear reservoir routing function
 from symfluence.models.parflow.calibration.targets import _linear_reservoir_routing

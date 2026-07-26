@@ -17,6 +17,7 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.core.exceptions import DataAcquisitionError, symfluence_error_handler
+from symfluence.core.modeling.variable_utils import VariableHandler
 from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.core.registries import R
 from symfluence.data.acquisition.acquisition_service import AcquisitionService
@@ -24,7 +25,6 @@ from symfluence.data.acquisition.observed_processor import ObservedDataProcessor
 from symfluence.data.preprocessing.em_earth_integrator import EMEarthIntegrator
 from symfluence.data.preprocessing.forcing_resampler import ForcingResampler
 from symfluence.data.preprocessing.geospatial_statistics import GeospatialStatistics
-from symfluence.data.utils.variable_utils import VariableHandler
 
 if TYPE_CHECKING:
     pass
@@ -199,7 +199,7 @@ class DataManager(BaseManager):
             if not domain_name or not data_dir:
                 return
             project_dir = Path(data_dir) / f"domain_{domain_name}"
-            from symfluence.optimization.multi_gauge.gauge_mapping import (
+            from symfluence.core.calibration.multi_gauge.gauge_mapping import (
                 ensure_gauge_mapping,
             )
             ensure_gauge_mapping(

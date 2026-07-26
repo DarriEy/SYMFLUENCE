@@ -845,7 +845,7 @@ class SummaAttributesManager(ConfigurableMixin):
         back to the DEM intersection shapefile.
         """
         try:
-            from symfluence.data.model_ready import open_canonical_attributes
+            from symfluence.core.modeling.model_ready import open_canonical_attributes
 
             domain_name = self.project_dir.name.replace('domain_', '', 1)
             reader = open_canonical_attributes(self.project_dir, domain_name)
@@ -887,7 +887,7 @@ class SummaAttributesManager(ConfigurableMixin):
         shapefile, so the dominant-class selection is identical.
         """
         try:
-            from symfluence.data.model_ready import open_canonical_attributes
+            from symfluence.core.modeling.model_ready import open_canonical_attributes
 
             domain_name = self.project_dir.name.replace('domain_', '', 1)
             reader = open_canonical_attributes(self.project_dir, domain_name)

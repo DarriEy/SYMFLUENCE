@@ -121,8 +121,8 @@ class FUSEParameterManager(BaseParameterManager):
 
         import pandas as pd
 
+        from symfluence.core.calibration.regionalization.strategies import RegionalizationFactory
         from symfluence.models.fuse.calibration.parameter_regionalization import FUSE_DEFAULT_PARAM_CONFIG
-        from symfluence.optimization.regionalization.strategies import RegionalizationFactory
 
         raw_bounds = self._get_raw_fuse_bounds()
         tuple_bounds: Dict[str, Tuple[float, float]] = {}

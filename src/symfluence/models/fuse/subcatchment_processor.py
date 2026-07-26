@@ -28,9 +28,9 @@ import xarray as xr
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins.config import ConfigMixin
 from symfluence.core.mixins.project import resolve_data_subdir
+from symfluence.core.modeling.netcdf_utils import create_netcdf_encoding
 from symfluence.core.path_resolver import find_basin_shapefile, find_catchment_subfile
 from symfluence.core.process_exec import run as run_subprocess
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

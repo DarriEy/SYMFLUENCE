@@ -6,7 +6,7 @@ Multi-gauge calibration metrics for distributed FUSE + mizuRoute.
 
 This module re-exports :class:`MultiGaugeMetrics` and
 :func:`create_multi_gauge_config` from their canonical shared location
-at :mod:`symfluence.optimization.multi_gauge.metrics` for backward
+at :mod:`symfluence.core.calibration.multi_gauge.metrics` for backward
 compatibility. New code should import directly from the shared module.
 
 The FUSE-specific :func:`ensure_gauge_segment_mapping` helper remains
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 # Re-export shared multi-gauge utilities for backward compatibility
-from symfluence.optimization.multi_gauge.metrics import (  # noqa: F401
+from symfluence.core.calibration.multi_gauge.metrics import (  # noqa: F401
     MultiGaugeMetrics,
     create_multi_gauge_config,
 )
@@ -37,9 +37,9 @@ def ensure_gauge_segment_mapping(
     against the domain's mizuRoute river-basin polygons. Returns the canonical
     path on success; None if either input shapefile is unavailable.
 
-    Delegates to :func:`symfluence.optimization.multi_gauge.gauge_mapping.ensure_gauge_mapping`.
+    Delegates to :func:`symfluence.core.calibration.multi_gauge.gauge_mapping.ensure_gauge_mapping`.
     """
-    from symfluence.optimization.multi_gauge.gauge_mapping import ensure_gauge_mapping
+    from symfluence.core.calibration.multi_gauge.gauge_mapping import ensure_gauge_mapping
 
     return ensure_gauge_mapping(
         project_dir,

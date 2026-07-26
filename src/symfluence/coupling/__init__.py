@@ -14,22 +14,9 @@ from __future__ import annotations
 
 import logging
 
+from symfluence.core.modeling.coupling import INSTALL_SUGGESTION, is_dcoupler_available
+
 logger = logging.getLogger(__name__)
-
-INSTALL_SUGGESTION = (
-    "dCoupler not installed. For unified graph-based model coupling with "
-    "conservation checking and differentiable connections, install with: "
-    "pip install dcoupler"
-)
-
-
-def is_dcoupler_available() -> bool:
-    """Check if dCoupler is installed and importable."""
-    try:
-        import dcoupler  # noqa: F401
-        return True
-    except ImportError:
-        return False
 
 
 __all__ = ["is_dcoupler_available", "INSTALL_SUGGESTION"]

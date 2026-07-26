@@ -13,7 +13,6 @@ import os
 import time
 from pathlib import Path
 
-import intake
 import numpy as np
 from aiohttp.client_exceptions import ClientError, ClientPayloadError
 
@@ -21,6 +20,11 @@ from symfluence.core.registries import R
 
 from ...utils import VariableStandardizer, create_spatial_mask, find_nearest_grid_point, get_bbox_center
 from ..base import BaseAcquisitionHandler
+
+try:
+    import intake
+except ImportError:  # optional CONUS404 catalog dependency
+    intake = None
 
 
 def _load_with_retry(dataset, logger, max_retries=5, initial_delay=5):
@@ -188,6 +192,11 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
             - data.utils.create_spatial_mask: Bounding box masking utility
             - data.preprocessing.dataset_handlers.conus404_utils: Variable processing
         """
+        if intake is None:
+            from symfluence.core.exceptions import OptionalDependencyError
+            raise OptionalDependencyError(
+                "CONUS404 acquisition", "conus404", dependency="intake-xarray"
+            )
         self.logger.info("Downloading CONUS404 data")
 
         # Configure fsspec/s3fs with better timeout and retry settings

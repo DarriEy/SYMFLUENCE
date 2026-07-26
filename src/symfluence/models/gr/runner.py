@@ -27,9 +27,9 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 from symfluence.core.modeling.base import BaseModelRunner
 from symfluence.core.modeling.execution import SpatialOrchestrator
 from symfluence.core.modeling.mixins import OutputConverterMixin, SpatialModeDetectionMixin
+from symfluence.core.modeling.netcdf_utils import create_netcdf_encoding
 from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.registries import R
-from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from .r_environment import (

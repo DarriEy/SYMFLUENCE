@@ -282,7 +282,7 @@ class CLMParFlowPreProcessor(BaseModelPreProcessor):
             return None
 
         try:
-            from symfluence.data.model_ready.forcing_reader import (
+            from symfluence.core.modeling.model_ready.forcing_reader import (
                 open_canonical_forcing,
                 resample_canonical_forcing,
             )

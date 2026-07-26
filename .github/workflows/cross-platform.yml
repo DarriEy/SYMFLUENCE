@@ -110,10 +110,8 @@ jobs:
             pip install torch --index-url https://download.pytorch.org/whl/cpu
           fi
 
-          # Install package from pyproject.toml (source of truth for dependencies)
-          # Install with test dependencies for pytest; gui+baseflow extras so the
-          # optional-feature unit tests run here instead of skipping.
-          pip install -e ".[test,gui,baseflow]"
+          # Install package from pyproject.toml (source of truth for dependencies).
+          pip install -e ".[test,gui]"
 
           # Install pytest-xdist for parallel test execution
           pip install pytest-xdist

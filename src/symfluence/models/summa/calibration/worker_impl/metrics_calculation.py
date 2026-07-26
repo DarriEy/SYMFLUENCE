@@ -224,15 +224,7 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
     try:
         from pathlib import Path as PathType
 
-        from symfluence.optimization.calibration_targets import (
-            ETTarget,
-            GroundwaterTarget,
-            MultivariateTarget,
-            SnowTarget,
-            SoilMoistureTarget,
-            StreamflowTarget,
-            TWSTarget,
-        )
+        from symfluence.core.calibration.targets import create_calibration_target
 
         # Use provided project_dir, or reconstruct from config if not provided
         if project_dir is None:
@@ -249,26 +241,17 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
         logger.debug(f"[METRICS_CALC] CALIBRATION_VARIABLE in config: {config.get('CALIBRATION_VARIABLE')}")
         logger.debug(f"Creating calibration target for: {optimization_target}")
 
-        # Create the appropriate calibration target
-        if optimization_target in ['streamflow', 'flow', 'discharge']:
-            target = StreamflowTarget(config, project_dir, logger)
-        elif optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
-            target = SnowTarget(config, project_dir, logger)
-        elif optimization_target in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
-            target = GroundwaterTarget(config, project_dir, logger)
-        elif optimization_target in ['et', 'latent_heat', 'evapotranspiration']:
-            target = ETTarget(config, project_dir, logger)
-        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
-            target = SoilMoistureTarget(config, project_dir, logger)
-        elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage','stor_grace','stor_mb']:
-            target = TWSTarget(config, project_dir, logger)
-        elif optimization_target == 'multivariate':
-            target = MultivariateTarget(config, project_dir, logger)
-        else:
-            # Default to streamflow
+        known_targets = {
+            'streamflow', 'flow', 'discharge', 'swe', 'sca', 'snow_depth', 'snow',
+            'gw_depth', 'gw_grace', 'groundwater', 'gw', 'et', 'latent_heat',
+            'evapotranspiration', 'sm_point', 'sm_smap', 'sm_esa', 'sm_ismn',
+            'soil_moisture', 'sm', 'tws', 'grace', 'grace_tws', 'total_storage',
+            'stor_grace', 'stor_mb', 'multivariate',
+        }
+        if optimization_target not in known_targets:
             log_once(logger, logging.WARNING, key=f'unknown-opt-target-{optimization_target}',
                      message=f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
-            target = StreamflowTarget(config, project_dir, logger)
+        target = create_calibration_target(optimization_target, config, project_dir, logger)
 
         # Validate mizuRoute output exists when routing is required for streamflow
         if optimization_target in ['streamflow', 'flow', 'discharge']:
@@ -768,14 +751,7 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
     """
     from pathlib import Path
 
-    from symfluence.optimization.calibration_targets import (
-        ETTarget,
-        GroundwaterTarget,
-        SnowTarget,
-        SoilMoistureTarget,
-        StreamflowTarget,
-        TWSTarget,
-    )
+    from symfluence.core.calibration.targets import create_calibration_target
 
     # Convert to Path objects for safety
     summa_dir = Path(summa_dir)
@@ -785,23 +761,7 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
 
     def create_target(target_type: str):
         """Create calibration target by type name."""
-        target_type = target_type.lower()
-
-        if target_type in ['streamflow', 'flow', 'discharge']:
-            return StreamflowTarget(config, project_path, logger)
-        elif target_type in ['swe', 'sca', 'snow_depth', 'snow']:
-            return SnowTarget(config, project_path, logger)
-        elif target_type in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
-            return GroundwaterTarget(config, project_path, logger)
-        elif target_type in ['et', 'latent_heat', 'evapotranspiration']:
-            return ETTarget(config, project_path, logger)
-        elif target_type in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
-            return SoilMoistureTarget(config, project_path, logger)
-        elif target_type in ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']:
-            return TWSTarget(config, project_path, logger)
-        else:
-            # Default to streamflow
-            return StreamflowTarget(config, project_path, logger)
+        return create_calibration_target(target_type, config, project_path, logger)
 
     def extract_metric(metrics: Dict, metric_name: str) -> float:
         """Extract specific metric from metrics dictionary."""
@@ -845,7 +805,7 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
 
             # Check if TWSEvaluator's calculate_metrics is being used
             if 'tws' in secondary_target_type.lower() or 'grace' in secondary_target_type.lower() or 'stor_grace' in secondary_target_type.lower():
-                from symfluence.evaluation.evaluators.tws import TWSEvaluator
+                from symfluence.core.modeling.evaluators.tws import TWSEvaluator
                 is_tws = isinstance(secondary_target, TWSEvaluator)
                 logger.debug(f"[MULTI-TARGET DEBUG] Secondary is TWSEvaluator instance: {is_tws}")
                 logger.debug(f"[MULTI-TARGET DEBUG] Secondary MRO: {[c.__name__ for c in type(secondary_target).__mro__]}")

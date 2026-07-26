@@ -430,7 +430,7 @@ class MHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         # back under the canonical vocabulary (pptrate/airtemp/...) with the
         # forcing timestep on ds.attrs['timestep_seconds'] -- no per-model alias
         # lists or timestep guessing.
-        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
+        from symfluence.core.modeling.model_ready.forcing_reader import open_canonical_forcing
         ds = open_canonical_forcing(forcing_files)
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds

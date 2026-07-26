@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from symfluence.optimization.multi_gauge.metrics import (
+from symfluence.core.calibration.multi_gauge.metrics import (
     MultiGaugeMetrics,
 )
 
@@ -125,9 +125,9 @@ def ensure_hype_gauge_mapping(
     spatial join is identical -- HYPE subbasin IDs come from the
     ``GRU_ID`` column of the river-basins shapefile.
 
-    Delegates to :func:`symfluence.optimization.multi_gauge.gauge_mapping.ensure_gauge_mapping`.
+    Delegates to :func:`symfluence.core.calibration.multi_gauge.gauge_mapping.ensure_gauge_mapping`.
     """
-    from symfluence.optimization.multi_gauge.gauge_mapping import ensure_gauge_mapping
+    from symfluence.core.calibration.multi_gauge.gauge_mapping import ensure_gauge_mapping
 
     return ensure_gauge_mapping(
         project_dir,

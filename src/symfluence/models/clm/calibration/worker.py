@@ -24,8 +24,8 @@ import xarray as xr
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.constants import ModelDefaults
 from symfluence.core.logging_utils import log_once
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 
 
 @R.workers.add('CLM')

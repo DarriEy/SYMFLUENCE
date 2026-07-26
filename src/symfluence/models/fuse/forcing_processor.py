@@ -22,8 +22,8 @@ import xarray as xr
 from symfluence.core.exceptions import FileOperationError, ModelExecutionError
 from symfluence.core.modeling.spatial_modes import SpatialMode
 from symfluence.core.modeling.utilities import BaseForcingProcessor, DataQualityHandler, ForcingDataProcessor
+from symfluence.core.modeling.variable_utils import VariableHandler
 from symfluence.core.path_resolver import find_catchment_subfile
-from symfluence.data.utils.variable_utils import VariableHandler
 
 
 class FuseForcingProcessor(BaseForcingProcessor):

@@ -14,7 +14,7 @@ from typing import Optional
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.reporting.base_plotter import BasePlotter
 
 
 @R.plotters.add('HYPE')

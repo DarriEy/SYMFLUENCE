@@ -29,8 +29,8 @@ from symfluence.core.geometry_utils import GeospatialUtilsMixin
 from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.modeling.mixins import DatasetBuilderMixin, PETCalculatorMixin, SpatialModeDetectionMixin
 from symfluence.core.modeling.spatial_modes import SpatialMode
+from symfluence.core.modeling.variable_utils import VariableHandler
 from symfluence.core.registries import R
-from symfluence.data.utils.variable_utils import VariableHandler
 
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor

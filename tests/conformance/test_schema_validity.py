@@ -46,5 +46,5 @@ def test_acquire_output_validates_against_declared_schema(backend, offline_acqui
     assert manifest['schema'] == str(result.schema)
     assert manifest['dataset_id'] == result.dataset_id
     assert manifest['backend'] == result.backend
-    assert manifest['paths'] == [str(p) for p in result.paths]
+    assert [Path(p) for p in manifest['paths']] == [Path(p) for p in result.paths]
     assert manifest['variables_delivered'] == sorted(result.variables_delivered)

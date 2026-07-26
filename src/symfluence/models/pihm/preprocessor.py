@@ -198,7 +198,7 @@ class PIHMPreProcessor(BaseModelPreProcessor):
         except ImportError:
             self.logger.warning("xarray not available; using synthetic forcing data")
             return None
-        from symfluence.data.model_ready.forcing_reader import open_canonical_forcing
+        from symfluence.core.modeling.model_ready.forcing_reader import open_canonical_forcing
 
         if not forcing_files:
             return None

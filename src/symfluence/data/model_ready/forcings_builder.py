@@ -19,12 +19,12 @@ from pathlib import Path
 from typing import Optional
 
 from symfluence.core.mixins.project import resolve_data_subdir
-
-from .cf_conventions import (
+from symfluence.core.modeling.model_ready.cf_conventions import (
     CANONICAL_FORCING_ALIASES,
     CF_STANDARD_NAMES,
     build_global_attrs,
 )
+
 from .source_metadata import SourceMetadata
 
 logger = logging.getLogger(__name__)

@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Core metrics facade exports repaired**: `StreamflowMetrics` and
+  `MetricTransformer`, already part of the documented metrics contract, are
+  now available directly from `symfluence.core.metrics` as intended.
+- **HydroBM remains a default dependency; SALib is now optional**:
+  Sobol and RBD-FAST support is installed with `symfluence[sensitivity]`.
+  Importing the evaluation/analysis manager remains safe without SALib, while
+  invoking either SALib-backed method raises an actionable install message.
+- **Models and calibration contracts advanced to 0.2.0**: the additive model
+  surface now includes canonical forcing-artifact selection and model-output
+  location, canonical model-ready forcing and attribute reads/CF conventions,
+  model-facing NetCDF encoding, shared time-window/dataset-alignment helpers, plus the
+  model-neutral CFIF variable schema and shared forcing variable
+  standardization/unit conversion, evaluator registry resolution, and the
+  structure-ensemble analyzer base; optional coupling is reached through a
+  model-facing capability facade while the graph engine remains in
+  `symfluence.coupling`; generic calibration targets are likewise requested
+  through a model-facing core facade while their implementations remain in
+  the host evaluation/optimization stack; model plotters now subclass and use
+  the core reporting contract while reporting orchestration remains in
+  `symfluence.reporting`; generic evaluator bases and observation-path
+  conventions now form a core model-facing contract while analysis
+  orchestration remains in `symfluence.evaluation`; the calibration surface now
+  includes model-agnostic multi-gauge
+  metrics and gauge mapping, plus parameter regionalization
+  strategies/transfer functions. Old
+  `data`, `evaluation`, and `optimization` import paths remain compatibility
+  shims for downstream packages.
 - **Data handlers are now consumed registry-first everywhere**
   (community-service liftoff prep): the five remaining direct handler
   imports outside `data/` (MODIS-ET and FLUXNET-ET acquisition in the ET

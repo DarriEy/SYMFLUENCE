@@ -8,9 +8,13 @@ import pytest
 
 from symfluence.core.contracts import (
     FAMILY_CONTRACTS,
+    ContractCompatibilityError,
     assert_compatible,
+    assert_plugin_compatible,
     contract_version,
+    declared_plugin_contracts,
     is_compatible,
+    plugin_contracts,
 )
 
 
@@ -33,8 +37,9 @@ def test_acquisition_family_surfaces_existing_constant():
 def test_compatibility_semantics_match_acquisition_contract():
     # pre-1.0: older-or-equal minor accepted, forward skew declined,
     # major mismatch declined — per family, independently.
-    assert is_compatible("models", "0.1.0")
-    assert not is_compatible("models", "0.2.0")  # forward skew
+    assert is_compatible("models", "0.1.0")  # older additive surface
+    assert is_compatible("models", "0.2.0")  # current surface
+    assert not is_compatible("models", "0.3.0")  # forward skew
     assert not is_compatible("models", "1.0.0")  # major mismatch
     assert not is_compatible("no-such-family", "0.1.0")
     assert not is_compatible("models", "not-a-version")
@@ -45,6 +50,48 @@ def test_assert_compatible_message_names_versions():
     assert_compatible("metrics", "0.1.0")  # no raise
     with pytest.raises(RuntimeError, match=r"metrics contract 0\.9\.0.*provides 0\.1\.0"):
         assert_compatible("metrics", "0.9.0")
+
+
+@pytest.mark.unit
+def test_plugin_contract_declaration_is_copied_and_enforced():
+    @plugin_contracts(models="0.1.0", metrics="0.1.0")
+    def register():
+        return None
+
+    assert declared_plugin_contracts(register) == {
+        "models": "0.1.0",
+        "metrics": "0.1.0",
+    }
+    assert_plugin_compatible(register)
+
+
+@pytest.mark.unit
+def test_plugin_contract_declaration_can_live_on_parent_package():
+    import symfluence.models
+    from symfluence.models.summa import register
+
+    targets = declared_plugin_contracts(register)
+    assert targets == symfluence.models.__symfluence_contracts__
+    assert targets["models"] == contract_version("models")
+    assert_plugin_compatible(register)
+
+
+@pytest.mark.unit
+def test_incompatible_plugin_is_rejected_before_registration():
+    @plugin_contracts(models="0.99.0")
+    def register():
+        raise AssertionError("must not be invoked")
+
+    with pytest.raises(ContractCompatibilityError, match=r"models contract 0\.99\.0"):
+        assert_plugin_compatible(register)
+
+
+@pytest.mark.unit
+def test_plugin_contract_decorator_rejects_bad_declarations():
+    with pytest.raises(ValueError, match="unknown SYMFLUENCE contract"):
+        plugin_contracts(unknown="0.1.0")
+    with pytest.raises(ValueError, match="invalid models contract version"):
+        plugin_contracts(models="latest")
 
 
 @pytest.mark.unit

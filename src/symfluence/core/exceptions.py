@@ -24,6 +24,26 @@ class SYMFLUENCEError(Exception):
     pass
 
 
+class OptionalDependencyError(ImportError, SYMFLUENCEError):
+    """A requested feature is unavailable because its extra is not installed.
+
+    This exception is deliberately side-effect free. Applications may use its
+    structured metadata to offer installation, while library callers always
+    retain control of their environment.
+    """
+
+    def __init__(self, feature: str, extra: str, *, dependency: str | None = None):
+        self.feature = feature
+        self.extra = extra
+        self.dependency = dependency
+        self.install_target = f"symfluence[{extra}]"
+        detail = f" (missing: {dependency})" if dependency else ""
+        super().__init__(
+            f"{feature} requires the optional '{extra}' dependencies{detail}. "
+            f'Install them with: pip install "{self.install_target}"'
+        )
+
+
 class ConfigurationError(SYMFLUENCEError):
     """
     Configuration-related errors.
@@ -345,6 +365,7 @@ def symfluence_error_handler(
 __all__ = [
     # Base
     'SYMFLUENCEError',
+    'OptionalDependencyError',
     # Domain exceptions
     'ConfigurationError',
     'ConfigValidationError',

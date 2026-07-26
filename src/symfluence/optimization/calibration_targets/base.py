@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from symfluence.core.modeling.evaluation_registry import EvaluationRegistry
 from symfluence.evaluation.evaluators import ETEvaluator as ETTarget
 from symfluence.evaluation.evaluators import GroundwaterEvaluator as GroundwaterTarget
 from symfluence.evaluation.evaluators import ModelEvaluator as CalibrationTarget
@@ -33,7 +34,6 @@ from symfluence.evaluation.evaluators import SnowEvaluator as SnowTarget
 from symfluence.evaluation.evaluators import SoilMoistureEvaluator as SoilMoistureTarget
 from symfluence.evaluation.evaluators import StreamflowEvaluator as StreamflowTarget
 from symfluence.evaluation.evaluators import TWSEvaluator as TWSTarget
-from symfluence.evaluation.registry import EvaluationRegistry
 
 
 class MultivariateTarget(CalibrationTarget):

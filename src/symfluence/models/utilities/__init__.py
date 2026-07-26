@@ -3,18 +3,13 @@
 
 """Back-compat shim: moved to ``symfluence.core.modeling.utilities``.
 
-Also restores two historical re-exports that now live with the data layer
-(they could not travel to core: core must not import data at module level).
+Historical time-window and dataset-alignment re-exports now resolve through
+their canonical core modeling utilities home.
 """
 from __future__ import annotations
 
 import symfluence.core.modeling.utilities as _impl
 from symfluence.core.modeling.utilities import *  # noqa: F401,F403
-from symfluence.data.preprocessing.dataset_alignment_manager import (  # noqa: F401
-    DatasetAlignmentManager,
-    align_forcing_datasets,
-)
-from symfluence.data.preprocessing.time_window_manager import TimeWindowManager  # noqa: F401
 
 
 def __getattr__(name: str):

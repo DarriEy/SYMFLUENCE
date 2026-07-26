@@ -66,7 +66,7 @@ class MESHForcingProcessor:
         # (lumped hru=1 beside elevation hru=12) does not collide on the
         # by_coords merge below (issue #339). A no-op when the discretization is
         # unknown or unnamespaced (legacy stores), so nothing regresses.
-        from symfluence.data.model_ready.forcing_reader import select_forcing_files
+        from symfluence.core.modeling.forcing_selection import select_forcing_files
         discretization = self.config.get(
             'SUB_GRID_DISCRETIZATION', self.config.get('DOMAIN_DISCRETIZATION'))
         forcing_files = [str(f) for f in select_forcing_files(forcing_files, discretization)]

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from argparse import Namespace
 
+from symfluence.core.exceptions import OptionalDependencyError
+
 from ..exit_codes import ExitCode
 from .base import BaseCommand, cli_exception_handler
 
@@ -34,12 +36,7 @@ class TUICommands(BaseCommand):
         try:
             from symfluence.tui import launch_tui
         except ImportError as exc:
-            BaseCommand._console.error(
-                "TUI dependencies not installed. "
-                'Install them with:  pip install "symfluence[tui]"'
-            )
-            BaseCommand._console.indent(f"({exc})")
-            return ExitCode.DEPENDENCY_ERROR
+            raise OptionalDependencyError("The TUI", "tui", dependency=str(exc)) from exc
 
         config_path = BaseCommand.get_arg(args, 'config', None)
         demo = BaseCommand.get_arg(args, 'demo', None)

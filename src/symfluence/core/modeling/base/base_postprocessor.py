@@ -366,7 +366,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
         experiment, framework version, creation timestamp) directly in the file.
         """
         try:
-            from symfluence.data.model_ready.cf_conventions import (
+            from symfluence.core.modeling.model_ready.cf_conventions import (
                 CF_STANDARD_NAMES,
                 build_global_attrs,
             )

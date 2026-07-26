@@ -15,7 +15,7 @@ import numpy as np
 
 from symfluence.core.path_resolver import find_basin_shapefile
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.reporting.base_plotter import BasePlotter
 
 
 @R.plotters.add('SUMMA')

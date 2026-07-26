@@ -20,10 +20,24 @@ from symfluence.core.modeling.config_schema import (
     get_model_schema,
     register_model_schema,
 )
+from symfluence.core.modeling.coupling import INSTALL_SUGGESTION, build_coupling_graph, is_dcoupler_available
+from symfluence.core.modeling.evaluation_registry import EvaluationRegistry
+from symfluence.core.modeling.netcdf_utils import create_minimal_encoding, create_netcdf_encoding
+from symfluence.core.modeling.structure_ensemble import BaseStructureEnsembleAnalyzer
+from symfluence.core.modeling.variable_utils import VariableHandler, VariableStandardizer
 
 __all__ = [
     'BaseModelRunner',
+    'BaseStructureEnsembleAnalyzer',
+    'EvaluationRegistry',
+    'INSTALL_SUGGESTION',
     'ModelConfigSchema',
     'get_model_schema',
     'register_model_schema',
+    'create_minimal_encoding',
+    'create_netcdf_encoding',
+    'build_coupling_graph',
+    'is_dcoupler_available',
+    'VariableHandler',
+    'VariableStandardizer',
 ]

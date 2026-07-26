@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.calibration.targets import create_calibration_target
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerResult, WorkerTask
 from symfluence.models.gnn import GNNRunner
 
@@ -31,8 +32,8 @@ class GNNWorker(BaseWorker):
             runner = GNNRunner(eval_config, self.logger)
             runner.run_gnn()
 
-            from symfluence.optimization.calibration_targets import StreamflowTarget
-            target = StreamflowTarget(
+            target = create_calibration_target(
+                'streamflow',
                 eval_config,
                 Path(eval_config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{eval_config.get('DOMAIN_NAME')}",
                 self.logger
@@ -75,8 +76,8 @@ class GNNWorker(BaseWorker):
         **kwargs
     ) -> Dict[str, Any]:
         """Calculate metrics for GNN model."""
-        from symfluence.optimization.calibration_targets import StreamflowTarget
-        target = StreamflowTarget(
+        target = create_calibration_target(
+            'streamflow',
             config,
             Path(config.get('SYMFLUENCE_DATA_DIR', '.')) / f"domain_{config.get('DOMAIN_NAME', '')}",
             self.logger

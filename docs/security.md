@@ -93,15 +93,20 @@ should keep a human review between agent output and anything that publishes.
 
 ### 7. Supply chain
 
-- `uv.lock` pins the full PyPI dependency tree with SHA-256 hashes;
-  `pixi.lock` does the same for the conda ecosystem. A substituted upstream
-  package fails at install time rather than being silently pulled in.
+- `pyproject.toml` is the Python dependency source of truth and `uv.lock` pins
+  its full PyPI dependency tree with SHA-256 hashes. `pixi.toml` is reserved
+  for Conda/system-library environments and `pixi.lock` pins that ecosystem.
+  CI installs from the uv lock rather than resolving an unrelated environment.
 - Every source file carries an SPDX license header; `bandit` runs in
   pre-commit and CI alongside ruff/mypy, and a broad-exception guard keeps
   error handling auditable.
 
 ## Residual risks and non-goals
 
+- **CONUS404 catalog access is an explicit opt-in** because its upstream
+  `intake` dependency is affected by CVE-2026-33310 and no fixed release is
+  currently available. The default installation and CI runtime audit exclude
+  it; users who install `symfluence[conus404]` accept that upstream risk.
 - **Untrusted configs are not sandboxed** (see above) — running one is
   equivalent to running a script.
 - **Parser vulnerabilities in scientific libraries** are mitigated by

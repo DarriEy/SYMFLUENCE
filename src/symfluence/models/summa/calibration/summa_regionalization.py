@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.optimization.regionalization.strategies import (
+from symfluence.core.calibration.regionalization.strategies import (
     ParameterRegionalization,
     RegionalizationFactory,
 )

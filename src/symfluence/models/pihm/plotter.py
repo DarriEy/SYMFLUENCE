@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.reporting.core.plot_utils import (
+from symfluence.core.reporting.base_plotter import BasePlotter
+from symfluence.core.reporting.plot_utils import (
     calculate_flow_duration_curve,
 )
 

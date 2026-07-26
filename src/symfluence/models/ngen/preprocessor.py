@@ -25,8 +25,8 @@ import yaml
 from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.modeling.base import BaseModelPreProcessor
 from symfluence.core.modeling.utilities import ForcingDataProcessor
+from symfluence.core.modeling.utilities.time_window_manager import TimeWindowManager
 from symfluence.core.registries import R
-from symfluence.data.preprocessing.time_window_manager import TimeWindowManager
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
 
 
@@ -730,7 +730,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             )
 
         # Normalize legacy SUMMA-style names to CFIF standard at the boundary
-        from symfluence.data.preprocessing.cfif.variables import normalize_to_cfif
+        from symfluence.core.modeling.cfif.variables import normalize_to_cfif
         forcing_data = normalize_to_cfif(forcing_data)
 
         # Convert units to NGEN/AORC standards (K, Pa, kg/m²/s, W/m²)

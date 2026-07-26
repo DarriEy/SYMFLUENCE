@@ -606,7 +606,7 @@ class BaseModelOptimizer(
             # Check if this is a multivariate target
             if hasattr(self.calibration_target, 'variables') and self.calibration_target.variables:
                 # Multivariate calibration: check each variable's observed data
-                from symfluence.evaluation.registry import EvaluationRegistry
+                from symfluence.core.modeling.evaluation_registry import EvaluationRegistry
 
                 all_found = True
                 for var in self.calibration_target.variables:

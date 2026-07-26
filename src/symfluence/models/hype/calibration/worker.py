@@ -16,10 +16,9 @@ import pandas as pd
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.logging_utils import log_once
-from symfluence.core.metrics import kge, nse
+from symfluence.core.metrics import StreamflowMetrics, kge, nse
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
-from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
 
 

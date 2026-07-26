@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from symfluence.core.constants import UnitConversion
-from symfluence.evaluation.utilities import StreamflowMetrics
+from symfluence.core.metrics import StreamflowMetrics
 from symfluence.models.fuse.calibration.file_manager import resolve_fuse_id
 
 logger = logging.getLogger(__name__)

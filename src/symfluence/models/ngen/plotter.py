@@ -15,7 +15,7 @@ from typing import Optional
 import pandas as pd
 
 from symfluence.core.registries import R
-from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.reporting.base_plotter import BasePlotter
 
 
 @R.plotters.add('NGEN')
@@ -48,7 +48,7 @@ class NGENPlotter(BasePlotter):
             Path to saved plot, or None if failed
         """
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve, calculate_metrics
+        from symfluence.core.reporting.plot_utils import calculate_flow_duration_curve, calculate_metrics
 
         try:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.plot_config.FIGURE_SIZE_LARGE)

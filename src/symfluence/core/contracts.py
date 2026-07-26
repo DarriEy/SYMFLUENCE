@@ -21,11 +21,13 @@ Families and their surfaces:
 - ``models`` — the model-adapter contract: ``model_manifest()`` and the
   registry namespaces a model package populates (runners, preprocessors,
   workers, optimizers, parameter managers, config schemas, base settings,
-  build instructions, calibration targets).
+  build instructions, calibration targets), plus forcing-artifact selection
+  and model-output location under ``core.modeling``.
 - ``calibration`` — the engine bases under ``core.calibration``:
   ``BaseModelOptimizer``, ``BaseWorker``/``InMemoryModelWorker``,
   ``BaseParameterManager``, the algorithm suite and its registration seam,
-  and the parameter-bounds seam (``register_model_bounds``).
+  the parameter-bounds seam (``register_model_bounds``), multi-gauge metrics,
+  and parameter regionalization strategies/transfer functions.
 - ``metrics`` — the ``core.metrics`` facade: the metric functions, the metric
   registry, ``MetricTransformer`` and ``StreamflowMetrics``.
 - ``geospatial-utils`` — the geometry utilities model preprocessors build
@@ -38,13 +40,21 @@ uniform read-only view.
 """
 from __future__ import annotations
 
-from typing import Dict, Tuple
+import sys
+from typing import Callable, Dict, Mapping, Tuple, TypeVar
+
+_PluginCallable = TypeVar("_PluginCallable", bound=Callable[[], object])
+PLUGIN_CONTRACTS_ATTR = "__symfluence_contracts__"
+
+
+class ContractCompatibilityError(RuntimeError):
+    """A plugin targets a contract incompatible with this framework."""
 
 #: Independent contract version per family. Bump deliberately; each entry's
 #: history belongs in CHANGELOG.md under a "contracts" heading.
 FAMILY_CONTRACTS: Dict[str, str] = {
-    "models": "0.1.0",
-    "calibration": "0.1.0",
+    "models": "0.2.0",
+    "calibration": "0.2.0",
     "metrics": "0.1.0",
     "geospatial-utils": "0.1.0",
 }
@@ -96,8 +106,68 @@ def assert_compatible(family: str, target_version: str) -> None:
     what keeps uncapped pip requirements safe across independent releases.
     """
     if not is_compatible(family, target_version):
-        raise RuntimeError(
+        raise ContractCompatibilityError(
             f"This package targets {family} contract {target_version}, but the "
             f"installed framework provides {contract_version(family)}. "
             f"Upgrade symfluence (forward skew) or the package (major skew)."
         )
+
+
+def plugin_contracts(**targets: str) -> Callable[[_PluginCallable], _PluginCallable]:
+    """Declare the contract-family versions targeted by a plugin entry point.
+
+    Apply this decorator to the zero-argument callable published in the
+    ``symfluence.plugins`` entry-point group. Discovery validates every declared
+    family before invoking the callable, so an incompatible package cannot
+    partially mutate registries.
+    """
+    unknown = set(targets) - (set(FAMILY_CONTRACTS) | {"acquisition"})
+    if unknown:
+        raise ValueError(f"unknown SYMFLUENCE contract families: {sorted(unknown)}")
+    for family, version in targets.items():
+        try:
+            _parse_version(version)
+        except ValueError as exc:
+            raise ValueError(f"invalid {family} contract version {version!r}") from exc
+
+    def decorate(plugin: _PluginCallable) -> _PluginCallable:
+        setattr(plugin, PLUGIN_CONTRACTS_ATTR, dict(targets))
+        return plugin
+
+    return decorate
+
+
+def declared_plugin_contracts(plugin: Callable[..., object]) -> Mapping[str, str]:
+    """Return contract targets declared by a callable or its package.
+
+    Callable declarations take precedence. For distributions exposing many
+    entry points, the declaration may live once on an imported parent package
+    (for example ``symfluence.models``); discovery checks already-loaded parent
+    modules without importing additional plugin code.
+    """
+    targets = getattr(plugin, PLUGIN_CONTRACTS_ATTR, None)
+    if targets is None:
+        module_name = getattr(plugin, "__module__", "")
+        parts = module_name.split(".") if isinstance(module_name, str) else []
+        for size in range(len(parts), 0, -1):
+            module = sys.modules.get(".".join(parts[:size]))
+            if module is not None and hasattr(module, PLUGIN_CONTRACTS_ATTR):
+                targets = getattr(module, PLUGIN_CONTRACTS_ATTR)
+                break
+    if targets is None:
+        targets = {}
+    if not isinstance(targets, Mapping):
+        raise ContractCompatibilityError(
+            f"plugin contract declaration must be a mapping, got {type(targets).__name__}"
+        )
+    return dict(targets)
+
+
+def assert_plugin_compatible(plugin: Callable[..., object]) -> None:
+    """Validate every contract target declared by a plugin callable."""
+    for family, target_version in declared_plugin_contracts(plugin).items():
+        if not isinstance(family, str) or not isinstance(target_version, str):
+            raise ContractCompatibilityError(
+                "plugin contract family and target version must both be strings"
+            )
+        assert_compatible(family, target_version)

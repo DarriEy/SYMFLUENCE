@@ -142,7 +142,7 @@ class CLMSurfaceGenerator:
         # `sand_0-5cm_mean`); the core `soil` group only carries class fractions.
         # Search both groups; keep the defaults if neither yields a value.
         try:
-            from symfluence.data.model_ready import open_canonical_attributes
+            from symfluence.core.modeling.model_ready import open_canonical_attributes
 
             reader = open_canonical_attributes(self.pp.project_dir, self.pp.domain_name)
             if reader is not None:
