@@ -7,6 +7,11 @@ The machinery (ConfigKey, ModelConfigSchema, the registry and lookup
 functions) lives in ``symfluence.core.modeling.config_schema``; this module
 holds the in-tree models' schema definitions and registers them on import —
 the same path an external model package uses (``register_model_schema``).
+
+A schema is also where a model declares the metadata core used to hardcode
+per model: ``spatial_mode_key`` and ``routing_integration_key`` (read by
+``RoutingDecider``) and ``runoff`` (read by ``runoff_loader``). Registering a
+schema is the only step needed for those to take effect.
 """
 from __future__ import annotations
 
@@ -19,6 +24,7 @@ from symfluence.core.modeling.config_schema import (  # noqa: F401 — re-export
     InstallationConfig,
     ModelConfigSchema,
     OutputConfig,
+    RunoffConfig,
     get_model_schema,
     register_model_schema,
     validate_model_config,
@@ -54,6 +60,17 @@ def _create_summa_schema() -> ModelConfigSchema:
             default_output_subpath='simulations/{experiment_id}/SUMMA',
             output_file_pattern='{experiment_id}_timestep.nc',
             primary_output_var='averageRoutedRunoff'
+        ),
+        runoff=RunoffConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_SUMMA',
+            output_dir_name='SUMMA',
+            default_var='averageRoutedRunoff',
+            default_units='m/s',
+            default_dt='3600',
+            output_file_pattern='{experiment_id}_timestep.nc',
+            hru_dim='hru',
+            hru_var='hruId',
+            comment_name='SUMMA',
         ),
         spatial_mode_key='DOMAIN_DEFINITION_METHOD',
         routing_key='ROUTING_DELINEATION',
@@ -109,8 +126,30 @@ def _create_fuse_schema() -> ModelConfigSchema:
             output_file_pattern='{domain}_{experiment_id}_runs_def.nc',
             primary_output_var='q_routed'
         ),
+        runoff=RunoffConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_FUSE',
+            output_dir_name='FUSE',
+            default_var='q_routed',
+            default_units='m/s',
+            default_dt='86400',
+            # NOTE: OutputConfig above spells the same file '{domain}_...'.
+            # The two declarations drifted before they were unified here; the
+            # runoff path is what routing resolves, so the '{domain_name}'
+            # spelling it has always served is preserved verbatim. Reconciling
+            # the two is a separate, reviewed change.
+            output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
+            hru_dim='gru',
+            hru_var='gruId',
+            comment_name='FUSE',
+        ),
         spatial_mode_key='FUSE_SPATIAL_MODE',
         routing_key='FUSE_ROUTING_INTEGRATION',
+        # FUSE is the only model whose routing-integration key core's
+        # RoutingDecider consults. GR/VIC/SWAT/MHM/CRHM all define a
+        # <MODEL>_ROUTING_INTEGRATION key that the decision has never read
+        # (spatial_orchestrator derives the same key by convention and does).
+        # Preserved verbatim; widening it is a separate, reviewed change.
+        routing_integration_key='FUSE_ROUTING_INTEGRATION',
         config_keys=[
             ConfigKey('SETTINGS_FUSE_FILEMANAGER', ConfigKeyType.STRING, False,
                       default='fm_catch.txt',
@@ -156,6 +195,21 @@ def _create_gr_schema() -> ModelConfigSchema:
             default_output_subpath='simulations/{experiment_id}/GR',
             output_file_pattern='{experiment_id}_output.nc',
             primary_output_var='Qsim'
+        ),
+        # The routed artifact differs from GR's own output above: routing
+        # reads FUSE-style '{domain_name}_{experiment_id}_runs_def.nc' /
+        # 'q_routed'. Both values preserved exactly as served today.
+        runoff=RunoffConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_GR',
+            output_dir_name='GR',
+            default_var='q_routed',
+            default_units='m/s',
+            default_dt='86400',
+            output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
+            hru_dim='gru',
+            hru_var='gruId',
+            comment_name='GR4J',
+            aliases=('GR4J', 'GR5J', 'GR6J'),
         ),
         spatial_mode_key='GR_SPATIAL_MODE',
         routing_key='GR_ROUTING_INTEGRATION',
@@ -205,6 +259,18 @@ def _create_ngen_schema() -> ModelConfigSchema:
             output_file_pattern='nex-*_output.csv',
             primary_output_var='q_out'
         ),
+        # Routing reads a NetCDF aggregate, not NGEN's per-nexus CSVs.
+        runoff=RunoffConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_NGEN',
+            output_dir_name='NGEN',
+            default_var='runoff',
+            default_units='m/s',
+            default_dt='3600',
+            output_file_pattern='{experiment_id}_runoff.nc',
+            hru_dim='hru',
+            hru_var='hruId',
+            comment_name='NGEN',
+        ),
         spatial_mode_key='NGEN_SPATIAL_MODE',
         config_keys=[
             ConfigKey('NGEN_REALIZATION_FILE', ConfigKeyType.STRING, True,
@@ -245,6 +311,19 @@ def _create_hype_schema() -> ModelConfigSchema:
             output_file_pattern='timeOUT.txt',
             primary_output_var='cout'
         ),
+        # Routing reads a NetCDF timestep file, not HYPE's native text output.
+        runoff=RunoffConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_HYPE',
+            output_dir_name='HYPE',
+            default_var='cout',
+            default_units='m3/s',
+            default_dt='86400',
+            output_file_pattern='{experiment_id}_timestep.nc',
+            hru_dim='gru',
+            hru_var='gruId',
+            comment_name='HYPE',
+        ),
+        spatial_mode_key='HYPE_SPATIAL_MODE',
         config_keys=[
             ConfigKey('SETTINGS_HYPE_PATH', ConfigKeyType.PATH, True,
                       description='Path to HYPE settings directory'),
@@ -284,6 +363,7 @@ def _create_mesh_schema() -> ModelConfigSchema:
             output_file_pattern='Basin_average_water_balance.csv',
             primary_output_var='QOMEAS'
         ),
+        spatial_mode_key='MESH_SPATIAL_MODE',
         config_keys=[
             ConfigKey('SETTINGS_MESH_PATH', ConfigKeyType.PATH, True,
                       description='Path to MESH settings directory'),

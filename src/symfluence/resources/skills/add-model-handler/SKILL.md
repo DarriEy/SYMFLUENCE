@@ -42,6 +42,8 @@ model_manifest(
     worker=MyModelWorker,                         # optional, for calibration
     parameter_manager=MyModelParameterManager,    # optional, for calibration
     build_instructions_module="symfluence.models.mymodel.build_instructions",  # optional, lazy str
+    forcing_adapter_module="symfluence.models.mymodel.forcing_adapter",        # optional, lazy str
+    init_preset_module="symfluence.models.mymodel.init_preset",                # optional, lazy str
 )
 ```
 
@@ -50,7 +52,16 @@ Full keyword list (all optional except `model_name`): `preprocessor`, `runner`,
 `config_schema`, `config_defaults`, `config_transformers`, `config_validator`,
 `result_extractor`, `optimizer`, `worker`, `parameter_manager`,
 `decision_analyzer`, `sensitivity_analyzer`, `koopman_analyzer`, `plotter`,
-`forcing_adapter`, `build_instructions_module`.
+`forcing_adapter`, `forcing_adapter_module`, `init_preset_module`,
+`build_instructions_module`.
+
+The three `*_module` keywords declare *where* a capability lives instead of
+importing it: the dotted path is recorded in the registry and imported only
+when a consumer asks for it. Use them for anything that registers through a
+decorator in a side module (forcing adapters, `symfluence init` presets, build
+instructions) — the framework never scans a source tree for those files, so a
+capability that is not declared is not discovered, for in-tree and external
+plugin packages alike.
 
 **REMOVED legacy pattern (pre-1.0 cleanup — these decorators no longer exist):**
 `@ModelRegistry.register_runner/...`, `@OptimizerRegistry.register_worker/...`,

@@ -125,6 +125,11 @@ def register() -> None:
     R.postprocessors.add_lazy("GR", f"{base}.postprocessor.GRPostProcessor")
     R.visualizers.add_lazy("GR", f"{base}.visualizer.visualize_gr")
     R.result_extractors.add_lazy("GR", f"{base}.extractor.GRResultExtractor")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

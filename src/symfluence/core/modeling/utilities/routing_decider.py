@@ -13,7 +13,28 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from symfluence.core.modeling.config_schema import schema_key_table
+
 logger = logging.getLogger(__name__)
+
+
+class _SchemaKeyTable:
+    """Serve a model -> config-key table derived from the registered schemas.
+
+    A descriptor so the table reads the same whether reached through the class
+    (``RoutingDecider.SPATIAL_MODE_KEYS``) or an instance, while staying live:
+    a model package registering its schema later — plugin discovery, an
+    external distribution — is picked up without re-import.
+    """
+
+    def __init__(self, attribute: str) -> None:
+        self._attribute = attribute
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.__doc__ = f"{name}: {{model: config key}} from the registered schemas."
+
+    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Dict[str, str]:
+        return schema_key_table(self._attribute)
 
 
 class RoutingDecider:
@@ -30,20 +51,13 @@ class RoutingDecider:
     - Existence of mizuRoute control files
     """
 
-    # Model-specific config keys for spatial mode
-    SPATIAL_MODE_KEYS: Dict[str, str] = {
-        'SUMMA': 'DOMAIN_DEFINITION_METHOD',
-        'FUSE': 'FUSE_SPATIAL_MODE',
-        'HYPE': 'HYPE_SPATIAL_MODE',
-        'GR': 'GR_SPATIAL_MODE',
-        'MESH': 'MESH_SPATIAL_MODE',
-        'NGEN': 'NGEN_SPATIAL_MODE',
-    }
-
-    # Model-specific routing integration config keys
-    ROUTING_INTEGRATION_KEYS: Dict[str, str] = {
-        'FUSE': 'FUSE_ROUTING_INTEGRATION',
-    }
+    # Model-specific config keys, declared by each model on its registered
+    # ModelConfigSchema (spatial_mode_key / routing_integration_key) rather
+    # than tabulated here. A model absent from a table simply does not declare
+    # that key -- which is a per-model decision the model owns.
+    # Both serve a ``Dict[str, str]`` on access.
+    SPATIAL_MODE_KEYS = _SchemaKeyTable('spatial_mode_key')
+    ROUTING_INTEGRATION_KEYS = _SchemaKeyTable('routing_integration_key')
 
     def needs_routing(
         self,

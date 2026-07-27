@@ -85,6 +85,11 @@ def register() -> None:
     R.optimizers.add_lazy("WATFLOOD", f"{base}.calibration.optimizer.WATFLOODModelOptimizer")
     R.workers.add_lazy("WATFLOOD", f"{base}.calibration.worker.WATFLOODWorker")
     R.parameter_managers.add_lazy("WATFLOOD", f"{base}.calibration.parameter_manager.WATFLOODParameterManager")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

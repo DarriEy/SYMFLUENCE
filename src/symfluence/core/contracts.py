@@ -22,7 +22,12 @@ Families and their surfaces:
   registry namespaces a model package populates (runners, preprocessors,
   workers, optimizers, parameter managers, config schemas, base settings,
   build instructions, calibration targets), plus forcing-artifact selection
-  and model-output location under ``core.modeling``.
+  and model-output location under ``core.modeling``, and the per-model
+  declarations a registered ``ModelConfigSchema`` carries: ``runoff``
+  (:class:`~symfluence.core.modeling.config_schema.RunoffConfig` — the runoff
+  artifact routing consumes), ``spatial_mode_key`` and
+  ``routing_integration_key`` (the config keys core's routing decision
+  consults).
 - ``calibration`` — the engine bases under ``core.calibration``:
   ``BaseModelOptimizer``, ``BaseWorker``/``InMemoryModelWorker``,
   ``BaseParameterManager``, the algorithm suite and its registration seam,
@@ -53,7 +58,7 @@ class ContractCompatibilityError(RuntimeError):
 #: Independent contract version per family. Bump deliberately; each entry's
 #: history belongs in CHANGELOG.md under a "contracts" heading.
 FAMILY_CONTRACTS: Dict[str, str] = {
-    "models": "0.2.0",
+    "models": "0.3.0",
     "calibration": "0.2.0",
     "metrics": "0.1.0",
     "geospatial-utils": "0.1.0",

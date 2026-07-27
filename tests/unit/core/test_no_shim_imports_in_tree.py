@@ -30,6 +30,8 @@ SHIM_PREFIXES = (
     "symfluence.models.adapters",
     "symfluence.models.spatial_modes",
     "symfluence.models.config_resolution",
+    "symfluence.models.model_manager",
+    "symfluence.models.coupled",
     "symfluence.optimization.optimizers",
     "symfluence.optimization.mixins",
     "symfluence.optimization.workers.base_worker",

@@ -66,6 +66,11 @@ def register() -> None:
     R.workers.add_lazy("NOAHMP", f"{base}.calibration.worker.NoahMPWorker")
     R.base_settings.add("NOAH", "symfluence.models.noahmp")
     R.parameter_managers.add_lazy("NOAHMP", f"{base}.calibration.parameter_manager.NoahMPParameterManager")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

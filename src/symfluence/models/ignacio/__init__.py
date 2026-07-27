@@ -79,6 +79,18 @@ def register() -> None:
     Execution and calibration classes are registered lazily — imported on
     first registry access rather than at plugin-discovery time.
     """
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    #
+    # Deliberately OUTSIDE the try below: that except swallows every failure so
+    # an absent optional dependency cannot break discovery, but bounds
+    # registration has no dependencies beyond core, and letting it be skipped
+    # as collateral would turn an unrelated import error into "IGNACIO has no
+    # calibration bounds".
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
     try:
         from symfluence.core.registries import Registries as R
         from symfluence.core.registry import model_manifest

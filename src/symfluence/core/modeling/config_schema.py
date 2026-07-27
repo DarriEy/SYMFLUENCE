@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
 class ConfigKeyType(Enum):
@@ -105,12 +105,60 @@ class InputConfig:
 
 @dataclass
 class OutputConfig:
-    """Configuration for model output settings."""
+    """Configuration for a model's own output settings.
+
+    Describes the artifact the model itself writes (``timeOUT.txt`` for HYPE,
+    ``nex-*_output.csv`` for NGEN, ...). This is *not* necessarily the file a
+    routing model consumes — see :class:`RunoffConfig`.
+    """
     output_dir_key: str
     default_output_subpath: str
     output_file_pattern: str = "{experiment_id}_{model}_output.nc"
     primary_output_var: str = "streamflow"
     expected_dimensions: List[str] = field(default_factory=lambda: ["time", "gru"])
+
+
+@dataclass
+class RunoffConfig:
+    """Declaration of the runoff artifact a routing model consumes.
+
+    Deliberately a sibling of :class:`OutputConfig` rather than extra fields on
+    it: the two describe different files for most models. HYPE's own output is
+    ``timeOUT.txt`` while the runoff mizuRoute/tRoute read is
+    ``{experiment_id}_timestep.nc``; NGEN writes ``nex-*_output.csv`` but is
+    routed from ``{experiment_id}_runoff.nc``; GR's primary output variable is
+    ``Qsim`` while the routed variable is ``q_routed``. Folding one into the
+    other would force a model to declare a single value for two distinct
+    artifacts, so both declarations stay, each with its own meaning.
+
+    Only models that can feed a routing model declare this; everything else
+    leaves ``ModelConfigSchema.runoff`` as ``None``.
+
+    Attributes:
+        output_dir_key: Config key holding the runoff output directory.
+        output_dir_name: Directory name under ``simulations/{experiment_id}/``
+            and the canonical source-model key routing components pass around.
+        default_var: Runoff variable name to look for first.
+        default_units: Units string written into routing control files.
+        default_dt: Runoff timestep in seconds, as a string.
+        output_file_pattern: Filename pattern; ``{experiment_id}`` and
+            ``{domain_name}`` are substituted at resolution time.
+        hru_dim: Name of the spatial dimension in the runoff file.
+        hru_var: Name of the spatial-id variable in the runoff file.
+        comment_name: Model label written into generated control files.
+        aliases: Alternate source-model spellings resolving to this
+            declaration (e.g. GR's ``GR4J``/``GR5J``/``GR6J`` variants).
+    """
+    output_dir_key: str
+    output_dir_name: str
+    default_var: str
+    default_units: str
+    default_dt: str
+    output_file_pattern: str
+    hru_dim: str = 'gru'
+    hru_var: str = 'gruId'
+    comment_name: str = 'model'
+    aliases: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -140,6 +188,15 @@ class ModelConfigSchema:
     config_keys: List[ConfigKey] = field(default_factory=list)
     spatial_mode_key: Optional[str] = None
     routing_key: Optional[str] = None
+    #: Config key core's ``RoutingDecider`` consults to see whether the model
+    #: asks for routing integration (``'mizuRoute'``). Distinct from
+    #: ``routing_key``, which is the model's own descriptive routing key and
+    #: is not consulted by the routing decision: SUMMA declares
+    #: ``ROUTING_DELINEATION`` there, which is a different question entirely.
+    #: Only models whose routing-integration key core actually reads set this.
+    routing_integration_key: Optional[str] = None
+    #: Runoff artifact a routing model consumes, when the model can feed one.
+    runoff: Optional[RunoffConfig] = None
     description: str = ""
 
     def get_required_keys(self) -> Set[str]:
@@ -166,6 +223,8 @@ class ModelConfigSchema:
             keys.add(self.spatial_mode_key)
         if self.routing_key:
             keys.add(self.routing_key)
+        if self.routing_integration_key:
+            keys.add(self.routing_integration_key)
         return keys
 
     def apply_defaults(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -287,6 +346,35 @@ def get_model_schema(model_name: str) -> ModelConfigSchema:
         available = list(REGISTERED_SCHEMAS.keys())
         raise KeyError(f"Unknown model: {model_name}. Available: {available}")
     return REGISTERED_SCHEMAS[key]
+
+
+def schema_key_table(attribute: str) -> Dict[str, str]:
+    """Model -> config key, for every schema declaring *attribute*.
+
+    The read side of the per-model config-key declarations (currently
+    ``spatial_mode_key`` and ``routing_integration_key``). Core consumers call
+    this instead of carrying their own hardcoded table, so a model package —
+    in-tree or external — contributes its keys purely by registering a schema.
+
+    Keys are the registration names (uppercase); schemas leaving *attribute*
+    ``None`` are absent, which is what makes "core does not consult this key
+    for this model" an explicit, per-model declaration.
+    """
+    table: Dict[str, str] = {}
+    for name, schema in REGISTERED_SCHEMAS.items():
+        value = getattr(schema, attribute, None)
+        if value is not None:
+            table[name] = value
+    return table
+
+
+def registered_runoff_configs() -> Dict[str, RunoffConfig]:
+    """Model -> :class:`RunoffConfig`, for every schema declaring one."""
+    return {
+        name: schema.runoff
+        for name, schema in REGISTERED_SCHEMAS.items()
+        if schema.runoff is not None
+    }
 
 
 def validate_model_config(

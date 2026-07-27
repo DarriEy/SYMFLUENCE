@@ -81,13 +81,6 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "for a uniform read-only view; resolved at call time only.",
     ),
     (
-        "modeling/adapters/adapter_registry.py",
-        "symfluence.models",
-        "Forcing-adapter auto-discovery iterates installed model packages at "
-        "call time to trigger their registration decorators; tolerates an "
-        "absent models layer via per-module ImportError handling.",
-    ),
-    (
         "calibration/optimizers/component_factory.py",
         "symfluence.optimization.calibration_targets",
         "The component factory resolves calibration targets through the "
@@ -252,16 +245,12 @@ BOUNDARY_RULES: List[BoundaryRule] = [
         ],
     ),
     (
+        # ModelManager was promoted to project/model_manager.py (it is
+        # registry-driven framework orchestration, not a model adapter), so
+        # project/ now has zero references to the models layer.
         "project",
         ("symfluence.models",),
-        [
-            (
-                "manager_factory.py",
-                "symfluence.models.model_manager",
-                "Factory resolves ModelManager at call time; orchestration "
-                "entry point for the model suite.",
-            ),
-        ],
+        [],
     ),
     (
         # Process adapters resolve model components via R.runners /

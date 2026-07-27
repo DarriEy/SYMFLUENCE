@@ -79,6 +79,11 @@ def register() -> None:
     R.optimizers.add_lazy("GSFLOW", f"{base}.calibration.optimizer.GSFLOWModelOptimizer")
     R.workers.add_lazy("GSFLOW", f"{base}.calibration.worker.GSFLOWWorker")
     R.parameter_managers.add_lazy("GSFLOW", f"{base}.calibration.parameter_manager.GSFLOWParameterManager")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

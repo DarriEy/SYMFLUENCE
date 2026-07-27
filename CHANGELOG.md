@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Sobol and RBD-FAST support is installed with `symfluence[sensitivity]`.
   Importing the evaluation/analysis manager remains safe without SALib, while
   invoking either SALib-backed method raises an actionable install message.
+- **Models contract advanced to 0.3.0**: the additive model surface now
+  includes the per-model declarations a registered `ModelConfigSchema`
+  carries for core to read instead of tabulating per model — `runoff`
+  (the new `RunoffConfig`: the runoff artifact mizuRoute/tRoute consume,
+  with its directory, filename pattern, variable, units, timestep, spatial
+  dimension/id names, control-file label and source-name aliases),
+  `spatial_mode_key`, and `routing_integration_key`. `RoutingDecider` and
+  `runoff_loader` now read those declarations, so a model package — in-tree
+  or external — becomes routable by registering a schema and nothing else.
+  No served value changed: where the schema and the deleted tables
+  disagreed, the table's value was preserved verbatim, since that is what
+  routing consumes today.
 - **Models and calibration contracts advanced to 0.2.0**: the additive model
   surface now includes canonical forcing-artifact selection and model-output
   location, canonical model-ready forcing and attribute reads/CF conventions,

@@ -16,6 +16,7 @@ from .model_config_schema import (
     InstallationConfig,
     ModelConfigSchema,
     OutputConfig,
+    RunoffConfig,
     get_model_schema,
     validate_model_config,
 )
@@ -26,6 +27,7 @@ __all__ = [
     'ExecutionConfig',
     'InputConfig',
     'OutputConfig',
+    'RunoffConfig',
     'get_model_schema',
     'validate_model_config',
     'REGISTERED_SCHEMAS',

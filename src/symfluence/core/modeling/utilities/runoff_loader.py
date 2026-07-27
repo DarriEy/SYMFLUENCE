@@ -6,99 +6,101 @@ Shared runoff loading utilities for routing models.
 
 Provides model-specific runoff file resolution, variable detection,
 and time precision fixing used by mizuRoute, tRoute, and dRoute.
+
+The per-model runoff metadata itself is *not* declared here: each model
+declares it as the ``runoff`` section of its registered
+:class:`~symfluence.core.modeling.config_schema.ModelConfigSchema`, so an
+external model package becomes routable by registering a schema and nothing
+else. This module is the read side of that declaration.
 """
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
+
+from symfluence.core.modeling.config_schema import RunoffConfig, registered_runoff_configs
 
 logger = logging.getLogger(__name__)
 
+#: Back-compat alias: the served value type used to be declared here.
+ModelRunoffConfig = RunoffConfig
 
-@dataclass
-class ModelRunoffConfig:
-    """Configuration for model-specific runoff settings."""
-
-    output_dir_key: str
-    output_dir_name: str
-    default_var: str
-    default_units: str
-    default_dt: str
-    output_file_pattern: str
-    hru_dim: str = 'gru'
-    hru_var: str = 'gruId'
-    comment_name: str = 'model'
+#: Legacy fallback. A source model with no registered runoff declaration —
+#: a typo, or a model that simply cannot feed a routing model — silently
+#: resolves to this model's layout instead of failing. Characterized (not
+#: endorsed) by tests/unit/core/test_model_knowledge_parity.py; it is the last
+#: per-model string in this module and removing it is a separate, reviewed
+#: behaviour change.
+FALLBACK_SOURCE_MODEL = 'SUMMA'
 
 
-MODEL_CONFIGS: Dict[str, ModelRunoffConfig] = {
-    'summa': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_SUMMA',
-        output_dir_name='SUMMA',
-        default_var='averageRoutedRunoff',
-        default_units='m/s',
-        default_dt='3600',
-        output_file_pattern='{experiment_id}_timestep.nc',
-        hru_dim='hru',
-        hru_var='hruId',
-        comment_name='SUMMA',
-    ),
-    'fuse': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_FUSE',
-        output_dir_name='FUSE',
-        default_var='q_routed',
-        default_units='m/s',
-        default_dt='86400',
-        output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
-        hru_dim='gru',
-        hru_var='gruId',
-        comment_name='FUSE',
-    ),
-    'gr': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_GR',
-        output_dir_name='GR',
-        default_var='q_routed',
-        default_units='m/s',
-        default_dt='86400',
-        output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
-        hru_dim='gru',
-        hru_var='gruId',
-        comment_name='GR4J',
-    ),
-    'hype': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_HYPE',
-        output_dir_name='HYPE',
-        default_var='cout',
-        default_units='m3/s',
-        default_dt='86400',
-        output_file_pattern='{experiment_id}_timestep.nc',
-        hru_dim='gru',
-        hru_var='gruId',
-        comment_name='HYPE',
-    ),
-    'ngen': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_NGEN',
-        output_dir_name='NGEN',
-        default_var='runoff',
-        default_units='m/s',
-        default_dt='3600',
-        output_file_pattern='{experiment_id}_runoff.nc',
-        hru_dim='hru',
-        hru_var='hruId',
-        comment_name='NGEN',
-    ),
-}
+class _SchemaRunoffConfigs(Mapping):
+    """Live, lowercase-keyed view of the registered ``runoff`` declarations.
+
+    A mapping rather than a dict so late registrations (plugin discovery,
+    tests registering a schema) are visible without re-import.
+    """
+
+    @staticmethod
+    def _table() -> Dict[str, RunoffConfig]:
+        return {name.lower(): cfg for name, cfg in registered_runoff_configs().items()}
+
+    def __getitem__(self, key: str) -> RunoffConfig:
+        return self._table()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._table())
+
+    def __len__(self) -> int:
+        return len(self._table())
+
+    def __eq__(self, other: Any) -> bool:
+        return self._table() == other
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostics only
+        return f"{type(self).__name__}({self._table()!r})"
 
 
-def get_model_config(source_model: str) -> ModelRunoffConfig:
-    """Get the runoff configuration for a source model."""
+MODEL_CONFIGS: Mapping = _SchemaRunoffConfigs()
+
+
+def _canonical_source_key(source_model: str) -> str:
+    """Normalize a source-model spelling to a registered runoff key.
+
+    Case- and whitespace-insensitive; model variants (GR4J/GR5J/GR6J -> GR)
+    resolve through the ``aliases`` each model declares on its own runoff
+    config, so the variant list is model-owned rather than hardcoded here.
+    """
     key = source_model.strip().upper()
-    # Normalize common variants
-    if key in ('GR4J', 'GR5J', 'GR6J'):
-        key = 'GR'
-    return MODEL_CONFIGS.get(key.lower(), MODEL_CONFIGS['summa'])
+    for name, cfg in registered_runoff_configs().items():
+        if key in cfg.aliases:
+            return name.lower()
+    return key.lower()
+
+
+def get_model_config(source_model: str) -> RunoffConfig:
+    """Get the runoff configuration for a source model.
+
+    Falls back to :data:`FALLBACK_SOURCE_MODEL` when the model declares no
+    runoff config (see that constant for why that is characterized, not
+    endorsed).
+    """
+    table = _SchemaRunoffConfigs._table()
+    config = table.get(_canonical_source_key(source_model))
+    if config is not None:
+        return config
+    fallback = table.get(FALLBACK_SOURCE_MODEL.lower())
+    if fallback is None:
+        raise KeyError(
+            f"No runoff configuration registered for source model "
+            f"'{source_model}', and the {FALLBACK_SOURCE_MODEL} fallback is "
+            f"itself unregistered. Registered: {sorted(table)}. Model packages "
+            f"declare this as ModelConfigSchema.runoff at registration time."
+        )
+    return fallback
 
 
 def resolve_runoff_file(

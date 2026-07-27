@@ -123,6 +123,11 @@ def register() -> None:
     R.postprocessors.add_lazy("MESH", f"{base}.postprocessor.MESHPostProcessor")
     R.visualizers.add_lazy("MESH", f"{base}.visualizer.visualize_mesh")
     R.result_extractors.add_lazy("MESH", f"{base}.extractor.MESHResultExtractor")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

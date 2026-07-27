@@ -125,6 +125,11 @@ def register() -> None:
     R.base_settings.add("MIZUROUTE", "symfluence.models.mizuroute")
     R.runners.add_lazy("MIZUROUTE", f"{base}.runner.MizuRouteRunner", runner_method='run_mizuroute')
     R.result_extractors.add_lazy("MIZUROUTE", f"{base}.extractor.MizuRouteResultExtractor")
+    # Calibration bounds are owned by this package (service-decomposition
+    # item 2): registering here means plugin discovery is what makes them
+    # servable, so a bound change never needs a core release.
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

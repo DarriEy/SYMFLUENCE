@@ -440,9 +440,11 @@ class SupportedModels:
     an entry point / ``model_manifest`` (RTI review item 18). Registration is
     therefore the whitelist: this no longer hardcodes a model list. The former
     sibling lists (models with a forcing adapter / plotter / preset) were
-    likewise hardcoded and drifted from reality; those call sites now derive the
-    set directly (``symfluence.models.model_packages_with`` for submodule-based
-    discovery, or ``R.plotters`` for already-registered plotters).
+    likewise hardcoded and drifted from reality; those call sites now read the
+    registry instead (``R.plotters`` for already-registered plotters;
+    ``R.forcing_adapters`` / ``R.presets`` for capabilities a package declares
+    with ``model_manifest(forcing_adapter_module=..., init_preset_module=...)``
+    and a consumer drains with ``Registry.load_modules()``).
     """
 
     #: Models whose "calibration" is internal training (gradient descent during

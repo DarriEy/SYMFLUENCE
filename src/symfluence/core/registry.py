@@ -16,6 +16,9 @@ Design choices
 * **Always stores classes** — the caller instantiates.
 * **Metadata per entry** — handles ``runner_method`` and future extensibility.
 * **Lazy imports** — native ``add_lazy`` for the BMI-registry pattern.
+* **Declared side-effect modules** — ``add_module()`` records a module whose
+  *import* performs the registration (decorator-style), so a package can
+  declare "my presets live here" without the framework globbing a source tree.
 * **Aliases** — native ``alias()`` for the delineation-registry pattern.
 * **Advisory protocol validation** — ``warnings.warn`` on registration when
   a class doesn't match the declared protocol; never blocks.
@@ -113,6 +116,8 @@ class Registry(Generic[T]):
         self._aliases: Dict[str, str] = {}        # alias_key -> canonical_key
         self._frozen = False
         self._seeder: Optional[Callable[[], None]] = None  # deferred population hook
+        self._modules: List[str] = []             # declared side-effect modules
+        self._loaded_modules: set[str] = set()    # already imported by load_modules()
 
     # ------------------------------------------------------------------
     # Registration
@@ -163,6 +168,50 @@ class Registry(Generic[T]):
         self._entries[nkey] = _LazyEntry(import_path)
         if meta:
             self._meta[nkey] = meta
+
+    def add_module(self, module_path: str) -> None:
+        """Declare a module whose *import* registers entries in this registry.
+
+        Some components register themselves as a decorator side effect when a
+        per-package submodule is imported (``@R.presets.add('fuse-basic')`` in
+        ``<pkg>.init_preset``).  The registry cannot see them until something
+        imports that module, and the framework must not go looking for it on
+        disk — that is a filesystem dependency on a package that may live in a
+        separate distribution (or not be installed at all).
+
+        Instead the owning package *declares* the module here, and the
+        consumer drains the declarations with :meth:`load_modules`.
+
+        Declarations are idempotent; importing happens at most once per
+        module path.
+        """
+        self._check_frozen()
+        if module_path not in self._modules:
+            self._modules.append(module_path)
+
+    def declared_modules(self) -> Tuple[str, ...]:
+        """Return the module paths declared via :meth:`add_module`."""
+        return tuple(self._modules)
+
+    def load_modules(self) -> None:
+        """Import every declared module not yet imported, for its side effects.
+
+        Deliberately *not* wired into read access (``get``/``keys``/...): a
+        consumer opts in by calling this, which keeps the set of entries a
+        plain registry read returns exactly what it returns today.  Modules
+        that cannot be imported are skipped with a debug log, matching the
+        tolerance the per-consumer import loops had.
+        """
+        for module_path in list(self._modules):
+            if module_path in self._loaded_modules:
+                continue
+            self._loaded_modules.add(module_path)
+            try:
+                importlib.import_module(module_path)
+            except ImportError:
+                logger.debug(
+                    "%s: declared module %r is not importable", self._name, module_path
+                )
 
     def alias(self, alias_key: str, canonical_key: str) -> None:
         """Create *alias_key* as an alias for *canonical_key*.
@@ -390,6 +439,8 @@ def model_manifest(
     koopman_analyzer: Optional[Type] = None,
     plotter: Optional[Type] = None,
     forcing_adapter: Optional[Type] = None,
+    forcing_adapter_module: Optional[str] = None,
+    init_preset_module: Optional[str] = None,
     build_instructions_module: Optional[str] = None,
 ) -> None:
     """Declaratively register all components for a single model.
@@ -418,6 +469,17 @@ def model_manifest(
         Plotter class.
     forcing_adapter : type, optional
         Forcing adapter class.
+    forcing_adapter_module : str, optional
+        Dotted import path to a module whose import registers this model's
+        forcing adapter (``@R.forcing_adapters.add(...)``).  Declared into
+        ``R.forcing_adapters`` via ``add_module``; imported when a consumer
+        drains the declarations.  Use this *instead of* ``forcing_adapter``
+        when the adapter class pulls heavy dependencies that must not load at
+        plugin-discovery time.
+    init_preset_module : str, optional
+        Dotted import path to a module whose import registers this model's
+        ``symfluence init`` presets (``@R.presets.add(...)``).  Declared into
+        ``R.presets`` via ``add_module``.
     build_instructions_module : str, optional
         Dotted import path to the build instructions module — will be
         registered as a lazy import in ``R.build_instructions``.
@@ -467,6 +529,14 @@ def model_manifest(
     for registry, key, value, meta in _pairs:
         if value is not None:
             registry.add(key, value, **meta)
+
+    # Capability modules: the model declares *where* a decorator-registered
+    # capability lives; the framework imports it only when a consumer asks.
+    if forcing_adapter_module is not None:
+        R.forcing_adapters.add_module(forcing_adapter_module)
+
+    if init_preset_module is not None:
+        R.presets.add_module(init_preset_module)
 
     if build_instructions_module is not None:
         R.build_instructions.add_lazy(model_name, build_instructions_module)

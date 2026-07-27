@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # ``symfluence.models.*`` inherits these targets during central discovery.
 # Keeping this once at the package root avoids 30+ decorators drifting apart.
 __symfluence_contracts__ = {
-    "models": "0.2.0",
+    "models": "0.3.0",
     "calibration": "0.2.0",
     "metrics": "0.1.0",
     "geospatial-utils": "0.1.0",
@@ -80,21 +80,59 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 # stale-install signal).
 
 
+#: Optional per-model facilities that register themselves as a decorator side
+#: effect when a submodule is imported, mapped to the registry the import
+#: populates.  See ``_declare_capability_modules``.
+_CAPABILITY_MODULES = {
+    "forcing_adapter": "forcing_adapters",
+    "init_preset": "presets",
+}
+
+
 def model_packages_with(submodule: str) -> tuple[str, ...]:
     """Return the in-tree model package names that contain *submodule*``.py``.
 
     e.g. ``model_packages_with('forcing_adapter')`` -> ``('fuse', 'gr', ...)``.
 
-    Some optional model facilities (forcing adapters, init presets) register
-    themselves as a side effect of importing a per-model submodule, so the set
-    of models that have them cannot be read from the registry those imports
-    populate — it is discovered from the source tree instead. This replaces the
-    hardcoded ``SupportedModels.WITH_*`` lists, which had drifted from reality.
+    **Internal to this distribution.** This is the models package introspecting
+    its *own* directory; the framework must never call it, because it cannot
+    see external plugin packages and it assumes the models suite is installed.
+    Framework-facing discovery goes through the registries — see
+    :func:`_declare_capability_modules`.
     """
     from pathlib import Path
 
     pkg_dir = Path(__file__).resolve().parent
     return tuple(sorted(p.parent.name for p in pkg_dir.glob(f"*/{submodule}.py")))
+
+
+def _declare_capability_modules() -> None:
+    """Declare the in-tree side-effect capability modules into the registries.
+
+    Forcing adapters and ``symfluence init`` presets register through a
+    decorator that only runs when ``<model>/forcing_adapter.py`` /
+    ``<model>/init_preset.py`` is imported.  The framework used to find those
+    modules by globbing this package's source tree from ``core``/``cli`` — an
+    upward dependency on a distribution that may not be installed, and one that
+    structurally cannot see external plugin packages.
+
+    Instead this distribution *declares* the modules it owns (``add_module``)
+    when it is imported, and the framework merely drains the declarations
+    (``Registry.load_modules()``).  A model package — in-tree or external —
+    can equivalently declare its own with
+    ``model_manifest(forcing_adapter_module=..., init_preset_module=...)``;
+    declarations are idempotent, so the two coexist while in-tree models
+    migrate to declaring for themselves.
+    """
+    from symfluence.core.registries import R
+
+    for submodule, registry_name in _CAPABILITY_MODULES.items():
+        registry = getattr(R, registry_name)
+        for package in model_packages_with(submodule):
+            registry.add_module(f"{__name__}.{package}.{submodule}")
+
+
+_declare_capability_modules()
 
 
 __all__ = [
