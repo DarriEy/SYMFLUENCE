@@ -13,12 +13,14 @@ mpirun's stdin/stdout relay.
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 
 # Security rationale: Used for trusted internal MPI task serialization
 import pickle  # nosec B403
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -66,6 +68,10 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
         self._worker_script: Optional[Path] = None
         self._comm_dir: Optional[Path] = None
         self._stderr_thread: Optional[threading.Thread] = None
+        # Last-resort reaper, registered while the pool is alive. Without it an
+        # interpreter that exits without calling shutdown() leaves the ranks
+        # running: they are re-parented to init and keep burning a core each.
+        self._atexit_hook: Optional[Callable[[], None]] = None
 
     # ------------------------------------------------------------------
     # ExecutionStrategy interface
@@ -133,12 +139,17 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
             self.logger.debug(f"Command: {' '.join(str(c) for c in cmd)}")
 
             try:
+                # Own process group: signalling the launcher alone does not
+                # reliably reach the ranks it spawned, so a terminate() could
+                # return cleanly while the workers kept running (orphaned to
+                # init). With a new session we can signal the whole group.
                 self._process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                     env=mpi_env,
+                    **self._process_group_kwargs(),
                 )
                 # Drain stderr in a background thread
                 self._stderr_thread = threading.Thread(
@@ -167,6 +178,7 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
                 except subprocess.TimeoutExpired:
                     pass  # Good — still running
 
+                self._register_atexit_reaper()
                 self.logger.info("Persistent MPI workers started successfully")
                 return
 
@@ -249,28 +261,45 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
 
     def shutdown(self) -> None:
         """Terminate the persistent MPI worker pool gracefully."""
+        # Drop the reaper first: _handle_dead_process() clears _process when the
+        # pool dies on its own, and returning early below would otherwise leave
+        # the hook registered against a pid this strategy no longer owns.
+        self._unregister_atexit_reaper()
+
         if self._process is None:
             return
 
         self.logger.info("Shutting down persistent MPI workers...")
 
         try:
-            if self._process.poll() is None and self._comm_dir:
-                # Signal shutdown via poison file
-                (self._comm_dir / 'shutdown').write_text('stop')
+            if self._process.poll() is None:
+                # Preferred: poison file, so ranks finish the current task and
+                # exit on their own.
+                if self._comm_dir:
+                    try:
+                        (self._comm_dir / 'shutdown').write_text('stop')
+                    except OSError as exc:
+                        self.logger.warning(f"Could not write shutdown signal: {exc}")
                 try:
                     self._process.wait(timeout=30)
                     self.logger.info("MPI workers shut down gracefully")
                 except subprocess.TimeoutExpired:
                     self.logger.warning(
-                        "MPI workers did not exit in 30 s, terminating"
+                        "MPI workers did not exit in 30 s, terminating process group"
                     )
-                    self._process.terminate()
+                    self._signal_group(signal.SIGTERM)
                     try:
                         self._process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
-                        self._process.kill()
-                        self._process.wait(timeout=5)
+                        self.logger.warning("Still alive after SIGTERM, killing")
+                        self._signal_group(signal.SIGKILL)
+                        try:
+                            self._process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            self.logger.error(
+                                "MPI worker group survived SIGKILL; ranks may "
+                                "still be running"
+                            )
         except (OSError, subprocess.SubprocessError, ValueError) as exc:
             self.logger.error(f"Error during MPI shutdown: {exc}")
         finally:
@@ -294,6 +323,62 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _process_group_kwargs() -> Dict[str, Any]:
+        """Popen kwargs that put the launcher in its own process group."""
+        if os.name == 'nt':
+            flags = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+            return {'creationflags': flags} if flags else {}
+        return {'start_new_session': True}
+
+    def _signal_group(self, sig: int) -> None:
+        """Signal the whole worker process group, falling back to the launcher.
+
+        The ranks are children of the launcher, not of this process, so
+        signalling ``self._process`` alone can leave them running. ``start_new
+        _session=True`` at launch makes the launcher a group leader, so its pid
+        doubles as the group id.
+        """
+        if self._process is None:
+            return
+        pid = self._process.pid
+        if os.name != 'nt':
+            try:
+                os.killpg(os.getpgid(pid), sig)
+                return
+            except (ProcessLookupError, PermissionError, OSError) as exc:
+                self.logger.debug(f"killpg({pid}, {sig}) failed: {exc}; signalling pid")
+        try:
+            if sig == signal.SIGKILL:
+                self._process.kill()
+            else:
+                self._process.terminate()
+        except (OSError, ValueError) as exc:
+            self.logger.debug(f"Signalling pid {pid} failed: {exc}")
+
+    def _register_atexit_reaper(self) -> None:
+        """Reap the pool if the interpreter exits before shutdown() runs."""
+        if self._atexit_hook is not None:
+            return
+
+        def _reap() -> None:
+            proc = self._process
+            if proc is None or proc.poll() is not None:
+                return
+            self._signal_group(signal.SIGTERM)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._signal_group(signal.SIGKILL)
+
+        self._atexit_hook = _reap
+        atexit.register(_reap)
+
+    def _unregister_atexit_reaper(self) -> None:
+        if self._atexit_hook is not None:
+            atexit.unregister(self._atexit_hook)
+            self._atexit_hook = None
 
     @property
     def is_alive(self) -> bool:
