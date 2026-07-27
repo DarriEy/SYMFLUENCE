@@ -1142,12 +1142,36 @@ class BaseModelOptimizer(
     def run_optimization(self, algorithm_name: str) -> Path:
         """Run optimization using a specified algorithm from the registry.
 
+        Reaps the persistent MPI worker pool before returning. The pool is
+        created lazily inside ``execute_batch`` and outlives every individual
+        batch by design, so this is the only point that knows the run is over.
+        Without it the ranks survive the interpreter, are re-parented to init,
+        and keep consuming a core each — sequential calibrations then pile up
+        pools until the machine is oversubscribed (a 14-run scaling sweep left
+        57 stale ranks on 16 cores, and its timings measured contention rather
+        than scaling).
+
+        Deliberately NOT routed through ``cleanup()``: that also deletes the
+        per-process directories, which are shared across optimizers for the same
+        domain + algorithm, and doing so mid-run once broke a live calibration
+        while the workflow still reported success (issue #329).
+
         Args:
             algorithm_name: Algorithm name (case-insensitive)
 
         Returns:
             Path to results JSON file
         """
+        try:
+            return self._run_optimization_impl(algorithm_name)
+        finally:
+            try:
+                self._shutdown_mpi_strategy()
+            except Exception as exc:  # noqa: BLE001 — cleanup must not mask the run
+                self.logger.warning(f"MPI worker shutdown failed: {exc}")
+
+    def _run_optimization_impl(self, algorithm_name: str) -> Path:
+        """Body of :meth:`run_optimization`; see that method for the contract."""
         self.start_timing()
         self.logger.info(f"Starting {algorithm_name.upper()} optimization for {self._get_model_name()}")
         self._log_calibration_alignment()
