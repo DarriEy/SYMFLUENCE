@@ -35,6 +35,26 @@ from symfluence.core.calibration.optimizers.base_model_optimizer import BaseMode
 # run_optimization always reaps the pool
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _no_real_atexit_hooks():
+    """Never let a test install a real ``atexit`` hook.
+
+    ``_register_atexit_reaper`` installs a callback that signals a process GROUP.
+    A test that registers it against a mock process leaves that callback live for
+    the rest of the session, and at interpreter exit it fires for real against
+    whatever the mock's ``pid`` happens to be. With ``pid=77`` that is a harmless
+    PermissionError on a developer laptop (pid 77 is a protected system process)
+    but a live process inside a CI container — where the suite signalled the test
+    runner's own process group and the job died at 100% with "The operation was
+    canceled".
+
+    The tests below still drive ``_atexit_hook`` directly; they must never leave
+    one armed.
+    """
+    with patch("atexit.register"), patch("atexit.unregister"):
+        yield
+
+
 def _mock_optimizer():
     """A stand-in for a constructed optimizer.
 
@@ -197,6 +217,22 @@ def test_atexit_reaper_kills_a_pool_that_ignores_sigterm(tmp_path):
         strat._atexit_hook()
 
     assert [c.args[0] for c in sig.call_args_list] == [signal.SIGTERM, signal.SIGKILL]
+
+
+def test_no_live_reaper_survives_this_module(tmp_path):
+    """Guard the guard: registering must go through the patched atexit.
+
+    If this fails, some test is arming a real process-group killer that outlives
+    the session — the exact failure that took down CI at 100% passed.
+    """
+    import atexit as _atexit
+
+    strat = _strategy(tmp_path)
+    strat._process = MagicMock(pid=77)
+    strat._register_atexit_reaper()
+
+    assert isinstance(_atexit.register, MagicMock), "atexit.register is not patched"
+    _atexit.register.assert_called_once_with(strat._atexit_hook)
 
 
 def test_atexit_reaper_is_a_noop_when_the_pool_already_exited(tmp_path):
