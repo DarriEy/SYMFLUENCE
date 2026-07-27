@@ -19,6 +19,7 @@ import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.modeling.base import BaseModelRunner
+from symfluence.core.modeling.utilities.runoff_loader import resolve_runoff_file
 from symfluence.core.registries import R
 
 
@@ -90,73 +91,39 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         self.logger.debug(f"Detected active models for time precision fix: {active_models}")
 
-        # For FUSE, check if it has already converted its output
-        if 'FUSE' in active_models:
-            self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_fuse = self._get_config_value(
-                lambda: self.config.model.fuse.experiment_output, default='default'
-            )
-            if experiment_output_fuse == 'default' or not experiment_output_fuse:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'FUSE'
-            else:
-                experiment_output_dir = Path(experiment_output_fuse)
-            fuse_file_id = self._get_config_value(
-                lambda: self.config.model.fuse.file_id, default=None
-            )
-            if not fuse_file_id:
-                fuse_file_id = self.experiment_id or 'fuse'
-                # Replicate FUSE preprocessor's 6-char truncation for Fortran compatibility
-                if len(fuse_file_id) > 6:
-                    import hashlib
-                    fuse_file_id = hashlib.md5(fuse_file_id.encode(), usedforsecurity=False).hexdigest()[:6]
-            runoff_filename = f"{self.domain_name}_{fuse_file_id}_runs_def.nc"
-        elif 'GR' in active_models:
-            self.logger.info("Fixing GR time precision for mizuRoute compatibility")
-            experiment_output_gr = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_GR')
-            if experiment_output_gr == 'default' or not experiment_output_gr:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'GR'
-            else:
-                experiment_output_dir = Path(experiment_output_gr)
-            runoff_filename = f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
-        elif 'HYPE' in active_models:
-            self.logger.info("Fixing HYPE time precision for mizuRoute compatibility")
-            experiment_output_hype = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_HYPE')
-            if experiment_output_hype == 'default' or not experiment_output_hype:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'HYPE'
-            else:
-                experiment_output_dir = Path(experiment_output_hype)
-            runoff_filename = f"{self.experiment_id}_timestep.nc"
-        elif 'NGEN' in active_models:
-            self.logger.info("NGEN runoff NetCDF for mizuRoute — checking time precision")
-            experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'NGEN'
-            runoff_filename = f"{self.experiment_id}_runoff.nc"
-        else:
-            self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
-            experiment_output_summa = self._get_config_value(
-                lambda: self.config.model.summa.experiment_output, default='default'
-            )
-            if experiment_output_summa == 'default' or not experiment_output_summa:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'SUMMA'
-            else:
-                experiment_output_dir = Path(experiment_output_summa)
-            runoff_filename = f"{self.experiment_id}_timestep.nc"
+        # Which source model's output to route. First match wins, preserving
+        # the precedence this method has always applied; SUMMA is the default.
+        source_model = next(
+            (m for m in ('FUSE', 'GR', 'HYPE', 'NGEN') if m in active_models),
+            'SUMMA',
+        )
+        self.logger.info(
+            f"Fixing {source_model} time precision for mizuRoute compatibility "
+            f"(active models: {active_models})"
+        )
 
-        runoff_filepath = experiment_output_dir / runoff_filename
-        self.logger.info(f"Resolved runoff filepath: {runoff_filepath} (Exists: {runoff_filepath.exists()})")
+        # Directory, filename pattern and the FUSE 6-char file-id truncation all
+        # come from the model's registered runoff declaration. This method used
+        # to carry its own if/elif copy of that table -- a fourth one, after
+        # runoff_loader, the mizuRoute control writer and the schema itself --
+        # which is how it came to expect a HYPE file nothing produces.
+        runoff_filepath = resolve_runoff_file(
+            source_model=source_model,
+            project_dir=self.project_dir,
+            experiment_id=self.experiment_id,
+            domain_name=self.domain_name,
+            config=self.config,
+        )
 
-        if not runoff_filepath.exists():
-            self.logger.warning(f"Model output file not found: {runoff_filepath}. Checking if any other output files exist in {experiment_output_dir}...")
-            if experiment_output_dir.exists():
-                nc_files = [f for f in experiment_output_dir.glob("*.nc") if '_para_' not in f.name]
-                if nc_files:
-                    runoff_filepath = nc_files[0]
-                    self.logger.info(f"Using fallback output file: {runoff_filepath}")
-                else:
-                    self.logger.error(f"No NetCDF output files found in {experiment_output_dir}")
-                    return None
-            else:
-                self.logger.error(f"Output directory does not exist: {experiment_output_dir}")
-                return None
+        if runoff_filepath is None:
+            self.logger.error(
+                f"No routable {source_model} output found for experiment "
+                f"'{self.experiment_id}'. mizuRoute needs a NetCDF runoff file "
+                f"from the source model before it can route."
+            )
+            return None
+
+        self.logger.info(f"Resolved runoff filepath: {runoff_filepath}")
 
         try:
             import os
