@@ -166,3 +166,41 @@ def test_string_scan_is_actually_exercised_by_the_allow_list(guard):
     reasons = [reason for _p, _m, reason in guard.ALLOWED_DEFERRED]
     assert any("importlib" in r or "lazy" in r.lower() or "NOT an import" in r
                for r in reasons)
+
+
+# ---------------------------------------------------------------------------
+# Coupling layer coverage
+# ---------------------------------------------------------------------------
+
+def test_coupling_is_a_guarded_upper_layer(guard):
+    """``coupling`` must be scanned, not exempt by omission.
+
+    It was absent from UPPER_LAYERS for a long time, so core's edges into the
+    dCoupler stack were invisible *by configuration* rather than because the
+    scan could not see them — the ALLOWED_DEFERRED entry for
+    ``modeling/coupling.py`` sat inert as a result.
+    """
+    assert "coupling" in guard.UPPER_LAYERS
+
+
+def test_a_new_core_to_coupling_edge_is_caught(guard, tmp_path):
+    """The existing edges are allow-listed; an unlisted one must still fail."""
+    violations = _scan(guard, tmp_path, '''
+        from symfluence.coupling.graph_builder import GraphBuilder
+    ''', name="brand_new_module.py")
+    assert violations, "a module-level core -> coupling import was not flagged"
+    assert not violations[0].deferred
+    assert "symfluence.coupling" in violations[0].module
+
+
+def test_bootstrap_bmi_adapter_declarations_are_allow_listed(guard):
+    """The 13 lazy BMI adapter paths are declarations, not imports.
+
+    They are registered with ``R.bmi_adapters.add_lazy``, so the coupling layer
+    is imported only when a graph resolves an adapter. They must therefore be
+    visible to the guard and explicitly allowed — not silently unscanned.
+    """
+    assert any(
+        path.endswith("_bootstrap.py") and prefix == "symfluence.coupling.adapters"
+        for path, prefix, _reason in guard.ALLOWED_DEFERRED
+    ), "the BMI adapter seam lost its explicit allowance"

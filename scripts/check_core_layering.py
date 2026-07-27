@@ -58,6 +58,13 @@ UPPER_LAYERS: Set[str] = {
     "agent",
     "gui",
     "tui",
+    # ``coupling`` was omitted here for a long time, which meant core's edges
+    # into the dCoupler stack were invisible to this guard *by configuration*
+    # rather than because the scan could not see them — the ALLOWED_DEFERRED
+    # entry for ``modeling/coupling.py`` below was inert as a result. Every
+    # existing edge is a lazy IoC seam and stays legal, but a NEW one now has
+    # to be a conscious decision, which is the whole point of the guard.
+    "coupling",
 }
 
 # Accepted deferred (call-time) edges: (core-relative path, imported module prefix, reason).
@@ -78,6 +85,15 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "symfluence.coupling.graph_builder",
         "The model-facing facade resolves the optional coupling capability only "
         "when graph execution is explicitly requested.",
+    ),
+    (
+        "_bootstrap.py",
+        "symfluence.coupling.adapters",
+        "BMI/dCoupler component adapters are registered as lazy dotted paths "
+        "(R.bmi_adapters.add_lazy), so nothing in the coupling layer is imported "
+        "until a graph actually resolves an adapter. Same inversion-of-control "
+        "seam as the other registry seeding here; the strings are declarations, "
+        "not imports.",
     ),
     (
         "config/factories.py",

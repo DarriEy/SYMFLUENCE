@@ -209,7 +209,14 @@ class ParameterBoundsRegistry:
         'm': ParameterInfo(0.5, 5.0, '-', 'Lateral decay of Ksat with depth (RHESSys)', 'soil'),
         # GSFLOW serves 'K' (prefix stripped); Xinanjiang serves 'K' from
         # 'xaj_K'. Namespaced on both sides so neither can override the other.
-        'gsflow_K': ParameterInfo(0.001, 100.0, 'm/d', 'Hydraulic conductivity (GSFLOW MODFLOW-NWT)', 'soil', 'log'),
+        # Matches what GSFLOW calibration actually searches. This entry read
+        # 0.001-100 m/d (log) while GSFLOWParameterManager searched 0.1-5000
+        # (linear) from a package-local dict; the catalogue value was inert --
+        # nothing in-tree or in any plugin calls get_gsflow_bounds() -- which is
+        # precisely how it was free to drift. The in-use range is the documented
+        # one (MODFLOW-NWT UPW; Iceland basalt 1e2-1e4 m/d), and the old ceiling
+        # of 100 m/d excluded most of it.
+        'gsflow_K': ParameterInfo(0.1, 5000.0, 'm/d', 'Hydraulic conductivity (GSFLOW MODFLOW-NWT UPW); Iceland basalt 1e2-1e4 m/d', 'soil'),
     }
 
     # ========================================================================

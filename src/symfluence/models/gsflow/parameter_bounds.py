@@ -99,30 +99,18 @@ STRIP_PREFIX = 'gsflow_'
 #: Definitions GSFLOW calibrates against that are NOT sourced from the central
 #: catalogue, keyed by SERVED (unprefixed) name.
 #:
-#: ``K`` is the only entry, and it is a known, deliberate divergence rather
-#: than a second source of truth by accident:
+#: Empty, and it must stay that way. ``K`` used to live here: the central
+#: ``gsflow_K`` said ``(0.001, 100.0, log)`` while every GSFLOW calibration
+#: actually searched ``(0.1, 5000.0, linear)`` from a package-local dict. The
+#: catalogue entry was inert -- nothing in-tree or in any plugin calls
+#: ``get_gsflow_bounds()`` -- which is exactly how the two were free to drift.
+#: Central ``gsflow_K`` now carries the in-use range, so there is one
+#: definition again and the catalogue tells the truth.
 #:
-#: * Central ``gsflow_K`` is ``(0.001, 100.0, 'm/d', log)``. It has to stay
-#:   central because its served name ``K`` collides with Xinanjiang's.
-#: * What every GSFLOW calibration has actually used is ``(0.1, 5000.0,
-#:   linear)`` -- justified in-place as "Iceland basalt: 1e2-1e4 m/d", i.e.
-#:   the domain this model is run on. The central range CAPS at 100 m/d and
-#:   therefore excludes most of that interval.
-#:
-#: The in-use value is preserved here verbatim; converging the two requires
-#: editing the central definition (owned by
-#: ``symfluence.core.calibration.parameters``) AND regenerating
-#: ``tests/unit/core/data/model_bounds_snapshot.json``, so it is reported
-#: rather than changed as a side effect. Do not add entries here without the
-#: same justification -- a package-local definition is exactly the ``fuse_MBASE``
-#: failure mode when it is not deliberate.
-LOCAL_ONLY: Dict[str, ParameterInfo] = {
-    'K': ParameterInfo(
-        0.1, 5000.0, 'm/d',
-        'Hydraulic conductivity (MODFLOW-NWT UPW); Iceland basalt 1e2-1e4 m/d',
-        'soil',
-    ),
-}
+#: Do not add entries here without the same level of justification: a
+#: package-local definition shadowing a central one is precisely the
+#: ``fuse_MBASE`` failure mode that #368 had to fix.
+LOCAL_ONLY: Dict[str, ParameterInfo] = {}
 
 
 def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, float]]:
@@ -135,14 +123,40 @@ def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, float]]:
     }
 
 
+def _shared_from_catalogue() -> Dict[str, Dict[str, float]]:
+    """Served bounds for the BOUND_SET names this package does not own.
+
+    ``gsflow_K`` is the only one: its served name ``K`` collides with
+    Xinanjiang's, so it has to stay namespaced in the central catalogue. It is
+    read back through the public accessor rather than copied, because a local
+    copy of a central definition is exactly how the two drifted apart in the
+    first place -- the catalogue said 0.001-100 log while calibration actually
+    searched 0.1-5000 linear.
+    """
+    from symfluence.core.calibration.parameters.parameter_bounds_registry import (
+        get_registry,
+    )
+
+    shared = [name for name in BOUND_SET if name not in PARAMS]
+    if not shared:
+        return {}
+    resolved = get_registry().get_bounds_for_params(shared)
+    return {
+        (name[len(STRIP_PREFIX):] if name.startswith(STRIP_PREFIX) else name): bounds
+        for name, bounds in resolved.items()
+    }
+
+
 #: The bounds ``GSFLOWParameterManager`` resolves, keyed by served name.
 #:
-#: Every number comes from :data:`PARAMS` (which is also what this package
-#: contributes to the central catalogue) plus :data:`LOCAL_ONLY`, so a GSFLOW
-#: bound change is a one-line edit in one file. Re-exported as
-#: ``symfluence.models.gsflow.parameters.PARAM_BOUNDS`` for back-compat.
+#: Numbers come from :data:`PARAMS` (what this package contributes to the
+#: central catalogue) plus, for the handful of BOUND_SET names owned centrally
+#: because they are shared, the catalogue definition itself. Nothing is copied,
+#: so a GSFLOW bound change is a one-line edit in exactly one place.
+#: Re-exported as ``symfluence.models.gsflow.parameters.PARAM_BOUNDS``.
 CALIBRATION_BOUNDS: Dict[str, Dict[str, float]] = {
     **_served(PARAMS),
+    **_shared_from_catalogue(),
     **_served(LOCAL_ONLY),
 }
 

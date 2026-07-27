@@ -85,24 +85,27 @@ def test_defaults_lie_inside_their_bounds():
         assert bounds['min'] <= value <= bounds['max'], name
 
 
-def test_only_K_diverges_from_the_central_catalogue():
-    """The package-local exception list must stay exactly one entry long.
+def test_nothing_diverges_from_the_central_catalogue():
+    """Both GSFLOW bound paths must resolve to the same definitions.
 
-    ``K`` is package-local because the central ``gsflow_K`` (0.001..100, log)
-    caps below the range GSFLOW is actually calibrated over (0.1..5000, linear;
-    Iceland basalt is 1e2-1e4 m/d). Converging it means editing the central
-    definition and regenerating the model-bounds snapshot. Until then this test
-    is the marker: a SECOND local entry would be an undeliberate duplicate, the
-    ``fuse_MBASE`` failure mode.
+    ``K`` used to be the one exception: the central ``gsflow_K`` said
+    0.001..100 (log) while GSFLOW was actually calibrated over 0.1..5000
+    (linear; Iceland basalt is 1e2-1e4 m/d), and the catalogue entry was inert
+    because nothing calls ``get_gsflow_bounds()`` — which is how the two were
+    free to drift. The central definition now carries the in-use range, so
+    there is one source again.
+
+    The exception list must stay empty: a package-local definition shadowing a
+    central one is the ``fuse_MBASE`` failure mode #368 had to fix.
     """
-    assert set(pb.LOCAL_ONLY) == {'K'}
+    assert set(pb.LOCAL_ONLY) == set()
 
     catalogue = get_gsflow_bounds()
     shared = set(catalogue) & set(PARAM_BOUNDS)
     diverged = {n for n in shared if catalogue[n] != PARAM_BOUNDS[n]}
-    assert diverged == {'K'}, (
-        f"GSFLOW bound sources diverged on {sorted(diverged)} — every name but "
-        "'K' must resolve to the same definition through both paths"
+    assert diverged == set(), (
+        f"GSFLOW bound sources diverged on {sorted(diverged)} — every shared "
+        "name must resolve to the same definition through both paths"
     )
 
 
