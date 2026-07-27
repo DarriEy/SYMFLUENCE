@@ -65,6 +65,10 @@ def register() -> None:
         "LSTM",
         config_adapter=LSTMConfigAdapter,
         result_extractor=LSTMResultExtractor,
+        # Trained by gradient descent during the run step, not by an external
+        # DDS/PSO parameter search, so calibration and sensitivity analysis
+        # skip it rather than reporting a failure.
+        self_training=True,
     )
     base = 'symfluence.models.lstm'
     R.preprocessors.add_lazy("LSTM", f"{base}.preprocessor.LSTMPreProcessor")

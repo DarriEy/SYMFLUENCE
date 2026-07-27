@@ -86,13 +86,21 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 _CAPABILITY_MODULES = {
     "forcing_adapter": "forcing_adapters",
     "init_preset": "presets",
+    # Calibration workers are the one calibration component that is not
+    # auto-discovered: unlike optimizers and parameter managers they have no
+    # discovery pass of their own, so the coupled optimizer used to resolve a
+    # participant's worker by hardcoding the ``symfluence.models.<name>``
+    # layout — a path no external plugin can ever satisfy.
+    "calibration/worker": "workers",
 }
 
 
 def model_packages_with(submodule: str) -> tuple[str, ...]:
     """Return the in-tree model package names that contain *submodule*``.py``.
 
-    e.g. ``model_packages_with('forcing_adapter')`` -> ``('fuse', 'gr', ...)``.
+    *submodule* may be nested, using ``/`` as the separator:
+    ``model_packages_with('forcing_adapter')`` -> ``('fuse', 'gr', ...)``,
+    ``model_packages_with('calibration/worker')`` -> ``('clm', 'crhm', ...)``.
 
     **Internal to this distribution.** This is the models package introspecting
     its *own* directory; the framework must never call it, because it cannot
@@ -103,7 +111,10 @@ def model_packages_with(submodule: str) -> tuple[str, ...]:
     from pathlib import Path
 
     pkg_dir = Path(__file__).resolve().parent
-    return tuple(sorted(p.parent.name for p in pkg_dir.glob(f"*/{submodule}.py")))
+    return tuple(sorted(
+        p.relative_to(pkg_dir).parts[0]
+        for p in pkg_dir.glob(f"*/{submodule}.py")
+    ))
 
 
 def _declare_capability_modules() -> None:
@@ -128,8 +139,9 @@ def _declare_capability_modules() -> None:
 
     for submodule, registry_name in _CAPABILITY_MODULES.items():
         registry = getattr(R, registry_name)
+        dotted = submodule.replace("/", ".")
         for package in model_packages_with(submodule):
-            registry.add_module(f"{__name__}.{package}.{submodule}")
+            registry.add_module(f"{__name__}.{package}.{dotted}")
 
 
 _declare_capability_modules()

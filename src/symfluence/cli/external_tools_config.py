@@ -343,6 +343,75 @@ def _resolve_registered_build_instructions() -> None:
                 logger.debug("Could not drop unresolvable entry %s", tool_name)
 
 
+def _recover_build_instructions_from_failed_plugins() -> None:
+    """Recover build instructions for packages whose ``register()`` never ran.
+
+    Declaration-based discovery has one gap, and it is the gap that matters
+    most: a model package declares ``build_instructions_module`` from inside
+    ``register()``, so if the package's ``__init__.py`` raises on import, the
+    declaration never happens and the tool disappears from
+    ``symfluence binary install`` — precisely when the user most needs it,
+    because *building the binary is often what fixes the broken import*.
+
+    Recovery is narrow by construction. It runs only for entry points that
+    actually failed during discovery, and for each one it stubs a single
+    module: the failing leaf package. Its parents import fine (only the leaf
+    ``__init__`` raised), so giving the stub a correct ``__path__`` is enough
+    for ``<pkg>.build_instructions`` and any relative import inside it to
+    resolve, without executing the broken ``__init__``.
+
+    The predecessor of this function ran the same trick unconditionally for a
+    hardcoded list of in-tree models — bypassing every package's ``__init__``
+    on every invocation, and unable to see external plugins at all.
+    """
+    import importlib
+    import importlib.util
+    import logging
+    import sys
+    import types
+    from pathlib import Path
+
+    from symfluence.core._bootstrap import failed_plugin_entry_points
+
+    logger = logging.getLogger(__name__)
+
+    for name, value in failed_plugin_entry_points():
+        module_name = value.split(":", 1)[0]
+        target = f"{module_name}.build_instructions"
+        if target in sys.modules:
+            continue
+        try:
+            spec = importlib.util.find_spec(module_name)
+        except (ImportError, ValueError, AttributeError):
+            spec = None
+        if spec is None or not spec.origin:
+            continue
+
+        package_dir = Path(spec.origin).parent
+        if not (package_dir / "build_instructions.py").exists():
+            continue
+
+        previous = sys.modules.get(module_name)
+        stub = types.ModuleType(module_name)
+        stub.__path__ = [str(package_dir)]
+        stub.__package__ = module_name
+        sys.modules[module_name] = stub
+        try:
+            importlib.import_module(target)
+            logger.info(
+                "Recovered build instructions for plugin %r whose package failed "
+                "to import; its binary can still be built.", name,
+            )
+        except Exception as exc:  # noqa: BLE001 - recovery is best-effort by definition
+            logger.debug("No build-instruction recovery for %r: %s", name, exc)
+            sys.modules.pop(target, None)
+        finally:
+            if previous is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = previous
+
+
 # Register infrastructure tools on module load
 _register_infrastructure_tools()
 
@@ -373,7 +442,10 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
         - verify_install: Installation verification criteria
         - order: Installation order (lower numbers first)
     """
-    # Resolve the model build instructions declared by registered plugins
+    # Resolve the model build instructions declared by registered plugins, then
+    # make a best-effort recovery for any plugin whose package failed to import
+    # (its register() never ran, so it declared nothing).
+    _recover_build_instructions_from_failed_plugins()
     _resolve_registered_build_instructions()
 
     # Return all aggregated instructions

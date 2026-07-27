@@ -24,6 +24,19 @@ _bootstrapped = False
 #: Entry-point group that external packages use to register plugins.
 PLUGIN_ENTRY_POINT_GROUP = "symfluence.plugins"
 
+#: Entry points that failed to load, as ``(name, value)`` pairs. A plugin whose
+#: ``register()`` never ran contributes nothing to the registries — including
+#: its build instructions, which is how a model that cannot import its Python
+#: components also loses the ability to BUILD its binary, the very thing that
+#: would fix it. Consumers that can degrade gracefully read this to attempt a
+#: narrower recovery; see ``cli.external_tools_config``.
+_FAILED_PLUGIN_ENTRY_POINTS: list[tuple[str, str]] = []
+
+
+def failed_plugin_entry_points() -> tuple[tuple[str, str], ...]:
+    """Entry points that raised during discovery, as ``(name, value)`` pairs."""
+    return tuple(_FAILED_PLUGIN_ENTRY_POINTS)
+
 
 def bootstrap() -> None:
     """Populate static registrations.  Safe to call multiple times."""
@@ -92,6 +105,23 @@ def _seed_model_optimizers() -> None:
     import importlib
     importlib.import_module("symfluence.optimization.model_optimizers")
 
+    # COUPLED is framework composition machinery living in core, but its
+    # registration used to fire only when ``optimization._autodiscover``
+    # pkgutil-scanned ``symfluence.models.*`` and happened to import the
+    # back-compat shim. That made a core capability hostage to the models
+    # distribution: an install carrying only external model plugins would hold
+    # the code while ``R.optimizers.get('COUPLED')`` returned None and
+    # ``optimization_manager`` routed to it regardless. Seed it here instead.
+    #
+    # Idempotent: the shim import still happens during autodiscovery, but
+    # ``sys.modules`` caching means each decorator fires exactly once.
+    for module in (
+        "symfluence.core.calibration.coupled.optimizer",
+        "symfluence.core.calibration.coupled.parameter_manager",
+        "symfluence.core.calibration.coupled.worker",
+    ):
+        importlib.import_module(module)
+
 
 def _bootstrap_delineation_aliases(R: type) -> None:  # noqa: N803
     """Register canonical delineation aliases."""
@@ -159,13 +189,24 @@ def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
     the SUMMA+MODFLOW coupling -> the ``COUPLED_GW`` calibration pipeline). The
     guard below additionally refuses to shadow a real registration with an alias.
     """
-    # alias -> canonical, applied across every model-component registry
+    # alias -> canonical, applied across every model-component registry.
+    #
+    # A package that owns its canonical key declares its own alternate
+    # spellings with ``model_manifest(aliases=[...])`` — RHESSYS ("RHESS") and
+    # CLMPARFLOW ("CLM-ParFlow") now do. What remains here is what a package
+    # cannot declare for itself:
+    #
+    #   * HEC-HMS / SAC-SMA — the canonical keys belong to the external jhechms
+    #     and jsacsma packages. They are compatibility entries until those
+    #     packages adopt the manifest field; keeping them means a config using
+    #     the conventional hyphenated spelling keeps resolving meanwhile.
+    #   * SUMMA-MODFLOW — aliases to COUPLED_GW, a calibration pipeline rather
+    #     than a model, so no single package's manifest owns it. The MODFLOW
+    #     package registers COUPLED_GW from its calibration worker, not from a
+    #     manifest keyed on that name.
     model_aliases = {
         "HEC-HMS": "HECHMS",
         "SAC-SMA": "SACSMA",
-        "CLM-PARFLOW": "CLMPARFLOW",
-        # Alternate / short names whose canonical key differs from the spelling.
-        "RHESS": "RHESSYS",
         "SUMMA-MODFLOW": "COUPLED_GW",
     }
     component_registries = (
@@ -289,6 +330,7 @@ def _discover_plugins() -> None:
                 ep.value,
                 exc,
             )
+            _FAILED_PLUGIN_ENTRY_POINTS.append((ep.name, ep.value))
         except ImportError as exc:
             from symfluence.core.exceptions import OptionalDependencyError
             missing_module = getattr(exc, "name", None) or ""
@@ -310,6 +352,7 @@ def _discover_plugins() -> None:
                     ep.value,
                     exc,
                 )
+                _FAILED_PLUGIN_ENTRY_POINTS.append((ep.name, ep.value))
             else:
                 # Any other ImportError (e.g. "cannot import name ... from
                 # symfluence...") means the installed plugin was built against
@@ -325,6 +368,7 @@ def _discover_plugins() -> None:
                     ep.value,
                     exc,
                 )
+                _FAILED_PLUGIN_ENTRY_POINTS.append((ep.name, ep.value))
         except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
             logger.warning(
                 "Failed to load symfluence plugin %r (%s); skipping.",
@@ -332,6 +376,7 @@ def _discover_plugins() -> None:
                 ep.value,
                 exc_info=True,
             )
+            _FAILED_PLUGIN_ENTRY_POINTS.append((ep.name, ep.value))
 
     # In-tree models register through these same entry points (declared in
     # SYMFLUENCE's own pyproject.toml). Discovering zero of them means the

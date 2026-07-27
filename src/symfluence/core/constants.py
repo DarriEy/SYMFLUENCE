@@ -451,7 +451,40 @@ class SupportedModels:
     #: the run step), not an external DDS/PSO parameter search. They register no
     #: optimizer/worker and have no calibrated parameters, so both the calibration
     #: and sensitivity-analysis paths skip them rather than reporting a failure.
-    SELF_TRAINING = frozenset({'LSTM', 'GNN'})
+    #:
+    #: Declared by the owning package via ``model_manifest(self_training=True)``
+    #: rather than hardcoded here: core cannot know which models an installed
+    #: plugin trains internally, and a hardcoded list could only ever describe
+    #: the in-tree suite.
+    class _SelfTraining:
+        """Set-like view over the models that declared ``self_training``."""
+
+        def _resolved(self) -> frozenset:
+            from symfluence.core.registry import self_training_models
+
+            return self_training_models()
+
+        def __contains__(self, item: object) -> bool:
+            return isinstance(item, str) and item.upper() in self._resolved()
+
+        def __iter__(self):
+            return iter(self._resolved())
+
+        def __len__(self) -> int:
+            return len(self._resolved())
+
+        def __eq__(self, other: object) -> bool:
+            if isinstance(other, (set, frozenset)):
+                return set(self._resolved()) == set(other)
+            return NotImplemented
+
+        def __hash__(self) -> int:
+            return hash(self._resolved())
+
+        def __repr__(self) -> str:
+            return f"SELF_TRAINING({sorted(self._resolved())})"
+
+    SELF_TRAINING = _SelfTraining()
 
     @classmethod
     def is_valid(cls, model_name: str) -> bool:

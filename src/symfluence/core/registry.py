@@ -38,6 +38,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -416,6 +417,18 @@ class Registry(Generic[T]):
 # model_manifest() — declarative per-model registration
 # ======================================================================
 
+#: Models whose calibration is internal training rather than an external
+#: parameter search, declared via ``model_manifest(self_training=True)``.
+#: Owned by the declaring package: core cannot know which models an installed
+#: plugin trains internally, and the hardcoded list this replaced could only
+#: ever describe the in-tree suite.
+_SELF_TRAINING_MODELS: set[str] = set()
+
+
+def self_training_models() -> frozenset[str]:
+    """Canonical keys of models that train internally during the run step."""
+    return frozenset(_SELF_TRAINING_MODELS)
+
 
 def model_manifest(
     model_name: str,
@@ -442,6 +455,8 @@ def model_manifest(
     forcing_adapter_module: Optional[str] = None,
     init_preset_module: Optional[str] = None,
     build_instructions_module: Optional[str] = None,
+    aliases: Optional[Sequence[str]] = None,
+    self_training: bool = False,
 ) -> None:
     """Declaratively register all components for a single model.
 
@@ -483,6 +498,20 @@ def model_manifest(
     build_instructions_module : str, optional
         Dotted import path to the build instructions module — will be
         registered as a lazy import in ``R.build_instructions``.
+    aliases : sequence of str, optional
+        Alternate spellings that should resolve to *model_name* across every
+        component registry — hyphenated forms (``"HEC-HMS"`` for ``HECHMS``),
+        short names (``"RHESS"`` for ``RHESSYS``), or a legacy key. Declaring
+        them here keeps the mapping with the package that owns the canonical
+        name; core previously carried a hardcoded table it could not know was
+        complete.
+    self_training : bool, default False
+        True for models whose "calibration" is internal training during the run
+        step (gradient descent) rather than an external DDS/PSO parameter
+        search. They register no optimizer or worker and have no calibrated
+        parameters, so the calibration and sensitivity-analysis paths skip them
+        instead of reporting a failure. Read back via
+        ``SupportedModels.SELF_TRAINING``.
     """
     # Deferred import to avoid circular dependency at module-parse time.
     from symfluence.core.registries import Registries as R
@@ -540,3 +569,17 @@ def model_manifest(
 
     if build_instructions_module is not None:
         R.build_instructions.add_lazy(model_name, build_instructions_module)
+
+    # Alternate spellings resolve to the canonical key across every registry a
+    # model component can live in. Aliases are resolved lazily at lookup time,
+    # so declaring one before the canonical registration is fine.
+    for alias in aliases or ():
+        for registry in (R.runners, R.preprocessors, R.postprocessors,
+                         R.optimizers, R.workers):
+            # Never let an alias shadow a real registration of the same name.
+            if alias.upper() in registry.keys():
+                continue
+            registry.alias(alias, model_name)
+
+    if self_training:
+        _SELF_TRAINING_MODELS.add(model_name.upper())

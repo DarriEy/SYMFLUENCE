@@ -173,14 +173,17 @@ def test_gr_variants_normalize_to_gr(variant):
     assert get_model_config(variant).output_dir_name == "GR"
 
 
-def test_unknown_model_falls_back_to_summa():
-    """An unregistered model silently gets SUMMA's runoff layout.
+def test_unknown_model_raises():
+    """An unregistered source model is an error, not a silent SUMMA run.
 
-    Characterized, not endorsed: this fallback hides typos and unregistered
-    models behind plausible-looking SUMMA paths. Preserved here so the move
-    is a no-op; changing it is a separate decision.
+    The old fallback returned SUMMA's runoff layout for any unrecognised name,
+    hiding config typos and unroutable models behind plausible SUMMA paths
+    until someone noticed the routed hydrograph was wrong.
     """
-    assert get_model_config("NOT_A_MODEL").output_dir_name == "SUMMA"
+    from symfluence.core.exceptions import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="NOT_A_MODEL"):
+        get_model_config("NOT_A_MODEL")
 
 
 def test_runoff_lookup_is_case_insensitive():
@@ -204,15 +207,21 @@ def test_spatial_mode_keys_table():
 
 
 def test_routing_integration_keys_table():
-    """FUSE is the only model whose routing-integration key core consults.
+    """Every model defining a routing-integration key has it consulted.
 
-    Characterized, not endorsed: GR, VIC, SWAT, MHM and CRHM all define a
-    ``<MODEL>_ROUTING_INTEGRATION`` key that this table cannot see, while
-    ``spatial_orchestrator`` derives the same key by convention. Preserved
-    verbatim so the schema migration is a no-op; tracked separately.
+    Was FUSE-only: GR, VIC, SWAT, MHM and CRHM each define a
+    ``<MODEL>_ROUTING_INTEGRATION`` key, and ``spatial_orchestrator`` already
+    derived the same key by convention — so the orchestrator honoured those
+    settings while the routing *decision* ignored them. Fixed deliberately;
+    routing decisions change for those five models.
     """
     assert RoutingDecider.ROUTING_INTEGRATION_KEYS == {
+        "CRHM": "CRHM_ROUTING_INTEGRATION",
         "FUSE": "FUSE_ROUTING_INTEGRATION",
+        "GR": "GR_ROUTING_INTEGRATION",
+        "MHM": "MHM_ROUTING_INTEGRATION",
+        "SWAT": "SWAT_ROUTING_INTEGRATION",
+        "VIC": "VIC_ROUTING_INTEGRATION",
     }
 
 
@@ -251,17 +260,24 @@ def test_configured_spatial_mode_resolves(model):
     assert host._get_configured_spatial_mode(model) == "distributed"
 
 
-@pytest.mark.parametrize("model", ["SWAT", "VIC", "CLM", "MODFLOW", "PRMS"])
-def test_unlisted_models_resolve_no_spatial_mode(model):
-    """Models absent from the map get None even when configured.
+@pytest.mark.parametrize("model", ["SWAT", "VIC", "CLM", "MODFLOW", "PRMS",
+                                   "CRHM", "WFLOW", "PIHM", "GSFLOW"])
+def test_previously_unlisted_models_resolve_spatial_mode(model):
+    """Any model with a config section resolves its configured spatial mode.
 
-    Characterized, not endorsed: the map is a hand-maintained allow-list whose
-    every entry is just ``model_name.lower()``, so ~20 models silently lose
-    their configured spatial mode. Preserved so the simplification to a plain
-    lowercase lookup is a deliberate, separately reviewed behaviour change.
+    Was a hand-maintained 12-entry allow-list whose every entry was just
+    ``model_name.lower()``, so ~20 models silently lost their configured
+    spatial mode. A plain lowercase lookup already returns None for a model
+    with no config section, so the allow-list contributed nothing but the bug.
     """
     host = _StubHost({model.lower(): _StubSection("distributed")})
-    assert host._get_configured_spatial_mode(model) is None
+    assert host._get_configured_spatial_mode(model) == "distributed"
+
+
+def test_unknown_model_still_resolves_no_spatial_mode():
+    """A model with no config section resolves None rather than raising."""
+    host = _StubHost({"fuse": _StubSection("lumped")})
+    assert host._get_configured_spatial_mode("NOT_A_MODEL") is None
 
 
 def test_missing_config_section_resolves_none():

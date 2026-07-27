@@ -45,6 +45,10 @@ def register() -> None:
         "GNN",
         config_adapter=GNNConfigAdapter,
         result_extractor=GNNResultExtractor,
+        # Trained by gradient descent during the run step, not by an external
+        # DDS/PSO parameter search, so calibration and sensitivity analysis
+        # skip it rather than reporting a failure.
+        self_training=True,
     )
 
 

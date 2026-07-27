@@ -59,14 +59,20 @@ class CoupledModelWorker(BaseWorker):
         if model not in self._workers:
             cls = R.workers.get(model)
             if cls is None:
-                # Workers (unlike parameter managers/optimizers) are not auto-discovered; import
-                # the model's worker module so its @R.workers.add decorator fires, then retry.
-                import importlib
-                try:
-                    importlib.import_module(f"symfluence.models.{model.lower()}.calibration.worker")
-                except ImportError as e:
-                    raise ConfigurationError(f"Could not import worker for '{model}': {e}") from e
+                # Workers (unlike parameter managers/optimizers) are not auto-discovered: they
+                # register as a side effect of importing the owning package's worker module.
+                # Drain the modules packages have declared -- this is the path that works for
+                # in-tree AND external plugins, since it asks the registry rather than guessing
+                # a filesystem layout.
+                R.workers.load_modules()
                 cls = R.workers.get(model)
+            # There is deliberately no `symfluence.models.<name>` import fallback here. It
+            # used to exist, and it was a runtime upward edge from core into the models
+            # layer -- invisible to the AST layering guard because the path was built with
+            # an f-string, and unable to resolve any external plugin. Every in-tree package
+            # now declares its worker module (guarded by
+            # tests/unit/core/test_worker_module_declarations.py), so the drain above covers
+            # them; an external plugin declares its own the same way.
             if cls is None:
                 raise ConfigurationError(
                     f"No worker registered for '{model}'. Available: {sorted(R.workers.keys())}")

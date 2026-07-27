@@ -123,6 +123,7 @@ def register() -> None:
         config_adapter=RHESSysConfigAdapter,
         result_extractor=RHESSysResultExtractor,
         build_instructions_module="symfluence.models.rhessys.build_instructions",
+        aliases=["RHESS"],
     )
     base = 'symfluence.models.rhessys'
     R.preprocessors.add_lazy("RHESSys", f"{base}.preprocessor.RHESSysPreProcessor")
