@@ -29,8 +29,10 @@ if TYPE_CHECKING:
 # used to import them from here. The values themselves are no longer declared
 # in this module: each model declares its runoff artifact on its registered
 # ModelConfigSchema and ``get_model_config`` serves it. The local copy this
-# replaces held the same values for SUMMA/FUSE/GR/NGEN and simply omitted HYPE,
-# so a HYPE source was rejected here while routing resolved it everywhere else.
+# replaces held the same values for SUMMA/FUSE/GR/NGEN, so collapsing onto the
+# declaration changed nothing here — the four routable sources are the same
+# four. (It also omitted HYPE, which read as a gap at the time; HYPE has since
+# been established as not routable at all, so the omission was right.)
 __all__ = ['MODEL_CONFIGS', 'ModelRunoffConfig', 'ControlFileWriter']
 
 
@@ -130,7 +132,9 @@ class ControlFileWriter(ConfigurableMixin):
             'EXPERIMENT_OUTPUT_FUSE': lambda: self.config.model.fuse.experiment_output,
             'EXPERIMENT_OUTPUT_GR': lambda: self.config.model.gr.experiment_output,
             'EXPERIMENT_OUTPUT_NGEN': lambda: self.config.model.ngen.experiment_output if self.config.model.ngen else None,
-            'EXPERIMENT_OUTPUT_HYPE': lambda: self.config.model.hype.experiment_output if self.config.model.hype else None,
+            # No HYPE entry: it is not a routable source, so no HYPE runoff
+            # declaration exists to carry EXPERIMENT_OUTPUT_HYPE as its
+            # output_dir_key and this map is never asked for it.
         }
         getter = key_to_config.get(model_config.output_dir_key)
         if getter:

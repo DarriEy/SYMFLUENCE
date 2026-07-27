@@ -121,7 +121,9 @@ def resolve_runoff_file(
                 'SUMMA': lambda: config.model.summa.experiment_output,
                 'FUSE': lambda: config.model.fuse.experiment_output,
                 'GR': lambda: config.model.gr.experiment_output,
-                'HYPE': lambda: config.model.hype.experiment_output,
+                # No HYPE entry: HYPE is not a routable source (its cout is
+                # already routed discharge), so get_model_config raises above
+                # before this map is ever consulted for it.
                 'NGEN': lambda: config.model.ngen.experiment_output,
             }
             getter = config_dir_map.get(model_key)

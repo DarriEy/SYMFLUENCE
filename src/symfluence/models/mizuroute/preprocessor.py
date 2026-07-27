@@ -30,7 +30,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
     network topology file creation, remapping file generation, and control file writing.
     It supports multiple domain discretization strategies (lumped, semi-distributed,
     distributed, grid-based) and integrates with various hydrological models as runoff
-    sources (SUMMA, FUSE, GR, NextGen, HYPE).
+    sources (SUMMA, FUSE, GR, NextGen).
 
     Supported Domain Types:
         Lumped:
@@ -58,7 +58,6 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         - FUSE: Framework for Understanding Structural Errors
         - GR: Parsimonious hydrological models (GR4J, GR5J, GR6J)
         - NextGen (NGEN): NOAA modular BMI framework
-        - HYPE: Semi-distributed hydrological model
 
     Processing Workflow:
         1. **Initialization**: Set up directories, handle custom paths for parallel runs
