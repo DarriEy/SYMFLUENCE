@@ -24,6 +24,14 @@ Stays central for GSFLOW: ``gsflow_K``.
 :func:`register_bounds` is called from this package's ``register()``, i.e. at
 plugin-discovery time, which runs on ``import symfluence`` -- before any
 calibration code can read bounds.
+
+This module is also the ONE place GSFLOW's bound numbers are written.
+``symfluence.models.gsflow.parameters.PARAM_BOUNDS`` -- what
+``GSFLOWParameterManager._load_parameter_bounds()`` actually reads at
+calibration time -- used to be an independent literal dict here-and-there
+duplicate; it is now :data:`CALIBRATION_BOUNDS`, derived below. See
+:data:`LOCAL_ONLY` for the single number that still cannot be sourced from the
+central catalogue.
 """
 from __future__ import annotations
 
@@ -57,10 +65,21 @@ PARAMS: Dict[str, ParameterInfo] = {
 
 #: Tier A -- the catalogue names composing GSFLOW's bound set, in served order.
 #: Names absent from :data:`PARAMS` are shared and defined centrally.
-#: NOTE: 5 further GSFLOW entries are registered above but deliberately
-#: absent from this list. That mismatch is pre-existing behaviour of
-#: get_gsflow_bounds() and is preserved verbatim here; it is tracked
-#: separately, not fixed as a side effect of the extraction.
+#: NOTE: this list does NOT match what GSFLOW actually calibrates, and the
+#: mismatch is pre-existing behaviour of ``get_gsflow_bounds()`` preserved
+#: verbatim (the model-bounds parity snapshot is pinned to it). Measured
+#: against ``GSFLOWParameterManager``'s default ``GSFLOW_PARAMS_TO_CALIBRATE``:
+#:
+#: * absent here but calibrated by default -- ``jh_coef``, ``tmax_allsnow``,
+#:   ``rain_adj``, ``snow_adj`` (``tmax_allrain`` is registered but correctly
+#:   not calibrated: PRMS6 ignores it in COUPLED mode);
+#: * present here but NOT calibrated -- ``soil_rechr_max``, ``gwflow_coef``,
+#:   ``gw_seep_coef``, for the same "inert in COUPLED mode" reason.
+#:
+#: Fixing it changes ``get_gsflow_bounds()`` output and so requires
+#: regenerating ``tests/unit/core/data/model_bounds_snapshot.json``; it is
+#: reported, not changed as a side effect. What the manager reads is
+#: :data:`CALIBRATION_BOUNDS`, which covers every name in either set.
 BOUND_SET: List[str] = [
     'gsflow_soil_moist_max',
     'gsflow_soil_rechr_max',
@@ -76,6 +95,56 @@ BOUND_SET: List[str] = [
 
 #: Catalogue keys are namespaced; parameter managers use unprefixed names.
 STRIP_PREFIX = 'gsflow_'
+
+#: Definitions GSFLOW calibrates against that are NOT sourced from the central
+#: catalogue, keyed by SERVED (unprefixed) name.
+#:
+#: ``K`` is the only entry, and it is a known, deliberate divergence rather
+#: than a second source of truth by accident:
+#:
+#: * Central ``gsflow_K`` is ``(0.001, 100.0, 'm/d', log)``. It has to stay
+#:   central because its served name ``K`` collides with Xinanjiang's.
+#: * What every GSFLOW calibration has actually used is ``(0.1, 5000.0,
+#:   linear)`` -- justified in-place as "Iceland basalt: 1e2-1e4 m/d", i.e.
+#:   the domain this model is run on. The central range CAPS at 100 m/d and
+#:   therefore excludes most of that interval.
+#:
+#: The in-use value is preserved here verbatim; converging the two requires
+#: editing the central definition (owned by
+#: ``symfluence.core.calibration.parameters``) AND regenerating
+#: ``tests/unit/core/data/model_bounds_snapshot.json``, so it is reported
+#: rather than changed as a side effect. Do not add entries here without the
+#: same justification -- a package-local definition is exactly the ``fuse_MBASE``
+#: failure mode when it is not deliberate.
+LOCAL_ONLY: Dict[str, ParameterInfo] = {
+    'K': ParameterInfo(
+        0.1, 5000.0, 'm/d',
+        'Hydraulic conductivity (MODFLOW-NWT UPW); Iceland basalt 1e2-1e4 m/d',
+        'soil',
+    ),
+}
+
+
+def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, float]]:
+    """Strip the catalogue namespace and flatten to the bounds-dict form."""
+    return {
+        (name[len(STRIP_PREFIX):] if name.startswith(STRIP_PREFIX) else name): {
+            'min': info.min, 'max': info.max, 'transform': info.transform,
+        }
+        for name, info in params.items()
+    }
+
+
+#: The bounds ``GSFLOWParameterManager`` resolves, keyed by served name.
+#:
+#: Every number comes from :data:`PARAMS` (which is also what this package
+#: contributes to the central catalogue) plus :data:`LOCAL_ONLY`, so a GSFLOW
+#: bound change is a one-line edit in one file. Re-exported as
+#: ``symfluence.models.gsflow.parameters.PARAM_BOUNDS`` for back-compat.
+CALIBRATION_BOUNDS: Dict[str, Dict[str, float]] = {
+    **_served(PARAMS),
+    **_served(LOCAL_ONLY),
+}
 
 
 def register_bounds() -> None:

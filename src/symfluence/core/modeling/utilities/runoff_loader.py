@@ -21,20 +21,13 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
+from symfluence.core.exceptions import ConfigurationError
 from symfluence.core.modeling.config_schema import RunoffConfig, registered_runoff_configs
 
 logger = logging.getLogger(__name__)
 
 #: Back-compat alias: the served value type used to be declared here.
 ModelRunoffConfig = RunoffConfig
-
-#: Legacy fallback. A source model with no registered runoff declaration —
-#: a typo, or a model that simply cannot feed a routing model — silently
-#: resolves to this model's layout instead of failing. Characterized (not
-#: endorsed) by tests/unit/core/test_model_knowledge_parity.py; it is the last
-#: per-model string in this module and removing it is a separate, reviewed
-#: behaviour change.
-FALLBACK_SOURCE_MODEL = 'SUMMA'
 
 
 class _SchemaRunoffConfigs(Mapping):
@@ -84,23 +77,24 @@ def _canonical_source_key(source_model: str) -> str:
 def get_model_config(source_model: str) -> RunoffConfig:
     """Get the runoff configuration for a source model.
 
-    Falls back to :data:`FALLBACK_SOURCE_MODEL` when the model declares no
-    runoff config (see that constant for why that is characterized, not
-    endorsed).
+    Raises:
+        ConfigurationError: if *source_model* declares no runoff config.
+            This used to fall back to SUMMA's layout, which turned a config
+            typo — or a model that simply cannot feed a routing model — into
+            a routing run against plausible-looking SUMMA paths, discovered
+            only when someone noticed the routed hydrograph was wrong.
     """
     table = _SchemaRunoffConfigs._table()
     config = table.get(_canonical_source_key(source_model))
-    if config is not None:
-        return config
-    fallback = table.get(FALLBACK_SOURCE_MODEL.lower())
-    if fallback is None:
-        raise KeyError(
+    if config is None:
+        raise ConfigurationError(
             f"No runoff configuration registered for source model "
-            f"'{source_model}', and the {FALLBACK_SOURCE_MODEL} fallback is "
-            f"itself unregistered. Registered: {sorted(table)}. Model packages "
-            f"declare this as ModelConfigSchema.runoff at registration time."
+            f"'{source_model}'. Routable source models: "
+            f"{sorted(name.upper() for name in table)}. Model packages declare "
+            f"this as ModelConfigSchema.runoff at registration time; a model "
+            f"without one cannot feed a routing model."
         )
-    return fallback
+    return config
 
 
 def resolve_runoff_file(

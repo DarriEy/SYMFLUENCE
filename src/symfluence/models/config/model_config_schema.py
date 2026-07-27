@@ -123,7 +123,11 @@ def _create_fuse_schema() -> ModelConfigSchema:
         output=OutputConfig(
             output_dir_key='EXPERIMENT_OUTPUT_FUSE',
             default_output_subpath='simulations/{experiment_id}/FUSE',
-            output_file_pattern='{domain}_{experiment_id}_runs_def.nc',
+            # Same file as the runoff declaration below. '{domain_name}' is the
+            # token resolve_runoff_file() substitutes; the '{domain}' spelling
+            # this carried was a drift that would have raised KeyError had this
+            # declaration ever been used for formatting.
+            output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
             primary_output_var='q_routed'
         ),
         runoff=RunoffConfig(
@@ -132,11 +136,6 @@ def _create_fuse_schema() -> ModelConfigSchema:
             default_var='q_routed',
             default_units='m/s',
             default_dt='86400',
-            # NOTE: OutputConfig above spells the same file '{domain}_...'.
-            # The two declarations drifted before they were unified here; the
-            # runoff path is what routing resolves, so the '{domain_name}'
-            # spelling it has always served is preserved verbatim. Reconciling
-            # the two is a separate, reviewed change.
             output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
             hru_dim='gru',
             hru_var='gruId',
@@ -144,11 +143,6 @@ def _create_fuse_schema() -> ModelConfigSchema:
         ),
         spatial_mode_key='FUSE_SPATIAL_MODE',
         routing_key='FUSE_ROUTING_INTEGRATION',
-        # FUSE is the only model whose routing-integration key core's
-        # RoutingDecider consults. GR/VIC/SWAT/MHM/CRHM all define a
-        # <MODEL>_ROUTING_INTEGRATION key that the decision has never read
-        # (spatial_orchestrator derives the same key by convention and does).
-        # Preserved verbatim; widening it is a separate, reviewed change.
         routing_integration_key='FUSE_ROUTING_INTEGRATION',
         config_keys=[
             ConfigKey('SETTINGS_FUSE_FILEMANAGER', ConfigKeyType.STRING, False,
@@ -193,12 +187,21 @@ def _create_gr_schema() -> ModelConfigSchema:
         output=OutputConfig(
             output_dir_key='EXPERIMENT_OUTPUT_GR',
             default_output_subpath='simulations/{experiment_id}/GR',
-            output_file_pattern='{experiment_id}_output.nc',
-            primary_output_var='Qsim'
+            # GR writes two different artifacts depending on spatial mode, and
+            # neither was the '{experiment_id}_output.nc' / 'Qsim' this used to
+            # declare -- a name the GR adapter never writes or reads. In lumped
+            # mode the runner writes GR_results.csv (columns 'datetime',
+            # 'q_sim') alongside GR_results.Rdata; the CSV is what
+            # GRResultExtractor._extract_from_csv and the lumped postprocessor
+            # path consume. The distributed artifact is the runoff declaration
+            # below.
+            output_file_pattern='GR_results.csv',
+            primary_output_var='q_sim'
         ),
-        # The routed artifact differs from GR's own output above: routing
-        # reads FUSE-style '{domain_name}_{experiment_id}_runs_def.nc' /
-        # 'q_routed'. Both values preserved exactly as served today.
+        # Distributed mode: GRRunner._save_distributed_results_for_routing()
+        # writes '{domain_name}_{experiment_id}_runs_def.nc' with (time, gru),
+        # 'gruId' and 'q_routed' in m/s -- the mizuRoute-shaped file routing
+        # consumes. FUSE-shaped by construction, not by copy-paste.
         runoff=RunoffConfig(
             output_dir_key='EXPERIMENT_OUTPUT_GR',
             output_dir_name='GR',
@@ -213,6 +216,7 @@ def _create_gr_schema() -> ModelConfigSchema:
         ),
         spatial_mode_key='GR_SPATIAL_MODE',
         routing_key='GR_ROUTING_INTEGRATION',
+        routing_integration_key='GR_ROUTING_INTEGRATION',
         config_keys=[
             ConfigKey('GR_MODEL_TYPE', ConfigKeyType.ENUM, False,
                       default='GR4J',
@@ -260,6 +264,10 @@ def _create_ngen_schema() -> ModelConfigSchema:
             primary_output_var='q_out'
         ),
         # Routing reads a NetCDF aggregate, not NGEN's per-nexus CSVs.
+        # Confirmed: ngen writes nex-*_output.csv (NGENPostProcessor
+        # .output_file_glob), and NGENPostProcessor derives
+        # '{experiment_id}_runoff.nc' with a 'runoff' (time, hru) variable in
+        # m/s from them for routing. Two genuinely different files.
         runoff=RunoffConfig(
             output_dir_key='EXPERIMENT_OUTPUT_NGEN',
             output_dir_name='NGEN',
@@ -308,10 +316,20 @@ def _create_hype_schema() -> ModelConfigSchema:
         output=OutputConfig(
             output_dir_key='EXPERIMENT_OUTPUT_HYPE',
             default_output_subpath='simulations/{experiment_id}/HYPE',
-            output_file_pattern='timeOUT.txt',
+            # info.txt requests 'timeoutput variable COUT EVAP SNOW', so HYPE
+            # writes timeCOUT.txt / timeEVAP.txt / timeSNOW.txt. Every consumer
+            # (extractor, postprocessor, calibration worker, multi-gauge
+            # metrics) reads timeCOUT.txt; the 'timeOUT.txt' spelling this used
+            # to declare is a file HYPE never writes.
+            output_file_pattern='timeCOUT.txt',
             primary_output_var='cout'
         ),
         # Routing reads a NetCDF timestep file, not HYPE's native text output.
+        # Unverified: no code in the HYPE adapter was found that writes
+        # '{experiment_id}_timestep.nc', so this pattern is what routing would
+        # look for rather than something the adapter is known to produce. Left
+        # as-is deliberately -- changing it without evidence would only move
+        # the uncertainty.
         runoff=RunoffConfig(
             output_dir_key='EXPERIMENT_OUTPUT_HYPE',
             output_dir_name='HYPE',
@@ -415,6 +433,203 @@ def _create_gnn_schema() -> ModelConfigSchema:
     )
 
 
+# ---------------------------------------------------------------------------
+# Models whose only core-visible declaration is their routing-integration key.
+#
+# CRHM/MHM/SWAT/VIC each define a ``<MODEL>_ROUTING_INTEGRATION`` key that
+# their calibration optimizer reads and that ``spatial_orchestrator`` derives
+# by the same convention, but they had no registered schema — so
+# ``RoutingDecider`` never consulted the key and the routing *decision*
+# disagreed with the orchestrator that acted on it. Registering the schema is
+# what makes the key visible to core.
+#
+# None of the four declares ``spatial_mode_key``: their spatial mode already
+# resolves by lowercase-section convention, and putting them in
+# ``RoutingDecider.SPATIAL_MODE_KEYS`` would change a second decision path.
+# None declares ``runoff``: none of them writes a runoff artifact a routing
+# model consumes today (CRHM and mHM route internally), so they stay
+# unroutable-as-a-source, which ``get_model_config`` now reports explicitly.
+# ---------------------------------------------------------------------------
+
+
+def _create_crhm_schema() -> ModelConfigSchema:
+    """Create configuration schema for CRHM model."""
+    return ModelConfigSchema(
+        model_name='CRHM',
+        description='Cold Regions Hydrological Model',
+        installation=InstallationConfig(
+            install_path_key='CRHM_INSTALL_PATH',
+            default_install_subpath='installs/crhm',
+            exe_name_key='CRHM_EXE',
+            default_exe_name='crhm'
+        ),
+        execution=ExecutionConfig(
+            method='subprocess',
+            supports_parallel=False,
+            default_timeout=3600
+        ),
+        input=InputConfig(
+            forcing_dir_key='FORCING_CRHM_PATH',
+            default_forcing_subpath='forcing/CRHM_input',
+            forcing_file_pattern='forcing.obs',
+            required_variables=[]
+        ),
+        output=OutputConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_CRHM',
+            default_output_subpath='simulations/{experiment_id}/CRHM',
+            output_file_pattern='crhm_output.txt',
+            primary_output_var='basinflow'
+        ),
+        routing_integration_key='CRHM_ROUTING_INTEGRATION',
+        config_keys=[
+            ConfigKey('SETTINGS_CRHM_PATH', ConfigKeyType.PATH, False,
+                      description='Path to CRHM settings directory'),
+            ConfigKey('CRHM_PROJECT_FILE', ConfigKeyType.STRING, False,
+                      default='model.prj',
+                      description='CRHM project (.prj) file name'),
+            ConfigKey('CRHM_OBSERVATION_FILE', ConfigKeyType.STRING, False,
+                      default='forcing.obs',
+                      description='CRHM observation (.obs) file name'),
+            ConfigKey('CRHM_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
+                      default='none',
+                      valid_values=['none', 'mizuRoute'],
+                      description='Routing model integration'),
+        ]
+    )
+
+
+def _create_mhm_schema() -> ModelConfigSchema:
+    """Create configuration schema for mHM model."""
+    return ModelConfigSchema(
+        model_name='MHM',
+        description='mesoscale Hydrological Model',
+        installation=InstallationConfig(
+            install_path_key='MHM_INSTALL_PATH',
+            default_install_subpath='installs/mhm',
+            exe_name_key='MHM_EXE',
+            default_exe_name='mhm'
+        ),
+        execution=ExecutionConfig(
+            method='subprocess',
+            supports_parallel=False,
+            default_timeout=3600
+        ),
+        input=InputConfig(
+            forcing_dir_key='FORCING_MHM_PATH',
+            default_forcing_subpath='forcing/MHM_input',
+            forcing_file_pattern='*.nc',
+            required_variables=[]
+        ),
+        output=OutputConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_MHM',
+            default_output_subpath='simulations/{experiment_id}/MHM',
+            output_file_pattern='discharge_*.nc',
+            primary_output_var='Qsim'
+        ),
+        routing_integration_key='MHM_ROUTING_INTEGRATION',
+        config_keys=[
+            ConfigKey('SETTINGS_MHM_PATH', ConfigKeyType.PATH, False,
+                      description='Path to mHM settings directory'),
+            ConfigKey('MHM_NAMELIST_FILE', ConfigKeyType.STRING, False,
+                      default='mhm.nml',
+                      description='mHM namelist file name'),
+            ConfigKey('MHM_ROUTING_NAMELIST', ConfigKeyType.STRING, False,
+                      default='mrm.nml',
+                      description='mRM routing namelist file name'),
+            ConfigKey('MHM_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
+                      default='none',
+                      valid_values=['none', 'mizuRoute'],
+                      description='Routing model integration'),
+        ]
+    )
+
+
+def _create_swat_schema() -> ModelConfigSchema:
+    """Create configuration schema for SWAT model."""
+    return ModelConfigSchema(
+        model_name='SWAT',
+        description='Soil and Water Assessment Tool',
+        installation=InstallationConfig(
+            install_path_key='SWAT_INSTALL_PATH',
+            default_install_subpath='installs/swat',
+            exe_name_key='SWAT_EXE',
+            default_exe_name='swat_rel.exe'
+        ),
+        execution=ExecutionConfig(
+            method='subprocess',
+            supports_parallel=False,
+            default_timeout=3600
+        ),
+        input=InputConfig(
+            forcing_dir_key='FORCING_SWAT_PATH',
+            default_forcing_subpath='forcing/SWAT_input',
+            forcing_file_pattern='*.txt',
+            required_variables=[]
+        ),
+        output=OutputConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_SWAT',
+            default_output_subpath='simulations/{experiment_id}/SWAT',
+            output_file_pattern='output.rch',
+            primary_output_var='FLOW_OUTcms'
+        ),
+        routing_integration_key='SWAT_ROUTING_INTEGRATION',
+        config_keys=[
+            ConfigKey('SETTINGS_SWAT_PATH', ConfigKeyType.PATH, False,
+                      description='Path to SWAT settings directory'),
+            ConfigKey('SWAT_TXTINOUT_DIR', ConfigKeyType.STRING, False,
+                      default='TxtInOut',
+                      description='SWAT TxtInOut directory name'),
+            ConfigKey('SWAT_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
+                      default='none',
+                      valid_values=['none', 'mizuRoute'],
+                      description='Routing model integration'),
+        ]
+    )
+
+
+def _create_vic_schema() -> ModelConfigSchema:
+    """Create configuration schema for VIC model."""
+    return ModelConfigSchema(
+        model_name='VIC',
+        description='Variable Infiltration Capacity model',
+        installation=InstallationConfig(
+            install_path_key='VIC_INSTALL_PATH',
+            default_install_subpath='installs/vic',
+            exe_name_key='VIC_EXE',
+            default_exe_name='vic_image.exe'
+        ),
+        execution=ExecutionConfig(
+            method='subprocess',
+            supports_parallel=False,
+            default_timeout=7200
+        ),
+        input=InputConfig(
+            forcing_dir_key='FORCING_VIC_PATH',
+            default_forcing_subpath='forcing/VIC_input',
+            forcing_file_pattern='*.nc',
+            required_variables=[]
+        ),
+        output=OutputConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_VIC',
+            default_output_subpath='simulations/{experiment_id}/VIC',
+            output_file_pattern='vic_output*.nc',
+            primary_output_var='OUT_RUNOFF'
+        ),
+        routing_integration_key='VIC_ROUTING_INTEGRATION',
+        config_keys=[
+            ConfigKey('SETTINGS_VIC_PATH', ConfigKeyType.PATH, False,
+                      description='Path to VIC settings directory'),
+            ConfigKey('VIC_GLOBAL_PARAM_FILE', ConfigKeyType.STRING, False,
+                      default='vic_global.txt',
+                      description='VIC global parameter file name'),
+            ConfigKey('VIC_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
+                      default='none',
+                      valid_values=['none', 'mizuRoute'],
+                      description='Routing model integration'),
+        ]
+    )
+
+
 from symfluence.models.rhessys.config import create_rhessys_schema  # noqa: E402
 
 
@@ -429,6 +644,10 @@ def _register_schemas():
         'MESH': _create_mesh_schema(),
         'RHESSYS': create_rhessys_schema(),
         'GNN': _create_gnn_schema(),
+        'CRHM': _create_crhm_schema(),
+        'MHM': _create_mhm_schema(),
+        'SWAT': _create_swat_schema(),
+        'VIC': _create_vic_schema(),
     }.items():
         register_model_schema(name, schema)
 

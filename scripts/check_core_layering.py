@@ -21,6 +21,18 @@ Two severities:
   one must be listed in ``ALLOWED_DEFERRED`` with a reason. A new deferred
   edge that is not on the list fails the check, forcing a conscious decision.
 
+Two *kinds* of edge are scanned:
+
+* **Static imports** -- ``import x`` / ``from x import y`` AST nodes.
+* **String-built imports** -- module paths assembled as string literals or
+  f-strings and resolved at runtime through ``importlib.import_module`` or a
+  registry's ``add_lazy``. An AST-only scan is blind to these, so a genuine
+  runtime upward edge such as
+  ``importlib.import_module(f"symfluence.models.{model.lower()}.calibration.worker")``
+  used to pass the guard silently -- which is exactly how a "removable" layer
+  quietly becomes non-removable. Both kinds share the same severity split and
+  the same allow-list.
+
 Run directly (``python scripts/check_core_layering.py``) or via the mirrored
 unit test ``tests/unit/core/test_core_layering.py``. Exit code is non-zero on
 any violation.
@@ -28,9 +40,10 @@ any violation.
 from __future__ import annotations
 
 import ast
+import re
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Set, Tuple
+from typing import List, NamedTuple, Optional, Set, Tuple
 
 # Top-level symfluence subpackages that ``core`` must not depend on.
 UPPER_LAYERS: Set[str] = {
@@ -87,6 +100,64 @@ ALLOWED_DEFERRED: List[Tuple[str, str, str]] = [
         "optimization facade at call time; targets wrap evaluation evaluators, "
         "which core must not import at module level.",
     ),
+    # ---- String-built edges (first surfaced when the scan was extended) ----
+    (
+        "_bootstrap.py",
+        "symfluence.data",
+        "Registry seeders: R.acquisition_handlers / R.observation_handlers call "
+        "importlib.import_module('symfluence.data.*') on first lookup so the "
+        "handler decorators fire. The canonical IoC seam -- core never names a "
+        "handler, only the package whose import populates the registry.",
+    ),
+    (
+        "_bootstrap.py",
+        "symfluence.geospatial",
+        "Registry seeder for delineation strategies; same first-lookup IoC "
+        "pattern as the data handlers above.",
+    ),
+    (
+        "_bootstrap.py",
+        "symfluence.evaluation",
+        "Registry seeder for evaluators; same first-lookup IoC pattern.",
+    ),
+    (
+        "_bootstrap.py",
+        "symfluence.optimization",
+        "Registry seeder for in-tree model optimizers; same first-lookup IoC "
+        "pattern.",
+    ),
+    (
+        "_bootstrap.py",
+        "symfluence.models",
+        "NOT an import: ``ep.value.startswith('symfluence.models.')`` is a "
+        "prefix test on an entry-point value, used only to count how many "
+        "in-tree model plugins loaded. Module-path-shaped by nature, so the "
+        "string scan sees it; nothing is imported.",
+    ),
+    (
+        "calibration/parameters/parameter_bounds_registry.py",
+        "symfluence.models",
+        "NOT imports: the ``_owned_by_package(model, 'symfluence.models.<x>')`` "
+        "package names are interpolated into the KeyError text that tells the "
+        "operator which package failed to register bounds. Core resolves the "
+        "bounds through the registry and never imports these modules.",
+    ),
+    (
+        "calibration/mixins/parallel/execution_strategies/mpi.py",
+        "symfluence.optimization",
+        "GENUINE upward edge, reported rather than fixed (file is owned "
+        "elsewhere): _get_worker_info() falls back to a hardcoded "
+        "'symfluence.optimization.workers.summa_parallel_workers' module name "
+        "that the generated MPI worker script imports in a subprocess. Only "
+        "reachable when the worker callable has no __module__, and the fallback "
+        "is SUMMA-specific -- it should come from the caller, not a constant.",
+    ),
+    (
+        "calibration/mixins/parallel/execution_strategies/mpi_persistent.py",
+        "symfluence.optimization",
+        "Same hardcoded SUMMA MPI-worker module fallback as mpi.py above; same "
+        "disposition.",
+    ),
 ]
 
 
@@ -95,10 +166,50 @@ class Violation(NamedTuple):
     lineno: int
     module: str
     deferred: bool
+    #: True when the edge was built from a string literal / f-string resolved
+    #: at runtime (importlib, registry ``add_lazy``) rather than a static import.
+    string_built: bool = False
 
     def describe(self) -> str:
         kind = "deferred (not allow-listed)" if self.deferred else "MODULE-LEVEL"
-        return f"{self.path}:{self.lineno}: {kind} import of upper layer '{self.module}'"
+        how = "string-built import" if self.string_built else "import"
+        return f"{self.path}:{self.lineno}: {kind} {how} of upper layer '{self.module}'"
+
+
+# A string literal is treated as a module path only if it is *shaped* like one:
+# dotted identifiers, nothing else. This keeps prose (docstrings, log messages,
+# error text that merely mentions a module) out of the scan while still
+# catching every real ``import_module`` / ``add_lazy`` target.
+_MODULE_PATH_RE = re.compile(r"^symfluence\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\.?$")
+
+
+def _joinedstr_literal_prefix(node: ast.JoinedStr) -> Optional[str]:
+    """Constant leading segment of an f-string, or None if it starts dynamic.
+
+    ``f"symfluence.models.{model}.worker"`` yields ``"symfluence.models."`` --
+    enough to classify the target layer even though the rest is only known at
+    runtime. ``f"{base}.preprocessor"`` yields None: nothing can be concluded.
+    """
+    if not node.values:
+        return None
+    first = node.values[0]
+    if not (isinstance(first, ast.Constant) and isinstance(first.value, str)):
+        return None
+    return first.value
+
+
+def _string_module_target(node: ast.AST) -> Optional[str]:
+    """Module path a string literal / f-string targets, else None."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        value = node.value
+        return value if _MODULE_PATH_RE.match(value) else None
+    if isinstance(node, ast.JoinedStr):
+        prefix = _joinedstr_literal_prefix(node)
+        if prefix is None:
+            return None
+        # The prefix ends mid-path (at the '{'), so allow a trailing dot.
+        return prefix if _MODULE_PATH_RE.match(prefix) else None
+    return None
 
 
 def _upper_layer_of(module: str | None) -> str | None:
@@ -125,11 +236,15 @@ def _scan_file(py_file: Path, core_root: Path) -> List[Violation]:
     # Map each import node to whether it is nested inside a function body or an
     # ``if TYPE_CHECKING:`` block (the latter is erased at runtime, so it is a
     # type-only edge — treated like a deferred import, requiring an allowance).
+    # Nodes carrying an edge: static imports plus the string literals /
+    # f-strings a runtime import can be built from.
+    edge_types = (ast.Import, ast.ImportFrom, ast.Constant, ast.JoinedStr)
+
     deferred_nodes: Set[int] = set()
     for func in ast.walk(tree):
         if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for child in ast.walk(func):
-                if isinstance(child, (ast.Import, ast.ImportFrom)):
+                if isinstance(child, edge_types):
                     deferred_nodes.add(id(child))
         elif isinstance(func, ast.If):
             test = func.test
@@ -140,18 +255,37 @@ def _scan_file(py_file: Path, core_root: Path) -> List[Violation]:
             )
             if is_type_checking:
                 for child in ast.walk(func):
-                    if isinstance(child, (ast.Import, ast.ImportFrom)):
+                    if isinstance(child, edge_types):
                         deferred_nodes.add(id(child))
+
+    # ``ast.walk`` yields a JoinedStr *and* the Constant pieces it is made of,
+    # which would report one f-string edge twice. The JoinedStr is the node
+    # that carries the meaning, so its literal parts are skipped.
+    fstring_parts: Set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            for value in node.values:
+                if isinstance(value, ast.Constant):
+                    fstring_parts.add(id(value))
 
     violations: List[Violation] = []
     for node in ast.walk(tree):
+        if id(node) in fstring_parts:
+            continue
         modules: List[str] = []
+        string_built = False
         if isinstance(node, ast.ImportFrom):
             # level > 0 -> relative import inside symfluence (not an absolute upper-layer dep)
             if node.level == 0 and node.module:
                 modules.append(node.module)
         elif isinstance(node, ast.Import):
             modules.extend(alias.name for alias in node.names)
+        elif isinstance(node, (ast.Constant, ast.JoinedStr)):
+            target = _string_module_target(node)
+            if target is None:
+                continue
+            modules.append(target)
+            string_built = True
         else:
             continue
 
@@ -159,9 +293,18 @@ def _scan_file(py_file: Path, core_root: Path) -> List[Violation]:
             if _upper_layer_of(module) is None:
                 continue
             deferred = id(node) in deferred_nodes
-            if deferred and _is_allowed_deferred(rel_path, module):
+            # The allow-list governs deferred static imports, and string-built
+            # edges at EITHER position. A module-level string literal executes
+            # nothing by itself -- it is data in a lazy-import map that some
+            # ``__getattr__`` resolves at call time -- so it cannot be
+            # import-time coupling and must remain allow-listable. Its position
+            # is still reported (MODULE-LEVEL vs deferred) so the distinction
+            # stays visible in the output.
+            if (deferred or string_built) and _is_allowed_deferred(rel_path, module):
                 continue
-            violations.append(Violation(rel_path, node.lineno, module, deferred))
+            violations.append(
+                Violation(rel_path, node.lineno, module, deferred, string_built)
+            )
     return violations
 
 
@@ -183,8 +326,9 @@ def find_violations(core_root: Path | None = None) -> List[Violation]:
 #
 # Note: the deprecated lazy shims under optimization/ (parameter_managers,
 # calibration_targets model files, workers/summa, mixins/summa_optimizer_mixin)
-# resolve via importlib.import_module with string paths, which the AST scan
-# does not see; the rules below guard against *reintroducing* static imports.
+# resolve via importlib.import_module with string paths. The scan now SEES
+# those string-built edges (it used to be AST-imports only), so each is
+# explicitly allow-listed below with its reason rather than passing unnoticed.
 
 BoundaryRule = Tuple[str, Tuple[str, ...], List[Tuple[str, str, str]]]
 
@@ -212,6 +356,45 @@ BOUNDARY_RULES: List[BoundaryRule] = [
                 "symfluence.models.summa.calibration",
                 "Deprecated lazy re-export (PEP 562) of SUMMAOptimizerMixin; "
                 "the TYPE_CHECKING import is type-only and erased at runtime.",
+            ),
+            # ---- String-built edges (first surfaced when the scan was
+            # extended). These are the deprecated PEP-562 shims the header
+            # comment above already described as invisible to the AST scan;
+            # they are now visible and explicitly allowed. Each resolves its
+            # target inside __getattr__, so the models layer stays removable at
+            # import time -- the property this rule exists to protect. They go
+            # away when the shims are dropped, not before.
+            (
+                "calibration_targets/__init__.py",
+                "symfluence.models",
+                "Deprecated lazy re-export map (_MODEL_TARGET_EXPORTS); the "
+                "module-level strings are data, resolved by __getattr__ via "
+                "importlib at call time.",
+            ),
+            (
+                "_calibration_targets.py",
+                "symfluence.models",
+                "Per-model deprecated PEP-562 target shims "
+                "(fuse/gr/hype/ngen/rhessys/summa_calibration_targets.py), each "
+                "resolving its canonical model-package module inside __getattr__.",
+            ),
+            (
+                "parameter_managers/__init__.py",
+                "symfluence.models",
+                "Deprecated lazy re-export map (_MANAGERS); module-level strings "
+                "are data, resolved by __getattr__ via importlib at call time.",
+            ),
+            (
+                "workers/__init__.py",
+                "symfluence.models",
+                "Deprecated lazy re-export map for the per-model calibration "
+                "workers, resolved at call time.",
+            ),
+            (
+                "workers/summa.py",
+                "symfluence.models.summa.calibration.worker_impl",
+                "Deprecated PEP-562 shim for the SUMMA worker implementation; "
+                "_CANONICAL is resolved inside __getattr__.",
             ),
         ],
     ),
@@ -385,7 +568,10 @@ def find_boundary_violations(src_root: Path | None = None) -> List[Violation]:
                 for v in _scan_file(py_file, pkg_root):
                     if any(v.module.startswith(f) for f in forbidden):
                         violations.append(
-                            Violation(f"{package}/{v.path}", v.lineno, v.module, v.deferred)
+                            Violation(
+                                f"{package}/{v.path}", v.lineno, v.module,
+                                v.deferred, v.string_built,
+                            )
                         )
     finally:
         UPPER_LAYERS, ALLOWED_DEFERRED = saved

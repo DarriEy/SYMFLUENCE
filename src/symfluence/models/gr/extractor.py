@@ -21,9 +21,18 @@ class GRResultExtractor(ModelResultExtractor):
     """GR-specific result extraction.
 
     Handles GR model's output characteristics:
-    - Lumped mode: CSV file (GR_results.csv)
-    - Distributed mode: NetCDF file (*_runs_def.nc)
+    - Lumped mode: CSV file (GR_results.csv), streamflow column ``q_sim``
+    - Distributed mode: NetCDF file (*_runs_def.nc), variable ``q_routed``
     - Routing: Can use mizuRoute for distributed runs
+
+    Known gap: the unrouted distributed file is listed in
+    :meth:`get_output_file_patterns` but cannot be served yet -- its
+    ``q_routed`` is per-GRU runoff needing a sum over ``gru`` (what
+    ``GRPostProcessor`` does), while :meth:`_extract_from_netcdf` reduces
+    multi-dimensional variables by taking the first spatial index. It therefore
+    raises rather than returning a single GRU's series. mizuRoute-routed output
+    is unaffected: those variables are matched ahead of the GR-specific list and
+    reduced by outlet selection.
     """
 
     def get_output_file_patterns(self) -> Dict[str, List[str]]:
@@ -41,9 +50,30 @@ class GRResultExtractor(ModelResultExtractor):
         }
 
     def get_variable_names(self, variable_type: str) -> List[str]:
-        """Get GR variable names for different types."""
+        """Get GR variable names for different types.
+
+        ``q_sim`` leads because it is the name GR actually writes: the
+        streamflow column of the lumped-mode ``GR_results.csv`` is ``q_sim``
+        (``GRRunner`` writes ``data.frame(datetime=..., q_sim =
+        OutputsModel$Qsim)``). ``Qsim`` is the airGR *R object* field name, not
+        the column header, so a list starting at ``Qsim`` matched nothing and
+        reached the data only through the positional fallback in
+        :meth:`_extract_from_csv` -- which returns the first column whatever it
+        is named. The remaining spellings are tolerant fallbacks for
+        externally-produced or hand-edited GR output.
+
+        Deliberately NOT listed: ``q_routed``, the variable in the
+        distributed-mode ``{domain}_{experiment_id}_runs_def.nc``. This list is
+        shared with :meth:`_extract_from_netcdf`, which reduces a multi-GRU
+        variable with ``isel({gru: 0})`` -- the first GRU, not a basin total,
+        whereas ``GRPostProcessor._extract_distributed_streamflow`` sums that
+        same variable over ``gru``. Adding it here would turn today's explicit
+        "no suitable streamflow variable" error into a silently wrong
+        single-GRU hydrograph. Serving distributed output through this
+        extractor needs the aggregation fixed first; see the class docstring.
+        """
         variable_mapping = {
-            'streamflow': ['Qsim', 'Q', 'streamflow', 'discharge'],
+            'streamflow': ['q_sim', 'Qsim', 'Q', 'streamflow', 'discharge'],
         }
         return variable_mapping.get(variable_type, [variable_type])
 
@@ -86,11 +116,13 @@ class GRResultExtractor(ModelResultExtractor):
         """
         try:
             df = pd.read_csv(output_file, parse_dates=[0], index_col=0)
-            # Look for Qsim or similar column
-            for col in ['Qsim', 'Q', 'streamflow', 'discharge']:
+            # Named lookup first, from the single declaration in
+            # get_variable_names (a second hardcoded copy here is how this
+            # drifted out of step with the column GR writes in the first place).
+            for col in self.get_variable_names('streamflow'):
                 if col in df.columns:
                     return df[col]
-            # Fallback: use first numeric column
+            # Last resort: first column, whatever it is named.
             return df.iloc[:, 0]
         except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
             raise ValueError(f"Failed to parse GR CSV output {output_file}: {e}") from e
@@ -103,6 +135,11 @@ class GRResultExtractor(ModelResultExtractor):
 
         Returns:
             Time series of streamflow
+
+        Raises:
+            ValueError: if no streamflow variable is present, or if the file is
+                GR's per-GRU distributed runoff, which this interface cannot
+                convert to discharge (see :meth:`_reject_per_gru_runoff`).
         """
         import numpy as np
         import xarray as xr
@@ -119,6 +156,10 @@ class GRResultExtractor(ModelResultExtractor):
                         outlet_idx = np.argmax(var.mean(dim='time').values)
                         return cast(pd.Series, var.isel(reachID=outlet_idx).to_pandas())
 
+            # Routed output is handled above; anything still holding per-GRU
+            # runoff cannot be turned into discharge here.
+            self._reject_per_gru_runoff(ds, output_file)
+
             # Try GR-specific variables
             for var_name in self.get_variable_names('streamflow'):
                 if var_name in ds.variables:
@@ -131,6 +172,37 @@ class GRResultExtractor(ModelResultExtractor):
                     return cast(pd.Series, var.to_pandas())
 
         raise ValueError(f"No suitable streamflow variable found in {output_file}")
+
+    @staticmethod
+    def _reject_per_gru_runoff(ds, output_file: Path) -> None:
+        """Refuse GR's distributed runoff file with an actionable message.
+
+        ``{domain}_{experiment_id}_runs_def.nc`` holds ``q_routed`` as a
+        per-GRU runoff *depth rate* in m/s. Turning that into basin discharge
+        requires per-GRU areas -- ``Q = sum_i runoff_i * area_i`` -- which this
+        interface cannot reach: :meth:`extract_variable` receives only a file
+        path, with no config, project directory or basin shapefile.
+
+        Reducing it the way :meth:`_extract_from_netcdf` reduces other
+        multi-dimensional variables (``isel`` of the first spatial index) would
+        return one GRU's runoff labelled as basin streamflow, so this fails
+        loudly instead. ``GRPostProcessor._unrouted_streamflow_cms`` does have
+        the config and performs the area-weighted conversion; routed output
+        (mizuRoute, already m³/s at a reach) is handled normally above.
+        """
+        if 'q_routed' not in ds.variables:
+            return
+        if 'gru' not in ds['q_routed'].dims:
+            return
+
+        raise ValueError(
+            f"{output_file.name} is GR's per-GRU distributed runoff "
+            "('q_routed', m/s over the 'gru' dimension), not basin streamflow. "
+            "Converting it to discharge needs per-GRU areas, which this "
+            "extractor has no access to — use GRPostProcessor "
+            "(extract_streamflow) for distributed GR output, or point this at "
+            "the mizuRoute routed output instead."
+        )
 
     def requires_unit_conversion(self, variable_type: str) -> bool:
         """GR outputs are typically in mm/day or m³/s depending on mode."""
