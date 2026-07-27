@@ -125,6 +125,29 @@ def register() -> None:
     R.postprocessors.add_lazy("GR", f"{base}.postprocessor.GRPostProcessor")
     R.visualizers.add_lazy("GR", f"{base}.visualizer.visualize_gr")
     R.result_extractors.add_lazy("GR", f"{base}.extractor.GRResultExtractor")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "GR",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: True,
+                SpatialMode.SEMI_DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

@@ -85,6 +85,31 @@ def register() -> None:
     R.optimizers.add_lazy("WATFLOOD", f"{base}.calibration.optimizer.WATFLOODModelOptimizer")
     R.workers.add_lazy("WATFLOOD", f"{base}.calibration.worker.WATFLOODWorker")
     R.parameter_managers.add_lazy("WATFLOOD", f"{base}.calibration.parameter_manager.WATFLOODParameterManager")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "WATFLOOD",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: False,  # Internal channel routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "WATFLOOD uses GRU-grid distributed structure with internal "
+                "channel routing. Lumped mode uses a single-GRU configuration."
+            ),
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

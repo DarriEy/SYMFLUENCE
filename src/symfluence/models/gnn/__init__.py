@@ -51,6 +51,28 @@ def register() -> None:
         self_training=True,
     )
 
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "GNN",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            # GNN has internal graph-based routing.
+            requires_routing={SpatialMode.DISTRIBUTED: False},
+            warning_message=(
+                "GNN requires distributed domain with graph structure. "
+                "Use LSTM for lumped modeling."
+            ),
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .postprocessor import GNNPostProcessor

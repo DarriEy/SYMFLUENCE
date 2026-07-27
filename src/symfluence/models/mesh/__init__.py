@@ -123,6 +123,31 @@ def register() -> None:
     R.postprocessors.add_lazy("MESH", f"{base}.postprocessor.MESHPostProcessor")
     R.visualizers.add_lazy("MESH", f"{base}.visualizer.visualize_mesh")
     R.result_extractors.add_lazy("MESH", f"{base}.extractor.MESHResultExtractor")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "MESH",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                # MESH has internal routing (WATFLOOD/PDMROF).
+                SpatialMode.DISTRIBUTED: False,
+                SpatialMode.SEMI_DISTRIBUTED: False,
+                # Lumped uses noroute mode (RFF+DRAINSOL proxy).
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,  # Lumped mode fully supported
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

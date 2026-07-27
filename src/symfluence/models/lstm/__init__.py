@@ -76,6 +76,32 @@ def register() -> None:
     R.postprocessors.add_lazy("LSTM", f"{base}.postprocessor.LSTMPostProcessor")
     R.plotters.add_lazy("LSTM", f"{base}.plotter.LSTMPlotter")
 
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "LSTM",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={
+                # LSTM handles routing internally.
+                SpatialMode.DISTRIBUTED: False,
+                SpatialMode.SEMI_DISTRIBUTED: False,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "LSTM works best in lumped mode for streamflow prediction. "
+                "Consider using GNN for spatially-distributed graph-based modeling."
+            ),
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .model import LSTMModel

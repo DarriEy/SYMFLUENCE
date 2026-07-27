@@ -129,6 +129,33 @@ def register() -> None:
     R.preprocessors.add_lazy("RHESSys", f"{base}.preprocessor.RHESSysPreProcessor")
     R.runners.add_lazy("RHESSys", f"{base}.runner.RHESSysRunner")
     R.postprocessors.add_lazy("RHESSys", f"{base}.postprocessor.RHESSysPostProcessor")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    # RHESSys is inherently hierarchical/distributed but can operate with a
+    # single aggregate hillslope/patch for lumped experiments.
+    register_model_spatial_capability(
+        "RHESSYS",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: False,  # Internal hillslope routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "RHESSys performs best with distributed landscape hierarchy. "
+                "Lumped mode is supported when world/flow files are pre-aggregated."
+            ),
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

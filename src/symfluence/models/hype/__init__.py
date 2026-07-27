@@ -133,6 +133,30 @@ def register() -> None:
     R.visualizers.add_lazy("HYPE", f"{base}.visualizer.visualize_hype")
     R.result_extractors.add_lazy("HYPE", f"{base}.extractor.HYPEResultExtractor")
     R.plotters.add_lazy("HYPE", f"{base}.plotter.HYPEPlotter")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "HYPE",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.SEMI_DISTRIBUTED,
+            requires_routing={
+                # HYPE has internal routing.
+                SpatialMode.DISTRIBUTED: False,
+                SpatialMode.SEMI_DISTRIBUTED: False,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

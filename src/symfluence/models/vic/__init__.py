@@ -128,6 +128,34 @@ def register() -> None:
     R.optimizers.add_lazy("VIC", f"{base}.calibration.optimizer.VICModelOptimizer")
     R.workers.add_lazy("VIC", f"{base}.calibration.worker.VICWorker")
     R.parameter_managers.add_lazy("VIC", f"{base}.calibration.parameter_manager.VICParameterManager")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    # VIC is designed for grid-based distributed modeling but can operate with
+    # a single-cell domain for lumped experiments.
+    register_model_spatial_capability(
+        "VIC",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                # VIC outputs cell runoff, needs external routing.
+                SpatialMode.DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "VIC is designed for distributed grid-based modeling. "
+                "For lumped mode, a single-cell domain will be created."
+            ),
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

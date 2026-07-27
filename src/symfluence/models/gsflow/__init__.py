@@ -79,6 +79,31 @@ def register() -> None:
     R.optimizers.add_lazy("GSFLOW", f"{base}.calibration.optimizer.GSFLOWModelOptimizer")
     R.workers.add_lazy("GSFLOW", f"{base}.calibration.worker.GSFLOWWorker")
     R.parameter_managers.add_lazy("GSFLOW", f"{base}.calibration.parameter_manager.GSFLOWParameterManager")
+
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "GSFLOW",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED},
+            default_mode=SpatialMode.SEMI_DISTRIBUTED,
+            requires_routing={
+                SpatialMode.SEMI_DISTRIBUTED: False,  # Internal SFR routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "GSFLOW couples PRMS surface processes with MODFLOW-NWT groundwater. "
+                "Internal SFR/UZF packages handle GW-SW exchange."
+            ),
+        ),
+    )
+
     # Calibration bounds are owned by this package (service-decomposition
     # item 2): registering here means plugin discovery is what makes them
     # servable, so a bound change never needs a core release.

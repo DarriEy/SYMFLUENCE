@@ -147,6 +147,28 @@ def register() -> None:
     R.decision_analyzers.add_lazy("SUMMA", f"{base}.structure_analyzer.SummaStructureAnalyzer")
     R.plotters.add_lazy("SUMMA", f"{base}.plotter.SUMMAPlotter")
 
+    # Spatial capabilities are owned by this package (service-decomposition
+    # item 2): declared at plugin-discovery time so core carries no per-model
+    # spatial knowledge and a capability change never needs a core release.
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "SUMMA",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: True,
+                SpatialMode.SEMI_DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .attributes_manager import SummaAttributesManager

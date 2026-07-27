@@ -41,9 +41,11 @@ Why this shape rather than the alternatives considered:
   the two declarations independent, exactly as ``register_model_bounds`` is
   independent of the schema.
 
-Until the per-model migration lands, core seeds the historical values through
-the same public function (see ``_BUILTIN_SPATIAL_CAPABILITIES`` below), so the
-in-tree behaviour is byte-identical while the seam is already live.
+The migration is complete: every declaration now lives in the ``register()`` of
+the package that owns the model, and this module holds no per-model values at
+all. A model contributes its capability at plugin-discovery time, exactly as an
+external package does, so core can ship without the models distribution and a
+capability change never needs a core release.
 """
 from __future__ import annotations
 
@@ -150,16 +152,10 @@ class _CapabilityRegistry(Dict[str, "ModelSpatialCapability"]):
         register_model_spatial_capability(key, value)
 
 
-#: Runtime registry: model key (uppercase) -> declared capability. Populated by
-#: :func:`register_model_spatial_capability`, seeded below with the values core
-#: historically hardcoded, and exported as ``MODEL_SPATIAL_CAPABILITIES``.
+#: Runtime registry: model key (uppercase) -> declared capability. Populated
+#: exclusively by :func:`register_model_spatial_capability` — core contributes
+#: nothing — and exported as ``MODEL_SPATIAL_CAPABILITIES``.
 _SPATIAL_CAPABILITIES: _CapabilityRegistry = _CapabilityRegistry()
-
-#: Keys whose current value came from core's compatibility seed rather than
-#: from the owning package. A package registration replaces one of these
-#: silently and by design (that is the migration path); replacing a value a
-#: *package* already contributed is a genuine double-registration and is logged.
-_SEEDED_KEYS: Set[str] = set()
 
 
 def register_model_spatial_capability(
@@ -175,21 +171,28 @@ def register_model_spatial_capability(
 
     A model that never registers stays *unknown* to validation, which
     deliberately permits any spatial mode — declaring nothing must never be
-    more restrictive than declaring something.
+    more restrictive than declaring something. That is also what a model whose
+    package is simply not installed degrades to.
+
+    Re-registering an *equal* declaration is silent: ``register()`` is
+    idempotent and may run more than once (entry-point discovery plus an
+    explicit call). Re-registering a *different* one is logged, because that
+    means two owners are competing for one model key.
 
     Args:
         model: Model key, case-insensitive (e.g. ``'FUSE'``, ``'MYMODEL'``).
         capability: The :class:`ModelSpatialCapability` record to serve.
     """
     key = model.upper()
-    if key in _SPATIAL_CAPABILITIES and key not in _SEEDED_KEYS:
+    existing = _SPATIAL_CAPABILITIES.get(key)
+    if existing is not None and existing != capability:
         _logger.warning(
-            "spatial capability for '%s' re-registered; the later declaration "
-            "wins. Two packages should not own one model's capabilities.",
+            "spatial capability for '%s' re-registered with a different "
+            "declaration; the later one wins. Two packages should not own one "
+            "model's capabilities.",
             key,
         )
     dict.__setitem__(_SPATIAL_CAPABILITIES, key, capability)
-    _SEEDED_KEYS.discard(key)
 
 
 def registered_spatial_capability_models() -> List[str]:
@@ -204,231 +207,6 @@ def spatial_capabilities() -> Dict[str, ModelSpatialCapability]:
     :func:`register_model_spatial_capability` to contribute a declaration.
     """
     return dict(_SPATIAL_CAPABILITIES)
-
-
-# ---------------------------------------------------------------------------
-# Compatibility seed
-# ---------------------------------------------------------------------------
-# These are the values ``core`` hardcoded before the seam existed, kept here
-# verbatim so in-tree behaviour is unchanged. FOLLOW-UP (tracked with the rest
-# of service-decomposition item 2): move each entry into the ``register()`` of
-# the model package that owns it — ``models/<name>/__init__.py`` calls
-# ``register_model_spatial_capability('<NAME>', ...)`` and the entry is deleted
-# from this dict. When the dict is empty this whole section goes away and core
-# holds no per-model spatial knowledge at all.
-_BUILTIN_SPATIAL_CAPABILITIES: Dict[str, ModelSpatialCapability] = {
-    'SUMMA': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: True,
-            SpatialMode.SEMI_DISTRIBUTED: True,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=None
-    ),
-
-    'FUSE': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: True,
-            SpatialMode.SEMI_DISTRIBUTED: True,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=None
-    ),
-
-    'GR': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: True,
-            SpatialMode.SEMI_DISTRIBUTED: True,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=None
-    ),
-
-    'LSTM': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # LSTM handles routing internally
-            SpatialMode.SEMI_DISTRIBUTED: False,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=(
-            "LSTM works best in lumped mode for streamflow prediction. "
-            "Consider using GNN for spatially-distributed graph-based modeling."
-        )
-    ),
-
-    'GNN': ModelSpatialCapability(
-        supported_modes={SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False  # GNN has internal graph-based routing
-        },
-        warning_message=(
-            "GNN requires distributed domain with graph structure. "
-            "Use LSTM for lumped modeling."
-        )
-    ),
-
-    'HYPE': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.SEMI_DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # HYPE has internal routing
-            SpatialMode.SEMI_DISTRIBUTED: False,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=None
-    ),
-
-    'MESH': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # MESH has internal routing (WATFLOOD/PDMROF)
-            SpatialMode.SEMI_DISTRIBUTED: False,
-            SpatialMode.LUMPED: False  # Uses noroute mode (RFF+DRAINSOL proxy)
-        },
-        warning_message=None  # Lumped mode now fully supported
-    ),
-
-    'NGEN': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: True,  # Uses t-route for routing
-            SpatialMode.SEMI_DISTRIBUTED: True,
-            SpatialMode.LUMPED: False
-        },
-        warning_message=None
-    ),
-
-    'RHESSYS': ModelSpatialCapability(
-        # RHESSys is inherently hierarchical/distributed but can operate with a
-        # single aggregate hillslope/patch for lumped experiments.
-        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # Internal hillslope routing
-            SpatialMode.LUMPED: False
-        },
-        warning_message=(
-            "RHESSys performs best with distributed landscape hierarchy. "
-            "Lumped mode is supported when world/flow files are pre-aggregated."
-        )
-    ),
-
-    'VIC': ModelSpatialCapability(
-        # VIC is designed for grid-based distributed modeling but can operate
-        # with a single-cell domain for lumped experiments.
-        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: True,  # VIC outputs cell runoff, needs external routing
-            SpatialMode.LUMPED: False
-        },
-        warning_message=(
-            "VIC is designed for distributed grid-based modeling. "
-            "For lumped mode, a single-cell domain will be created."
-        )
-    ),
-
-    'SWAT': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={SpatialMode.LUMPED: False},
-        warning_message=(
-            "SWAT is a semi-distributed model. Lumped mode uses "
-            "a single-HRU/subbasin configuration."
-        )
-    ),
-
-    'MHM': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={SpatialMode.LUMPED: False},
-        warning_message=(
-            "mHM is a mesoscale hydrological model. Lumped mode uses "
-            "a single-cell domain with multiscale parameter regionalization."
-        )
-    ),
-
-    'CRHM': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED},
-        default_mode=SpatialMode.LUMPED,
-        requires_routing={SpatialMode.LUMPED: False},
-        warning_message=(
-            "CRHM is a cold-region hydrological model. Lumped mode uses "
-            "a single-HRU configuration with blowing snow and frozen soil."
-        )
-    ),
-
-    'GSFLOW': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED},
-        default_mode=SpatialMode.SEMI_DISTRIBUTED,
-        requires_routing={
-            SpatialMode.SEMI_DISTRIBUTED: False,  # Internal SFR routing
-            SpatialMode.LUMPED: False
-        },
-        warning_message=(
-            "GSFLOW couples PRMS surface processes with MODFLOW-NWT groundwater. "
-            "Internal SFR/UZF packages handle GW-SW exchange."
-        )
-    ),
-
-    'WATFLOOD': ModelSpatialCapability(
-        supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # Internal channel routing
-            SpatialMode.LUMPED: False
-        },
-        warning_message=(
-            "WATFLOOD uses GRU-grid distributed structure with internal "
-            "channel routing. Lumped mode uses a single-GRU configuration."
-        )
-    ),
-
-    'PCRGLOBWB': ModelSpatialCapability(
-        supported_modes={SpatialMode.DISTRIBUTED},
-        default_mode=SpatialMode.DISTRIBUTED,
-        requires_routing={
-            SpatialMode.DISTRIBUTED: False,  # Internal accuTravelTime routing
-        },
-        warning_message=(
-            "PCR-GLOBWB is inherently grid-based with internal "
-            "accuTravelTime routing. Lumped mode uses a 3x3 grid."
-        )
-    ),
-}
-
-
-def _seed_builtin_capabilities() -> None:
-    """Contribute the compatibility values through the public seam.
-
-    Deliberately routed through :func:`register_model_spatial_capability`
-    rather than assigned into the registry dict: the seed exercises the same
-    code path a package uses, so the seam cannot rot while the built-ins still
-    work. Keys seeded here are marked so a later package registration replaces
-    them without a double-registration warning.
-    """
-    for name, capability in _BUILTIN_SPATIAL_CAPABILITIES.items():
-        key = name.upper()
-        if key in _SPATIAL_CAPABILITIES:
-            # A package already declared it (import order put its register()
-            # first) — the package owns the model, so leave its value alone.
-            continue
-        register_model_spatial_capability(key, capability)
-        _SEEDED_KEYS.add(key)
-
-
-_seed_builtin_capabilities()
 
 
 def __getattr__(name: str):
