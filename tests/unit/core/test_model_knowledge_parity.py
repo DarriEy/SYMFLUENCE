@@ -124,6 +124,15 @@ def test_no_new_shared_parameter_collisions():
 
 # The exact table core serves today. Moving this into each model's registered
 # ModelConfigSchema.output must reproduce it field for field.
+#
+# CHANGED: HYPE was removed. It declared a ``runoff`` artifact
+# ``{experiment_id}_timestep.nc`` that nothing in the HYPE adapter writes —
+# ``config_manager.py`` asks info.txt for ``timeoutput variable COUT EVAP
+# SNOW``, so HYPE produces timeCOUT.txt / timeEVAP.txt / timeSNOW.txt. Writing
+# a converter was rejected rather than deferred: HYPE's ``cout`` is already
+# routed discharge at subbasin outlets, so routing it through mizuRoute would
+# route it twice. HYPE is therefore not a routable source at all, and the
+# declaration's absence is what says so.
 _EXPECTED_RUNOFF = {
     "SUMMA": dict(
         output_dir_key="EXPERIMENT_OUTPUT_SUMMA", output_dir_name="SUMMA",
@@ -145,12 +154,6 @@ _EXPECTED_RUNOFF = {
         default_var="q_routed", default_units="m/s", default_dt="86400",
         output_file_pattern="{domain_name}_{experiment_id}_runs_def.nc",
         hru_dim="gru", hru_var="gruId", comment_name="GR4J",
-    ),
-    "HYPE": dict(
-        output_dir_key="EXPERIMENT_OUTPUT_HYPE", output_dir_name="HYPE",
-        default_var="cout", default_units="m3/s", default_dt="86400",
-        output_file_pattern="{experiment_id}_timestep.nc",
-        hru_dim="gru", hru_var="gruId", comment_name="HYPE",
     ),
     "NGEN": dict(
         output_dir_key="EXPERIMENT_OUTPUT_NGEN", output_dir_name="NGEN",
@@ -186,6 +189,41 @@ def test_unknown_model_raises():
         get_model_config("NOT_A_MODEL")
 
 
+def test_routable_sources_are_exactly_the_declared_ones():
+    """The set of models that can feed a routing model, stated once.
+
+    CHANGED: HYPE left this set. Its runoff declaration pointed at a file the
+    adapter never writes, and its ``cout`` is already routed discharge at
+    subbasin outlets — so there is no honest artifact to route and building one
+    would double-route. Membership here is the *only* thing that makes a model
+    routable, so dropping the declaration is the whole change.
+    """
+    from symfluence.core.modeling.utilities.runoff_loader import MODEL_CONFIGS
+
+    assert {name.upper() for name in MODEL_CONFIGS} == {"SUMMA", "FUSE", "GR", "NGEN"}
+
+
+def test_hype_as_a_routing_source_fails_early_and_says_why():
+    """Configuring HYPE as a source must fail here, not at a missing file.
+
+    Before, ``get_model_config('HYPE')`` returned a layout for
+    ``{experiment_id}_timestep.nc`` and the run proceeded until mizuRoute (or
+    the time-precision fix) went looking for a file HYPE never produces. The
+    error now names the model, lists what *is* routable, and says a model
+    without a declaration cannot feed a routing model.
+    """
+    from symfluence.core.exceptions import ConfigurationError
+
+    with pytest.raises(ConfigurationError) as excinfo:
+        get_model_config("HYPE")
+
+    message = str(excinfo.value)
+    assert "HYPE" in message
+    assert "cannot feed a routing model" in message
+    for routable in ("SUMMA", "FUSE", "GR", "NGEN"):
+        assert routable in message
+
+
 def test_runoff_lookup_is_case_insensitive():
     assert get_model_config("summa").output_dir_name == "SUMMA"
     assert get_model_config("  FuSe  ").output_dir_name == "FUSE"
@@ -196,14 +234,203 @@ def test_runoff_lookup_is_case_insensitive():
 # ---------------------------------------------------------------------------
 
 def test_spatial_mode_keys_table():
+    """Which models' spatial mode the routing DECISION is allowed to read.
+
+    ``spatial_orchestrator`` derives ``f"{MODEL}_SPATIAL_MODE"`` by convention
+    for every model and acts on it; the decision read a six-entry table. This
+    is the same asymmetry just fixed for routing-integration keys, but the
+    naive fix — one entry per declaring model — is wrong three ways, and the
+    spec below is what handling all three produces.
+
+    1. **A schema default must not decide.** ``config_dict`` is
+       ``flatten_nested_config``'s output, and that dumps with
+       ``exclude_none=True``, not ``exclude_unset=True``: a config that never
+       mentions ``SWAT_SPATIAL_MODE`` still yields
+       ``config_dict['SWAT_SPATIAL_MODE'] == 'lumped'``. At this seam an unset
+       key is literally indistinguishable from an explicit one, so pydantic's
+       ``model_fields_set`` is not reachable and no value-based trick recovers
+       it (FUSE's *explicit* lumped and SWAT's *defaulted* lumped are the same
+       string). Adding a ``lumped``-defaulting model would therefore let a
+       value nobody wrote fire the veto branch, which sits ahead of
+       ``ROUTING_MODEL`` and of the routing-integration check — silently
+       turning routing OFF for users of the shipped template, which sets
+       ``ROUTING_MODEL: mizuRoute`` alongside a lumped domain.
+
+       So the answer to "should the key participate only when explicitly set?"
+       is yes, and the way to get that property without provenance is to admit
+       only models whose declared default is a *deferral* (``auto``). For those,
+       an untouched config resolves to exactly the
+       ``DOMAIN_DEFINITION_METHOD`` decision the model gets today: inclusion is
+       a provable no-op until a user writes the key. Models whose typed default
+       is a concrete mode join only by declaring ``spatial_mode_key`` on their
+       ``ModelConfigSchema`` — a reviewed, per-model decision, which is what
+       FUSE is.
+
+    2. **``auto``/``default`` are understood.** The comprehensive template ships
+       ``VIC_SPATIAL_MODE: auto`` and GR/MESH/VIC default to it. The decider
+       used to compare that as a literal string, matching neither the lumped
+       test nor the distributed one. It now resolves it from
+       ``DOMAIN_DEFINITION_METHOD`` the way ``spatial_orchestrator`` does.
+
+    3. **SUMMA stays an explicit exception.** There is no ``SUMMA_SPATIAL_MODE``
+       field anywhere (``SUMMAConfig`` has no ``spatial_mode``); SUMMA's mode is
+       ``DOMAIN_DEFINITION_METHOD``. It is in this table only because its
+       schema says so, never by convention.
+
+    Membership changes, all deliberate:
+
+    * ``VIC`` joins (typed default ``auto``) — inert until ``VIC_SPATIAL_MODE``
+      is set, and then it agrees with the orchestrator.
+    * ``HYPE`` and ``NGEN`` leave. Both were dead: neither ``HYPEConfig`` nor
+      ``NGENConfig`` declares a ``spatial_mode`` field, so neither
+      ``HYPE_SPATIAL_MODE`` nor ``NGEN_SPATIAL_MODE`` exists as a config key and
+      no template, test config or example sets one. They could only ever have
+      matched a hand-built raw dict.
+    * ``GR`` and ``MESH`` stay, and would now also qualify automatically.
+    """
     assert RoutingDecider.SPATIAL_MODE_KEYS == {
         "SUMMA": "DOMAIN_DEFINITION_METHOD",
         "FUSE": "FUSE_SPATIAL_MODE",
-        "HYPE": "HYPE_SPATIAL_MODE",
         "GR": "GR_SPATIAL_MODE",
         "MESH": "MESH_SPATIAL_MODE",
-        "NGEN": "NGEN_SPATIAL_MODE",
+        "VIC": "VIC_SPATIAL_MODE",
     }
+
+
+def test_summa_has_no_spatial_mode_key_of_its_own():
+    """Hazard 3, pinned: nothing may invent ``SUMMA_SPATIAL_MODE``.
+
+    SUMMA maps to ``DOMAIN_DEFINITION_METHOD``. If a ``SUMMA_SPATIAL_MODE``
+    field ever appears, the convention-based half of the table would pick it up
+    and the most-used model's routing decision would change silently.
+    """
+    from symfluence.core.registries import R
+
+    summa_schema = R.config_schemas.get("SUMMA")
+    assert summa_schema is not None
+    assert "spatial_mode" not in summa_schema.model_fields
+    assert RoutingDecider.SPATIAL_MODE_KEYS["SUMMA"] == "DOMAIN_DEFINITION_METHOD"
+
+
+def test_a_stray_summa_spatial_mode_key_is_ignored():
+    """This is not hypothetical: the wizard writes ``SUMMA_SPATIAL_MODE``.
+
+    ``cli/wizard/questions.py`` asks "What spatial mode should SUMMA use?" with
+    default ``lumped`` and ``project_wizard.py`` writes the answer into the
+    generated config, next to ``ROUTING_MODEL`` whose default is ``mizuRoute``.
+    Nothing reads the key — ``SUMMAConfig`` has no such field — but a table
+    derived by the ``f"{MODEL}_SPATIAL_MODE"`` convention would have picked it
+    up and made every wizard-generated SUMMA project veto the routing it just
+    asked the user to enable.
+    """
+    decider = RoutingDecider()
+    wizard_like = {
+        "SUMMA_SPATIAL_MODE": "lumped",
+        "ROUTING_MODEL": "mizuRoute",
+        "DOMAIN_DEFINITION_METHOD": "distributed",
+        "ROUTING_DELINEATION": "lumped",
+    }
+
+    assert decider.needs_routing(wizard_like, "SUMMA") is True
+
+
+# Every model whose typed config declares a ``<MODEL>_SPATIAL_MODE`` alias,
+# with the default a user who never set it receives. Only the ``auto`` rows may
+# join SPATIAL_MODE_KEYS automatically; the rest are excluded *because* of that
+# default, and this is the evidence for the exclusion.
+_TYPED_SPATIAL_MODE_DEFAULTS = {
+    "CLM": "lumped", "CLMPARFLOW": "lumped", "CRHM": "lumped",
+    "CWATM": "distributed", "FUSE": "lumped", "GR": "auto",
+    "GSFLOW": "semi_distributed", "LISFLOOD": "lumped", "MESH": "auto",
+    "MHM": "lumped", "MODFLOW": "lumped", "PARFLOW": "lumped",
+    "PCRGLOBWB": "distributed", "PIHM": "lumped", "PRMS": "semi_distributed",
+    "SWAT": "lumped", "VIC": "auto", "WATFLOOD": "distributed",
+    "WFLOW": "lumped", "WRFHYDRO": "distributed",
+}
+
+
+def test_only_deferring_defaults_join_the_table_automatically():
+    """The admission rule, stated as a rule rather than as a list.
+
+    A model with a concrete typed default may still be in the table — FUSE is —
+    but only via an explicit ``ModelConfigSchema.spatial_mode_key``. What must
+    never happen is a model being admitted *by the default alone*.
+    """
+    from symfluence.core.registries import R
+
+    declared = {
+        name: R.config_schemas[name].model_fields["spatial_mode"].default
+        for name in R.config_schemas
+        if "spatial_mode" in getattr(R.config_schemas[name], "model_fields", {})
+        and R.config_schemas[name].model_fields["spatial_mode"].alias
+    }
+    assert declared == _TYPED_SPATIAL_MODE_DEFAULTS
+
+    explicit = {
+        name for name, schema in _registered_model_schemas().items()
+        if schema.spatial_mode_key is not None
+    }
+    for model, default in declared.items():
+        in_table = model in RoutingDecider.SPATIAL_MODE_KEYS
+        if default == "auto":
+            assert in_table, f"{model} defers by default and must be consulted"
+        else:
+            assert in_table == (model in explicit), (
+                f"{model} declares the concrete default '{default}'; it may only "
+                f"be in SPATIAL_MODE_KEYS via an explicit spatial_mode_key"
+            )
+
+
+def _registered_model_schemas():
+    from symfluence.core.modeling.config_schema import REGISTERED_SCHEMAS
+
+    return dict(REGISTERED_SCHEMAS)
+
+
+def test_deferred_spatial_mode_resolves_from_the_domain_method():
+    """Hazard 2, pinned: ``auto`` is resolved, not compared as a string.
+
+    Same resolution ``spatial_orchestrator.get_spatial_config`` applies, so the
+    decision and the thing that acts on it can no longer disagree.
+    """
+    decider = RoutingDecider()
+
+    # auto + lumped domain == the decision a model with no key would get.
+    assert decider.needs_routing(
+        {"VIC_SPATIAL_MODE": "auto", "DOMAIN_DEFINITION_METHOD": "lumped",
+         "ROUTING_DELINEATION": "lumped"}, "VIC") is False
+    # auto + distributed domain routes; the literal 'auto' used to match nothing.
+    assert decider.needs_routing(
+        {"VIC_SPATIAL_MODE": "auto", "DOMAIN_DEFINITION_METHOD": "distributed",
+         "ROUTING_DELINEATION": "lumped"}, "VIC") is True
+    # 'default' is the same sentinel, and the legacy 'delineate' spelling the
+    # typed config normalises away still resolves.
+    assert decider.needs_routing(
+        {"GR_SPATIAL_MODE": "default", "DOMAIN_DEFINITION_METHOD": "delineate",
+         "ROUTING_DELINEATION": "lumped"}, "GR") is True
+
+
+def test_an_untouched_config_decides_the_same_with_or_without_the_key():
+    """Hazard 1, pinned: joining the table cannot change an unset model.
+
+    ``VIC_SPATIAL_MODE`` carries its ``auto`` default in every flattened typed
+    config, so this is the case that would have regressed had a concrete
+    default been admitted: the shipped template pairs ``ROUTING_MODEL:
+    mizuRoute`` with a lumped domain, and a defaulted ``lumped`` would have
+    vetoed it.
+    """
+    decider = RoutingDecider()
+    template_like = {
+        "ROUTING_MODEL": "mizuRoute",
+        "DOMAIN_DEFINITION_METHOD": "lumped",
+        "ROUTING_DELINEATION": "river_network",
+    }
+
+    without_key = decider.needs_routing(dict(template_like), "VIC")
+    with_default = decider.needs_routing(
+        dict(template_like, VIC_SPATIAL_MODE="auto"), "VIC")
+
+    assert without_key == with_default is True
 
 
 def test_routing_integration_keys_table():

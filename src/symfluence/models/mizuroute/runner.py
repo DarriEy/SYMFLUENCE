@@ -93,8 +93,13 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         # Which source model's output to route. First match wins, preserving
         # the precedence this method has always applied; SUMMA is the default.
+        # HYPE left the precedence with its runoff declaration: it is not a
+        # routable source (its 'cout' is already routed discharge at subbasin
+        # outlets, and nothing writes the NetCDF the declaration named). Keeping
+        # it here would make a 'SUMMA,HYPE' run select HYPE and then fail in
+        # resolve_runoff_file, where today it routes SUMMA.
         source_model = next(
-            (m for m in ('FUSE', 'GR', 'HYPE', 'NGEN') if m in active_models),
+            (m for m in ('FUSE', 'GR', 'NGEN') if m in active_models),
             'SUMMA',
         )
         self.logger.info(

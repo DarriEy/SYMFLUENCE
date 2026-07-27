@@ -12,6 +12,12 @@ here while routing resolved it everywhere else.
 
 These tests pin the collapse: one source of truth, and a model becomes writable
 by registering a schema rather than by editing this module.
+
+CHANGED: the disagreement about HYPE is now settled the other way. HYPE is not
+a routable source — its runoff declaration named a NetCDF the adapter never
+writes, and its ``cout`` is already routed discharge at subbasin outlets, so a
+converter would double-route. The declaration is gone, so HYPE is rejected here
+*and* everywhere else, which is the agreement that matters.
 """
 from __future__ import annotations
 
@@ -66,9 +72,9 @@ def test_module_no_longer_owns_a_runoff_table():
     assert control_writer.ModelRunoffConfig is runoff_loader.ModelRunoffConfig
 
 
-@pytest.mark.parametrize("model_type", ["summa", "fuse", "gr", "ngen", "hype"])
+@pytest.mark.parametrize("model_type", ["summa", "fuse", "gr", "ngen"])
 def test_every_registered_runoff_model_is_writable(tmp_path, model_type):
-    """Including HYPE, which the local four-entry copy silently rejected."""
+    """Every model with a runoff declaration, and only those."""
     writer = _make_writer(tmp_path)
 
     control_path = writer.write_control_file(
@@ -103,3 +109,19 @@ def test_unregistered_source_model_is_still_a_config_error(tmp_path):
 
     with pytest.raises(ConfigValidationError, match="not_a_model"):
         writer.write_control_file(model_type='not_a_model')
+
+
+def test_hype_is_rejected_as_a_source(tmp_path):
+    """A model with no runoff declaration cannot have a control file written.
+
+    The error lists the models that *can* be routed, so the message names the
+    alternatives rather than leaving 'why not HYPE?' to the reader.
+    """
+    writer = _make_writer(tmp_path)
+
+    with pytest.raises(ConfigValidationError) as excinfo:
+        writer.write_control_file(model_type='hype')
+
+    message = str(excinfo.value)
+    assert 'hype' in message
+    assert 'summa' in message and 'fuse' in message

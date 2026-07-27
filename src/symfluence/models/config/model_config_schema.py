@@ -72,6 +72,11 @@ def _create_summa_schema() -> ModelConfigSchema:
             hru_var='hruId',
             comment_name='SUMMA',
         ),
+        # SUMMA is the standing exception to '<MODEL>_SPATIAL_MODE': no such
+        # key exists for SUMMA anywhere -- its spatial mode *is* the domain
+        # definition. Declared explicitly here so no convention can derive
+        # 'SUMMA_SPATIAL_MODE' and quietly change the decision for the
+        # most-used model.
         spatial_mode_key='DOMAIN_DEFINITION_METHOD',
         routing_key='ROUTING_DELINEATION',
         config_keys=[
@@ -141,6 +146,11 @@ def _create_fuse_schema() -> ModelConfigSchema:
             hru_var='gruId',
             comment_name='FUSE',
         ),
+        # FUSE's typed default is the concrete 'lumped', not a deferral, so it
+        # does not qualify for the automatic opt-in RoutingDecider applies to
+        # 'auto'-defaulting models. Declared explicitly because the lumped veto
+        # is live behaviour the repro campaign depends on: a lumped FUSE run
+        # must keep suppressing the template-wide ROUTING_MODEL: mizuRoute.
         spatial_mode_key='FUSE_SPATIAL_MODE',
         routing_key='FUSE_ROUTING_INTEGRATION',
         routing_integration_key='FUSE_ROUTING_INTEGRATION',
@@ -150,7 +160,7 @@ def _create_fuse_schema() -> ModelConfigSchema:
                       description='Name of FUSE file manager'),
             ConfigKey('FUSE_SPATIAL_MODE', ConfigKeyType.ENUM, False,
                       default='lumped',
-                      valid_values=['lumped', 'semi_distributed', 'distributed'],
+                      valid_values=['auto', 'lumped', 'semi_distributed', 'distributed'],
                       description='Spatial discretization mode'),
             ConfigKey('FUSE_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
                       default='none',
@@ -222,9 +232,14 @@ def _create_gr_schema() -> ModelConfigSchema:
                       default='GR4J',
                       valid_values=['GR4J', 'GR5J', 'GR6J'],
                       description='GR model variant'),
+            # 'auto' matches GRConfig.spatial_mode's typed default (and
+            # SpatialModeType's value set). This used to declare 'lumped',
+            # which no GR run ever saw: the typed config is what reaches
+            # config_dict, so apply_defaults() was seeding a value the model
+            # itself never uses and validate() would have rejected 'auto'.
             ConfigKey('GR_SPATIAL_MODE', ConfigKeyType.ENUM, False,
-                      default='lumped',
-                      valid_values=['lumped', 'semi_distributed', 'distributed'],
+                      default='auto',
+                      valid_values=['auto', 'lumped', 'semi_distributed', 'distributed'],
                       description='Spatial discretization mode'),
             ConfigKey('GR_ROUTING_INTEGRATION', ConfigKeyType.ENUM, False,
                       default='none',
@@ -279,7 +294,11 @@ def _create_ngen_schema() -> ModelConfigSchema:
             hru_var='hruId',
             comment_name='NGEN',
         ),
-        spatial_mode_key='NGEN_SPATIAL_MODE',
+        # No spatial_mode_key: 'NGEN_SPATIAL_MODE' was a dead declaration.
+        # NGENConfig declares no spatial_mode field and no config, template or
+        # test in the tree ever sets the key, so the entry could only ever have
+        # matched a hand-built raw dict. NGEN's discretization comes from its
+        # realization/catchment GeoJSON, not from a config enum.
         config_keys=[
             ConfigKey('NGEN_REALIZATION_FILE', ConfigKeyType.STRING, True,
                       description='Path to realization configuration'),
@@ -324,24 +343,24 @@ def _create_hype_schema() -> ModelConfigSchema:
             output_file_pattern='timeCOUT.txt',
             primary_output_var='cout'
         ),
-        # Routing reads a NetCDF timestep file, not HYPE's native text output.
-        # Unverified: no code in the HYPE adapter was found that writes
-        # '{experiment_id}_timestep.nc', so this pattern is what routing would
-        # look for rather than something the adapter is known to produce. Left
-        # as-is deliberately -- changing it without evidence would only move
-        # the uncertainty.
-        runoff=RunoffConfig(
-            output_dir_key='EXPERIMENT_OUTPUT_HYPE',
-            output_dir_name='HYPE',
-            default_var='cout',
-            default_units='m3/s',
-            default_dt='86400',
-            output_file_pattern='{experiment_id}_timestep.nc',
-            hru_dim='gru',
-            hru_var='gruId',
-            comment_name='HYPE',
-        ),
-        spatial_mode_key='HYPE_SPATIAL_MODE',
+        # No runoff declaration: HYPE is NOT a routable source.
+        #
+        # The declaration this replaces named '{experiment_id}_timestep.nc',
+        # a file nothing in the HYPE adapter writes -- info.txt requests
+        # 'timeoutput variable COUT EVAP SNOW' (config_manager.py), so HYPE
+        # produces timeCOUT.txt / timeEVAP.txt / timeSNOW.txt and nothing else.
+        # Writing a converter would be worse than the missing file: HYPE's
+        # 'cout' is already routed discharge at subbasin outlets, so feeding it
+        # to mizuRoute would route it a second time.
+        #
+        # Removing the declaration makes 'HYPE as a routing source' fail at
+        # get_model_config() with an explicit "no runoff configuration
+        # registered ... a model without one cannot feed a routing model",
+        # instead of a missing-file error one stage later.
+        #
+        # No spatial_mode_key either: 'HYPE_SPATIAL_MODE' was dead. HYPEConfig
+        # declares no spatial_mode field and nothing in the tree sets the key,
+        # so it could only ever have matched a hand-built raw dict.
         config_keys=[
             ConfigKey('SETTINGS_HYPE_PATH', ConfigKeyType.PATH, True,
                       description='Path to HYPE settings directory'),
