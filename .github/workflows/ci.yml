@@ -100,7 +100,10 @@ jobs:
   # sys.platform='win32' sat broken on 3.12 for as long as CI only ran 3.11,
   # because stdlib shutil.which grew a _winapi call on that branch in 3.12.
   # The legs run in parallel, so covering the declared range costs runner
-  # minutes, not wall-clock. Keep in step with requires-python in pyproject.toml.
+  # minutes, not wall-clock. These legs ARE the evidence behind
+  # requires-python = ">=3.11,<3.14"; keep the two in step, and treat a leg that
+  # cannot be made green as a reason to narrow the declared range rather than to
+  # drop the leg.
   unit-tests:
     name: Unit Tests (ubuntu, Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
@@ -110,7 +113,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']
+        python-version: ['3.11', '3.12', '3.13']
     steps:
       - name: Free up disk space
         run: |
