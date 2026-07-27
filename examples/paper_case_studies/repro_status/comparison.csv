@@ -369,6 +369,7 @@ run_1@SUMMA,KGE,macos,0.892932,macos_p3repro,0.893597,0.000665,OK
 run_1@SWAT,KGE,macos,0.784240,macos_p3repro,0.783299,0.000940,OK
 run_1@TOPMODEL,KGE,macos,0.953393,macos_p3repro,0.908749,0.044644,EXPLAINED
 run_1@XINANJIANG,KGE,macos,0.914235,macos_p3repro,0.931094,0.016859,OK
+bow_exp3_joint@SUMMA,KGE,macos,0.842957,native_windows,0.862629,0.019672,OK
 cal_ensemble_fuse_abc@FUSE,KGE,macos,0.870525,native_windows,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping@FUSE,KGE,macos,0.862520,native_windows,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt@FUSE,KGE,macos,0.835567,native_windows,0.835567,0.000000,OK
@@ -419,7 +420,13 @@ cal_ensemble_hechms_pso@HECHMS,KGE,macos,0.890619,native_windows,0.890619,0.0000
 cal_ensemble_hechms_sa@HECHMS,KGE,macos,0.771654,native_windows,0.771654,0.000000,OK
 cal_ensemble_hechms_sceua@HECHMS,KGE,macos,0.760275,native_windows,0.760275,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos,0.686033,native_windows,0.686033,0.000000,OK
-cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,native_windows,0.054442,0.772110,DIFF
+cal_ensemble_hype_basin_hopping@HYPE,KGE,macos,0.355703,native_windows,0.355705,0.000003,OK
+cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos,0.474379,native_windows,0.474379,0.000000,OK
+cal_ensemble_hype_cmaes@HYPE,KGE,macos,0.813324,native_windows,0.690405,0.122919,EXPLAINED
+cal_ensemble_hype_dds@HYPE,KGE,macos,0.849389,native_windows,0.849389,0.000000,OK
+cal_ensemble_hype_de@HYPE,KGE,macos,0.806661,native_windows,0.806661,0.000000,OK
+cal_ensemble_hype_dream@HYPE,KGE,macos,0.371711,native_windows,0.371711,0.000000,OK
+cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,native_windows,0.826552,0.000000,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -763,6 +770,7 @@ run_1@SUMMA,?,macos_dev,0.906350,wsl,0.791400,0.114950,EXPLAINED
 run_1@SWAT,?,macos_dev,0.811536,wsl,0.788872,0.022664,DIFF
 run_1@TOPMODEL,?,macos_dev,0.921304,wsl,0.953393,0.032090,EXPLAINED
 run_1@XINANJIANG,?,macos_dev,0.909171,wsl,0.914235,0.005064,OK
+bow_exp3_joint@SUMMA,KGE,macos_p3repro,0.840768,native_windows,0.862629,0.021860,DIFF
 cal_ensemble_fuse_abc@FUSE,KGE,macos_p3repro,0.870525,native_windows,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping@FUSE,KGE,macos_p3repro,0.862520,native_windows,0.848325,0.014195,OK
 cal_ensemble_fuse_bayesian_opt@FUSE,KGE,macos_p3repro,0.835567,native_windows,0.835567,0.000000,OK
@@ -813,7 +821,13 @@ cal_ensemble_hechms_pso@HECHMS,KGE,macos_p3repro,0.890619,native_windows,0.89061
 cal_ensemble_hechms_sa@HECHMS,KGE,macos_p3repro,0.771654,native_windows,0.771654,0.000000,OK
 cal_ensemble_hechms_sceua@HECHMS,KGE,macos_p3repro,0.760275,native_windows,0.760275,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.686033,native_windows,0.686033,0.000000,OK
-cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.741416,native_windows,0.054442,0.686974,DIFF
+cal_ensemble_hype_basin_hopping@HYPE,KGE,macos_p3repro,0.355703,native_windows,0.355705,0.000003,OK
+cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos_p3repro,0.474379,native_windows,0.474379,0.000000,OK
+cal_ensemble_hype_cmaes@HYPE,KGE,macos_p3repro,0.813324,native_windows,0.690405,0.122919,EXPLAINED
+cal_ensemble_hype_dds@HYPE,KGE,macos_p3repro,0.849389,native_windows,0.849389,0.000000,OK
+cal_ensemble_hype_de@HYPE,KGE,macos_p3repro,0.806661,native_windows,0.806661,0.000000,OK
+cal_ensemble_hype_dream@HYPE,KGE,macos_p3repro,0.371711,native_windows,0.371711,0.000000,OK
+cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.741416,native_windows,0.826552,0.085136,DIFF
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -1114,6 +1128,7 @@ run_1@SUMMA,KGE,macos_p3repro,0.893597,wsl,0.791400,0.102197,EXPLAINED
 run_1@SWAT,KGE,macos_p3repro,0.783299,wsl,0.788872,0.005572,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.908749,wsl,0.953393,0.044644,EXPLAINED
 run_1@XINANJIANG,KGE,macos_p3repro,0.931094,wsl,0.914235,0.016859,OK
+bow_exp3_joint@SUMMA,KGE,native_windows,0.862629,wsl,0.851716,0.010913,OK
 cal_ensemble_fuse_abc@FUSE,KGE,native_windows,0.870525,wsl,0.870525,0.000000,OK
 cal_ensemble_fuse_basin_hopping@FUSE,KGE,native_windows,0.848325,wsl,0.848325,0.000000,OK
 cal_ensemble_fuse_bayesian_opt@FUSE,KGE,native_windows,0.835567,wsl,0.835567,0.000000,OK
@@ -1140,6 +1155,11 @@ cal_ensemble_hbv_dream@HBV,KGE,native_windows,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga@HBV,KGE,native_windows,0.916071,wsl,0.917801,0.001730,OK
 cal_ensemble_hbv_glue@HBV,KGE,native_windows,0.907066,wsl,0.907066,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,native_windows,0.686033,wsl,0.686033,0.000000,OK
+cal_ensemble_hype_basin_hopping@HYPE,KGE,native_windows,0.355705,wsl,0.355705,0.000000,OK
+cal_ensemble_hype_bayesian_opt@HYPE,KGE,native_windows,0.474379,wsl,0.474379,0.000000,OK
+cal_ensemble_hype_cmaes@HYPE,KGE,native_windows,0.690405,wsl,0.690405,0.000000,OK
+cal_ensemble_hype_dds@HYPE,KGE,native_windows,0.849389,wsl,0.849389,0.000000,OK
+cal_ensemble_hype_de@HYPE,KGE,native_windows,0.806661,wsl,0.806661,0.000000,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,native_windows,2332.000000,wsl,2332.000000,0.000000,OK
