@@ -47,7 +47,7 @@ CHUNK = 10           # 10x10 chunks -> 16 chunks total
 
 
 # The synthetic store is read through whichever zarr major the environment
-# resolves (zarr is pulled in transitively, unpinned). The spy records every
+# resolves (zarr is an explicit runtime dependency). The spy records every
 # key actually fetched so the tests can assert the bbox window is applied
 # before any data chunk is downloaded. zarr v3 stores expose an async ``get``;
 # v2 stores are mappings keyed via ``__getitem__`` — subclass whichever matches.

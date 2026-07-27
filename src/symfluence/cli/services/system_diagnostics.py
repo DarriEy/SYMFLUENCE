@@ -432,7 +432,10 @@ class SystemDiagnostics(BaseService):
     def _check_hdf5_library_conflict(self) -> bool:
         """Check whether pip-installed h5py and netCDF4 bundle conflicting libhdf5 builds."""
         try:
-            from symfluence.core.hdf5_safety import _find_bundled_libhdf5
+            from symfluence.core.hdf5_safety import (
+                _find_bundled_libhdf5,
+                hdf5_library_conflict,
+            )
         except ImportError:
             self._console.indent("HDF5 conflict check: [dim]skipped (hdf5_safety not available)[/dim]")
             return True
@@ -452,6 +455,12 @@ class SystemDiagnostics(BaseService):
 
         if h5py_lib == nc4_lib:
             self._console.indent("h5py and netCDF4 share the same libhdf5: [green]OK[/green]")
+            return True
+
+        if not hdf5_library_conflict:
+            self._console.indent(
+                "h5py and netCDF4 bundle separate compatible libraries: [green]OK[/green]"
+            )
             return True
 
         self._console.indent("h5py and netCDF4 bundle [red]DIFFERENT[/red] libhdf5 builds:")
