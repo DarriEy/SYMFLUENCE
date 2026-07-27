@@ -29,8 +29,10 @@ Usage:
 from __future__ import annotations
 
 import gc
+import json
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Optional
@@ -270,6 +272,63 @@ def _conflict_marker_path() -> Path:
     return base / 'symfluence' / 'hdf5_conflict_reported'
 
 
+def _compatibility_cache_path() -> Path:
+    """Path of the cached out-of-process HDF5 probe result."""
+    cache_root = os.environ.get('XDG_CACHE_HOME')
+    base = Path(cache_root) if cache_root else Path.home() / '.cache'
+    return base / 'symfluence' / 'hdf5_compatibility.json'
+
+
+def _library_fingerprint(path: Path) -> dict[str, object]:
+    """Return a stable fingerprint that changes when a bundled wheel changes."""
+    try:
+        stat = path.stat()
+        return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    except OSError:
+        return {"path": str(path), "size": None, "mtime_ns": None}
+
+
+def _probe_bundled_hdf5_compatibility(h5py_lib: Path, nc4_lib: Path) -> bool:
+    """Return whether both HDF5-backed engines coexist in a clean subprocess."""
+    key = {
+        "python": str(Path(sys.executable).resolve()),
+        "h5py": _library_fingerprint(h5py_lib),
+        "netcdf4": _library_fingerprint(nc4_lib),
+    }
+    cache = _compatibility_cache_path()
+    try:
+        payload = json.loads(cache.read_text(encoding="utf-8"))
+        if payload.get("key") == key:
+            return bool(payload.get("compatible"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+
+    env = os.environ.copy()
+    env["SYMFLUENCE_HDF5_PROBE"] = "1"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "symfluence.core.hdf5_probe"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        compatible = result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        compatible = False
+
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(
+            json.dumps({"key": key, "compatible": compatible}, sort_keys=True),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+    return compatible
+
+
 def _conflict_already_reported(h5py_lib: Path, nc4_lib: Path) -> bool:
     """Return True if this exact library conflict was already reported.
 
@@ -299,15 +358,16 @@ def _check_hdf5_library_conflict() -> None:
     HDF5 global state and causing ``NetCDF: HDF error`` on every
     subsequent netcdf4 operation — even reads.
 
-    This check runs at startup (before any h5py import) by looking for
-    bundled libhdf5 files in pip wheel vendor directories — no Python
-    HDF5 modules are imported.
+    This check runs at startup by locating bundled libraries without importing
+    either C extension. When their paths differ, a cached round-trip probe runs
+    in a child process so an incompatible pair cannot poison the host process.
 
     Sets the module-level ``hdf5_library_conflict`` flag and logs the
     full fix instructions once per environment (DEBUG level on repeat
     invocations, so ``--debug`` always shows them).
     """
     global hdf5_library_conflict
+    hdf5_library_conflict = False
 
     h5py_lib = _find_bundled_libhdf5('h5py')
     nc4_lib = _find_bundled_libhdf5('netCDF4')
@@ -319,6 +379,17 @@ def _check_hdf5_library_conflict() -> None:
 
     if h5py_lib == nc4_lib:
         return  # Same file — no conflict
+
+    # Different bundled paths are not sufficient evidence of a conflict.
+    # Verify the actual engine combination in a subprocess, which cannot
+    # poison this interpreter if the wheel pair is incompatible.
+    if os.environ.get("SYMFLUENCE_HDF5_PROBE") == "1":
+        return
+    if _probe_bundled_hdf5_compatibility(h5py_lib, nc4_lib):
+        logger.debug(
+            "h5py and netCDF4 use separate but compatible bundled HDF5 libraries"
+        )
+        return
 
     hdf5_library_conflict = True
     # This check runs at package import, before CLI parsing or logging setup,
