@@ -10,8 +10,14 @@ the same path an external model package uses (``register_model_schema``).
 
 A schema is also where a model declares the metadata core used to hardcode
 per model: ``spatial_mode_key`` and ``routing_integration_key`` (read by
-``RoutingDecider``) and ``runoff`` (read by ``runoff_loader``). Registering a
-schema is the only step needed for those to take effect.
+``RoutingDecider``), ``runoff`` (read by ``runoff_loader``) and
+``parallel_calibration`` (read by the parallel-calibration
+``ConfigurationUpdater``). Registering a schema is the only step needed for
+those to take effect.
+
+``runoff`` and ``parallel_calibration`` describe *different files* for the same
+model and must not be conflated -- see ``ParallelCalibrationConfig``'s docstring
+and the per-model notes below.
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ from symfluence.core.modeling.config_schema import (  # noqa: F401 — re-export
     InstallationConfig,
     ModelConfigSchema,
     OutputConfig,
+    ParallelCalibrationConfig,
     RunoffConfig,
     get_model_schema,
     register_model_schema,
@@ -71,6 +78,37 @@ def _create_summa_schema() -> ModelConfigSchema:
             hru_dim='hru',
             hru_var='hruId',
             comment_name='SUMMA',
+        ),
+        # Parallel calibration routes a per-process file, not the standard one.
+        # ConfigurationUpdater rewrites each process's fileManager with
+        # ``outFilePrefix 'proc_{NN}_{experiment_id}'`` and SUMMA appends
+        # '_timestep.nc', so the artifact in
+        # process_<n>/simulations/<exp>/SUMMA/ is
+        # 'proc_{NN}_{experiment_id}_timestep.nc' -- same content as the
+        # ``runoff`` declaration above, different name.
+        #
+        # 'averageRoutedRunoff' is NOT config-overridable here (unlike FUSE/GR):
+        # SETTINGS_MIZU_ROUTING_VAR was never read on SUMMA's branch, and the
+        # variable name is fixed by SUMMA's output definition.
+        #
+        # hru_dim/hru_var are 'gru'/'gruId' -- and deliberately DIFFER from the
+        # 'hru'/'hruId' in the ``runoff`` declaration above. That divergence
+        # predates this declaration: core's table keyed the dimension choice on
+        # the model name, listing SUMMA and FUSE as 'gru' unconditionally, while
+        # the non-parallel writer starts from 'hru'/'hruId' and switches to
+        # gru/gruId only when topology generation detects n_hrus > n_grus
+        # (``summa_uses_gru_runoff``). For a 1-HRU-per-GRU domain the two paths
+        # therefore disagree. Preserved value-for-value here and reported, not
+        # fixed in an extraction pass.
+        parallel_calibration=ParallelCalibrationConfig(
+            fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
+            runoff_var='averageRoutedRunoff',
+            runoff_var_from_config=False,
+            dt_qsim=None,  # SETTINGS_MIZU_ROUTING_DT decides (default '3600')
+            sim_start_time='00:00',
+            sim_end_time='00:00',
+            hru_dim='gru',
+            hru_var='gruId',
         ),
         # SUMMA is the standing exception to '<MODEL>_SPATIAL_MODE': no such
         # key exists for SUMMA anywhere -- its spatial mode *is* the domain
@@ -145,6 +183,32 @@ def _create_fuse_schema() -> ModelConfigSchema:
             hru_dim='gru',
             hru_var='gruId',
             comment_name='FUSE',
+        ),
+        # Genuinely a DIFFERENT file from the ``runoff`` declaration above, not
+        # a drifted copy of it. Verified: FUSE's calibration worker converts its
+        # own output before mizuRoute runs --
+        # ``FuseToMizurouteConverter.convert`` (models/fuse/utilities/
+        # mizuroute_converter.py) reads '{domain_name}_{fuse_id}_runs_def.nc'
+        # and writes a new file named, verbatim,
+        # f"proc_{proc_id:02d}_{experiment_id}_timestep.nc" into the process
+        # sim dir, which is the same directory ConfigurationUpdater points
+        # <input_dir> at. The serial path (models/fuse/runner.py) instead
+        # overwrites runs_def in place -- that is what ``runoff`` describes.
+        #
+        # The converted dataset is (time, gru) with a 'gruId' variable, and its
+        # routing variable name comes from SETTINGS_MIZU_ROUTING_VAR with the
+        # same 'q_routed' default and the same 'default'/empty sentinel
+        # handling, so both sides read one key. dt_qsim is pinned to '86400'
+        # because FUSE writes daily output regardless of forcing cadence.
+        parallel_calibration=ParallelCalibrationConfig(
+            fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
+            runoff_var='q_routed',
+            runoff_var_from_config=True,
+            dt_qsim='86400',
+            sim_start_time='00:00',
+            sim_end_time='00:00',
+            hru_dim='gru',
+            hru_var='gruId',
         ),
         # FUSE's typed default is the concrete 'lumped', not a deferral, so it
         # does not qualify for the automatic opt-in RoutingDecider applies to
@@ -223,6 +287,38 @@ def _create_gr_schema() -> ModelConfigSchema:
             hru_var='gruId',
             comment_name='GR4J',
             aliases=('GR4J', 'GR5J', 'GR6J'),
+        ),
+        # GR is the one model whose parallel-calibration file is the SAME name
+        # as its ``runoff`` declaration, with no 'proc_' prefix -- correct, not
+        # an oversight. GRRunner._save_distributed_results_for_routing() writes
+        # '{domain_name}_{experiment_id}_runs_def.nc' to
+        # runner.output_path, which the calibration worker overrides to the
+        # per-process sim_dir; ConfigurationUpdater points <input_dir> at that
+        # same per-process directory, so the path already disambiguates and no
+        # conversion step (and hence no renaming) happens for GR.
+        #
+        # Three values below are preserved EXACTLY as core's table produced them
+        # and are known to disagree with GR's actual daily, gru-dimensioned
+        # output. They are reported, not fixed, in this extraction pass:
+        #   * hru_dim/hru_var are 'hru'/'hruId' because core's dimension choice
+        #     listed only FUSE and SUMMA as 'gru'. The file GR writes is
+        #     (time, gru) with 'gruId' (runner.py), and the NON-parallel writer
+        #     (models/mizuroute/control_writer.py) correctly emits gru/gruId
+        #     from the ``runoff`` declaration above.
+        #   * dt_qsim is None -> SETTINGS_MIZU_ROUTING_DT, default '3600',
+        #     although GR is daily ('86400' in ``runoff`` above; the
+        #     non-parallel writer falls back to the schema's 86400).
+        #   * sim times stay '01:00'/'23:00'; the non-parallel writer forces
+        #     midnight alignment for GR's daily data.
+        parallel_calibration=ParallelCalibrationConfig(
+            fname_pattern='{domain_name}_{experiment_id}_runs_def.nc',
+            runoff_var='q_routed',
+            runoff_var_from_config=True,
+            dt_qsim=None,
+            sim_start_time='01:00',
+            sim_end_time='23:00',
+            hru_dim='hru',
+            hru_var='hruId',
         ),
         spatial_mode_key='GR_SPATIAL_MODE',
         routing_key='GR_ROUTING_INTEGRATION',
@@ -361,6 +457,46 @@ def _create_hype_schema() -> ModelConfigSchema:
         # No spatial_mode_key either: 'HYPE_SPATIAL_MODE' was dead. HYPEConfig
         # declares no spatial_mode field and nothing in the tree sets the key,
         # so it could only ever have matched a hand-built raw dict.
+        #
+        # parallel_calibration, in contrast, is NOT dead -- but only half of it
+        # is live, and the two halves are on different footings:
+        #
+        #  * The settings-file dialect IS live and is HYPE's alone. HYPE's
+        #    info.txt is bare tab-separated key/value with no quoting, so
+        #    ``settings_values_quoted=False`` is what stops the updater from
+        #    passing every line through untouched, and ``resultdir`` is the
+        #    directive that carries the run's output directory (HYPE has no
+        #    'outputPath'). HYPEModelOptimizer._setup_parallel_dirs calls
+        #    update_file_managers('HYPE', ..., info.txt) unconditionally, so
+        #    dropping these two fields would break parallel HYPE calibration.
+        #
+        #  * The mizuRoute half is reachable but non-functional -- "dead" in
+        #    effect, not in control flow. HYPEModelOptimizer guards it on
+        #    ROUTING_MODEL == 'mizuRoute' AND settings/mizuRoute/ existing, and
+        #    nothing generates a HYPE mizuRoute control file (HYPE registers
+        #    requires_routing=False for every spatial mode; the mizuRoute
+        #    preprocessor dispatches only FUSE/GR/NGEN), so the directory only
+        #    exists if hand-placed. When it does, this executes -- and points
+        #    mizuRoute at a '*_timestep.nc' that grep confirms nothing in the
+        #    HYPE package ever writes. Note the raise added to
+        #    get_model_config('HYPE') does NOT catch this: the parallel updater
+        #    reads this declaration, never runoff_loader.
+        #    Preserved value-for-value anyway rather than deleted, because
+        #    deleting it would silently change what such a config does
+        #    mid-campaign; making it fail early (as get_model_config now does)
+        #    is a behaviour change that belongs in its own reviewed PR.
+        parallel_calibration=ParallelCalibrationConfig(
+            fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
+            runoff_var='q_routed',
+            runoff_var_from_config=True,
+            dt_qsim='86400',
+            sim_start_time='00:00',
+            sim_end_time='00:00',
+            hru_dim='hru',
+            hru_var='hruId',
+            settings_values_quoted=False,
+            output_dir_directive='resultdir',
+        ),
         config_keys=[
             ConfigKey('SETTINGS_HYPE_PATH', ConfigKeyType.PATH, True,
                       description='Path to HYPE settings directory'),

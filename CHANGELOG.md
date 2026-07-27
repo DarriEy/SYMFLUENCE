@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Sobol and RBD-FAST support is installed with `symfluence[sensitivity]`.
   Importing the evaluation/analysis manager remains safe without SALib, while
   invoking either SALib-backed method raises an actionable install message.
+- **Models contract advanced to 0.4.0**: adds `parallel_calibration` to the
+  per-model declarations a registered `ModelConfigSchema` carries (the new
+  `ParallelCalibrationConfig`: the settings-file dialect — quoted values vs
+  tab-separated directives — and the mizuRoute control values a model needs
+  when calibration runs in parallel). This is deliberately a sibling of
+  `runoff`, not more fields on it: for models whose calibration path converts
+  output the two describe genuinely different files (FUSE's converter writes
+  `proc_NN_<exp>_timestep.nc` from its `runs_def.nc`), and HYPE needs the
+  settings half while having no runoff declaration at all. The last per-model
+  branching in `core/calibration/mixins/parallel/config_updater.py` is gone,
+  enforced by an AST guard against model-name comparisons. Equivalence was
+  proven differentially against the previous implementation across 288
+  scenarios with zero byte-level mismatches.
 - **Models contract advanced to 0.3.0**: the additive model surface now
   includes the per-model declarations a registered `ModelConfigSchema`
   carries for core to read instead of tabulating per model — `runoff`

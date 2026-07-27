@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # ``symfluence.models.*`` inherits these targets during central discovery.
 # Keeping this once at the package root avoids 30+ decorators drifting apart.
 __symfluence_contracts__ = {
-    "models": "0.3.0",
+    "models": "0.4.0",
     "calibration": "0.2.0",
     "metrics": "0.1.0",
     "geospatial-utils": "0.1.0",
