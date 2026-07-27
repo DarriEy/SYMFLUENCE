@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -146,99 +147,189 @@ class GRPostProcessor(BaseModelPostProcessor):
         )
 
     def _extract_distributed_streamflow(self) -> Optional[Path]:
-        """Extract streamflow from distributed GR4J run (after routing)"""
+        """Extract streamflow from a distributed GR4J run.
 
-        # Check if routing was performed
+        Both branches produce m³/s directly. They used to share a single
+        ``convert_mm_per_day_to_cms`` call at the end, which was wrong for each
+        of them in a different way -- see the two helpers for the units each
+        source actually carries.
+        """
         needs_routing = self._get_config_value(
             lambda: self.config.model.gr.routing_integration if self.config.model and self.config.model.gr else None,
             default=None
         ) == 'mizuRoute'
 
-        if needs_routing:
-            # Get routed streamflow from mizuRoute output
-            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
-            mizuroute_output_dir = self.project_dir / 'simulations' / exp_id / 'mizuRoute'
+        q_cms = (
+            self._routed_streamflow_cms() if needs_routing
+            else self._unrouted_streamflow_cms()
+        )
+        if q_cms is None:
+            return None
 
-            # Find mizuRoute output file
-            output_files = list(mizuroute_output_dir.glob(f"{exp_id}*.nc"))
-
-            if not output_files:
-                self.logger.error(f"No mizuRoute output files found in {mizuroute_output_dir}")
-                return None
-
-            # Use the first output file
-            mizuroute_file = output_files[0]
-            self.logger.info(f"Reading routed streamflow from: {mizuroute_file}")
-
-            ds = xr.open_dataset(mizuroute_file)
-
-            # Extract streamflow at outlet (typically the last reach)
-            # mizuRoute typically names the variable 'IRFroutedRunoff' or similar
-            streamflow_vars = ['IRFroutedRunoff', 'dlayRunoff', 'KWTroutedRunoff']
-            streamflow_var = None
-
-            for var in streamflow_vars:
-                if var in ds.variables:
-                    streamflow_var = var
-                    break
-
-            if streamflow_var is None:
-                self.logger.error(f"Could not find streamflow variable in mizuRoute output. Available: {list(ds.variables)}")
-                return None
-
-            # Get streamflow at outlet (last segment)
-            q_routed = ds[streamflow_var].isel(seg=-1)
-
-            # Convert to DataFrame
-            q_df = q_routed.to_dataframe(name='flow')
-            q_df = q_df.reset_index()
-
-            # Convert time if needed
-            if 'time' in q_df.columns:
-                q_df['time'] = pd.to_datetime(q_df['time'])
-                q_df.set_index('time', inplace=True)
-
-        else:
-            # No routing - sum all HRU outputs
-            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
-            gr_output = self.project_dir / 'simulations' / exp_id / 'GR' / \
-                        f"{self.domain_name}_{exp_id}_runs_def.nc"
-
-            if not gr_output.exists():
-                self.logger.error(f"GR output not found: {gr_output}")
-                return None
-
-            ds = xr.open_dataset(gr_output)
-
-            # Sum across all GRUs
-            # Handle 'default' config value - use model-specific default
-            routing_var_config = self._get_config_value(
-                lambda: self.config.model.mizuroute.routing_var if self.config.model and self.config.model.mizuroute else None,
-                default='q_routed'
-            )
-            if routing_var_config in ('default', None, ''):
-                routing_var = 'q_routed'  # GR4J default for routing
-            else:
-                routing_var = routing_var_config
-            q_total = ds[routing_var].sum(dim='gru')
-
-            # Convert to DataFrame
-            q_df = q_total.to_dataframe(name='flow')
-
-        # Convert from mm/day to m3/s using base method
-        # Assumes GR output in mm/day. If mizuRoute, it might be in m3/s already depending on config,
-        # but typically routing input is mm/day and output is m3/s?
-        # Looking at original code:
-        # q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
-        # This implies the input was mm/day.
-
-        q_cms = self.convert_mm_per_day_to_cms(q_df['flow'])
-
-        # Save using standard method
         return self.save_streamflow_to_results(
             q_cms,
             model_column_name='GR_discharge_cms'
         )
+
+    def _routed_streamflow_cms(self) -> Optional[pd.Series]:
+        """Outlet discharge (m³/s) from mizuRoute output.
+
+        mizuRoute routes runoff into discharge: ``IRFroutedRunoff`` and its
+        siblings are already m³/s, so no unit conversion is applied. This
+        matches ``StandardModelPostProcessor``, which declares
+        ``streamflow_unit = "cms"  # Routing output is already in cms`` for the
+        same variables. The previous code pushed this through
+        ``convert_mm_per_day_to_cms``, inflating routed GR discharge by
+        ``area_km2 / 86.4`` -- a factor of ~11.6 for a 1000 km² basin.
+        """
+        exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
+        mizuroute_output_dir = self.project_dir / 'simulations' / exp_id / 'mizuRoute'
+
+        output_files = list(mizuroute_output_dir.glob(f"{exp_id}*.nc"))
+        if not output_files:
+            self.logger.error(f"No mizuRoute output files found in {mizuroute_output_dir}")
+            return None
+
+        mizuroute_file = output_files[0]
+        self.logger.info(f"Reading routed streamflow from: {mizuroute_file}")
+
+        with xr.open_dataset(mizuroute_file) as ds:
+            # NOTE: outlet is taken as the last segment, as before. Picking the
+            # outlet by position is a separate question from units and is left
+            # unchanged here.
+            streamflow_var = next(
+                (v for v in ('IRFroutedRunoff', 'dlayRunoff', 'KWTroutedRunoff')
+                 if v in ds.variables),
+                None
+            )
+            if streamflow_var is None:
+                self.logger.error(
+                    "Could not find streamflow variable in mizuRoute output. "
+                    f"Available: {list(ds.variables)}"
+                )
+                return None
+
+            series = ds[streamflow_var].isel(seg=-1).to_pandas()
+
+        series.index = pd.to_datetime(series.index)
+        return series
+
+    def _unrouted_streamflow_cms(self) -> Optional[pd.Series]:
+        """Basin discharge (m³/s) from GR's own distributed output.
+
+        ``GRRunner._save_distributed_results_for_routing`` writes ``q_routed``
+        as a per-GRU runoff **depth rate in m/s** (it divides mm/day by
+        ``1000 * 86400`` and labels the variable ``units = 'm/s'``). Basin
+        discharge is therefore the area-weighted sum
+
+            Q [m³/s] = sum_i runoff_i [m/s] * area_i [m²]
+
+        The previous code did ``.sum(dim='gru')`` and then applied the mm/day
+        conversion (``* area_km2 / 86.4``), which is wrong twice over: it
+        treated an m/s depth rate as mm/day, and it summed depth rates across
+        GRUs instead of weighting them by area. For a single-GRU basin the
+        result was low by a factor of 8.64e7.
+        """
+        exp_id = self._get_config_value(lambda: self.config.domain.experiment_id)
+        gr_output = self.project_dir / 'simulations' / exp_id / 'GR' / \
+            f"{self.domain_name}_{exp_id}_runs_def.nc"
+
+        if not gr_output.exists():
+            self.logger.error(f"GR output not found: {gr_output}")
+            return None
+
+        routing_var_config = self._get_config_value(
+            lambda: self.config.model.mizuroute.routing_var if self.config.model and self.config.model.mizuroute else None,
+            default='q_routed'
+        )
+        routing_var = (
+            'q_routed' if routing_var_config in ('default', None, '')
+            else routing_var_config
+        )
+
+        with xr.open_dataset(gr_output) as ds:
+            if routing_var not in ds.variables:
+                self.logger.error(
+                    f"Variable '{routing_var}' not found in {gr_output}. "
+                    f"Available: {list(ds.variables)}"
+                )
+                return None
+
+            runoff_ms = ds[routing_var]  # (time, gru), m/s
+            areas_m2 = self._gru_areas_m2(ds)
+
+            if areas_m2 is not None:
+                weights = xr.DataArray(areas_m2, dims=('gru',))
+                q_cms = (runoff_ms * weights).sum(dim='gru')
+            else:
+                # Equal-area fallback: sum_i runoff_i * (A_total / N) is exactly
+                # the basin mean times total area. Correct when GRUs are
+                # equal-area, approximate otherwise -- hence the warning.
+                total_area_m2 = self.get_catchment_area_km2() * 1e6
+                self.logger.warning(
+                    "Per-GRU areas unavailable; converting distributed GR runoff "
+                    "with an equal-area assumption (basin mean x total area). "
+                    "Discharge will be approximate if GRU areas differ."
+                )
+                q_cms = runoff_ms.mean(dim='gru') * total_area_m2
+
+            series = q_cms.to_pandas()
+
+        series.index = pd.to_datetime(series.index)
+        return series
+
+    def _gru_areas_m2(self, ds) -> Optional[np.ndarray]:
+        """Per-GRU areas in m², aligned to the dataset's ``gruId`` order.
+
+        Returns None (rather than raising) whenever the mapping cannot be built
+        completely -- a partial area map would silently mis-weight the basin,
+        so the caller falls back to an explicit equal-area assumption instead.
+        """
+        if 'gruId' not in ds.variables:
+            return None
+
+        try:
+            import geopandas as gpd
+
+            basin_name = self._get_config_value(
+                lambda: self.config.paths.river_basins_name, default=None
+            )
+            if basin_name in ('default', None):
+                basin_name = (
+                    f"{self.domain_name}_riverBasins_{self.domain_definition_method}.shp"
+                )
+
+            basin_path = self._get_file_path(
+                path_key='RIVER_BASINS_PATH',
+                name_key='RIVER_BASINS_NAME',
+                default_subpath='shapefiles/river_basins',
+                default_name=basin_name,
+            )
+            if not basin_path.exists():
+                return None
+
+            gdf = gpd.read_file(basin_path)
+            id_col = self._get_config_value(
+                lambda: self.config.paths.river_basin_rm_gruid, default='GRU_ID'
+            )
+            area_col = self._get_config_value(
+                lambda: self.config.paths.river_basin_area, default='GRU_area'
+            )
+            if id_col not in gdf.columns or area_col not in gdf.columns:
+                return None
+
+            areas = {
+                str(k): float(v)
+                for k, v in zip(gdf[id_col], gdf[area_col])
+            }
+            gru_ids = [str(g) for g in np.asarray(ds['gruId'].values).ravel()]
+            if not gru_ids or not all(g in areas for g in gru_ids):
+                return None
+
+            return np.array([areas[g] for g in gru_ids], dtype=float)
+        except Exception as exc:  # noqa: BLE001 — area lookup is best-effort
+            self.logger.debug(f"Per-GRU areas unavailable: {exc}")
+            return None
 
 
     @property
