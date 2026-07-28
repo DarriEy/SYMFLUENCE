@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only HYPE resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'ttmp': ParameterInfo(-5.0, 5.0, '°C', 'Snowmelt threshold temperature', 'snow'),

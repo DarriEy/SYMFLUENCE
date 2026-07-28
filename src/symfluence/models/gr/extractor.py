@@ -52,25 +52,15 @@ class GRResultExtractor(ModelResultExtractor):
     def get_variable_names(self, variable_type: str) -> List[str]:
         """Get GR variable names for different types.
 
-        ``q_sim`` leads because it is the name GR actually writes: the
-        streamflow column of the lumped-mode ``GR_results.csv`` is ``q_sim``
-        (``GRRunner`` writes ``data.frame(datetime=..., q_sim =
-        OutputsModel$Qsim)``). ``Qsim`` is the airGR *R object* field name, not
-        the column header, so a list starting at ``Qsim`` matched nothing and
-        reached the data only through the positional fallback in
-        :meth:`_extract_from_csv` -- which returns the first column whatever it
-        is named. The remaining spellings are tolerant fallbacks for
-        externally-produced or hand-edited GR output.
+        ``q_sim`` leads because it is the column GR actually writes in the
+        lumped-mode ``GR_results.csv``; ``Qsim`` is the airGR *R object* field
+        name, not a column header, so leading with it matched nothing and
+        reached the data only through :meth:`_extract_from_csv`'s positional
+        fallback. The rest are tolerant fallbacks for hand-edited output.
 
-        Deliberately NOT listed: ``q_routed``, the variable in the
-        distributed-mode ``{domain}_{experiment_id}_runs_def.nc``. This list is
-        shared with :meth:`_extract_from_netcdf`, which reduces a multi-GRU
-        variable with ``isel({gru: 0})`` -- the first GRU, not a basin total,
-        whereas ``GRPostProcessor._extract_distributed_streamflow`` sums that
-        same variable over ``gru``. Adding it here would turn today's explicit
-        "no suitable streamflow variable" error into a silently wrong
-        single-GRU hydrograph. Serving distributed output through this
-        extractor needs the aggregation fixed first; see the class docstring.
+        ``q_routed`` (distributed mode) is deliberately absent: this list is
+        shared with :meth:`_extract_from_netcdf`, which would reduce it to a
+        single GRU rather than the basin total -- see the class docstring.
         """
         variable_mapping = {
             'streamflow': ['q_sim', 'Qsim', 'Q', 'streamflow', 'discharge'],

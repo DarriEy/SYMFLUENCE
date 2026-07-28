@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only IGNACIO resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'ffmc': ParameterInfo(0.0, 101.0, '-', 'Fine Fuel Moisture Code', 'fire'),

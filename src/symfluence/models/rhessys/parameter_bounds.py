@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only RHESSYS resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'sat_to_gw_coeff': ParameterInfo(0.0001, 0.1, '1/day', 'Saturation to groundwater coefficient', 'baseflow', 'log'),

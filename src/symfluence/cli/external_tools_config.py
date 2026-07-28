@@ -445,6 +445,10 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
     # Resolve the model build instructions declared by registered plugins, then
     # make a best-effort recovery for any plugin whose package failed to import
     # (its register() never ran, so it declared nothing).
+    # Drain the modules packages declared: importing each fires its
+    # @R.build_instructions.add('<tool>') decorator. Declaration-based, so it
+    # works identically for in-tree and external packages.
+    R.build_instructions.load_modules()
     _recover_build_instructions_from_failed_plugins()
     _resolve_registered_build_instructions()
 

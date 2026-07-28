@@ -19,11 +19,34 @@ item 18: it replaced the hardcoded SupportedModels.WITH_* lists, which drifted).
 
 from __future__ import annotations
 
+import types
 from pathlib import Path
+
+import pytest
 
 import symfluence.models
 from symfluence.core.registries import R
 from symfluence.models import model_packages_with
+
+
+def compiled_string_constants(source: str, filename: str) -> set[str]:
+    """Every string constant in *source*, recursively through code objects.
+
+    A source-text grep for a dotted path is defeated by writing it as
+    ``"symfluence." + "models"``. Compiling first defeats that back: CPython's
+    peephole optimiser folds adjacent literal concatenation into a single
+    constant, so the reassembled path shows up here.
+    """
+    def walk(code: types.CodeType) -> set[str]:
+        found: set[str] = set()
+        for constant in code.co_consts:
+            if isinstance(constant, str):
+                found.add(constant)
+            elif isinstance(constant, types.CodeType):
+                found |= walk(constant)
+        return found
+
+    return walk(compile(source, filename, "exec"))
 
 
 def test_forcing_adapter_discovery_includes_watflood():
@@ -52,18 +75,66 @@ def test_unknown_submodule_returns_empty():
 # ----------------------------------------------------------------------
 
 
-def test_forcing_adapter_modules_are_declared_into_the_registry():
-    """Every in-tree forcing_adapter.py is declared, so core never globs for it."""
-    declared = set(R.forcing_adapters.declared_modules())
-    for name in model_packages_with("forcing_adapter"):
-        assert f"symfluence.models.{name}.forcing_adapter" in declared
+_MODELS_DIR = Path(symfluence.models.__file__).resolve().parent
 
 
-def test_preset_modules_are_declared_into_the_registry():
-    """Every in-tree init_preset.py is declared, so the CLI never globs for it."""
-    declared = set(R.presets.declared_modules())
-    for name in model_packages_with("init_preset"):
-        assert f"symfluence.models.{name}.init_preset" in declared
+def _packages_on_disk_with(submodule: str) -> set[str]:
+    """The packages shipping ``<submodule>.py``, globbed by this test itself.
+
+    Deliberately NOT ``model_packages_with`` — that is the call whose output
+    produced the declarations under test, so comparing the two only proves the
+    declaration loop agrees with itself. Make ``model_packages_with`` return
+    ``()`` and both sides go empty: the assertions below used to pass while the
+    framework saw no forcing adapters and no presets at all.
+    """
+    return {
+        path.relative_to(_MODELS_DIR).parts[0]
+        for path in _MODELS_DIR.glob(f"*/{submodule}.py")
+    }
+
+
+def _declared_packages(registry, submodule: str) -> set[str]:
+    prefix = "symfluence.models."
+    suffix = f".{submodule}"
+    return {
+        module[len(prefix):-len(suffix)]
+        for module in registry.declared_modules()
+        if module.startswith(prefix) and module.endswith(suffix)
+    }
+
+
+@pytest.mark.parametrize("submodule,registry_name", [
+    ("forcing_adapter", "forcing_adapters"),
+    ("init_preset", "presets"),
+])
+def test_capability_modules_are_declared_into_the_registry(submodule, registry_name):
+    """Every in-tree side-module is declared, so core/CLI never glob for it.
+
+    Exact equality against an independent glob, and a non-empty precondition:
+    an empty declaration set is the failure this guards, not a pass.
+    """
+    on_disk = _packages_on_disk_with(submodule)
+    assert on_disk, (
+        f"no in-tree package ships {submodule}.py — the source layout moved "
+        "and this test is now vacuous"
+    )
+    declared = _declared_packages(getattr(R, registry_name), submodule)
+    assert declared == on_disk, (
+        f"declared {submodule} modules disagree with the packages that ship "
+        f"one: declared-only {sorted(declared - on_disk)}, shipped-only "
+        f"{sorted(on_disk - declared)}"
+    )
+
+
+def test_model_packages_with_agrees_with_the_disk():
+    """The introspection helper feeding the declarations is itself correct."""
+    for submodule in ("forcing_adapter", "init_preset", "calibration/worker"):
+        expected = {
+            path.relative_to(_MODELS_DIR).parts[0]
+            for path in _MODELS_DIR.glob(f"*/{submodule}.py")
+        }
+        assert expected, f"nothing ships {submodule}.py"
+        assert set(model_packages_with(submodule)) == expected, submodule
 
 
 def test_declarations_are_idempotent():
@@ -80,8 +151,15 @@ def test_framework_discovery_does_not_import_the_models_package():
     registry, so the framework keeps working when the models distribution is
     not installed at all (tests/conformance/test_models_absent.py).
 
-    A plain source scan, so prose in those modules should say "the models
-    package" rather than spelling the dotted name.
+    Two scans, because a plain ``"symfluence.models" not in source`` grep is
+    defeated by ``"symfluence." + "models"``:
+
+    * the source text, so prose in those modules keeps saying "the models
+      package" rather than spelling the dotted name;
+    * every string constant in the COMPILED module, recursively through nested
+      code objects. CPython folds adjacent literal concatenation at compile
+      time, so a split literal reassembles into one constant here and is
+      caught.
     """
     import inspect
 
@@ -89,8 +167,17 @@ def test_framework_discovery_does_not_import_the_models_package():
     from symfluence.core.modeling.adapters import adapter_registry
 
     for module in (adapter_registry, preset_registry):
-        assert "symfluence.models" not in inspect.getsource(module), (
+        source = inspect.getsource(module)
+        assert "symfluence.models" not in source, (
             f"{module.__name__} still reaches into the models package"
+        )
+        offenders = sorted(
+            constant for constant in compiled_string_constants(source, module.__file__)
+            if "symfluence.models" in constant
+        )
+        assert not offenders, (
+            f"{module.__name__} builds a models-package path from string "
+            f"fragments: {offenders}"
         )
 
 

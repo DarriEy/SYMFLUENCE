@@ -53,7 +53,15 @@ Full keyword list (all optional except `model_name`): `preprocessor`, `runner`,
 `result_extractor`, `optimizer`, `worker`, `parameter_manager`,
 `decision_analyzer`, `sensitivity_analyzer`, `koopman_analyzer`, `plotter`,
 `forcing_adapter`, `forcing_adapter_module`, `init_preset_module`,
-`build_instructions_module`.
+`build_instructions_module`, `aliases`, `self_training`.
+
+`aliases=("HEC-HMS",)` declares alternate spellings that resolve to the
+canonical name across every registry — hyphenated forms, short names, a legacy
+key — so the mapping lives with the package that owns the name rather than in a
+core table. `self_training=True` marks a model whose "calibration" is internal
+training during the run step (gradient descent) rather than an external
+DDS/PSO search: it registers no optimizer or worker, and the calibration and
+sensitivity-analysis paths skip it instead of reporting a failure.
 
 The three `*_module` keywords declare *where* a capability lives instead of
 importing it: the dotted path is recorded in the registry and imported only

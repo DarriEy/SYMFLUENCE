@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only WATFLOOD resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'watflood_FLZCOEF': ParameterInfo(1e-06, 0.01, '-', 'Lower zone function coefficient', 'baseflow', 'log'),

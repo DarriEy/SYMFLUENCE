@@ -219,6 +219,158 @@ def test_declaration_lookup_is_case_and_whitespace_insensitive(model):
 
 
 # ---------------------------------------------------------------------------
+# More than one process at a time — the reason the feature exists
+# ---------------------------------------------------------------------------
+
+# Every test above drives a single-entry ``{3: dirs}`` dict, so nothing pinned
+# the property parallel calibration is FOR: N concurrent processes each
+# rewriting its own copy of the settings without treading on the others.
+# 1/2 cover the zero-padded ``{proc_id:02d}`` names and 12 covers a two-digit
+# id, where a naive f-string would produce 'proc_012'.
+_PROC_IDS = (1, 2, 12)
+
+
+def _multi_parallel_dirs(root: Path, model: str, proc_ids=_PROC_IDS) -> dict:
+    """The real shape of the argument: one entry per calibration process."""
+    dirs = {}
+    for proc_id in proc_ids:
+        proc = root / f'process_{proc_id}'
+        entry = {
+            'root': proc,
+            'sim_dir': proc / 'simulations' / EXPERIMENT_ID / model,
+            'settings_dir': proc / 'settings' / model,
+            'output_dir': proc / 'output',
+        }
+        for key in ('sim_dir', 'settings_dir', 'output_dir'):
+            entry[key].mkdir(parents=True, exist_ok=True)
+        (proc / 'settings' / 'mizuRoute').mkdir(parents=True, exist_ok=True)
+        dirs[proc_id] = entry
+    return dirs
+
+
+def _control_path(dirs: dict, proc_id: int) -> Path:
+    return dirs[proc_id]['root'] / 'settings' / 'mizuRoute' / 'mizuroute.control'
+
+
+def _directive(lines: list, directive: str) -> str:
+    matches = [ln for ln in lines if ln.startswith(directive)]
+    assert len(matches) == 1, f'{directive}: {matches}'
+    return matches[0].split(None, 1)[1].split('!')[0].strip()
+
+
+@pytest.mark.parametrize('model', ['SUMMA', 'GR'])
+def test_each_process_gets_its_own_control_file(tmp_path, model):
+    """One call rewrites every process's control file, each for itself.
+
+    SUMMA and GR are both here on purpose: SUMMA's runoff filename carries the
+    ``proc_NN`` prefix, GR's does not (``testdom_run_1_runs_def.nc`` for every
+    process). GR's isolation therefore rests ENTIRELY on ``<input_dir>``
+    pointing into that process's own simulation directory — so a regression
+    that made the paths process-independent would silently have every mizuRoute
+    process read one model's output, and every parallel calibration would
+    evaluate the same parameter set N times.
+    """
+    dirs = _multi_parallel_dirs(tmp_path, model)
+    for proc_id in _PROC_IDS:
+        _control_path(dirs, proc_id).write_text(CONTROL_TEMPLATE, encoding='utf-8')
+
+    ConfigurationUpdater(dict(BASE_CONFIG)).update_mizuroute_controls(
+        dirs, model, EXPERIMENT_ID)
+
+    routed_inputs = {}
+    for proc_id in _PROC_IDS:
+        lines = _control_path(dirs, proc_id).read_text(
+            encoding='utf-8').splitlines()
+
+        assert _directive(lines, '<case_name>') == f'proc_{proc_id:02d}_{EXPERIMENT_ID}'
+
+        expected_fname = (
+            f'proc_{proc_id:02d}_{EXPERIMENT_ID}_timestep.nc' if model == 'SUMMA'
+            else f'testdom_{EXPERIMENT_ID}_runs_def.nc'
+        )
+        assert _directive(lines, '<fname_qsim>') == expected_fname
+
+        # Every path directive must sit under THIS process's own root. The
+        # trailing separator matters: without it 'process_12/...' satisfies a
+        # 'process_1' prefix check and the 1-vs-12 mix-up would go unnoticed.
+        own_root = dirs[proc_id]['root'].as_posix() + '/'
+        for path_directive in ('<ancil_dir>', '<input_dir>', '<output_dir>'):
+            value = _directive(lines, path_directive)
+            assert value.startswith(own_root), (
+                f'process {proc_id} {path_directive} -> {value}, which is not '
+                f'under {own_root}'
+            )
+
+        routed_inputs[proc_id] = _directive(lines, '<input_dir>') + expected_fname
+
+    # The artifact mizuRoute actually reads must be distinct for every process.
+    assert len(set(routed_inputs.values())) == len(_PROC_IDS), (
+        f'processes share a runoff input path: {routed_inputs}'
+    )
+
+
+def test_each_process_gets_its_own_file_manager(tmp_path):
+    """The SUMMA side of the same property: N file managers, N output prefixes.
+
+    ``outFilePrefix`` is what makes SUMMA write ``proc_NN_run_1_timestep.nc``,
+    i.e. it is the other half of the control file's ``<fname_qsim>``. If the
+    two ever disagreed per process, mizuRoute would read a file SUMMA never
+    wrote — or, worse, one another process did.
+    """
+    dirs = _multi_parallel_dirs(tmp_path, 'SUMMA')
+    for proc_id in _PROC_IDS:
+        (dirs[proc_id]['settings_dir'] / 'fileManager.txt').write_text(
+            FILE_MANAGER_TEMPLATE, encoding='utf-8')
+
+    ConfigurationUpdater(dict(BASE_CONFIG)).update_file_managers(
+        dirs, 'SUMMA', EXPERIMENT_ID, 'fileManager.txt')
+
+    prefixes, settings_paths, output_paths = set(), set(), set()
+    for proc_id in _PROC_IDS:
+        lines = (dirs[proc_id]['settings_dir'] / 'fileManager.txt').read_text(
+            encoding='utf-8').splitlines()
+
+        assert f"outFilePrefix        'proc_{proc_id:02d}_{EXPERIMENT_ID}'" in lines
+        prefixes.add(_directive(lines, 'outFilePrefix'))
+
+        own_root = dirs[proc_id]['root'].as_posix() + '/'
+        for name, sink in (('settingsPath', settings_paths),
+                           ('outputPath', output_paths)):
+            value = _directive(lines, name).strip("'")
+            assert value.startswith(own_root), (
+                f'process {proc_id} {name} -> {value}, not under {own_root}'
+            )
+            sink.add(value)
+
+    assert len(prefixes) == len(_PROC_IDS), f'shared outFilePrefix: {prefixes}'
+    assert len(settings_paths) == len(_PROC_IDS), f'shared settingsPath: {settings_paths}'
+    assert len(output_paths) == len(_PROC_IDS), f'shared outputPath: {output_paths}'
+
+
+def test_a_process_without_a_control_file_does_not_stop_the_others(tmp_path):
+    """One missing file is skipped; the remaining processes still get rewritten.
+
+    ``update_mizuroute_controls`` iterates and ``continue``s past a process
+    whose control file is absent. With a single-process dict that branch is
+    indistinguishable from doing nothing at all.
+    """
+    dirs = _multi_parallel_dirs(tmp_path, 'SUMMA')
+    for proc_id in _PROC_IDS[1:]:
+        _control_path(dirs, proc_id).write_text(CONTROL_TEMPLATE, encoding='utf-8')
+
+    ConfigurationUpdater(dict(BASE_CONFIG)).update_mizuroute_controls(
+        dirs, 'SUMMA', EXPERIMENT_ID)
+
+    assert not _control_path(dirs, _PROC_IDS[0]).exists()
+    for proc_id in _PROC_IDS[1:]:
+        lines = _control_path(dirs, proc_id).read_text(
+            encoding='utf-8').splitlines()
+        assert _directive(lines, '<fname_qsim>') == (
+            f'proc_{proc_id:02d}_{EXPERIMENT_ID}_timestep.nc'
+        )
+
+
+# ---------------------------------------------------------------------------
 # Which config overrides each model honours
 # ---------------------------------------------------------------------------
 

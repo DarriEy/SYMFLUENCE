@@ -179,15 +179,17 @@ def _bootstrap_model_aliases(R: type) -> None:  # noqa: N803
     may be declared here before the plugin entry points register the canonical
     keys.
 
-    Two kinds of alias live here. First, hyphenated spellings whose hyphen-free
-    form is the *actual* canonical registration (``HEC-HMS`` -> ``HECHMS``).
+    Only aliases a package cannot declare for itself remain here — a package
+    owning its canonical key uses ``model_manifest(aliases=[...])`` instead.
+    Two kinds qualify: hyphenated spellings whose canonical key belongs to an
+    EXTERNAL package (``HEC-HMS`` -> ``HECHMS``, owned by ``jhechms``), and an
+    alias whose target is not a model at all (the SUMMA+MODFLOW coupling ->
+    the ``COUPLED_GW`` calibration pipeline, which no single manifest owns).
+
     Note this differs from the BMI-adapter aliases above: e.g. the BMI adapter
     is registered as ``XAJ`` whereas the standalone runner is registered as
-    ``XINANJIANG``, so no runner-level alias is added for it. Second, common
-    alternate / short names a config (or a derived sensitivity-analysis label)
-    may use for a model whose canonical key differs (``RHESS`` -> ``RHESSYS``;
-    the SUMMA+MODFLOW coupling -> the ``COUPLED_GW`` calibration pipeline). The
-    guard below additionally refuses to shadow a real registration with an alias.
+    ``XINANJIANG``, so no runner-level alias is added for it. The guard below
+    additionally refuses to shadow a real registration with an alias.
     """
     # alias -> canonical, applied across every model-component registry.
     #

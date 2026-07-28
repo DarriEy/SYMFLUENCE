@@ -8,8 +8,11 @@ Converts CFIF (CF-Intermediate Format) forcing data to WATFLOOD .met format.
 WATFLOOD only requires precipitation and temperature forcing (simplified
 energy balance).
 
-UNWIRED — this module is not part of the forcing-adapter contract and nothing
-imports it. Unlike every registered adapter it does not subclass
+UNWIRED — this module is declared into ``R.forcing_adapters`` like every other
+``<model>/forcing_adapter.py`` (``models/__init__._declare_capability_modules``
+globs them), so it *is* imported when the declarations are drained, but it
+registers nothing: it is the only declared module contributing no entry.
+Unlike every registered adapter it does not subclass
 ``symfluence.core.modeling.adapters.ForcingAdapter`` and does not implement
 ``get_variable_mapping()``; it exposes a standalone
 ``convert_forcing(cfif_dir, output_dir, start_date, end_date)`` instead. It

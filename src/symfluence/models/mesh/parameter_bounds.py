@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only MESH resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),

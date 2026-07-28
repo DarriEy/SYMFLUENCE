@@ -1,22 +1,30 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
-"""Characterization of the model knowledge still hardcoded in ``core``.
+"""The behavioural specification for per-model knowledge moved out of ``core``.
 
-Service-decomposition phase 0 moves per-model declarations out of core and
-into the packages that own them (bounds -> ``register_model_bounds``; output
-/ spatial-mode / routing metadata -> the registered ``ModelConfigSchema``).
-Every one of those moves must be a **provable no-op**: the values a model
-resolves after the move are the values it resolved before.
+Service-decomposition phase 0 moved per-model declarations into the packages
+that own them (bounds -> ``register_model_bounds``; runoff / spatial-mode /
+routing metadata -> the registered ``ModelConfigSchema``). This module is what
+made that safe, and it now serves two distinct purposes — do not conflate them
+when editing:
 
-This module pins the "before". It deliberately asserts the CURRENT values,
-including the ones known to be stale or incomplete — those are tracked as
-separate issues and fixed in their own reviewed PRs, never as a side effect
-of an extraction refactor (the campaign's repro runs depend on these values,
-and an unattributable regression here is expensive to find).
+**Parity.** The bound values are pinned against
+``data/model_bounds_snapshot.json``: every one of the 438 entries must survive
+the split across model packages unchanged. Regenerate the snapshot ONLY when a
+bound value is intentionally changed, never to make a failing test pass.
 
-Where a table is known to be wrong, the test says so in a comment rather than
-asserting the *correct* value, so the intent is not mistaken for an oversight.
+**Specification.** The runoff, routing and spatial-mode assertions started as
+characterization — pinning stale values verbatim so the refactor was a provable
+no-op — and several were then deliberately flipped to the CORRECTED behaviour
+once the underlying bugs were approved for fixing (the routing-integration
+table, the spatial-mode lookup, the unknown-source error, HYPE's removal as a
+routable source). Each such test's docstring says what changed and why.
+
+So an assertion here is a decision, not a mirror of the implementation. If one
+fails, establish which of the two roles it is playing before touching it: a
+parity failure means a value moved that should not have; a specification
+failure means behaviour diverged from an agreed contract.
 """
 from __future__ import annotations
 
@@ -47,13 +55,23 @@ def _load_snapshot() -> dict:
 
 
 def test_snapshot_covers_every_servable_model():
-    """The snapshot must not silently stop covering a model."""
+    """The snapshot must not silently stop covering a model.
+
+    Pinned against ``registered_bound_models()`` — everything
+    ``get_model_bounds`` can serve — rather than against
+    ``_BUILTIN_MODEL_BOUNDS``. The built-in table is only one of the two
+    sources: a model that leaves it for ``register_model_bounds()`` (the whole
+    direction of the decomposition) would otherwise pass this test while being
+    covered by no parity assertion at all, which is precisely the coverage the
+    snapshot exists to provide.
+    """
     snapshot = _load_snapshot()
-    assert set(snapshot) == set(pbr._BUILTIN_MODEL_BOUNDS), (
-        "model_bounds_snapshot.json is out of sync with _BUILTIN_MODEL_BOUNDS. "
-        "A model may only leave the built-in table by registering equivalent "
-        "bounds through register_model_bounds() — regenerate the snapshot only "
-        "when the bound VALUES are intentionally changed."
+    assert set(snapshot) == set(pbr.registered_bound_models()), (
+        "model_bounds_snapshot.json is out of sync with the models "
+        "get_model_bounds() can serve. A model may leave the built-in table "
+        "only by registering equivalent bounds through register_model_bounds() "
+        "— and either way it must stay in the snapshot. Regenerate the snapshot "
+        "only when the bound VALUES are intentionally changed."
     )
 
 
@@ -90,11 +108,20 @@ _KNOWN_NAME_COLLISIONS = {
 
 
 def test_no_new_shared_parameter_collisions():
-    """A name serving different bounds in different models must be deliberate."""
-    snapshot = _load_snapshot()
+    """A name serving different bounds in different models must be deliberate.
+
+    Built from the LIVE registry (``get_model_bounds`` over
+    ``registered_bound_models``), not from the JSON snapshot. Reading the
+    snapshot made this test touch no production code at all: it compared one
+    static file against one hardcoded set, so a model registering a colliding
+    name could not fail it — only regenerating the snapshot could, and that is
+    a deliberate act. The defect this guards (#368, SACSMA's ``MBASE``
+    silently overriding FUSE's) happens at *registration* time, so registration
+    is what has to be inspected.
+    """
     by_name: dict[str, dict[str, tuple]] = {}
-    for model, params in snapshot.items():
-        for name, bounds in params.items():
+    for model in pbr.registered_bound_models():
+        for name, bounds in get_model_bounds(model).items():
             by_name.setdefault(name, {})[model] = (bounds["min"], bounds["max"])
 
     collisions = {
@@ -122,8 +149,11 @@ def test_no_new_shared_parameter_collisions():
 # Runoff-source metadata (runoff_loader.MODEL_CONFIGS)
 # ---------------------------------------------------------------------------
 
-# The exact table core serves today. Moving this into each model's registered
-# ModelConfigSchema.output must reproduce it field for field.
+# The four routable sources, field for field. These values now come from each
+# model's registered ``ModelConfigSchema.runoff``; core no longer tabulates
+# them. ``runoff`` is deliberately a sibling of ``output``, not the same thing:
+# for models whose calibration path converts output the two describe different
+# files (see ParallelCalibrationConfig).
 #
 # CHANGED: HYPE was removed. It declared a ``runoff`` artifact
 # ``{experiment_id}_timestep.nc`` that nothing in the HYPE adapter writes —
@@ -143,9 +173,6 @@ _EXPECTED_RUNOFF = {
     "FUSE": dict(
         output_dir_key="EXPERIMENT_OUTPUT_FUSE", output_dir_name="FUSE",
         default_var="q_routed", default_units="m/s", default_dt="86400",
-        # NOTE: the registered FUSE schema spells this '{domain}_...'; the two
-        # declarations have already drifted. Parity pins the runoff_loader
-        # spelling, which is what routing actually consumes today.
         output_file_pattern="{domain_name}_{experiment_id}_runs_def.nc",
         hru_dim="gru", hru_var="gruId", comment_name="FUSE",
     ),

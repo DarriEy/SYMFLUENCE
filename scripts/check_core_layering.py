@@ -428,8 +428,22 @@ BOUNDARY_RULES: List[BoundaryRule] = [
             "symfluence.agent",
             "symfluence.fews",
             "symfluence.geospatial",
+            # ModelManager was promoted to project/; the shim left behind at
+            # models/model_manager.py imported it at module level, so importing
+            # the models package pulled in the orchestration layer. Forbidding
+            # the prefix keeps that from creeping back once models ships as its
+            # own distribution.
+            "symfluence.project",
         ),
-        [],
+        [
+            (
+                "model_manager.py",
+                "symfluence.project",
+                "Back-compat shim resolving the promoted ModelManager inside "
+                "__getattr__ only, so nothing is imported until an external "
+                "caller touches the deprecated path. Removed at 2.0.",
+            ),
+        ],
     ),
     (
         "evaluation",

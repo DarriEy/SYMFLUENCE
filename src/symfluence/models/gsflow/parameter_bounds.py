@@ -27,21 +27,25 @@ calibration code can read bounds.
 
 This module is also the ONE place GSFLOW's bound numbers are written.
 ``symfluence.models.gsflow.parameters.PARAM_BOUNDS`` -- what
-``GSFLOWParameterManager._load_parameter_bounds()`` actually reads at
-calibration time -- used to be an independent literal dict here-and-there
-duplicate; it is now :data:`CALIBRATION_BOUNDS`, derived below. See
-:data:`LOCAL_ONLY` for the single number that still cannot be sourced from the
-central catalogue.
+``GSFLOWParameterManager._load_parameter_bounds()`` reads at calibration time --
+used to be an independent literal dict duplicating these values; it is now
+:data:`CALIBRATION_BOUNDS`, derived below. Every number is either owned here
+(:data:`PARAMS`) or read back from the central catalogue, never copied.
+
+GSFLOW needs :data:`CALIBRATION_BOUNDS` on top of the common
+PARAMS/BOUND_SET/``register_bounds`` shape because its manager calibrates names
+outside :data:`BOUND_SET`; ``get_model_bounds('GSFLOW')`` serves the bound set
+alone.
 """
 from __future__ import annotations
 
-from typing import Dict, List
+from collections.abc import Mapping
+from typing import Dict, Iterator, List
 
 from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     ParameterInfo,
     register_model_bounds,
 )
-
 
 #: Tier B -- definitions only GSFLOW resolves.
 #: The last 5 are contributed to the catalogue but are NOT part of
@@ -97,19 +101,10 @@ BOUND_SET: List[str] = [
 STRIP_PREFIX = 'gsflow_'
 
 #: Definitions GSFLOW calibrates against that are NOT sourced from the central
-#: catalogue, keyed by SERVED (unprefixed) name.
-#:
-#: Empty, and it must stay that way. ``K`` used to live here: the central
-#: ``gsflow_K`` said ``(0.001, 100.0, log)`` while every GSFLOW calibration
-#: actually searched ``(0.1, 5000.0, linear)`` from a package-local dict. The
-#: catalogue entry was inert -- nothing in-tree or in any plugin calls
-#: ``get_gsflow_bounds()`` -- which is exactly how the two were free to drift.
-#: Central ``gsflow_K`` now carries the in-use range, so there is one
-#: definition again and the catalogue tells the truth.
-#:
-#: Do not add entries here without the same level of justification: a
-#: package-local definition shadowing a central one is precisely the
-#: ``fuse_MBASE`` failure mode that #368 had to fix.
+#: catalogue, keyed by SERVED (unprefixed) name. Empty, and it must stay that
+#: way: a package-local definition shadowing a central one is the ``fuse_MBASE``
+#: failure mode #368 had to fix, and is how local ``K`` (0.1..5000 linear) came
+#: to disagree with central ``gsflow_K`` (0.001..100 log) unnoticed.
 LOCAL_ONLY: Dict[str, ParameterInfo] = {}
 
 
@@ -126,7 +121,7 @@ def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, float]]:
 def _shared_from_catalogue() -> Dict[str, Dict[str, float]]:
     """Served bounds for the BOUND_SET names this package does not own.
 
-    ``gsflow_K`` is the only one: its served name ``K`` collides with
+    ``gsflow_K`` is the only one today: its served name ``K`` collides with
     Xinanjiang's, so it has to stay namespaced in the central catalogue. It is
     read back through the public accessor rather than copied, because a local
     copy of a central definition is exactly how the two drifted apart in the
@@ -147,18 +142,51 @@ def _shared_from_catalogue() -> Dict[str, Dict[str, float]]:
     }
 
 
-#: The bounds ``GSFLOWParameterManager`` resolves, keyed by served name.
-#:
-#: Numbers come from :data:`PARAMS` (what this package contributes to the
-#: central catalogue) plus, for the handful of BOUND_SET names owned centrally
-#: because they are shared, the catalogue definition itself. Nothing is copied,
-#: so a GSFLOW bound change is a one-line edit in exactly one place.
+class _CalibrationBounds(Mapping):
+    """The bounds ``GSFLOWParameterManager`` resolves, keyed by served name.
+
+    Numbers come from :data:`PARAMS` (what this package contributes to the
+    catalogue) plus, for the BOUND_SET names owned centrally because they are
+    shared, the catalogue definition itself. Nothing is copied, so a GSFLOW
+    bound change is a one-line edit in exactly one place.
+
+    A live view rather than a dict built at import time. The shared half is read
+    back from the registry, and at *this module's* import neither
+    :func:`register_bounds` nor any other package's has necessarily run. It
+    happens to work today only because ``gsflow_K`` is a central (tier C) name,
+    present before any registration; a shared name contributed by another
+    package's tier B would be silently missing from an import-time snapshot.
+    :func:`get_model_bounds` resolves at call time for the same reason.
+    """
+
+    @staticmethod
+    def _table() -> Dict[str, Dict[str, float]]:
+        return {
+            **_served(PARAMS),
+            **_shared_from_catalogue(),
+            **_served(LOCAL_ONLY),
+        }
+
+    def __getitem__(self, key: str) -> Dict[str, float]:
+        return self._table()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._table())
+
+    def __len__(self) -> int:
+        return len(self._table())
+
+    def copy(self) -> Dict[str, Dict[str, float]]:
+        """A plain-dict snapshot. ``Mapping`` has no ``copy``, and this name is
+        re-exported as ``parameters.PARAM_BOUNDS``, which used to be a dict."""
+        return self._table()
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostics only
+        return f"{type(self).__name__}({self._table()!r})"
+
+
 #: Re-exported as ``symfluence.models.gsflow.parameters.PARAM_BOUNDS``.
-CALIBRATION_BOUNDS: Dict[str, Dict[str, float]] = {
-    **_served(PARAMS),
-    **_shared_from_catalogue(),
-    **_served(LOCAL_ONLY),
-}
+CALIBRATION_BOUNDS: Mapping = _CalibrationBounds()
 
 
 def register_bounds() -> None:

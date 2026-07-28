@@ -25,16 +25,6 @@ from symfluence.core.modeling.utilities.runoff_loader import (
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
-# ``MODEL_CONFIGS`` / ``ModelRunoffConfig`` are re-exported for the callers that
-# used to import them from here. The values themselves are no longer declared
-# in this module: each model declares its runoff artifact on its registered
-# ModelConfigSchema and ``get_model_config`` serves it. The local copy this
-# replaces held the same values for SUMMA/FUSE/GR/NGEN, so collapsing onto the
-# declaration changed nothing here — the four routable sources are the same
-# four. (It also omitted HYPE, which read as a gap at the time; HYPE has since
-# been established as not routable at all, so the omission was right.)
-__all__ = ['MODEL_CONFIGS', 'ModelRunoffConfig', 'ControlFileWriter']
-
 
 class ControlFileWriter(ConfigurableMixin):
     """
@@ -80,8 +70,8 @@ class ControlFileWriter(ConfigurableMixin):
         Write a mizuRoute control file for the specified source model.
 
         Args:
-            model_type: Source model type ('summa', 'fuse', 'gr', 'ngen',
-                'hype', ... — any model with a registered runoff declaration)
+            model_type: Source model type ('summa', 'fuse', 'gr', 'ngen', ...
+                — any model with a registered runoff declaration)
             control_file_name: Override control file name (default from config)
             mizu_config: MizuRoute-specific config values (topology file, remap file, etc.)
 

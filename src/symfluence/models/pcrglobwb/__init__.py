@@ -65,9 +65,6 @@ def register() -> None:
     R.workers.add_lazy("PCRGLOBWB", f"{base}.calibration.worker.PCRGLOBWBWorker")
     R.parameter_managers.add_lazy("PCRGLOBWB", f"{base}.calibration.parameter_manager.PCRGLOBWBParameterManager")
 
-    # Spatial capabilities are owned by this package (service-decomposition
-    # item 2): declared at plugin-discovery time so core carries no per-model
-    # spatial knowledge and a capability change never needs a core release.
     from symfluence.core.modeling.spatial_modes import (
         ModelSpatialCapability,
         SpatialMode,

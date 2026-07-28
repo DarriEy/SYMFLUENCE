@@ -79,15 +79,8 @@ def register() -> None:
     Execution and calibration classes are registered lazily — imported on
     first registry access rather than at plugin-discovery time.
     """
-    # Calibration bounds are owned by this package (service-decomposition
-    # item 2): registering here means plugin discovery is what makes them
-    # servable, so a bound change never needs a core release.
-    #
-    # Deliberately OUTSIDE the try below: that except swallows every failure so
-    # an absent optional dependency cannot break discovery, but bounds
-    # registration has no dependencies beyond core, and letting it be skipped
-    # as collateral would turn an unrelated import error into "IGNACIO has no
-    # calibration bounds".
+    # Outside the try below, so an import failure there cannot turn into
+    # "IGNACIO has no calibration bounds".
     from .parameter_bounds import register_bounds
     register_bounds()
 
@@ -108,8 +101,12 @@ def register() -> None:
         R.workers.add_lazy("IGNACIO", f"{base}.calibration.worker.IGNACIOWorker")
         R.parameter_managers.add_lazy("IGNACIO", f"{base}.calibration.parameter_manager.IGNACIOParameterManager")
         R.config_schemas.add_lazy("IGNACIO", f"{base}.config_schema.IGNACIOConfig")
-    except Exception:  # noqa: BLE001 — optional dependency
-        pass
+    except ImportError as exc:
+        # Every registration above is lazy (dotted strings), so the optional
+        # ``ignacio`` package is never imported here — only a core import can
+        # raise. Narrow deliberately: a bare ``except Exception`` made every
+        # typo in the block permanently invisible.
+        logger.warning(f"IGNACIO registration skipped: {exc}")
 
 
 if TYPE_CHECKING:

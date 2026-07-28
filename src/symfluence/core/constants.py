@@ -10,6 +10,7 @@ improve maintainability across the codebase.
 from __future__ import annotations
 
 import logging
+from collections.abc import Set as AbstractSet
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -456,8 +457,21 @@ class SupportedModels:
     #: rather than hardcoded here: core cannot know which models an installed
     #: plugin trains internally, and a hardcoded list could only ever describe
     #: the in-tree suite.
-    class _SelfTraining:
-        """Set-like view over the models that declared ``self_training``."""
+    class _SelfTraining(AbstractSet):
+        """Live set view over the models that declared ``self_training``.
+
+        A real ``collections.abc.Set`` rather than a hand-rolled stand-in, so
+        set algebra (``-``, ``&``, ``|``) works against it as callers expect.
+        Deliberately UNHASHABLE: the contents come from plugin registration, so
+        a hash taken before discovery would not match one taken after.
+        """
+
+        @classmethod
+        def _from_iterable(cls, iterable):
+            # Set operations build their result through this hook, which
+            # defaults to cls(iterable); this class is a live view and takes no
+            # arguments, so results come back as plain frozensets.
+            return frozenset(iterable)
 
         def _resolved(self) -> frozenset:
             from symfluence.core.registry import self_training_models
@@ -472,14 +486,6 @@ class SupportedModels:
 
         def __len__(self) -> int:
             return len(self._resolved())
-
-        def __eq__(self, other: object) -> bool:
-            if isinstance(other, (set, frozenset)):
-                return set(self._resolved()) == set(other)
-            return NotImplemented
-
-        def __hash__(self) -> int:
-            return hash(self._resolved())
 
         def __repr__(self) -> str:
             return f"SELF_TRAINING({sorted(self._resolved())})"

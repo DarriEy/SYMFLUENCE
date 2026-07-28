@@ -86,21 +86,44 @@ def test_defaults_lie_inside_their_bounds():
 
 
 def test_nothing_diverges_from_the_central_catalogue():
-    """Both GSFLOW bound paths must resolve to the same definitions.
+    """Both GSFLOW bound paths must resolve to the in-use definitions.
 
-    ``K`` used to be the one exception: the central ``gsflow_K`` said
-    0.001..100 (log) while GSFLOW was actually calibrated over 0.1..5000
-    (linear; Iceland basalt is 1e2-1e4 m/d), and the catalogue entry was inert
-    because nothing calls ``get_gsflow_bounds()`` — which is how the two were
-    free to drift. The central definition now carries the in-use range, so
-    there is one source again.
+    ``K`` used to be the exception: the central ``gsflow_K`` said 0.001..100
+    (log) while GSFLOW was actually calibrated over 0.1..5000 (linear; Iceland
+    basalt is 1e2-1e4 m/d), and the catalogue entry was inert because nothing
+    calls ``get_gsflow_bounds()`` — which is how the two were free to drift.
+    The central definition now carries the in-use range, so there is one source
+    again.
 
-    The exception list must stay empty: a package-local definition shadowing a
-    central one is the ``fuse_MBASE`` failure mode #368 had to fix.
+    The two paths are compared against ``_IN_USE`` rather than only against
+    each other. Comparing them to each other alone cannot detect the very
+    drift this test is named for: ``CALIBRATION_BOUNDS`` is *derived* from the
+    catalogue for exactly the shared names ``get_gsflow_bounds()`` resolves, so
+    both sides move together — changing central ``gsflow_K`` left this green
+    while the pinned ``_IN_USE`` table went red. ``_IN_USE`` is the independent
+    third party: the numbers every GSFLOW calibration to date has searched.
     """
     assert set(pb.LOCAL_ONLY) == set()
 
     catalogue = get_gsflow_bounds()
+
+    # The catalogue path must serve the in-use numbers. This is what has teeth
+    # against a central-definition change; ``K`` is the name it was written for.
+    for name in sorted(set(catalogue) & set(_IN_USE)):
+        assert (catalogue[name]['min'], catalogue[name]['max']) == _IN_USE[name], (
+            f"get_gsflow_bounds() serves {name}="
+            f"({catalogue[name]['min']}, {catalogue[name]['max']}), but GSFLOW "
+            f"calibrates over {_IN_USE[name]}. The central catalogue and the "
+            "in-use range have drifted apart again."
+        )
+    assert 'K' in catalogue, (
+        "K left GSFLOW's catalogue bound set — it is the name the two sources "
+        "drifted on, so it must stay covered here"
+    )
+
+    # And the manager path must agree with the catalogue path name for name, so
+    # a package-local definition cannot shadow a central one (the ``fuse_MBASE``
+    # failure mode #368 had to fix).
     shared = set(catalogue) & set(PARAM_BOUNDS)
     diverged = {n for n in shared if catalogue[n] != PARAM_BOUNDS[n]}
     assert diverged == set(), (

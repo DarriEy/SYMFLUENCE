@@ -9,11 +9,33 @@ release) so that accidental reversions to floating HEAD are caught in CI.
 """
 from __future__ import annotations
 
+import types
+
 import pytest
 
 from symfluence.cli.external_tools_config import get_external_tools_definitions
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
+
+
+def _compiled_string_constants(source: str, filename: str) -> set[str]:
+    """Every string constant in *source*, recursively through code objects.
+
+    A source-text grep for a dotted path is defeated by writing it as
+    ``'symfluence.' + 'models'``. Compiling first defeats that back: CPython's
+    peephole optimiser folds adjacent literal concatenation into a single
+    constant, so the reassembled path shows up here.
+    """
+    def walk(code: types.CodeType) -> set[str]:
+        found: set[str] = set()
+        for constant in code.co_consts:
+            if isinstance(constant, str):
+                found.add(constant)
+            elif isinstance(constant, types.CodeType):
+                found |= walk(constant)
+        return found
+
+    return walk(compile(source, filename, 'exec'))
 
 
 def test_no_model_packages_are_hardcoded():
@@ -27,8 +49,9 @@ def test_no_model_packages_are_hardcoded():
     ``model_manifest`` and the CLI reads ``R.build_instructions`` — so the
     failure mode cannot recur, for in-tree or external packages alike.
 
-    A plain source scan, so prose in that module should say "the models
-    package" rather than spelling the dotted name.
+    Scanned twice: the source text (so prose in that module says "the models
+    package" rather than spelling the dotted name) and the compiled string
+    constants (so a path split across literals cannot slip past the grep).
     """
     import inspect
 
@@ -39,6 +62,16 @@ def test_no_model_packages_are_hardcoded():
         "external_tools_config must not name model packages; build instructions "
         "are declared by the model package via model_manifest("
         "build_instructions_module=...) and read from R.build_instructions."
+    )
+    offenders = sorted(
+        constant
+        for constant in _compiled_string_constants(
+            src, external_tools_config.__file__)
+        if 'symfluence.models' in constant
+    )
+    assert not offenders, (
+        f"external_tools_config assembles model-package paths from string "
+        f"fragments: {offenders}"
     )
 
 

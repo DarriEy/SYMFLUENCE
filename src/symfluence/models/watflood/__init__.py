@@ -86,9 +86,6 @@ def register() -> None:
     R.workers.add_lazy("WATFLOOD", f"{base}.calibration.worker.WATFLOODWorker")
     R.parameter_managers.add_lazy("WATFLOOD", f"{base}.calibration.parameter_manager.WATFLOODParameterManager")
 
-    # Spatial capabilities are owned by this package (service-decomposition
-    # item 2): declared at plugin-discovery time so core carries no per-model
-    # spatial knowledge and a capability change never needs a core release.
     from symfluence.core.modeling.spatial_modes import (
         ModelSpatialCapability,
         SpatialMode,
@@ -110,9 +107,6 @@ def register() -> None:
         ),
     )
 
-    # Calibration bounds are owned by this package (service-decomposition
-    # item 2): registering here means plugin discovery is what makes them
-    # servable, so a bound change never needs a core release.
     from .parameter_bounds import register_bounds
     register_bounds()
 

@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only VIC resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'infilt': ParameterInfo(0.001, 0.9, '-', 'Variable infiltration curve parameter', 'soil'),

@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only GR resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'X1': ParameterInfo(1.0, 5000.0, 'mm', 'Production store capacity', 'soil'),

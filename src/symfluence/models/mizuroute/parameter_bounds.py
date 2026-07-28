@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only MIZUROUTE resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'velo': ParameterInfo(0.1, 5.0, 'm/s', 'Flow velocity', 'routing'),

@@ -34,7 +34,6 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     register_model_bounds,
 )
 
-
 #: Tier B -- definitions only NOAHMP resolves.
 PARAMS: Dict[str, ParameterInfo] = {
     'route_k': ParameterInfo(1.0, 40.0, 'days', 'Nash-cascade routing time constant for post-model runoff routing (column LSMs emit unrouted runoff)', 'routing'),

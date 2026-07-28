@@ -68,18 +68,20 @@ class _LazyEntry:
             # Fall back to importing the full dotted path as a module.
             attr = importlib.import_module(self.import_path)
 
-        # If the resolved attribute is a sub-module (e.g. build_instructions_module
-        # pointed to "pkg.build_instructions" rather than "pkg.build_instructions.func"),
-        # search inside it for a single callable provider and invoke it.
         if isinstance(attr, types.ModuleType):
-            for obj in vars(attr).values():
-                if callable(obj) and not isinstance(obj, type):
-                    try:
-                        result = obj()
-                        if isinstance(result, dict):
-                            return result
-                    except Exception:  # noqa: BLE001
-                        continue
+            # A module is not a registry value. This used to fall back to
+            # calling every module-level callable with no arguments, swallowing
+            # exceptions, and returning the first result that happened to be a
+            # dict -- so an unrelated helper returning a dict would silently
+            # become the registered entry, and a module with no such callable
+            # was cached as the value itself. Modules whose *import* performs
+            # the registration belong in add_module()/load_modules(), which is
+            # what build_instructions (the only user of that fallback) now uses.
+            raise TypeError(
+                f"{self.import_path!r} resolves to a module, not a registry "
+                f"value. If importing it performs the registration, declare it "
+                f"with add_module() instead of add_lazy()."
+            )
         return attr
 
 
@@ -568,11 +570,22 @@ def model_manifest(
         R.presets.add_module(init_preset_module)
 
     if build_instructions_module is not None:
-        R.build_instructions.add_lazy(model_name, build_instructions_module)
+        # Declared, not lazily keyed. Every build-instructions module registers
+        # itself with @R.build_instructions.add('<tool>'), so importing it is
+        # what produces the entry -- and the tool name is not always the model
+        # name. Keying a lazy sentinel under model_name instead used to collide
+        # with the decorator's entry on the same (lower-cased) key, and resolving
+        # that sentinel invoked a heuristic that called every module-level
+        # callable until one returned a dict.
+        R.build_instructions.add_module(build_instructions_module)
 
-    # Alternate spellings resolve to the canonical key across every registry a
-    # model component can live in. Aliases are resolved lazily at lookup time,
-    # so declaring one before the canonical registration is fine.
+    # Alternate spellings resolve to the canonical key in the five registries a
+    # model is looked up BY NAME in -- not in all eighteen a manifest populates,
+    # so e.g. R.result_extractors and R.config_schemas are reachable only under
+    # the canonical key. That matches what core/_bootstrap did before aliases
+    # became declarable; widening it is a deliberate change, not a tidy-up.
+    # Aliases resolve lazily at lookup time, so declaring one before the
+    # canonical registration is fine.
     for alias in aliases or ():
         for registry in (R.runners, R.preprocessors, R.postprocessors,
                          R.optimizers, R.workers):

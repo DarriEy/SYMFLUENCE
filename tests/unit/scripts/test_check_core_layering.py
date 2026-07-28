@@ -156,16 +156,57 @@ def test_guard_passes_on_the_real_tree(guard):
     assert violations == [], "\n".join(v.describe() for v in violations)
 
 
-def test_string_scan_is_actually_exercised_by_the_allow_list(guard):
-    """At least one allowance exists for a string-built edge.
+def test_find_violations_detects_a_string_built_edge_in_a_tree(guard, tmp_path):
+    """``find_violations`` — not just ``_scan_file`` — sees a string-built edge.
 
-    Guards against the detector silently regressing to a no-op: if nothing in
-    the tree is string-built any more, this test should be removed
-    deliberately, not left passing vacuously.
+    ``test_guard_passes_on_the_real_tree`` above can only ever assert an empty
+    list, so a ``find_violations`` that returned ``[]`` unconditionally would
+    satisfy it. This drives the same entry point over a tree with a known edge
+    planted in it, so the empty result on the real tree means something.
     """
-    reasons = [reason for _p, _m, reason in guard.ALLOWED_DEFERRED]
-    assert any("importlib" in r or "lazy" in r.lower() or "NOT an import" in r
-               for r in reasons)
+    root = tmp_path / "synthetic_core"
+    (root / "nested").mkdir(parents=True)
+    (root / "nested" / "uniquely_named_probe_module.py").write_text(
+        textwrap.dedent('''
+            import importlib
+
+            def load():
+                return importlib.import_module("symfluence.models.fuse.runner")
+        '''),
+        encoding="utf-8",
+    )
+    (root / "innocent.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    violations = guard.find_violations(root)
+
+    assert [(v.module, v.deferred, v.string_built) for v in violations] == [
+        ("symfluence.models.fuse.runner", True, True)
+    ]
+
+
+def test_the_real_trees_allowances_are_load_bearing(guard, monkeypatch):
+    """Stripping the allow-list must expose string-built edges in the REAL tree.
+
+    Guards against the detector silently regressing to a no-op. The previous
+    version of this test grepped the free-text *reason* strings of
+    ``ALLOWED_DEFERRED`` for words like "importlib" — prose that stays true
+    however thoroughly the scan is neutered, which is exactly what happened
+    when the detector was gutted and this test stayed green. What matters is
+    that running the scan over ``src/symfluence/core`` with nothing allowed
+    still finds string-built edges: if it does not, either the tree genuinely
+    has none left (remove this test and the allowances deliberately) or the
+    scan stopped working.
+    """
+    monkeypatch.setattr(guard, "ALLOWED_DEFERRED", [])
+
+    violations = guard.find_violations()
+    string_built = [v for v in violations if v.string_built]
+
+    assert string_built, (
+        "with the allow-list emptied, the scan of src/symfluence/core found no "
+        "string-built upward edges at all — the string scan is a no-op, or the "
+        "tree no longer contains the edges the allow-list exists for"
+    )
 
 
 # ---------------------------------------------------------------------------

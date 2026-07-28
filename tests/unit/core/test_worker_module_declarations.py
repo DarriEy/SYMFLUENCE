@@ -31,6 +31,19 @@ _SOURCE_ROOT = Path(__file__).resolve().parents[3] / "src"
 _MODELS_DIR = _SOURCE_ROOT / "symfluence" / "models"
 
 
+#: In-tree packages shipping ``calibration/worker.py`` that deliberately
+#: register no worker under their own key. Enumerated so the import test below
+#: can assert every OTHER declared module actually reaches the registry —
+#: without this, "the module imported" would be all it proved.
+_WORKERS_WITHOUT_A_MODEL_KEY = {
+    # Self-training models: calibration is gradient descent inside the run
+    # step, so their worker module carries helpers but registers no worker.
+    "gnn", "lstm",
+    # Registers the COUPLED_GW pipeline, not a 'MODFLOW' worker.
+    "modflow",
+}
+
+
 def _packages_shipping_a_worker() -> set[str]:
     return {
         path.relative_to(_MODELS_DIR).parts[0]
@@ -38,44 +51,119 @@ def _packages_shipping_a_worker() -> set[str]:
     }
 
 
+def _declared_in_tree_worker_packages() -> set[str]:
+    prefix = "symfluence.models."
+    return {
+        module[len(prefix):].split(".")[0]
+        for module in R.workers.declared_modules()
+        if module.startswith(prefix) and module.endswith(".calibration.worker")
+    }
+
+
 def test_every_in_tree_worker_module_is_declared():
-    """No in-tree package may ship a worker the registry cannot reach."""
+    """No in-tree package may ship a worker the registry cannot reach.
+
+    Exact equality, both directions: a shipped-but-undeclared worker is
+    unreachable through ``R.workers.load_modules()``, and a declared-but-absent
+    module is a path that ``load_modules`` will silently skip on ImportError.
+    """
     import symfluence.models  # noqa: F401 — import declares the modules
 
-    declared = {
-        module for module in R.workers.declared_modules()
-        if module.endswith(".calibration.worker")
-    }
-    declared_packages = {module.split(".")[-3] for module in declared}
-
-    missing = _packages_shipping_a_worker() - declared_packages
-    assert not missing, (
-        f"packages ship calibration/worker.py but never declare it: {sorted(missing)}. "
-        "The coupled optimizer resolves participants through R.workers.load_modules(), "
-        "so an undeclared worker is unreachable."
+    shipped = _packages_shipping_a_worker()
+    assert shipped, (
+        "no in-tree package ships calibration/worker.py — the source layout "
+        "moved and every assertion in this file is now vacuous"
+    )
+    assert _declared_in_tree_worker_packages() == shipped, (
+        "declared in-tree worker modules disagree with the packages that ship "
+        f"one: declared-only "
+        f"{sorted(_declared_in_tree_worker_packages() - shipped)}, "
+        f"shipped-only {sorted(shipped - _declared_in_tree_worker_packages())}. "
+        "The coupled optimizer resolves participants through "
+        "R.workers.load_modules(), so an undeclared worker is unreachable."
     )
 
 
-def test_declared_worker_modules_all_import():
+def test_declared_worker_modules_all_import_and_register():
     """A declaration that cannot be imported is worse than no declaration.
 
     ``load_modules()`` swallows ImportError by design (a consumer must tolerate
     an optional dependency being absent), which would turn a typo in a declared
-    path into a worker that silently never registers.
+    path into a worker that silently never registers. Importing each module is
+    only half the check — the previous version of this test made no assertion
+    at all, so it also passed when ``declared_modules()`` was empty and when a
+    module imported without registering anything.
     """
     import importlib
 
     import symfluence.models  # noqa: F401
 
-    for module in R.workers.declared_modules():
-        if not module.endswith(".calibration.worker"):
+    declared = _declared_in_tree_worker_packages()
+    assert declared, "no in-tree worker modules are declared"
+
+    unregistered = []
+    for package in sorted(declared):
+        importlib.import_module(f"symfluence.models.{package}.calibration.worker")
+        if package in _WORKERS_WITHOUT_A_MODEL_KEY:
             continue
-        importlib.import_module(module)
+        if R.workers.get(package.upper()) is None:
+            unregistered.append(package)
+
+    assert not unregistered, (
+        f"these worker modules import but register no worker under their own "
+        f"model key: {unregistered}. Either the @R.workers.add decorator was "
+        "lost, or the package belongs in _WORKERS_WITHOUT_A_MODEL_KEY."
+    )
+    # The exemptions must stay exemptions, or the list silently rots.
+    still_exempt = sorted(
+        package for package in _WORKERS_WITHOUT_A_MODEL_KEY
+        if package in declared and R.workers.get(package.upper()) is not None
+    )
+    assert not still_exempt, (
+        f"{still_exempt} now register a worker under their own key — drop them "
+        "from _WORKERS_WITHOUT_A_MODEL_KEY"
+    )
+
+
+def test_load_modules_actually_imports_a_declared_module(tmp_path, monkeypatch):
+    """``load_modules()`` is the seam; a no-op implementation must fail here.
+
+    Asserting only that the live registry's keys are unchanged across two
+    ``load_modules()`` calls (which is what this test used to do) passes just as
+    happily when the method body is ``pass``. A registry nobody else touches,
+    with a module nobody else imports, is what makes the import observable.
+    """
+    from symfluence.core.registry import Registry
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    (tmp_path / "symfluence_probe_declared_worker.py").write_text(
+        "LOADED = True\n", encoding="utf-8"
+    )
+    monkeypatch.delitem(
+        sys.modules, "symfluence_probe_declared_worker", raising=False
+    )
+
+    registry: Registry = Registry("probe_workers")
+    registry.add_module("symfluence_probe_declared_worker")
+    assert registry.declared_modules() == ("symfluence_probe_declared_worker",)
+    assert "symfluence_probe_declared_worker" not in sys.modules
+
+    registry.load_modules()
+    assert "symfluence_probe_declared_worker" in sys.modules, (
+        "load_modules() did not import the declared module"
+    )
+    assert sys.modules["symfluence_probe_declared_worker"].LOADED is True
+
+    # Draining again is a no-op rather than a re-import or a re-registration.
+    registry.load_modules()
+    assert registry.declared_modules() == ("symfluence_probe_declared_worker",)
 
 
 def test_draining_declarations_is_idempotent():
-    before = sorted(R.workers.keys())
+    """Draining the LIVE registry adds nothing beyond what is already there."""
     R.workers.load_modules()
+    before = sorted(R.workers.keys())
+    assert before, "R.workers is empty after draining its declarations"
     R.workers.load_modules()
     assert sorted(R.workers.keys()) == before
 

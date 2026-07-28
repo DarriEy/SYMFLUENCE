@@ -146,11 +146,43 @@ class TestModelManifest:
         assert R.runners.get("MOCK") is None
         assert R.postprocessors.get("MOCK") is None
 
-    def test_build_instructions_lazy(self):
-        model_manifest("MOCK", build_instructions_module="math.log")
-        # Should resolve lazily
-        import math
-        assert R.build_instructions.get("MOCK") is math.log
+    def test_build_instructions_module_is_declared_not_keyed(self, tmp_path, monkeypatch):
+        """The module is declared for import; its own decorator supplies the key.
+
+        It used to be registered as a lazy entry keyed on the MODEL name. That
+        was wrong twice: the tool name is not always the model name (modflow
+        registers COUPLED_GW), and resolving such an entry ran a heuristic that
+        called every module-level callable until one returned a dict — so an
+        unrelated helper could become the tool definition, and the sentinel
+        collided with the decorator's own entry on the same lower-cased key.
+        """
+        import sys
+
+        monkeypatch.syspath_prepend(str(tmp_path))
+        (tmp_path / "symfluence_probe_build_instructions.py").write_text(
+            "from symfluence.core.registries import R\n"
+            "R.build_instructions.add('probe-tool', {'description': 'probe'})\n",
+            encoding="utf-8",
+        )
+        monkeypatch.delitem(
+            sys.modules, "symfluence_probe_build_instructions", raising=False
+        )
+
+        model_manifest(
+            "MOCK",
+            build_instructions_module="symfluence_probe_build_instructions",
+        )
+
+        # Declared, not imported, and not keyed under the model name.
+        assert "symfluence_probe_build_instructions" in R.build_instructions.declared_modules()
+        assert "symfluence_probe_build_instructions" not in sys.modules
+        assert R.build_instructions.get("MOCK") is None
+
+        R.build_instructions.load_modules()
+
+        # The module's own decorator supplied the key.
+        assert R.build_instructions.get("probe-tool") == {"description": "probe"}
+        R.build_instructions.remove("probe-tool")
 
     def test_case_insensitive(self):
         model_manifest("mock", preprocessor=_MockPreprocessor)

@@ -19,7 +19,10 @@ import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.modeling.base import BaseModelRunner
-from symfluence.core.modeling.utilities.runoff_loader import resolve_runoff_file
+from symfluence.core.modeling.utilities.runoff_loader import (
+    MODEL_CONFIGS,
+    resolve_runoff_file,
+)
 from symfluence.core.registries import R
 
 
@@ -91,27 +94,49 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         self.logger.debug(f"Detected active models for time precision fix: {active_models}")
 
-        # Which source model's output to route. First match wins, preserving
-        # the precedence this method has always applied; SUMMA is the default.
-        # HYPE left the precedence with its runoff declaration: it is not a
-        # routable source (its 'cout' is already routed discharge at subbasin
-        # outlets, and nothing writes the NetCDF the declaration named). Keeping
-        # it here would make a 'SUMMA,HYPE' run select HYPE and then fail in
-        # resolve_runoff_file, where today it routes SUMMA.
-        source_model = next(
-            (m for m in ('FUSE', 'GR', 'NGEN') if m in active_models),
-            'SUMMA',
-        )
+        # Which source model's output to route: the routable active models, in
+        # the alphabetical order ``active_models`` is already sorted into, first
+        # match wins. The routable set comes from the registered runoff
+        # declarations rather than a literal tuple, so an external model package
+        # becomes selectable by registering a schema -- and a model that cannot
+        # feed a routing model (HYPE: its 'cout' is already routed discharge) is
+        # excluded by not declaring one, instead of by a name in a list here.
+        #
+        # Alphabetical reproduces the precedence this method has always applied
+        # (FUSE > GR > NGEN > SUMMA), but only incidentally: a future routable
+        # model sorting before FUSE would take precedence over it. Precedence
+        # only bites when two source models are active at once, which is not a
+        # supported configuration -- pin an explicit order here if it becomes
+        # one.
+        routable = {name.upper() for name in MODEL_CONFIGS}
+        candidates = [m for m in active_models if m in routable]
+
+        # KNOWN GAP, behaviour preserved: with no routable active model this
+        # still falls back to SUMMA, re-introducing the silent default that
+        # get_model_config() deliberately dropped (it now raises rather than
+        # resolving SUMMA paths for an unroutable model). A HYPE-only or
+        # MESH-only run therefore resolves SUMMA paths, and can pick up a stale
+        # SUMMA file through resolve_runoff_file's *.nc fallback. Made loud
+        # rather than changed, because the fallback is pinned by
+        # tests/unit/models/test_mizuroute_runner_source_resolution.py.
+        source_model = candidates[0] if candidates else 'SUMMA'
+        if not candidates:
+            self.logger.warning(
+                f"No active model declares a routable runoff artifact "
+                f"(active models: {active_models}; routable: {sorted(routable)}). "
+                f"Falling back to SUMMA — any file found is a guess, not a "
+                f"resolved output of the model that was run."
+            )
+
         self.logger.info(
             f"Fixing {source_model} time precision for mizuRoute compatibility "
             f"(active models: {active_models})"
         )
 
         # Directory, filename pattern and the FUSE 6-char file-id truncation all
-        # come from the model's registered runoff declaration. This method used
-        # to carry its own if/elif copy of that table -- a fourth one, after
-        # runoff_loader, the mizuRoute control writer and the schema itself --
-        # which is how it came to expect a HYPE file nothing produces.
+        # come from the model's registered runoff declaration; this method used
+        # to carry its own if/elif copy, which is how it came to expect a HYPE
+        # file nothing produces.
         runoff_filepath = resolve_runoff_file(
             source_model=source_model,
             project_dir=self.project_dir,

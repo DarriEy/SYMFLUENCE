@@ -30,13 +30,16 @@ References:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Dict
 
 from .parameter_bounds import CALIBRATION_BOUNDS
 
-#: Calibration bounds, keyed by served (unprefixed) name.
+#: Calibration bounds, keyed by served (unprefixed) name. A live view, not a
+#: dict: it resolves the centrally-owned half at lookup time rather than at
+#: import, when registration may not have run.
 #: Single source of truth: :mod:`symfluence.models.gsflow.parameter_bounds`.
-PARAM_BOUNDS: Dict[str, Dict[str, float]] = CALIBRATION_BOUNDS
+PARAM_BOUNDS: Mapping = CALIBRATION_BOUNDS
 
 DEFAULT_PARAMS: Dict[str, float] = {
     'soil_moist_max': 6.0,

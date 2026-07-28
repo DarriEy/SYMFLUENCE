@@ -78,6 +78,14 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 # model only becomes visible after `pip install -e .` regenerates that metadata.
 # `_discover_plugins` logs a loud error if zero in-tree models are discovered (the
 # stale-install signal).
+#
+# That register() is also where a model declares the knowledge core used to hold on
+# its behalf — calibration bounds (`register_bounds` -> `register_model_bounds`) and
+# spatial capabilities (`register_model_spatial_capability`), plus the schema in
+# `models/config/model_config_schema.py`. Service decomposition, item 2: declaring at
+# plugin-discovery time is what lets a model change its own bounds or capabilities
+# without a core release, and is the only path an external plugin has. Stated here
+# once rather than restated in each package's register().
 
 
 #: Optional per-model facilities that register themselves as a decorator side

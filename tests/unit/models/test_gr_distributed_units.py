@@ -49,9 +49,9 @@ def _make_postprocessor(tmp_path: Path, *, areas_m2=None, total_area_km2=None):
     Only the attributes the extraction helpers touch are populated, so the real
     arithmetic under test runs unmodified.
     """
-    from symfluence.models.gr.postprocessor import GRPostProcessor
-
     import logging
+
+    from symfluence.models.gr.postprocessor import GRPostProcessor
 
     obj = GRPostProcessor.__new__(GRPostProcessor)
     obj.project_dir = tmp_path

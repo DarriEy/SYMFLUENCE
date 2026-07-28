@@ -1115,20 +1115,19 @@ def get_watflood_bounds() -> Dict[str, Dict[str, float]]:
     return _owned_by_package('WATFLOOD', 'symfluence.models.watflood')
 
 
-# Every model key ``get_model_bounds()`` can serve without a registration.
+# The completeness ledger for the parity snapshot: every model the framework can
+# serve bounds for appears here, so one cannot silently stop being covered
+# (tests/unit/core/data/model_bounds_snapshot.json is checked against this set).
 #
-# The table is deliberately still complete (it is what the parity snapshot in
-# tests/unit/core/data/model_bounds_snapshot.json is checked against, so a model
-# cannot silently stop being covered). What changed in July 2026 is what the
-# entries hold:
+# It is NOT "what can be served without a registration" -- get_model_bounds()
+# consults the registered composition FIRST, so for the migrated in-tree models
+# (FUSE, NGEN + NGEN_*, MIZUROUTE, HYPE, MESH, GR, RHESSYS, VIC, IGNACIO,
+# GSFLOW, NOAHMP, WATFLOOD) this branch is only reached when the owning package
+# is ABSENT, and the delegate then raises a KeyError naming that package. Core
+# holds no data for them.
 #
-#   * Migrated in-tree models (FUSE, NGEN + NGEN_*, MIZUROUTE, HYPE, MESH, GR,
-#     RHESSYS, VIC, IGNACIO, GSFLOW, NOAHMP, WATFLOOD) point at delegates that
-#     resolve whatever the owning package registered. Core holds no data for
-#     them; the registered composition is the single source of truth and
-#     get_model_bounds() reaches it through the registered branch first.
-#   * DEPTH and the six external-plugin-served sets (HBV, HECHMS, TOPMODEL,
-#     SACSMA, SNOW17, XINANJIANG) still resolve from this module's catalogue.
+# Only DEPTH and the six external-plugin-served sets (HBV, HECHMS, TOPMODEL,
+# SACSMA, SNOW17, XINANJIANG) still resolve their values from this module.
 _BUILTIN_MODEL_BOUNDS = {
     'FUSE': get_fuse_bounds,
     'NGEN': get_ngen_bounds,

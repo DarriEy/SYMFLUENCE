@@ -73,14 +73,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - **Back-compat shim import paths** left by the service-decomposition
   promotions (`symfluence.models.{base,mixins,execution,state,templates,
-  utilities,adapters,spatial_modes}`, `symfluence.optimization.{optimizers,
+  utilities,adapters,spatial_modes,model_manager,coupled.calibration.*}`,
+  `symfluence.optimization.{optimizers,
   mixins,workers.base_worker,workers.inmemory_worker,workers.summa,
   core.base_parameter_manager,core.parameter_bounds_registry,
   parameter_managers}`, `symfluence.evaluation.metrics*`,
   `symfluence.cli.services.build_snippets*`,
   `symfluence.geospatial.geometry_utils`): external packages should migrate
-  to the canonical `symfluence.core.*` paths. The shims will be removed at
-  2.0. In-tree code no longer uses them (guard-enforced).
+  to the canonical `symfluence.core.*` / `symfluence.project.*` paths. The
+  shims will be removed at 2.0. In-tree code no longer uses them
+  (guard-enforced).
+
+  Note `symfluence.optimization.core.parameter_bounds_registry` was listed
+  here as a shim while actually being a 1185-line stale duplicate that
+  predated #368; it is now genuinely a shim, so the entry is true for the
+  first time.
 
 ### Changed
 - **Forcing-adapter base promoted to `core/modeling/adapters/`** (completes

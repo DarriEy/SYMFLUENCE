@@ -79,27 +79,17 @@ def _create_summa_schema() -> ModelConfigSchema:
             hru_var='hruId',
             comment_name='SUMMA',
         ),
-        # Parallel calibration routes a per-process file, not the standard one.
-        # ConfigurationUpdater rewrites each process's fileManager with
-        # ``outFilePrefix 'proc_{NN}_{experiment_id}'`` and SUMMA appends
-        # '_timestep.nc', so the artifact in
-        # process_<n>/simulations/<exp>/SUMMA/ is
-        # 'proc_{NN}_{experiment_id}_timestep.nc' -- same content as the
-        # ``runoff`` declaration above, different name.
-        #
-        # 'averageRoutedRunoff' is NOT config-overridable here (unlike FUSE/GR):
-        # SETTINGS_MIZU_ROUTING_VAR was never read on SUMMA's branch, and the
-        # variable name is fixed by SUMMA's output definition.
-        #
-        # hru_dim/hru_var are 'gru'/'gruId' -- and deliberately DIFFER from the
-        # 'hru'/'hruId' in the ``runoff`` declaration above. That divergence
-        # predates this declaration: core's table keyed the dimension choice on
-        # the model name, listing SUMMA and FUSE as 'gru' unconditionally, while
-        # the non-parallel writer starts from 'hru'/'hruId' and switches to
-        # gru/gruId only when topology generation detects n_hrus > n_grus
-        # (``summa_uses_gru_runoff``). For a 1-HRU-per-GRU domain the two paths
-        # therefore disagree. Preserved value-for-value here and reported, not
-        # fixed in an extraction pass.
+        # Parallel calibration writes the same content under a different name:
+        # ConfigurationUpdater sets ``outFilePrefix 'proc_{NN}_{experiment_id}'``
+        # and SUMMA appends '_timestep.nc'.
+        # runoff_var_from_config=False: SETTINGS_MIZU_ROUTING_VAR is not read on
+        # SUMMA's branch (unlike FUSE/GR); the name is fixed by SUMMA's output.
+        # KNOWN WRONG, preserved value-for-value from core's table and reported
+        # rather than fixed here: hru_dim/hru_var say gru/gruId while ``runoff``
+        # above says hru/hruId. The non-parallel writer starts from hru/hruId and
+        # switches to gru/gruId only when topology detects n_hrus > n_grus
+        # (``summa_uses_gru_runoff``), so for a 1-HRU-per-GRU domain the two
+        # paths disagree.
         parallel_calibration=ParallelCalibrationConfig(
             fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
             runoff_var='averageRoutedRunoff',
@@ -110,10 +100,9 @@ def _create_summa_schema() -> ModelConfigSchema:
             hru_dim='gru',
             hru_var='gruId',
         ),
-        # SUMMA is the standing exception to '<MODEL>_SPATIAL_MODE': no such
-        # key exists for SUMMA anywhere -- its spatial mode *is* the domain
-        # definition. Declared explicitly here so no convention can derive
-        # 'SUMMA_SPATIAL_MODE' and quietly change the decision for the
+        # SUMMA has no '<MODEL>_SPATIAL_MODE' key anywhere -- its spatial mode
+        # *is* the domain definition. Declared explicitly so no convention can
+        # derive 'SUMMA_SPATIAL_MODE' and quietly change the decision for the
         # most-used model.
         spatial_mode_key='DOMAIN_DEFINITION_METHOD',
         routing_key='ROUTING_DELINEATION',
@@ -261,14 +250,11 @@ def _create_gr_schema() -> ModelConfigSchema:
         output=OutputConfig(
             output_dir_key='EXPERIMENT_OUTPUT_GR',
             default_output_subpath='simulations/{experiment_id}/GR',
-            # GR writes two different artifacts depending on spatial mode, and
-            # neither was the '{experiment_id}_output.nc' / 'Qsim' this used to
-            # declare -- a name the GR adapter never writes or reads. In lumped
-            # mode the runner writes GR_results.csv (columns 'datetime',
-            # 'q_sim') alongside GR_results.Rdata; the CSV is what
-            # GRResultExtractor._extract_from_csv and the lumped postprocessor
-            # path consume. The distributed artifact is the runoff declaration
-            # below.
+            # In lumped mode GR writes GR_results.csv (columns 'datetime',
+            # 'q_sim'), which GRResultExtractor._extract_from_csv and the lumped
+            # postprocessor consume; the old '{experiment_id}_output.nc'/'Qsim'
+            # declaration named a file the GR adapter never writes or reads.
+            # The distributed artifact is the ``runoff`` declaration below.
             output_file_pattern='GR_results.csv',
             primary_output_var='q_sim'
         ),
@@ -288,28 +274,21 @@ def _create_gr_schema() -> ModelConfigSchema:
             comment_name='GR4J',
             aliases=('GR4J', 'GR5J', 'GR6J'),
         ),
-        # GR is the one model whose parallel-calibration file is the SAME name
-        # as its ``runoff`` declaration, with no 'proc_' prefix -- correct, not
-        # an oversight. GRRunner._save_distributed_results_for_routing() writes
-        # '{domain_name}_{experiment_id}_runs_def.nc' to
-        # runner.output_path, which the calibration worker overrides to the
-        # per-process sim_dir; ConfigurationUpdater points <input_dir> at that
-        # same per-process directory, so the path already disambiguates and no
-        # conversion step (and hence no renaming) happens for GR.
+        # GR is the one model whose parallel-calibration file keeps the same
+        # name as its ``runoff`` declaration, with no 'proc_' prefix -- correct,
+        # not an oversight: GRRunner._save_distributed_results_for_routing()
+        # writes to runner.output_path, which the calibration worker overrides
+        # to the per-process sim_dir, and ConfigurationUpdater points
+        # <input_dir> at that same directory, so the path already disambiguates.
         #
-        # Three values below are preserved EXACTLY as core's table produced them
-        # and are known to disagree with GR's actual daily, gru-dimensioned
-        # output. They are reported, not fixed, in this extraction pass:
-        #   * hru_dim/hru_var are 'hru'/'hruId' because core's dimension choice
-        #     listed only FUSE and SUMMA as 'gru'. The file GR writes is
-        #     (time, gru) with 'gruId' (runner.py), and the NON-parallel writer
-        #     (models/mizuroute/control_writer.py) correctly emits gru/gruId
-        #     from the ``runoff`` declaration above.
-        #   * dt_qsim is None -> SETTINGS_MIZU_ROUTING_DT, default '3600',
-        #     although GR is daily ('86400' in ``runoff`` above; the
-        #     non-parallel writer falls back to the schema's 86400).
-        #   * sim times stay '01:00'/'23:00'; the non-parallel writer forces
-        #     midnight alignment for GR's daily data.
+        # KNOWN WRONG, preserved value-for-value from core's table and reported
+        # rather than fixed here. All three disagree with GR's actual daily,
+        # gru-dimensioned output, and the non-parallel writer
+        # (models/mizuroute/control_writer.py) gets each of them right:
+        #   * hru_dim/hru_var say hru/hruId; GR writes (time, gru) with 'gruId'.
+        #   * dt_qsim=None -> SETTINGS_MIZU_ROUTING_DT ('3600'); GR is daily
+        #     ('86400' in ``runoff`` above).
+        #   * sim times 01:00/23:00; GR's daily data needs midnight alignment.
         parallel_calibration=ParallelCalibrationConfig(
             fname_pattern='{domain_name}_{experiment_id}_runs_def.nc',
             runoff_var='q_routed',
@@ -322,6 +301,12 @@ def _create_gr_schema() -> ModelConfigSchema:
         ),
         spatial_mode_key='GR_SPATIAL_MODE',
         routing_key='GR_ROUTING_INTEGRATION',
+        # Declaring this puts GR into RoutingDecider's routing-integration
+        # check, which used to read FUSE's key alone -- not by design, but
+        # because GR/CRHM/MHM/SWAT/VIC had no registered schema for the table to
+        # see. All five now declare theirs (same rationale, not repeated per
+        # model); each defaults to 'none' and no config in the tree sets one, so
+        # widening the table changed no run.
         routing_integration_key='GR_ROUTING_INTEGRATION',
         config_keys=[
             ConfigKey('GR_MODEL_TYPE', ConfigKeyType.ENUM, False,
@@ -431,60 +416,40 @@ def _create_hype_schema() -> ModelConfigSchema:
         output=OutputConfig(
             output_dir_key='EXPERIMENT_OUTPUT_HYPE',
             default_output_subpath='simulations/{experiment_id}/HYPE',
-            # info.txt requests 'timeoutput variable COUT EVAP SNOW', so HYPE
-            # writes timeCOUT.txt / timeEVAP.txt / timeSNOW.txt. Every consumer
-            # (extractor, postprocessor, calibration worker, multi-gauge
-            # metrics) reads timeCOUT.txt; the 'timeOUT.txt' spelling this used
-            # to declare is a file HYPE never writes.
+            # info.txt requests 'timeoutput variable COUT EVAP SNOW'
+            # (config_manager.py), so HYPE writes timeCOUT.txt, which all five
+            # consumers read. The 'timeOUT.txt' spelling this used to declare is
+            # a file HYPE never writes.
             output_file_pattern='timeCOUT.txt',
             primary_output_var='cout'
         ),
-        # No runoff declaration: HYPE is NOT a routable source.
+        # No runoff declaration: HYPE is NOT a routable source. Its 'cout' is
+        # already routed discharge at subbasin outlets, so feeding it to
+        # mizuRoute would route it a second time -- and the
+        # '{experiment_id}_timestep.nc' the old declaration named is a file the
+        # HYPE adapter never writes. Routing HYPE now fails in
+        # get_model_config() with an explicit "a model without one cannot feed a
+        # routing model", instead of a missing-file error one stage later.
         #
-        # The declaration this replaces named '{experiment_id}_timestep.nc',
-        # a file nothing in the HYPE adapter writes -- info.txt requests
-        # 'timeoutput variable COUT EVAP SNOW' (config_manager.py), so HYPE
-        # produces timeCOUT.txt / timeEVAP.txt / timeSNOW.txt and nothing else.
-        # Writing a converter would be worse than the missing file: HYPE's
-        # 'cout' is already routed discharge at subbasin outlets, so feeding it
-        # to mizuRoute would route it a second time.
+        # No spatial_mode_key either: 'HYPE_SPATIAL_MODE' was dead -- HYPEConfig
+        # declares no spatial_mode field and nothing in the tree sets the key.
         #
-        # Removing the declaration makes 'HYPE as a routing source' fail at
-        # get_model_config() with an explicit "no runoff configuration
-        # registered ... a model without one cannot feed a routing model",
-        # instead of a missing-file error one stage later.
-        #
-        # No spatial_mode_key either: 'HYPE_SPATIAL_MODE' was dead. HYPEConfig
-        # declares no spatial_mode field and nothing in the tree sets the key,
-        # so it could only ever have matched a hand-built raw dict.
-        #
-        # parallel_calibration, in contrast, is NOT dead -- but only half of it
-        # is live, and the two halves are on different footings:
-        #
-        #  * The settings-file dialect IS live and is HYPE's alone. HYPE's
-        #    info.txt is bare tab-separated key/value with no quoting, so
-        #    ``settings_values_quoted=False`` is what stops the updater from
-        #    passing every line through untouched, and ``resultdir`` is the
-        #    directive that carries the run's output directory (HYPE has no
-        #    'outputPath'). HYPEModelOptimizer._setup_parallel_dirs calls
+        # parallel_calibration below is half live:
+        #  * LIVE, and HYPE's alone: ``settings_values_quoted=False`` (info.txt
+        #    is bare tab-separated key/value, so quoting would pass every line
+        #    through untouched) and ``output_dir_directive='resultdir'`` (HYPE
+        #    has no 'outputPath'). _setup_parallel_dirs calls
         #    update_file_managers('HYPE', ..., info.txt) unconditionally, so
-        #    dropping these two fields would break parallel HYPE calibration.
-        #
-        #  * The mizuRoute half is reachable but non-functional -- "dead" in
-        #    effect, not in control flow. HYPEModelOptimizer guards it on
-        #    ROUTING_MODEL == 'mizuRoute' AND settings/mizuRoute/ existing, and
-        #    nothing generates a HYPE mizuRoute control file (HYPE registers
-        #    requires_routing=False for every spatial mode; the mizuRoute
-        #    preprocessor dispatches only FUSE/GR/NGEN), so the directory only
-        #    exists if hand-placed. When it does, this executes -- and points
-        #    mizuRoute at a '*_timestep.nc' that grep confirms nothing in the
-        #    HYPE package ever writes. Note the raise added to
-        #    get_model_config('HYPE') does NOT catch this: the parallel updater
-        #    reads this declaration, never runoff_loader.
-        #    Preserved value-for-value anyway rather than deleted, because
-        #    deleting it would silently change what such a config does
-        #    mid-campaign; making it fail early (as get_model_config now does)
-        #    is a behaviour change that belongs in its own reviewed PR.
+        #    dropping either breaks parallel HYPE calibration.
+        #  * The mizuRoute fields are reachable but non-functional: they run
+        #    only when settings/mizuRoute/ exists, which nothing generates for
+        #    HYPE (requires_routing=False for every spatial mode; the mizuRoute
+        #    preprocessor dispatches only FUSE/GR/NGEN), and they name a
+        #    '*_timestep.nc' nothing writes. The get_model_config raise does NOT
+        #    catch this -- the parallel updater reads this declaration, never
+        #    runoff_loader. Preserved value-for-value so a hand-placed config
+        #    does not silently change mid-campaign; failing early here is a
+        #    behaviour change for its own reviewed PR.
         parallel_calibration=ParallelCalibrationConfig(
             fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
             runoff_var='q_routed',

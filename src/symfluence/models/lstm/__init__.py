@@ -76,9 +76,6 @@ def register() -> None:
     R.postprocessors.add_lazy("LSTM", f"{base}.postprocessor.LSTMPostProcessor")
     R.plotters.add_lazy("LSTM", f"{base}.plotter.LSTMPlotter")
 
-    # Spatial capabilities are owned by this package (service-decomposition
-    # item 2): declared at plugin-discovery time so core carries no per-model
-    # spatial knowledge and a capability change never needs a core release.
     from symfluence.core.modeling.spatial_modes import (
         ModelSpatialCapability,
         SpatialMode,
