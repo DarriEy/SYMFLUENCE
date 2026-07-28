@@ -1,0 +1,45 @@
+name: Verify release branch
+description: >
+  Confirm the commit being released is contained in a branch that is permitted
+  to produce releases. Guards against a stray tag pushed on a feature branch
+  publishing a release, a package, or binaries. Events other than tag pushes
+  (scheduled rebuilds, workflow_dispatch dry runs) are always allowed so
+  routine maintenance keeps working.
+
+outputs:
+  allowed:
+    description: "'true' when the release may proceed, 'false' when it must be skipped"
+    value: ${{ steps.check.outputs.allowed }}
+
+runs:
+  using: composite
+  steps:
+    # Requires the caller to have checked out with fetch-depth: 0, otherwise
+    # merge-base has no history to walk.
+    - name: Check tag is on a release branch
+      id: check
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+          echo "Event '${GITHUB_EVENT_NAME}' is not a tag push — allowing."
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        for branch in main develop paper_submission; do
+          if ! git fetch --quiet --force origin "$branch:refs/remotes/origin/$branch" 2>/dev/null; then
+            echo "  origin/$branch does not exist — skipping."
+            continue
+          fi
+          if git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/$branch"; then
+            echo "Tag commit $GITHUB_SHA is contained in '$branch' — release allowed."
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "  not contained in '$branch'."
+        done
+
+        echo "::warning::Tag commit $GITHUB_SHA is not contained in any release branch (main, develop, paper_submission) — skipping release."
+        echo "allowed=false" >> "$GITHUB_OUTPUT"

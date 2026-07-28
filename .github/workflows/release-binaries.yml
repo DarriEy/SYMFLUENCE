@@ -27,8 +27,28 @@ permissions:
   contents: read
 
 jobs:
+  # Release branch gate. publish-npm and test-npm-install hang off
+  # build-and-release, so gating it gates the publishing path too. Scheduled
+  # rebuilds and workflow_dispatch runs are allowed through unchanged.
+  gate:
+    name: Verify release branch
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      allowed: ${{ steps.verify.outputs.allowed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Verify release branch
+        id: verify
+        uses: ./.github/actions/verify-release-branch
+
   build-and-release:
     name: Build & Release (${{ matrix.platform }})
+    needs: gate
+    if: needs.gate.outputs.allowed == 'true'
     strategy:
       fail-fast: false
       matrix:
