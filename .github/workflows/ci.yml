@@ -162,8 +162,17 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           # --no-sync preserves the system-matched GDAL binding installed above.
+          # tests/conformance/ is NOT optional here: it holds the proofs the
+          # service decomposition rests on — that the framework imports and runs
+          # with the models layer physically absent (test_models_absent.py), and
+          # that the acquisition contract is extractable with no symfluence
+          # import (test_extraction_readiness.py). Every workflow passed explicit
+          # paths and omitted this directory, so those guards existed but nothing
+          # ran them. tests/unit/conftest.py does not apply here, so keep the
+          # directory listed explicitly rather than widening to tests/.
           uv run --no-sync pytest --timeout=300 -v --tb=short -m "unit" -n auto \
-            --cov --cov-report=term-missing --cov-fail-under=25 tests/unit/
+            --cov --cov-report=term-missing --cov-fail-under=25 \
+            tests/unit/ tests/conformance/
 
       - name: Core coverage gate
         # Single shared definition (scope, omits, threshold rationale) lives in
