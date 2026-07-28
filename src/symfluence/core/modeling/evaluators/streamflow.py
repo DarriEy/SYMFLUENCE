@@ -300,6 +300,24 @@ class StreamflowEvaluator(ModelEvaluator):
                         f"(area={catchment_area/1e6:.1f} km²)"
                     )
                     return result
+                if 'mm' in units and 'timestep' in units:
+                    # FUSE's native units string is 'mm timestep-1'; resolve the
+                    # timestep length from the time coordinate so sub-daily
+                    # output converts correctly too.
+                    step_seconds = 86400.0
+                    time_coord = ds.get('time')
+                    if time_coord is not None and time_coord.sizes.get('time', 0) > 1:
+                        import pandas as _pd
+                        deltas = _pd.Series(time_coord.values).diff().dropna()
+                        if not deltas.empty:
+                            step_seconds = float(deltas.mode().iloc[0] / _pd.Timedelta(seconds=1))
+                    catchment_area = self._get_catchment_area()
+                    result = result * catchment_area / 1000.0 / step_seconds
+                    self.logger.debug(
+                        f"FUSE output converted from mm/timestep to m³/s "
+                        f"(timestep={step_seconds:.0f} s, area={catchment_area/1e6:.1f} km²)"
+                    )
+                    return result
                 if not units and var_name in ('q_routed', 'q_instnt'):
                     # FUSE's native discharge variables are mm/day by definition;
                     # tolerate a missing units attribute for them, but loudly.
