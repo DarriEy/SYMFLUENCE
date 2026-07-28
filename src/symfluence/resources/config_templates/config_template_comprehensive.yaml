@@ -950,6 +950,13 @@ MIZUROUTE_NUM_THREADS: null
 #   Description: Frequency for rounding time values (e.g., "h" for hour, "min" for minute, "none" to disable)
 MIZUROUTE_TIME_ROUNDING_FREQ: "h"
 
+# MIZUROUTE_TOPOLOGY_STALENESS
+#   Type:        str
+#   Default:     warn
+#   Source:      MizuRouteConfig (model_configs_routing.py)
+#   Description: Action when topology.nc no longer matches the geofabric it was built from (segment/HRU counts differ, or a source shapefile is newer): "warn" (default), "error" to refuse to run, "regenerate" to rebuild from the current shapefiles, or "ignore" to skip the check
+MIZUROUTE_TOPOLOGY_STALENESS: "warn"
+
 
 # 14. t-route Routing Configuration
 # ================================================================================

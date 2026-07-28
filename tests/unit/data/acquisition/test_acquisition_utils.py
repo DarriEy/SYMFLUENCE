@@ -233,6 +233,51 @@ class TestDownloadFileStreaming:
         call_kwargs = mock_session.get.call_args[1]
         assert call_kwargs['headers'] == {"X-Custom": "value"}
 
+    def test_verified_download_records_manifest(self, tmp_path):
+        """Immutable downloads require a matching digest and record provenance."""
+        import hashlib
+        import json
+
+        from symfluence.data.acquisition.utils import download_verified_file
+
+        content = b"verified artifact"
+        session = MockSessionFactory.create(
+            default_response=MockResponseFactory.success(content=content)
+        )
+        target = tmp_path / "artifact.bin"
+
+        download_verified_file(
+            "https://example.com/artifact.bin",
+            target,
+            session=session,
+            expected_sha256=hashlib.sha256(content).hexdigest(),
+        )
+
+        manifest = json.loads((tmp_path / "artifact.bin.download.json").read_text())
+        assert manifest["sha256"] == hashlib.sha256(content).hexdigest()
+        assert manifest["size"] == len(content)
+
+    def test_verified_download_rejects_wrong_digest(self, tmp_path):
+        """Digest mismatch removes partial data and never publishes the target."""
+        from symfluence.data.acquisition.utils import (
+            DownloadIntegrityError,
+            download_verified_file,
+        )
+
+        session = MockSessionFactory.create(
+            default_response=MockResponseFactory.success(content=b"tampered")
+        )
+        target = tmp_path / "artifact.bin"
+
+        with pytest.raises(DownloadIntegrityError, match="SHA-256 mismatch"):
+            download_verified_file(
+                "https://example.com/artifact.bin",
+                target,
+                session=session,
+                expected_sha256="0" * 64,
+            )
+        assert not target.exists()
+
 
 # =============================================================================
 # Atomic Write Tests

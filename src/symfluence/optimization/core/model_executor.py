@@ -19,6 +19,7 @@ import netCDF4 as nc
 import numpy as np
 import xarray as xr
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.mixins import ConfigMixin
 from symfluence.optimization.calibration_targets import CalibrationTarget
 
@@ -127,9 +128,34 @@ class ModelExecutor(ConfigMixin):
             self.logger.error(f"Error running SUMMA: {str(e)}")
             return False
 
+    def _check_topology_freshness(self, settings_dir: Path) -> None:
+        """Flag a topology that no longer matches the geofabric (see
+        :mod:`symfluence.models.mizuroute.topology_freshness`).
+
+        Calibration executes mizuRoute per trial, so the check reports once per
+        topology; it must never be the reason a trial fails, hence the catch.
+        """
+        from symfluence.models.mizuroute.topology_freshness import enforce_topology_freshness
+
+        try:
+            topology_name = self._get_config_value(
+                lambda: self.config.model.mizuroute.topology,
+                default='topology.nc', dict_key='SETTINGS_MIZU_TOPOLOGY')
+            action = self._get_config_value(
+                lambda: self.config.model.mizuroute.topology_staleness,
+                default='warn', dict_key='MIZUROUTE_TOPOLOGY_STALENESS')
+            enforce_topology_freshness(
+                self, settings_dir / (topology_name or 'topology.nc'),
+                action=action, logger=self.logger)
+        except ModelExecutionError:
+            raise  # the configured 'error' action — intentional
+        except Exception as e:  # noqa: BLE001 - a broken check must not block routing
+            self.logger.debug(f'Topology freshness check skipped: {e}')
+
     def _run_mizuroute(self, settings_dir: Path, output_dir: Path) -> bool:
         """Run mizuRoute simulation"""
         try:
+            self._check_topology_freshness(settings_dir)
             # Get mizuRoute executable
             mizu_path = self._get_config_value(lambda: self.config.model.mizuroute.install_path, dict_key='MIZUROUTE_INSTALL_PATH')
             if mizu_path == 'default':

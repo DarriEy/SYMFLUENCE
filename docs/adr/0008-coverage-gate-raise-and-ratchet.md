@@ -22,8 +22,9 @@ Coverage is enforced by **two gates, both one-way ratchets by policy** (raise
 as coverage improves, never lower):
 
 1. **Global gate:** `--cov-fail-under` / `fail_under` raised from 15 to **25**
-   in `ci.yml`, `cross-platform.yml`, and `pyproject.toml` together, set ~4
-   points below measured reality (~29%) so the gate binds without flaking on
+   initially and ratcheted to **26** in July 2026 in `ci.yml`,
+   `cross-platform.yml`, and `pyproject.toml` together. It remains below
+   measured reality (~29%) so the gate binds without flaking on
    parallel-run variance.
 2. **Core-spine gate:** the CI-testable core (config parsing, registry, path
    resolution, mixins) gets its own stricter bar — `coverage report
@@ -50,6 +51,6 @@ floors are the 1.0 mechanism.
 
 ## References
 
-- `pyproject.toml` (`fail_under = 25`)
+- `pyproject.toml` (`fail_under = 26`)
 - `.github/workflows/ci.yml`, `.github/workflows/cross-platform.yml` —
-  `--cov-fail-under=25` and the "Core coverage gate" step (`--fail-under=80`)
+  `--cov-fail-under=26` and the "Core coverage gate" step (`--fail-under=80`)

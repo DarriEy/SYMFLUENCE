@@ -48,11 +48,18 @@ fields.
 
 Downloaded archives are extracted through the hardened helpers in
 `core/archive_extraction.py` (path-traversal-safe tar and zip extraction);
-no raw `extractall` call sites remain. Residual risk: scientific file formats
+no raw `extractall` call sites remain, including in integration-test data
+fixtures. Residual risk: scientific file formats
 (netCDF/HDF5/GeoTIFF) are parsed by compiled third-party libraries, so a
 malicious data file could target a parser vulnerability — mitigated by
 pinning those libraries via lockfiles (below) and by the deployment context
 (users fetch from the canonical scientific providers).
+
+Immutable artifacts can be fetched through `download_verified_file`, which
+requires an expected SHA-256 digest, optionally verifies byte size, publishes
+the target atomically, and writes a non-executable provenance sidecar. Dynamic
+scientific API responses cannot generally be pinned in advance; their source
+metadata and observed artifact hashes remain the applicable record.
 
 ### 3. Compiled model engines
 
@@ -69,8 +76,10 @@ privileges, as any locally built scientific code does.
 
 All `torch.load` call sites pass `weights_only=True`, closing the
 arbitrary-object-deserialization path (CVE-2025-32434 lineage) for model
-checkpoints. Treat third-party checkpoint files with the same caution as any
-downloaded binary regardless.
+checkpoints. The LSTM/dRoute integration likewise uses dRoute's native
+GeoJSON/CSV loaders with a JSON metadata sidecar; legacy pickle network
+artifacts are rejected rather than deserialized. Treat third-party checkpoint
+files with the same caution as any downloaded binary regardless.
 
 ### 5. The bundled AI agent
 
@@ -96,6 +105,17 @@ should keep a human review between agent output and anything that publishes.
 - `uv.lock` pins the full PyPI dependency tree with SHA-256 hashes;
   `pixi.lock` does the same for the conda ecosystem. A substituted upstream
   package fails at install time rather than being silently pulled in.
+- The bootstrap downloads the Pixi installer to a temporary file, verifies a
+  reviewed SHA-256 digest, and pins the installed Pixi version before execution.
+- PyPI releases publish trusted-publisher attestations and include a CycloneDX
+  SBOM generated from the locked dependency graph.
+- npm publication uses OIDC trusted publishing with provenance. Release
+  workflows, scripts, and core security boundaries have CODEOWNERS; a CI guard
+  rejects unpinned actions and weakened publication settings.
+- Formal external-model builds can enable immutable-source mode, which rejects
+  moving branches and abbreviated commits. Generated `toolchain.json` records
+  source commits, compilers, libraries, and SHA-256 digests for verified build
+  artifacts.
 - Every source file carries an SPDX license header; `bandit` runs in
   pre-commit and CI alongside ruff/mypy, and a broad-exception guard keeps
   error handling auditable.
@@ -106,9 +126,12 @@ should keep a human review between agent output and anything that publishes.
   equivalent to running a script.
 - **Parser vulnerabilities in scientific libraries** are mitigated by
   pinning, not eliminated.
-- **No SBOM or artifact-provenance attestation is published yet**; the
-  lockfiles are the current supply-chain record. Publishing provenance for
-  the prebuilt binary distributions is future work.
+- Persistent MPI file hand-offs and derived attribute caches use atomic,
+  owner-only JSON and reject symlinked destinations. MPI's in-memory transport
+  is still trusted process-to-process communication within the same job.
+- PyPI provenance covers the Python distributions. Extending equivalent
+  attestations and complete SBOM coverage to every prebuilt external model
+  binary remains future work.
 - **The GUI has no authentication** because shared deployment is out of
   scope; that boundary is revisited (with a superseding ADR) if the scope
   changes.

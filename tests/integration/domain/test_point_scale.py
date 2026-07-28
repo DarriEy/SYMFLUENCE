@@ -15,6 +15,7 @@ import requests
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
+from symfluence.core.archive_extraction import safe_zip_extract
 from symfluence.core.exceptions import DataAcquisitionError
 from test_helpers.geospatial import (
     assert_shapefile_signature_matches,
@@ -57,7 +58,7 @@ def test_data_dir(symfluence_data_root):
         extract_dir.mkdir(exist_ok=True)
 
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
+            safe_zip_extract(zip_ref, extract_dir)
 
         # Move the domain to data root
         example_data_dir = extract_dir / "example_data_v0.5.5"

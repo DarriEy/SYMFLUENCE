@@ -117,6 +117,34 @@ def test_clone_repository_sparse_excludes_paths(mock_external_tools, tmp_path):
     assert not (target / "src" / "pkg" / "network" / "test" / "fixtures" / "data.ncdf").exists()
 
 
+def test_release_mode_rejects_mutable_git_source(mock_external_tools, tmp_path, monkeypatch):
+    """Release builds cannot resolve source code from a moving branch."""
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    monkeypatch.setenv("SYMFLUENCE_REQUIRE_IMMUTABLE_SOURCES", "1")
+    installer = ToolInstaller(external_tools=mock_external_tools)
+
+    with pytest.raises(ValueError, match="full 40-character git_hash"):
+        installer._clone_repository(
+            "https://github.com/example/model.git",
+            "main",
+            tmp_path / "target",
+        )
+
+
+def test_clone_rejects_file_url(mock_external_tools, tmp_path):
+    """Repository sources must use an authenticated or TLS-capable transport."""
+    from symfluence.cli.services.tool_installer import ToolInstaller
+
+    installer = ToolInstaller(external_tools=mock_external_tools)
+    with pytest.raises(ValueError, match="Unsupported repository URL scheme"):
+        installer._clone_repository(
+            "file:///tmp/untrusted.git",
+            None,
+            tmp_path / "target",
+        )
+
+
 def test_clone_with_retry_recovers_from_transient_failure(mock_external_tools, tmp_path, monkeypatch):
     """A clone that fails once (e.g. flaky SourceForge) is retried and succeeds.
 

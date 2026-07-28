@@ -456,6 +456,34 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
         except Exception as e:  # noqa: BLE001 — model execution resilience
             self.logger.error(f"Error syncing control file dimensions: {e}", exc_info=True)
 
+    def _check_topology_freshness(self, settings_path: Path) -> None:
+        """Warn (or error/regenerate) when topology.nc no longer matches the geofabric.
+
+        Controlled by ``MIZUROUTE_TOPOLOGY_STALENESS``; see
+        :mod:`symfluence.models.mizuroute.topology_freshness`. The check is
+        advisory by default and must never be the reason a run fails, so any
+        unexpected error while checking is logged and swallowed.
+        """
+        from symfluence.models.mizuroute.topology_freshness import enforce_topology_freshness
+
+        topology_name = self._get_config_value(
+            lambda: self.config.model.mizuroute.topology,
+            default='topology.nc', dict_key='SETTINGS_MIZU_TOPOLOGY',
+        )
+        action = self._get_config_value(
+            lambda: self.config.model.mizuroute.topology_staleness,
+            default='warn', dict_key='MIZUROUTE_TOPOLOGY_STALENESS',
+        )
+        try:
+            enforce_topology_freshness(
+                self, settings_path / (topology_name or 'topology.nc'),
+                action=action, logger=self.logger,
+            )
+        except ModelExecutionError:
+            raise  # the configured 'error' action — intentional
+        except Exception as e:  # noqa: BLE001 - a broken check must not block routing
+            self.logger.debug(f'Topology freshness check skipped: {e}')
+
     def run_mizuroute(self):
         """
         Run the mizuRoute model.
@@ -501,6 +529,12 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 else:
                     control_file = 'mizuroute.control'
                 self.logger.debug(f"Using default mizuRoute control file: {control_file}")
+
+            # Refuse to route silently over a superseded network. topology.nc is
+            # only rewritten by mizuRoute preprocessing, so re-delineating a domain
+            # without re-running that step leaves a topology describing the old
+            # geofabric — invisible without this check.
+            self._check_topology_freshness(settings_path)
 
             # Sync control file dimensions with actual runoff file
             if runoff_path and runoff_path.exists():

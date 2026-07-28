@@ -9,10 +9,8 @@ and snow water equivalent (SWE).
 """
 from __future__ import annotations
 
+import json
 import logging
-
-# Security rationale: Used for trusted internal model serialization
-import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -34,6 +32,7 @@ try:
     import droute
     HAS_DROUTE = True
 except ImportError:
+    droute = None
     HAS_DROUTE = False
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
@@ -111,6 +110,69 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
 
         self.model: Optional[LSTMModel] = None
         self.hru_ids: list[Any] = []
+
+    def _load_droute_network(self) -> tuple[Any, int, dict[str, int]]:
+        """Load a dRoute network without executable Python serialization.
+
+        The network topology is read through dRoute's native GeoJSON or CSV
+        loader. SYMFLUENCE-specific indices live in a plain JSON sidecar:
+
+        ``{"outlet_idx": 0, "hru_to_seg_idx": {"123": 4}}``.
+        """
+        settings_dir = self.project_dir / "settings" / "dRoute"
+        metadata_path = settings_dir / "network_metadata.json"
+        legacy_pickle = settings_dir / "dRoute_network.pkl"
+
+        if not metadata_path.is_file():
+            legacy_hint = (
+                f" Legacy pickle detected at {legacy_pickle}; it is no longer loaded "
+                "because pickle files can execute arbitrary code."
+                if legacy_pickle.exists()
+                else ""
+            )
+            raise ModelExecutionError(
+                f"Missing safe dRoute metadata file: {metadata_path}.{legacy_hint} "
+                "Export the network as network.geojson or reaches.csv and create "
+                "network_metadata.json with outlet_idx and hru_to_seg_idx."
+            )
+
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            outlet_idx = int(metadata["outlet_idx"])
+            raw_mapping = metadata["hru_to_seg_idx"]
+            if not isinstance(raw_mapping, dict):
+                raise ModelExecutionError(
+                    f"Invalid dRoute network metadata in {metadata_path}: "
+                    "hru_to_seg_idx must be an object"
+                )
+            hru_to_seg_idx = {str(hru_id): int(seg_idx) for hru_id, seg_idx in raw_mapping.items()}
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise ModelExecutionError(
+                f"Invalid dRoute network metadata in {metadata_path}: {exc}"
+            ) from exc
+
+        geojson_path = settings_dir / "network.geojson"
+        reaches_path = settings_dir / "reaches.csv"
+        params_path = settings_dir / "params.csv"
+        try:
+            if geojson_path.is_file():
+                network = droute.load_network_geojson(str(geojson_path))
+            elif reaches_path.is_file():
+                network = droute.load_network_csv(
+                    str(reaches_path),
+                    str(params_path) if params_path.is_file() else "",
+                )
+            else:
+                raise ModelExecutionError(
+                    f"No safe dRoute topology found in {settings_dir}; expected "
+                    "network.geojson or reaches.csv."
+                )
+        except ModelExecutionError:
+            raise
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise ModelExecutionError(f"Could not load dRoute network: {exc}") from exc
+
+        return network, outlet_idx, hru_to_seg_idx
 
     def run_lstm(self):
         """
@@ -423,16 +485,8 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         if not HAS_DROUTE:
             raise ImportError("droute required for training through routing")
 
-        # 1. Load network
-        network_data_path = self.project_dir / "settings" / "dRoute" / 'dRoute_network.pkl'
-        with open(network_data_path, 'rb') as f:
-            # Security rationale: Loading trusted internal model data
-            network_data = pickle.load(f)  # nosec B301
-
-        network = network_data['network']
-        network_data['seg_areas']
-        outlet_idx = network_data['outlet_idx']
-        hru_to_seg_idx = network_data['hru_to_seg_idx']
+        # 1. Load network from non-executable topology + JSON metadata.
+        network, outlet_idx, hru_to_seg_idx = self._load_droute_network()
 
         # 2. Setup targets
         lookback = self.preprocessor.lookback
@@ -448,7 +502,7 @@ class LSTMRunner(BaseModelRunner, SpatialOrchestrator, MizuRouteConfigMixin, Spa
         self.logger.info(f"Starting training through routing: {B} batches, {N} HRUs")
 
         # Map HRU index in tensor to reach index in network
-        hru_idx_to_reach = [hru_to_seg_idx[hru_id] for hru_id in self.hru_ids]
+        hru_idx_to_reach = [hru_to_seg_idx[str(hru_id)] for hru_id in self.hru_ids]
 
         # Router config
         routing_method = self._get_config_value(lambda: None, default='mc', dict_key='DROUTE_METHOD').lower()

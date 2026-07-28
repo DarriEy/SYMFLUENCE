@@ -35,6 +35,44 @@ class TestLSTMRunnerInitialization:
         runner = LSTMRunner(lstm_config, mock_logger)
         # Runner should default to CPU when CUDA not available
 
+    @patch("symfluence.models.lstm.runner.droute")
+    def test_loads_droute_geojson_and_json_metadata(
+        self, mock_droute, lstm_config, mock_logger, setup_lstm_directories
+    ):
+        """dRoute topology and indices are loaded without pickle."""
+        from symfluence.models.lstm.runner import LSTMRunner
+
+        runner = LSTMRunner(lstm_config, mock_logger)
+        settings = runner.project_dir / "settings" / "dRoute"
+        settings.mkdir(parents=True, exist_ok=True)
+        (settings / "network.geojson").write_text("{}", encoding="utf-8")
+        (settings / "network_metadata.json").write_text(
+            '{"outlet_idx": 3, "hru_to_seg_idx": {"101": 7}}',
+            encoding="utf-8",
+        )
+        mock_droute.load_network_geojson.return_value = object()
+
+        _, outlet_idx, mapping = runner._load_droute_network()
+
+        assert outlet_idx == 3
+        assert mapping == {"101": 7}
+        mock_droute.load_network_geojson.assert_called_once_with(str(settings / "network.geojson"))
+
+    def test_rejects_legacy_droute_pickle(
+        self, lstm_config, mock_logger, setup_lstm_directories
+    ):
+        """Legacy pickle artifacts are never deserialized."""
+        from symfluence.core.exceptions import ModelExecutionError
+        from symfluence.models.lstm.runner import LSTMRunner
+
+        runner = LSTMRunner(lstm_config, mock_logger)
+        settings = runner.project_dir / "settings" / "dRoute"
+        settings.mkdir(parents=True, exist_ok=True)
+        (settings / "dRoute_network.pkl").write_bytes(b"not safe")
+
+        with pytest.raises(ModelExecutionError, match="can execute arbitrary code"):
+            runner._load_droute_network()
+
 
 class TestLSTMModelCreation:
     """Tests for LSTM model creation."""

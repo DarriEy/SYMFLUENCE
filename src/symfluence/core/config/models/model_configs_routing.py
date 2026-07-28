@@ -53,6 +53,16 @@ class MizuRouteConfig(BaseModel):
         alias='MIZUROUTE_TIME_ROUNDING_FREQ',
         description='Frequency for rounding time values (e.g., "h" for hour, "min" for minute, "none" to disable)'
     )
+    topology_staleness: str = Field(
+        default='warn',
+        alias='MIZUROUTE_TOPOLOGY_STALENESS',
+        description=(
+            'Action when topology.nc no longer matches the geofabric it was built '
+            'from (segment/HRU counts differ, or a source shapefile is newer): '
+            '"warn" (default), "error" to refuse to run, "regenerate" to rebuild '
+            'it from the current shapefiles, or "ignore" to skip the check'
+        )
+    )
 
     @field_validator('output_vars', mode='before')
     @classmethod

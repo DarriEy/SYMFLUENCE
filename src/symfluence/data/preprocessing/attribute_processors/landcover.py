@@ -13,7 +13,6 @@ Handles land cover and vegetation attributes including:
 """
 from __future__ import annotations
 
-import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict
 
@@ -85,14 +84,13 @@ class LandCoverProcessor(BaseAttributeProcessor):
         # Create cache directory
         cache_dir = self.project_dir / 'cache' / 'landcover'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_glclu2019_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_glclu2019_results.json"
 
         # Check cache
         if cache_file.exists():
             self.logger.info("Loading cached GLCLU2019 results")
             try:
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -196,8 +194,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
 
             # Cache results
             try:
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(results, f)
+                dump_json_atomic(results, cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching results: {e}")
 
@@ -242,13 +239,12 @@ class LandCoverProcessor(BaseAttributeProcessor):
         # Cache
         cache_dir = self.project_dir / 'cache' / 'lai'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_lai_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_lai_results.json"
 
         if cache_file.exists():
             self.logger.info("Loading cached LAI results")
             try:
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -318,8 +314,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
 
             # Cache
             try:
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(results, f)
+                dump_json_atomic(results, cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching: {e}")
 
@@ -395,13 +390,12 @@ class LandCoverProcessor(BaseAttributeProcessor):
         # Cache
         cache_dir = self.project_dir / 'cache' / 'forest_height'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_forest_height_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_forest_height_results.json"
 
         if cache_file.exists():
             self.logger.info("Loading cached forest height results")
             try:
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -445,8 +439,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
 
             # Cache
             try:
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(results, f)
+                dump_json_atomic(results, cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching: {e}")
 
@@ -495,3 +488,4 @@ class LandCoverProcessor(BaseAttributeProcessor):
             return scale, offset
         except (ImportError, RuntimeError, AttributeError):
             return None, None
+from symfluence.core.safe_serialization import dump_json_atomic, load_json

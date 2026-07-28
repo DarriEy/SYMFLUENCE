@@ -182,9 +182,11 @@ def main() -> int:
     print(f"Model raise guard passed ({len(current)} allowlisted matches).")
     if stale_items:
         print(
-            f"Note: {len(stale_items)} stale allowlist entries detected. Run --update to prune.",
+            f"{len(stale_items)} stale model-raise allowlist entries detected. "
+            "Run --update to record the reduced baseline; allowlist debt must only ratchet down.",
             file=sys.stderr,
         )
+        return 1
     return 0
 
 

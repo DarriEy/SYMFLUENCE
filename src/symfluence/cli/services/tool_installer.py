@@ -882,6 +882,26 @@ class ToolInstaller(BaseService):
             True if successful, False otherwise.
         """
         if repository_url:
+            immutable_required = os.environ.get(
+                "SYMFLUENCE_REQUIRE_IMMUTABLE_SOURCES", ""
+            ).lower() in {"1", "true", "yes", "on"}
+            if immutable_required and (
+                git_hash is None
+                or len(git_hash) != 40
+                or any(char not in "0123456789abcdefABCDEF" for char in git_hash)
+            ):
+                raise ValueError(
+                    "Immutable-source mode requires a full 40-character git_hash "
+                    f"for {repository_url}; branches and abbreviated hashes are not release-safe"
+                )
+            if (
+                not repository_url.startswith(("https://", "ssh://", "git@"))
+                and not Path(repository_url).exists()
+            ):
+                raise ValueError(
+                    f"Unsupported repository URL scheme for {repository_url!r}; "
+                    "use HTTPS or SSH"
+                )
             self._console.indent(f"Cloning from: {repository_url}")
             # Use shallow clone unless a specific commit hash is needed
             shallow = git_hash is None
@@ -972,6 +992,18 @@ class ToolInstaller(BaseService):
                     cwd=str(target_dir),
                     env=self._get_clean_build_env(),
                 )
+                resolved_hash = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    cwd=str(target_dir),
+                    env=self._get_clean_build_env(),
+                ).stdout.strip()
+                if not resolved_hash.lower().startswith(git_hash.lower()):
+                    raise ValueError(
+                        f"Checked-out source mismatch: requested {git_hash}, got {resolved_hash}"
+                    )
                 self._console.success(f"Checked out {git_hash}")
         else:
             self._console.indent("Creating installation directory")
@@ -1117,7 +1149,7 @@ class ToolInstaller(BaseService):
                             capture_output=True, timeout=15,
                         )
                         ok = _r.returncode == 0
-                    except Exception:  # noqa: BLE001 — top-level fallback
+                    except (OSError, subprocess.SubprocessError, ValueError):
                         ok = False
                     status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
                     self._console.indent(f"Install verification ({check_type}): {status}")
@@ -1247,6 +1279,7 @@ class ToolInstaller(BaseService):
         Args:
             install_base_dir: The ``installs/`` directory.
         """
+        import hashlib
         import json
         import platform
         from datetime import datetime, timezone
@@ -1285,7 +1318,7 @@ class ToolInstaller(BaseService):
                             cmd.split(), capture_output=True, text=True, timeout=5,
                         )
                         compilers[name] = r.stdout.strip().split("\n")[0]
-                    except Exception:  # noqa: BLE001 — top-level fallback
+                    except (OSError, subprocess.SubprocessError, ValueError):
                         compilers[name] = exe
                     break
             else:
@@ -1312,7 +1345,7 @@ class ToolInstaller(BaseService):
                                 out = line.split(":")[-1].strip()
                                 break
                     libraries[lib_name] = out.split("\n")[0]
-                except Exception:  # noqa: BLE001 — top-level fallback
+                except (OSError, subprocess.SubprocessError, ValueError):
                     libraries[lib_name] = "unknown"
             else:
                 libraries[lib_name] = "not found"
@@ -1338,8 +1371,29 @@ class ToolInstaller(BaseService):
                     ).stdout.strip()
                     entry["commit"] = commit
                     entry["branch"] = branch
-                except Exception:  # noqa: BLE001 — top-level fallback
+                except (OSError, subprocess.SubprocessError, ValueError):
                     pass
+            artifacts: List[Dict[str, Any]] = []
+            verify = info.get("verify_install", {})
+            for relative in verify.get("file_paths", []):
+                artifact = tool_dir / relative
+                if not artifact.is_file():
+                    continue
+                try:
+                    digest = hashlib.sha256()
+                    with artifact.open("rb") as stream:
+                        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                            digest.update(chunk)
+                    artifacts.append(
+                        {
+                            "path": str(artifact.relative_to(install_base_dir)),
+                            "sha256": digest.hexdigest(),
+                            "size_bytes": artifact.stat().st_size,
+                        }
+                    )
+                except OSError:
+                    continue
+            entry["artifacts"] = artifacts
             tools_meta[name] = entry
         toolchain["tools"] = tools_meta
 

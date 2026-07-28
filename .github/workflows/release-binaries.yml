@@ -468,15 +468,18 @@ jobs:
           }
 
       - name: Create release tarball
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -e
           chmod +x ./scripts/create_release_tarball.sh
 
           # Get version from tag, manual input, or latest git tag
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            VERSION="${{ github.event.inputs.tag }}"
-          elif [[ "${{ github.ref_name }}" == v* ]]; then
-            VERSION="${{ github.ref_name }}"
+          if [ -n "$INPUT_TAG" ]; then
+            VERSION="$INPUT_TAG"
+          elif [[ "$REF_NAME" == v* ]]; then
+            VERSION="$REF_NAME"
           else
             VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
           fi
@@ -584,11 +587,14 @@ jobs:
       # ========================================================================
       - name: Resolve release tag
         id: resolve-tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == v* ]]; then
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          if [ -n "$INPUT_TAG" ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          elif [[ "$REF_NAME" == v* ]]; then
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
           else
             echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
           fi
@@ -629,6 +635,10 @@ jobs:
     name: Publish to npm
     needs: build-and-release
     runs-on: ubuntu-24.04
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
     # Proceed even if Windows build fails — it has no required binaries and
     # shouldn't block npm publishing for Linux/macOS users.
     if: ${{ !cancelled() && (needs.build-and-release.result == 'success' || needs.build-and-release.result == 'failure') }}
@@ -640,8 +650,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Install trusted-publishing capable npm
+        run: npm install --global npm@11.5.1
 
       - name: Verify required platform artifacts exist
         if: github.event_name == 'push'
@@ -710,9 +723,7 @@ jobs:
         working-directory: npm
         run: |
           echo "Publishing to npm registry..."
-          npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm publish --provenance
 
       - name: Skip npm publish (scheduled rebuild)
         if: github.event_name == 'schedule'
@@ -762,11 +773,14 @@ jobs:
           brew install netcdf netcdf-fortran hdf5 gdal
 
       - name: Install symfluence from npm
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          elif [[ "${{ github.ref_name }}" == v* ]]; then
-            TAG="${{ github.ref_name }}"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [[ "$REF_NAME" == v* ]]; then
+            TAG="$REF_NAME"
           else
             TAG=""
           fi
@@ -949,6 +963,10 @@ jobs:
 
     steps:
       - name: Summary
+        env:
+          BUILD_RESULT: ${{ needs.build-and-release.result }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           echo "========================================="
           echo "Release Build Summary"
@@ -957,15 +975,15 @@ jobs:
           echo "npm publish status: ${{ needs.publish-npm.result }}"
           echo "npm install tests: ${{ needs.test-npm-install.result }}"
 
-          if [ "${{ needs.build-and-release.result }}" = "success" ]; then
+          if [ "$BUILD_RESULT" = "success" ]; then
             echo "✅ All platform builds completed successfully"
             echo ""
             echo "Release artifacts uploaded to:"
 
-            if [ -n "${{ github.event.inputs.tag }}" ]; then
-              TAG="${{ github.event.inputs.tag }}"
-            elif [[ "${{ github.ref_name }}" == v* ]]; then
-              TAG="${{ github.ref_name }}"
+            if [ -n "$INPUT_TAG" ]; then
+              TAG="$INPUT_TAG"
+            elif [[ "$REF_NAME" == v* ]]; then
+              TAG="$REF_NAME"
             else
               TAG="latest"
             fi

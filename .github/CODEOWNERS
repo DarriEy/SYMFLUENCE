@@ -1,0 +1,6 @@
+# Security-sensitive automation requires review by the release-maintainer team.
+/.github/workflows/ @DarriEy
+/scripts/stage_release_artifacts.sh @DarriEy
+/scripts/create_release_tarball.sh @DarriEy
+/src/symfluence/core/ @DarriEy
+/src/symfluence/cli/services/tool_installer.py @DarriEy

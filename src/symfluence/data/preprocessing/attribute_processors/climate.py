@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 
 # Security rationale: used for trusted local cache files
-import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -71,15 +70,13 @@ class ClimateProcessor(BaseAttributeProcessor):
         # Create cache directory
         cache_dir = self.project_dir / 'cache' / 'climate'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_raw_climate_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_raw_climate_results.json"
 
         # Check cache
         if cache_file.exists():
             self.logger.info("Loading cached raw climate results")
             try:
-                with open(cache_file, 'rb') as f:
-                    # Security rationale: loading trusted local cache files
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -195,8 +192,7 @@ class ClimateProcessor(BaseAttributeProcessor):
 
         # Cache results
         try:
-            with open(cache_file, 'wb') as f:
-                pickle.dump(results, f)
+            dump_json_atomic(results, cache_file)
         except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"Error caching results: {e}")
 
@@ -307,15 +303,13 @@ class ClimateProcessor(BaseAttributeProcessor):
         # Create cache directory
         cache_dir = self.project_dir / 'cache' / 'climate'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_derived_climate_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_derived_climate_results.json"
 
         # Check cache
         if cache_file.exists():
             self.logger.info("Loading cached derived climate results")
             try:
-                with open(cache_file, 'rb') as f:
-                    # Security rationale: loading trusted local cache files
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -407,8 +401,7 @@ class ClimateProcessor(BaseAttributeProcessor):
 
         # Cache results
         try:
-            with open(cache_file, 'wb') as f:
-                pickle.dump(results, f)
+            dump_json_atomic(results, cache_file)
         except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
             self.logger.warning(f"Error caching results: {e}")
 
@@ -604,3 +597,4 @@ class ClimateProcessor(BaseAttributeProcessor):
                         if precip > 0:
                             snow_fraction = snow / precip
                             results[f"{prefix}climate.snow_fraction"] = snow_fraction
+from symfluence.core.safe_serialization import dump_json_atomic, load_json

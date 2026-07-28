@@ -229,16 +229,27 @@ def calculate_aspect(dem_raster: Path, aspect_raster: Path, aspect_class_number:
             transform = src.transform
             crs = src.crs
             nodata = src.nodata
+            xres, yres = abs(src.res[0]), abs(src.res[1])
+            mean_lat = (src.bounds.bottom + src.bounds.top) / 2.0
 
-        # Calculate gradients
-        dy, dx = np.gradient(dem.astype(float))
+        # Pixel spacing in metres. For a geographic CRS a degree of longitude is
+        # shorter than a degree of latitude, so using unit spacing would skew the
+        # bearing (~1 degree at Bow-at-Banff latitudes).
+        if crs is not None and crs.is_geographic:
+            xres_m = xres * 111320.0 * max(np.cos(np.radians(mean_lat)), 0.1)
+            yres_m = yres * 110574.0
+        else:
+            xres_m, yres_m = xres, yres
 
-        # Calculate aspect in radians, then convert to degrees
-        aspect_rad = np.arctan2(-dx, dy)  # Note the negative sign for dx
-        aspect_deg = np.degrees(aspect_rad)
+        # Gradients along array axes: dy is d(elev)/d(row) with rows increasing
+        # southwards, dx is d(elev)/d(col) with columns increasing eastwards.
+        dy, dx = np.gradient(dem.astype(float), yres_m, xres_m)
 
-        # Convert to compass bearing (0-360 degrees, 0 = North)
-        aspect_deg = (90 - aspect_deg) % 360
+        # Aspect is the compass bearing of the downslope direction. In (east,
+        # north) components that direction is (-dx, +dy), and a compass bearing
+        # is atan2(east, north) -- so this is already the bearing, measured
+        # clockwise from north. No math-convention conversion is needed here.
+        aspect_deg = np.degrees(np.arctan2(-dx, dy)) % 360
 
         # Handle flat areas (where both dx and dy are near zero)
         slope_magnitude = np.sqrt(dx*dx + dy*dy)

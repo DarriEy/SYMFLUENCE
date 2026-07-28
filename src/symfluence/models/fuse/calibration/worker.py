@@ -15,6 +15,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.process_exec import run as run_subprocess
 from symfluence.core.registries import R
 from symfluence.evaluation.utilities import StreamflowMetrics
@@ -583,6 +584,30 @@ class FUSEWorker(BaseWorker):
         converter = FuseToMizurouteConverter(logger=self.logger)
         return converter.convert(fuse_output_dir, config, proc_id)
 
+    def _check_mizuroute_topology_freshness(self, config: Dict[str, Any], settings_dir: Path) -> None:
+        """Flag a topology that no longer matches the geofabric.
+
+        See :mod:`symfluence.models.mizuroute.topology_freshness`. Never allowed
+        to fail a calibration trial, so failures of the check itself are logged
+        at debug and swallowed.
+        """
+        from symfluence.models.mizuroute.topology_freshness import (
+            component_from_config,
+            enforce_topology_freshness,
+        )
+
+        try:
+            topology_name = config.get('SETTINGS_MIZU_TOPOLOGY') or 'topology.nc'
+            action = config.get('MIZUROUTE_TOPOLOGY_STALENESS') or 'warn'
+            enforce_topology_freshness(
+                component_from_config(config, self.logger),
+                Path(settings_dir) / topology_name,
+                action=action, logger=self.logger)
+        except ModelExecutionError:
+            raise  # the configured 'error' action — intentional
+        except Exception as e:  # noqa: BLE001 - a broken check must not block routing
+            self.logger.debug(f'Topology freshness check skipped: {e}')
+
     def _run_mizuroute_for_fuse(
         self,
         config: Dict[str, Any],
@@ -613,6 +638,11 @@ class FUSEWorker(BaseWorker):
                 return False
 
             self.logger.debug(f"Using mizuRoute control file: {control_file}")
+
+            # Flag a topology that no longer matches the geofabric. This worker
+            # executes mizuRoute directly rather than through MizuRouteRunner, so
+            # it needs its own call; the check reports once per topology.
+            self._check_mizuroute_topology_freshness(config, control_file.parent)
 
             cmd = [str(mizuroute_exe), str(control_file)]
             self.logger.debug(f"Executing mizuRoute: {' '.join(cmd)}")

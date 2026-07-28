@@ -1,5 +1,48 @@
 version: 2
 updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      scientific-python:
+        patterns:
+          - numpy
+          - pandas
+          - scipy
+          - xarray
+          - geopandas
+          - rasterio
+      python-runtime:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - numpy
+          - pandas
+          - scipy
+          - xarray
+          - geopandas
+          - rasterio
+    labels:
+      - dependencies
+      - python
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: npm
+    directory: /npm
+    schedule:
+      interval: weekly
+    groups:
+      npm-runtime:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: deps
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

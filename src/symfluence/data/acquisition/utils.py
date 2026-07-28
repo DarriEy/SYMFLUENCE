@@ -12,6 +12,7 @@ Provides common utilities for data acquisition handlers:
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import netrc
 import os
@@ -27,6 +28,10 @@ from urllib3.exceptions import ProtocolError
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
+
+
+class DownloadIntegrityError(IOError):
+    """Raised when downloaded bytes do not match the declared artifact."""
 
 
 # =============================================================================
@@ -91,7 +96,10 @@ def download_file_streaming(
     timeout: int = 600,
     use_temp_file: bool = True,
     headers: Dict[str, str] = None,
-    auth: Tuple[str, str] = None
+    auth: Tuple[str, str] = None,
+    expected_sha256: str = None,
+    expected_size: int = None,
+    write_manifest: bool = False,
 ) -> int:
     """
     Download a file using streaming with optional atomic write.
@@ -121,6 +129,8 @@ def download_file_streaming(
         session = create_robust_session()
 
     target_path = Path(target_path)
+    if target_path.is_symlink() or target_path.parent.is_symlink():
+        raise DownloadIntegrityError(f"Refusing to download through symlink: {target_path}")
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Use temporary file for atomic write
@@ -132,20 +142,45 @@ def download_file_streaming(
 
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
+            digest = hashlib.sha256()
 
             with open(write_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:  # Skip keep-alive chunks
                         f.write(chunk)
+                        digest.update(chunk)
                         downloaded += len(chunk)
 
             # Verify complete download if size was provided
             if total_size > 0 and downloaded < total_size:
                 raise IOError(f"Incomplete download: {downloaded}/{total_size} bytes")
+            if expected_size is not None and downloaded != expected_size:
+                raise DownloadIntegrityError(
+                    f"Downloaded size mismatch for {url}: expected {expected_size}, got {downloaded}"
+                )
+            observed_sha256 = digest.hexdigest()
+            if expected_sha256 is not None and observed_sha256.lower() != expected_sha256.lower():
+                raise DownloadIntegrityError(
+                    f"SHA-256 mismatch for {url}: expected {expected_sha256.lower()}, "
+                    f"got {observed_sha256.lower()}"
+                )
 
         # Atomic rename on success
         if use_temp_file:
             write_path.replace(target_path)
+        if write_manifest:
+            from symfluence.core.safe_serialization import dump_json_atomic
+
+            dump_json_atomic(
+                {
+                    "url": url,
+                    "sha256": observed_sha256,
+                    "size": downloaded,
+                    "expected_sha256": expected_sha256,
+                    "expected_size": expected_size,
+                },
+                target_path.with_suffix(target_path.suffix + ".download.json"),
+            )
 
         return downloaded
 
@@ -157,6 +192,29 @@ def download_file_streaming(
             except OSError:
                 pass
         raise
+
+
+def download_verified_file(
+    url: str,
+    target_path: Path,
+    *,
+    expected_sha256: str,
+    expected_size: int = None,
+    session: requests.Session = None,
+    timeout: int = 600,
+) -> int:
+    """Download an immutable artifact, verify it, and record its manifest."""
+    if len(expected_sha256) != 64 or any(c not in "0123456789abcdefABCDEF" for c in expected_sha256):
+        raise ValueError("expected_sha256 must be a 64-character hexadecimal digest")
+    return download_file_streaming(
+        url,
+        target_path,
+        session=session,
+        timeout=timeout,
+        expected_sha256=expected_sha256,
+        expected_size=expected_size,
+        write_manifest=True,
+    )
 
 
 # Network errors that indicate a transient, mid-stream interruption from which
@@ -538,8 +596,10 @@ def get_cds_credentials(
 # =============================================================================
 
 __all__ = [
+    'DownloadIntegrityError',
     'create_robust_session',
     'download_file_streaming',
+    'download_verified_file',
     'atomic_write',
     'resolve_credentials',
     'get_earthdata_credentials',

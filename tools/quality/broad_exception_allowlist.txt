@@ -24,12 +24,8 @@ src/symfluence/cli/preset_registry.py:PresetRegistry.get_all_presets:except Exce
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
-src/symfluence/cli/services/tool_installer.py:ToolInstaller._generate_toolchain_metadata:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:ToolInstaller._generate_toolchain_metadata:except Exception:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:ToolInstaller._generate_toolchain_metadata:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_installer.py:ToolInstaller._preflight_check:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_installer.py:ToolInstaller._verify_installation:except Exception as e:  # noqa: BLE001 — top-level fallback
-src/symfluence/cli/services/tool_installer.py:ToolInstaller._verify_installation:except Exception:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_installer.py:ToolInstaller.install:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_validator.py:ToolValidator._run_test_command:except Exception as test_error:  # noqa: BLE001 — top-level fallback
 src/symfluence/cli/services/tool_validator.py:ToolValidator.validate:except Exception as e:  # noqa: BLE001 — top-level fallback

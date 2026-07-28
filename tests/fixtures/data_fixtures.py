@@ -11,6 +11,7 @@ import zipfile
 import pytest
 import requests
 
+from symfluence.core.archive_extraction import safe_zip_extract
 from symfluence.data.cache import RawForcingCache
 
 # Test data bundle configuration
@@ -79,7 +80,7 @@ def example_data_bundle(symfluence_data_root, symfluence_code_dir):
         extract_dir.mkdir(exist_ok=True)
 
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
+            safe_zip_extract(zip_ref, extract_dir)
 
         # Move domains to data root
         extracted_bundle = extract_dir / BUNDLE_NAME

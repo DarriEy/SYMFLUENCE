@@ -558,6 +558,28 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
                                           config.get('EXE_NAME_MIZUROUTE', 'mizuRoute.exe'))
         control_file = Path(task_data['mizuroute_settings_dir']) / 'mizuroute.control'
 
+        # Flag a topology that no longer matches the geofabric. This worker runs
+        # the executable directly, so it needs its own call; reported once per
+        # topology and never allowed to fail a trial.
+        try:
+            from symfluence.core.exceptions import ModelExecutionError
+            from symfluence.models.mizuroute.topology_freshness import (
+                component_from_config,
+                enforce_topology_freshness,
+            )
+
+            enforce_topology_freshness(
+                component_from_config(config, logger),
+                Path(task_data['mizuroute_settings_dir'])
+                / (config.get('SETTINGS_MIZU_TOPOLOGY') or 'topology.nc'),
+                action=config.get('MIZUROUTE_TOPOLOGY_STALENESS') or 'warn',
+                logger=logger,
+            )
+        except ModelExecutionError:
+            raise  # the configured 'error' action — intentional
+        except Exception as e:  # noqa: BLE001 - advisory only
+            logger.debug(f'Topology freshness check skipped: {e}')
+
         # Verify files exist
         if not mizu_exe.exists():
             error_msg = f"mizuRoute executable not found: {mizu_exe}"

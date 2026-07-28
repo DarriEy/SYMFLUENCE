@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import logging
 import os
-
-# Security rationale: Used for trusted internal MPI task serialization
-import pickle  # nosec B403
 import shutil
 import subprocess
 import sys
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List
+
+from symfluence.core.safe_serialization import dump_json_atomic, load_json
 
 from ..worker_environment import WorkerEnvironmentConfig
 from .base import ExecutionStrategy
@@ -29,7 +28,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
     MPI execution strategy.
 
     Uses mpirun to distribute tasks across multiple processes.
-    Generates a temporary worker script and communicates via pickle files.
+    Generates a temporary worker script and communicates via non-executable JSON files.
     """
 
     def __init__(
@@ -80,8 +79,8 @@ class MPIExecutionStrategy(ExecutionStrategy):
         work_dir.mkdir(exist_ok=True)
 
         unique_id = uuid.uuid4().hex[:8]
-        tasks_file = work_dir / f'mpi_tasks_{unique_id}.pkl'
-        results_file = work_dir / f'mpi_results_{unique_id}.pkl'
+        tasks_file = work_dir / f'mpi_tasks_{unique_id}.json'
+        results_file = work_dir / f'mpi_results_{unique_id}.json'
         worker_script = work_dir / f'mpi_worker_{unique_id}.py'
 
         # Get worker module and function name
@@ -94,8 +93,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
             )
 
             # Save tasks to file
-            with open(tasks_file, 'wb') as f:
-                pickle.dump(tasks, f)
+            dump_json_atomic(tasks, tasks_file)
 
             # Create worker script
             self._create_worker_script(
@@ -130,9 +128,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
                 self._log_mpi_output(result)
 
                 if result.returncode == 0 and results_file.exists():
-                    with open(results_file, 'rb') as f:
-                        # Security rationale: Loading trusted MPI results
-                        results = pickle.load(f)  # nosec B301
+                    results = load_json(results_file)
                     self.logger.debug(f"MPI completed: {len(results)} results")
                     return results
 
@@ -307,7 +303,6 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
         script_content = f'''#!/usr/bin/env python3
 import sys
-import pickle
 import os
 from pathlib import Path
 from mpi4py import MPI
@@ -319,6 +314,7 @@ sys.path.insert(0, r"{str(src_path)}")
 # Worker logging via the shared protocol helpers ([P##] rank-tagged handler;
 # rebound to the actual rank inside main()).
 from symfluence.core.logging_utils import get_worker_logger, silence_third_party
+from symfluence.core.safe_serialization import dump_json_atomic, load_json
 
 logger = get_worker_logger(0, level=logging.INFO)
 silence_third_party()
@@ -344,8 +340,7 @@ def main():
     if rank == 0:
         # Master process - load all tasks
         try:
-            with open(tasks_file, 'rb') as f:
-                all_tasks = pickle.load(f)
+            all_tasks = load_json(tasks_file)
         except (ValueError, RuntimeError, IOError) as e:
             logger.error(f"Master failed to load tasks: {{e}}")
             all_tasks = []
@@ -400,8 +395,7 @@ def main():
 
         # Save results
         logger.info(f"Rank 0: Saving {{len(all_results)}} results to {{results_file}}")
-        with open(results_file, 'wb') as f:
-            pickle.dump(all_results, f)
+        dump_json_atomic(all_results, results_file)
         logger.info(f"Rank 0: Results saved successfully")
 
     else:

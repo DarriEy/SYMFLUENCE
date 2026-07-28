@@ -77,6 +77,12 @@ repos:
         language: python
         pass_filenames: false
         files: ^npm/bin/
+      - id: check-release-governance
+        name: Guard release workflow security
+        entry: python scripts/check_release_governance.py
+        language: python
+        pass_filenames: false
+        files: ^(\.github/|scripts/check_release_governance\.py$)
       - id: check-broad-exceptions
         name: Guard broad Exception catches
         entry: python scripts/check_broad_exceptions.py

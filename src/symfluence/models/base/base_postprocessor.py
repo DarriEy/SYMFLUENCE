@@ -23,6 +23,7 @@ import xarray as xr
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.core.scientific_integrity import validate_dataset
 from symfluence.core.validation import validate_config_keys
 from symfluence.models.mixins import ModelComponentMixin
 
@@ -404,6 +405,7 @@ class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # ty
             ds.attrs["model_name"] = self.model_name
             ds.attrs["experiment_id"] = self.experiment_id
 
+            validate_dataset(ds)
             ds.to_netcdf(nc_path)
             self.logger.info(f"Model output NetCDF saved to: {nc_path}")
 

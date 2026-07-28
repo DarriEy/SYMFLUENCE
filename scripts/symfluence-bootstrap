@@ -1226,10 +1226,30 @@ try_pixi_install() {
         print_info "Found pixi at: ${pixi_cmd}"
     else
         print_info "pixi not found, attempting to install..."
-        if curl -fsSL https://pixi.sh/install.sh | bash 2>/dev/null; then
+        # Never pipe a mutable network response directly into a shell. This
+        # digest pins the reviewed installer; PIXI_VERSION pins its binary.
+        local pixi_installer pixi_installer_sha actual_sha
+        pixi_installer="$(mktemp "${TMPDIR:-/tmp}/symfluence-pixi-install.XXXXXX")"
+        pixi_installer_sha="1c09a6a3bfd6d6e9f9e61fdd6815c5830d20d3bdb2ab6aa0ee963f69aab1de90"
+        actual_sha=""
+        if curl -fsSL https://pixi.sh/install.sh -o "$pixi_installer"; then
+            if command -v sha256sum >/dev/null 2>&1; then
+                actual_sha="$(sha256sum "$pixi_installer" | awk '{print $1}')"
+            elif command -v shasum >/dev/null 2>&1; then
+                actual_sha="$(shasum -a 256 "$pixi_installer" | awk '{print $1}')"
+            fi
+        fi
+        if [[ "$actual_sha" == "$pixi_installer_sha" ]] && \
+           PIXI_VERSION=v0.69.0 bash "$pixi_installer" 2>/dev/null; then
+            rm -f "$pixi_installer"
             export PATH="${HOME}/.pixi/bin:${PATH}"
             if command -v pixi >/dev/null 2>&1; then
                 pixi_cmd="pixi"
+            fi
+        else
+            rm -f "$pixi_installer"
+            if [[ -n "$actual_sha" && "$actual_sha" != "$pixi_installer_sha" ]]; then
+                print_warning "Pixi installer checksum mismatch; refusing to execute it"
             fi
         fi
     fi

@@ -253,7 +253,9 @@ class CRHMPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             z = np.where(valid, arr2d, np.nan)
             dzdy, dzdx = np.gradient(z, yres_m, xres_m)
             slope2d = np.degrees(np.arctan(np.hypot(dzdx, dzdy)))
-            aspect2d = (np.degrees(np.arctan2(-dzdy, dzdx)) + 360.0) % 360.0
+            # Compass bearing of the downslope direction: in (east, north)
+            # components that is (-dzdx, +dzdy), and a bearing is atan2(east, north).
+            aspect2d = np.degrees(np.arctan2(-dzdx, dzdy)) % 360.0
 
         arr = arr2d[valid]
         sl = slope2d[valid] if slope2d is not None else None

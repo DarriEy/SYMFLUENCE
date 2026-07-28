@@ -5,7 +5,7 @@
 Persistent MPI Execution Strategy
 
 Launches MPI worker processes once and keeps them alive across multiple
-execute() calls, communicating via pickle files in a local temp directory
+execute() calls, communicating via atomic JSON files in a local temp directory
 with file-based signaling.  This eliminates the repeated Python-import
 metadata storms that cause Lustre IOPS spikes when fresh processes are
 spawned every batch, while avoiding the fragility of piping data through
@@ -15,9 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-
-# Security rationale: Used for trusted internal MPI task serialization
-import pickle  # nosec B403
 import shutil
 import subprocess
 import sys
@@ -28,6 +25,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from symfluence.core.safe_serialization import dump_json_atomic, load_json
+
 from ..worker_environment import WorkerEnvironmentConfig
 from .base import ExecutionStrategy
 
@@ -37,14 +36,14 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
 
     Workers are launched once during ``startup()`` and kept alive for all
     subsequent ``execute()`` calls.  Communication between the coordinator
-    and the MPI broker (rank 0) uses pickle files in a local temp directory
+    and the MPI broker (rank 0) uses JSON files in a local temp directory
     with atomic file-based signaling:
 
-    1. Coordinator writes ``tasks.pkl`` then creates ``tasks.ready``
-    2. Broker polls for ``tasks.ready``, reads ``tasks.pkl``, distributes
+    1. Coordinator writes ``tasks.json`` then creates ``tasks.ready``
+    2. Broker polls for ``tasks.ready``, reads ``tasks.json``, distributes
        tasks to worker ranks via MPI, gathers results
-    3. Broker writes ``results.pkl`` then creates ``results.ready``
-    4. Coordinator polls for ``results.ready``, reads ``results.pkl``
+    3. Broker writes ``results.json`` then creates ``results.ready``
+    4. Coordinator polls for ``results.ready``, reads ``results.json``
 
     The temp directory uses ``$SLURM_TMPDIR`` (node-local ``/tmp``) when
     available, so no Lustre traffic is generated for task/result exchange.
@@ -196,15 +195,14 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
         comm_dir = self._comm_dir
 
         # Clean any stale signal files
-        for f in ('tasks.ready', 'results.ready', 'results.pkl'):
+        for f in ('tasks.ready', 'results.ready', 'results.json'):
             p = comm_dir / f
             if p.exists():
                 p.unlink()
 
         # Write tasks to local temp directory
-        tasks_file = comm_dir / 'tasks.pkl'
-        with open(tasks_file, 'wb') as f:
-            pickle.dump(tasks, f, protocol=pickle.HIGHEST_PROTOCOL)
+        tasks_file = comm_dir / 'tasks.json'
+        dump_json_atomic(tasks, tasks_file)
 
         # Signal the broker that tasks are ready
         (comm_dir / 'tasks.ready').write_text(str(len(tasks)))
@@ -212,7 +210,7 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
 
         # Wait for results (poll for results.ready)
         results_signal = comm_dir / 'results.ready'
-        results_file = comm_dir / 'results.pkl'
+        results_file = comm_dir / 'results.json'
         poll_interval = 0.5  # seconds
         # Generous timeout: allow each task up to SUMMA_TIMEOUT
         timeout = max(7200, len(tasks) * 300)
@@ -231,12 +229,10 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
             time.sleep(poll_interval)
 
         # Read results
-        with open(results_file, 'rb') as f:
-            # Security rationale: Trusted internal data
-            results = pickle.load(f)  # nosec B301
+        results = load_json(results_file)
 
         # Clean up for next batch
-        for f in ('tasks.pkl', 'tasks.ready', 'results.pkl', 'results.ready'):
+        for f in ('tasks.json', 'tasks.ready', 'results.json', 'results.ready'):
             p = comm_dir / f
             if p.exists():
                 p.unlink()
@@ -490,7 +486,6 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-import pickle
 import sys
 import time
 import logging
@@ -514,6 +509,7 @@ _rank = "?"
 sys.path.insert(0, r"{str(src_path)}")
 
 from symfluence.core.logging_utils import silence_third_party
+from symfluence.core.safe_serialization import dump_json_atomic, load_json
 silence_third_party()
 
 from mpi4py import MPI
@@ -547,8 +543,8 @@ def broker_loop(comm, rank, size):
     """
     tasks_signal = COMM_DIR / "tasks.ready"
     shutdown_signal = COMM_DIR / "shutdown"
-    tasks_file = COMM_DIR / "tasks.pkl"
-    results_file = COMM_DIR / "results.pkl"
+    tasks_file = COMM_DIR / "tasks.json"
+    results_file = COMM_DIR / "results.json"
     results_signal = COMM_DIR / "results.ready"
     num_workers = size - 1  # ranks 1..N-1
 
@@ -564,8 +560,7 @@ def broker_loop(comm, rank, size):
             time.sleep(0.1)
 
         # Read tasks
-        with open(tasks_file, "rb") as f:
-            tasks = pickle.load(f)
+        tasks = load_json(tasks_file)
 
         _log("Received batch of %d tasks", len(tasks))
 
@@ -584,8 +579,7 @@ def broker_loop(comm, rank, size):
             all_results.extend(worker_results)
 
         # Write results and signal
-        with open(results_file, "wb") as f:
-            pickle.dump(all_results, f, protocol=pickle.HIGHEST_PROTOCOL)
+        dump_json_atomic(all_results, results_file)
 
         # Remove tasks signal before creating results signal
         if tasks_signal.exists():

@@ -216,7 +216,7 @@ alos = [
 # HPC / distributed parallelism (mpi4py must be built against the site MPI;
 # on many HPC systems `module load py-mpi4py` is preferred over pip install)
 hpc = [
-  "mpi4py>=3.0.0,<4.0.0",
+  "mpi4py>=4.1.1,<5.0.0",
 ]
 # All development dependencies
 all = [
@@ -416,7 +416,7 @@ ignore_errors = true
 # Many modules require external model binaries, live APIs, or real
 # forcing data that cannot run in CI. The floor is a one-way ratchet:
 # raise it as coverage improves, never lower it (see docs/adr/0008-*).
-fail_under = 25
+fail_under = 26
 show_missing = true
 skip_empty = true
 exclude_lines = [

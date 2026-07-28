@@ -12,13 +12,13 @@ Handles geological and hydrogeological attributes including:
 """
 from __future__ import annotations
 
-# Security rationale: used for caching geology lookup tables, not untrusted data
-import pickle  # nosec B403
 from pathlib import Path
 from typing import Any, Dict
 
 import geopandas as gpd
 import numpy as np
+
+from symfluence.core.safe_serialization import dump_json_atomic, load_json
 
 from .base import BaseAttributeProcessor
 
@@ -68,15 +68,13 @@ class GeologyProcessor(BaseAttributeProcessor):
         # Create cache directory and define cache file
         cache_dir = self.project_dir / 'cache' / 'glhymps'
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{self.domain_name}_glhymps_results.pickle"
+        cache_file = cache_dir / f"{self.domain_name}_glhymps_results.json"
 
         # Check if cached results exist
         if cache_file.exists():
             self.logger.info(f"Loading cached GLHYMPS results from {cache_file}")
             try:
-                with open(cache_file, 'rb') as f:
-                    # Security rationale: loading trusted local cache files
-                    return pickle.load(f)  # nosec B301
+                return load_json(cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error loading cached GLHYMPS results: {str(e)}")
 
@@ -313,8 +311,7 @@ class GeologyProcessor(BaseAttributeProcessor):
             # Cache results
             try:
                 self.logger.info(f"Caching GLHYMPS results to {cache_file}")
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(results, f)
+                dump_json_atomic(results, cache_file)
             except (OSError, ValueError, TypeError, RuntimeError, KeyError, AttributeError, ImportError, LookupError) as e:
                 self.logger.warning(f"Error caching GLHYMPS results: {str(e)}")
 

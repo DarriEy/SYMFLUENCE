@@ -70,13 +70,15 @@ jobs:
 
       - name: Install minimal system dependencies
         shell: bash
+        env:
+          MATRIX_OS: ${{ matrix.os }}
         run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
+          if [[ "$MATRIX_OS" == "ubuntu-24.04" ]]; then
             sudo apt-get update
             sudo apt-get install -y gdal-bin libgdal-dev cdo
-          elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
+          elif [[ "$MATRIX_OS" == macos-* ]]; then
             brew install gdal cdo
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          elif [[ "$MATRIX_OS" == "windows-latest" ]]; then
             # Windows: GDAL from conda-forge
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
@@ -86,8 +88,10 @@ jobs:
 
       - name: Install Python dependencies
         shell: bash
+        env:
+          MATRIX_OS: ${{ matrix.os }}
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          if [[ "$MATRIX_OS" == "windows-latest" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
             conda install pip -y
@@ -96,7 +100,7 @@ jobs:
 
           # Install GDAL Python bindings
           # Note: Skip gdal-config on Windows — conda's gdal-config is not bash-compatible
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          if [[ "$MATRIX_OS" == "windows-latest" ]]; then
             # Windows: Use GDAL from conda (already installed in previous step)
             # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
@@ -106,7 +110,7 @@ jobs:
           fi
 
           # Install CPU-only torch on Linux/Windows to save space
-          if [[ "${{ matrix.os }}" != "macos-"* ]]; then
+          if [[ "$MATRIX_OS" != macos-* ]]; then
             pip install torch --index-url https://download.pytorch.org/whl/cpu
           fi
 
@@ -125,7 +129,7 @@ jobs:
             conda activate test-env
           fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
+          pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=26 tests/unit/
 
       - name: Core coverage gate
         # Stricter ratchet for the fully-testable core spine, reusing the
