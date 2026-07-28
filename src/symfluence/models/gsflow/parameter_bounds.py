@@ -40,7 +40,7 @@ alone.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Dict, Iterator, List
+from typing import Any, Dict, Iterator, List
 
 from symfluence.core.calibration.parameters.parameter_bounds_registry import (
     ParameterInfo,
@@ -108,8 +108,12 @@ STRIP_PREFIX = 'gsflow_'
 LOCAL_ONLY: Dict[str, ParameterInfo] = {}
 
 
-def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, float]]:
-    """Strip the catalogue namespace and flatten to the bounds-dict form."""
+def _served(params: Dict[str, ParameterInfo]) -> Dict[str, Dict[str, Any]]:
+    """Strip the catalogue namespace and flatten to the bounds-dict form.
+
+    Values are mixed by design: ``min``/``max`` are floats and ``transform`` is
+    a string, matching what ``get_model_bounds`` serves.
+    """
     return {
         (name[len(STRIP_PREFIX):] if name.startswith(STRIP_PREFIX) else name): {
             'min': info.min, 'max': info.max, 'transform': info.transform,

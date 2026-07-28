@@ -18,8 +18,8 @@ src/symfluence/cli/commands/data_commands.py:DataCommands.download:except Except
 src/symfluence/cli/commands/fews_commands.py:FEWSCommands.post:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/cli/commands/fews_commands.py:FEWSCommands.pre:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/cli/commands/fews_commands.py:FEWSCommands.run_full:except Exception as exc:  # noqa: BLE001 — wrap-and-raise to domain error
-src/symfluence/cli/external_tools_config.py:_import_model_build_instructions:except Exception as exc:  # noqa: BLE001
-src/symfluence/cli/external_tools_config.py:_import_model_build_instructions:except Exception:  # noqa: BLE001
+src/symfluence/cli/external_tools_config.py:_recover_build_instructions_from_failed_plugins:except Exception as exc:  # noqa: BLE001 - recovery is best-effort by definition
+src/symfluence/cli/external_tools_config.py:_resolve_registered_build_instructions:except Exception as exc:  # noqa: BLE001 - a broken tool must not hide the rest
 src/symfluence/cli/preset_registry.py:PresetRegistry.get_all_presets:except Exception:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
 src/symfluence/cli/services/system_diagnostics.py:SystemDiagnostics._check_geospatial_compatibility:except Exception as e:  # noqa: BLE001
@@ -35,6 +35,7 @@ src/symfluence/cli/services/tool_validator.py:ToolValidator._run_test_command:ex
 src/symfluence/cli/services/tool_validator.py:ToolValidator.validate:except Exception as e:  # noqa: BLE001 — top-level fallback
 src/symfluence/core/_bootstrap.py:_discover_plugins:except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
 src/symfluence/core/base_manager.py:BaseManager._safe_visualize:except Exception as e:  # noqa: BLE001 — must-not-raise contract
+src/symfluence/core/calibration/coupled/worker.py:_evaluate_coupled_parameters_worker:except Exception as e:  # noqa: BLE001 -- calibration resilience
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -73,6 +74,7 @@ src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostPro
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor._extract_from_text:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor._read_single_output_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/core/modeling/base/standard_postprocessor.py:StandardModelPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
+src/symfluence/core/modeling/base_settings.py:get_base_settings_dir:except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
 src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_likelihood_metrics:except Exception as e:  # noqa: BLE001 — optional feature, must not break metrics
 src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_performance_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/modeling/evaluators/base.py:ModelEvaluator._calculate_period_metrics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -150,7 +152,6 @@ src/symfluence/core/profiling/platform_monitors.py:ProcessIOMonitor._monitor_loo
 src/symfluence/core/profiling/profiler_context.py:_register_worker_export:except Exception:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/profiling/system_io_profiler.py:_SubprocessProfiler.run:except Exception as e:  # noqa: BLE001 — monitoring thread
 src/symfluence/core/registry.py:Registry._validate_protocol:except Exception:  # noqa: BLE001 — advisory only, never fail
-src/symfluence/core/registry.py:_LazyEntry.resolve:except Exception:  # noqa: BLE001
 src/symfluence/core/reporting/base_plotter.py:BasePlotter._plot_safe.decorator.wrapper:except Exception as e:  # noqa: BLE001 — plotting resilience
 src/symfluence/core/reporting/base_plotter.py:BasePlotter._save_and_close:except Exception as e:  # noqa: BLE001 — plotting resilience
 src/symfluence/core/reporting/shapefile_helper.py:ShapefileHelper._load_shapefile:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -642,7 +643,6 @@ src/symfluence/models/clmparflow/postprocessor.py:CLMParFlowPostProcessor.extrac
 src/symfluence/models/clmparflow/preprocessor.py:CLMParFlowPreProcessor._get_latitude:except Exception:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/clmparflow/preprocessor.py:CLMParFlowPreProcessor._prepare_daily_rainfall:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/clmparflow/runner.py:CLMParFlowRunner._get_parflow_dir:except Exception:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/coupled/calibration/worker.py:_evaluate_coupled_parameters_worker:except Exception as e:  # noqa: BLE001 -- calibration resilience
 src/symfluence/models/crhm/calibration/optimizer.py:CRHMModelOptimizer.run_final_evaluation:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/crhm/calibration/parameter_manager.py:CRHMParameterManager.copy_params_to_worker_dir:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/crhm/calibration/parameter_manager.py:CRHMParameterManager.get_initial_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -726,6 +726,7 @@ src/symfluence/models/gr/calibration/worker.py:GRWorker.calculate_metrics:except
 src/symfluence/models/gr/calibration/worker.py:GRWorker.run_model:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/gr/extractor.py:GRResultExtractor._extract_from_csv:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/gr/postprocessor.py:<module>:except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
+src/symfluence/models/gr/postprocessor.py:GRPostProcessor._gru_areas_m2:except Exception as exc:  # noqa: BLE001 — area lookup is best-effort
 src/symfluence/models/gr/postprocessor.py:GRPostProcessor.extract_streamflow:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/gr/preprocessor.py:GRPreProcessor._apply_area_weighted_aggregation:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/gr/preprocessor.py:GRPreProcessor.prepare_forcing_data:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
@@ -785,7 +786,6 @@ src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exce
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor.__init__:except Exception:  # noqa: BLE001
 src/symfluence/models/hype/preprocessor.py:HYPEPreProcessor._create_qobs_file:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/hype/visualizer.py:visualize_hype:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/ignacio/__init__.py:register:except Exception:  # noqa: BLE001 — optional dependency
 src/symfluence/models/ignacio/calibration/parameter_manager.py:IGNACIOParameterManager.update_model_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker._compute_spatial_metrics:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/ignacio/calibration/worker.py:IGNACIOWorker.apply_parameters:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -913,7 +913,6 @@ src/symfluence/models/mizuroute/control_writer.py:ControlFileWriter._detect_runo
 src/symfluence/models/mizuroute/runner.py:MizuRouteRunner.fix_time_precision:except Exception as e:  # noqa: BLE001 — wrap-and-raise to domain error
 src/symfluence/models/mizuroute/runner.py:MizuRouteRunner.sync_control_file_dimensions:except Exception as e:  # noqa: BLE001 — model execution resilience
 src/symfluence/models/mizuroute/topology_generator.py:MizuRouteTopologyGenerator._find_closest_segment_to_pour_point:except Exception as e:  # noqa: BLE001 — model execution resilience
-src/symfluence/models/model_manager.py:ModelManager._try_dcoupler_execution:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/models/modflow/calibration/parameter_manager.py:CoupledGWParameterManager._update_modflow_files:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/modflow/calibration/targets.py:CoupledGWStreamflowTarget.extract_simulated_data:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/models/modflow/calibration/worker.py:CoupledGWWorker._run_dcoupler:except Exception as e:  # noqa: BLE001 — calibration resilience
@@ -1231,6 +1230,7 @@ src/symfluence/models/wrfhydro/preprocessor.py:WRFHydroPreProcessor.run_preproce
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._calibrate_with_registry:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/optimization/optimization_manager.py:OptimizationManager._evaluate_self_training_model:except Exception as e:  # noqa: BLE001 — calibration resilience
 src/symfluence/project/logging_manager.py:CountingHandler.emit:except Exception:  # noqa: BLE001 — logging must never raise
+src/symfluence/project/model_manager.py:ModelManager._try_dcoupler_execution:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/project_manager.py:ProjectManager.create_pour_point:except Exception as e:  # noqa: BLE001 — configuration resilience
 src/symfluence/project/system.py:SYMFLUENCE.run_all_diagnostics:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/project/system.py:SYMFLUENCE.run_diagnostics_for_step:except Exception as e:  # noqa: BLE001 — must-not-raise contract
@@ -1246,7 +1246,6 @@ src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnos
 src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnosticPlotter.plot_attributes_diagnostic:except Exception as e:  # noqa: BLE001 — reporting resilience
 src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnosticPlotter.plot_attributes_diagnostic:except Exception as e:  # noqa: BLE001 — reporting resilience
 src/symfluence/reporting/plotters/workflow_diagnostic_plotter.py:WorkflowDiagnosticPlotter.plot_domain_definition_diagnostic:except Exception as e:  # noqa: BLE001 — reporting resilience
-src/symfluence/resources/manager.py:get_base_settings_dir:except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
 src/symfluence/resources/manager.py:parse_frontmatter:except Exception:  # noqa: BLE001 — malformed frontmatter is "no frontmatter"
 src/symfluence/tui/screens/workflow_launcher.py:WorkflowLauncherScreen._run_mode:except Exception as exc:  # noqa: BLE001 — UI resilience
 src/symfluence/tui/services/agent_session.py:AgentChatSession.send:except Exception as e:  # noqa: BLE001 — the UI must get an event, not a traceback

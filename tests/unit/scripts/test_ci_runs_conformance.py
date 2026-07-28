@@ -76,7 +76,7 @@ def test_every_unit_suite_invocation_also_runs_conformance():
     assert not offenders, (
         "these CI invocations run the unit suite but not the conformance "
         "suite, so the models-absent and extraction-readiness proofs would not "
-        f"be executed:\n  " + "\n  ".join(offenders)
+        "be executed:\n  " + "\n  ".join(offenders)
     )
 
 

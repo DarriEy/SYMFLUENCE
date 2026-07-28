@@ -10,7 +10,7 @@ Supports both lumped and distributed modes.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -209,7 +209,9 @@ class GRPostProcessor(BaseModelPostProcessor):
                 )
                 return None
 
-            series = ds[streamflow_var].isel(seg=-1).to_pandas()
+            # to_pandas() is typed as DataArray | Series | DataFrame; a 1-D
+            # selection is always a Series.
+            series = cast(pd.Series, ds[streamflow_var].isel(seg=-1).to_pandas())
 
         series.index = pd.to_datetime(series.index)
         return series
@@ -273,7 +275,8 @@ class GRPostProcessor(BaseModelPostProcessor):
                 )
                 q_cms = runoff_ms.mean(dim='gru') * total_area_m2
 
-            series = q_cms.to_pandas()
+            # 1-D after the gru reduction, so always a Series.
+            series = cast(pd.Series, q_cms.to_pandas())
 
         series.index = pd.to_datetime(series.index)
         return series

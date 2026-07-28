@@ -14,6 +14,7 @@ from typing import Dict, List, cast
 
 import pandas as pd
 
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.modeling.base import ModelResultExtractor
 
 
@@ -185,7 +186,7 @@ class GRResultExtractor(ModelResultExtractor):
         if 'gru' not in ds['q_routed'].dims:
             return
 
-        raise ValueError(
+        raise ModelExecutionError(
             f"{output_file.name} is GR's per-GRU distributed runoff "
             "('q_routed', m/s over the 'gru' dimension), not basin streamflow. "
             "Converting it to discharge needs per-GRU areas, which this "
