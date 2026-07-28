@@ -94,12 +94,18 @@ warnings.filterwarnings('ignore', message='.*import failed.*')
 _CAPABILITY_MODULES = {
     "forcing_adapter": "forcing_adapters",
     "init_preset": "presets",
-    # Calibration workers are the one calibration component that is not
-    # auto-discovered: unlike optimizers and parameter managers they have no
-    # discovery pass of their own, so the coupled optimizer used to resolve a
-    # participant's worker by hardcoding the ``symfluence.models.<name>``
-    # layout — a path no external plugin can ever satisfy.
+    # Calibration workers had no discovery pass of their own, so the coupled
+    # optimizer used to resolve a participant's worker by hardcoding the
+    # ``symfluence.models.<name>`` layout — a path no external plugin can ever
+    # satisfy.
     "calibration/worker": "workers",
+    # Parameter managers DID have a discovery pass, but only inside
+    # ``symfluence.optimization.parameter_managers`` — a DEPRECATED shim due for
+    # removal at 2.0. Nothing else imported it, so after a plain
+    # ``import symfluence`` six models (GR, HYPE, MESH, NGEN, PIHM, RHESSYS)
+    # had no parameter manager registered at all, and the registry's only
+    # population path was a module scheduled for deletion.
+    "calibration/parameter_manager": "parameter_managers",
 }
 
 

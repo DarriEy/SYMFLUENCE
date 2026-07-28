@@ -75,11 +75,11 @@ _REQUIRED_COMPONENTS = ("runners", "preprocessors", "postprocessors", "config_sc
 #: fails until the entry is removed here, so the exemption cannot outlive the
 #: reason for it.
 _KNOWN_PARTIAL_REGISTRATIONS = {
-    # Trained by gradient descent during the run step (self_training=True); its
-    # register() contributes a config adapter, a result extractor and a schema
-    # but never reaches model_manifest's runner/preprocessor/postprocessor
-    # arguments. Its runner.py is resolved lazily by name, not from R.runners.
-    "GNN": {"runners", "preprocessors", "postprocessors"},
+    # (GNN was exempt here until its runner/preprocessor/postprocessor were
+    # registered. It had never registered them — `git log -S` back to the
+    # registry unification — so ~1275 lines of importable, contract-conformant
+    # code were unreachable and the model could not run at all. LSTM, equally
+    # self_training=True, had always registered all three.)
     # Routing model: nothing post-processes a mizuRoute run through the model
     # postprocessor tier — the routed output is consumed by the analysis stack.
     "MIZUROUTE": {"postprocessors"},
@@ -170,14 +170,15 @@ _CALIBRATION_REGISTRIES = ("workers", "optimizers", "parameter_managers")
 def drained_calibration_registries():
     """Fire every path that contributes a calibration component.
 
-    The three registries share one deferred seeder, which imports
-    ``optimization.model_optimizers`` — and that auto-discovers only each
-    package's ``calibration/optimizer`` module. Six models' parameter managers
-    (GR, HYPE, MESH, NGEN, PIHM, RHESSYS) therefore register only once
-    ``optimization.parameter_managers`` is imported, and the workers only once
-    the declared worker modules are drained. Doing all of it explicitly makes
-    this test independent of whatever else the session happened to import
-    first, which is the difference between a frozen set and a flaky one.
+    Doing it explicitly makes this test independent of whatever else the
+    session happened to import first, which is the difference between a frozen
+    set and a flaky one.
+
+    Note this fixture cannot detect the seeding gap it used to describe — it
+    imports the deprecated ``optimization.parameter_managers`` shim itself, so
+    the six models whose parameter managers only that shim reached would look
+    registered either way. ``test_parameter_managers_register_without_the_
+    deprecated_shim`` is the guard for that; keep them separate.
     """
     import importlib
 
@@ -304,3 +305,53 @@ def test_no_in_tree_plugin_entry_point_failed(clean_import_probe):
     assert failed_in_tree == [], (
         f"in-tree model entry points failed to load: {failed_in_tree}"
     )
+
+
+_SHIM_FREE_SEEDING = r'''
+import sys
+
+import symfluence  # noqa: F401  — bootstrap runs plugin discovery
+from symfluence.core.registries import R
+
+# Reading the registry fires its deferred seeder. Nothing here imports the
+# deprecated optimization.parameter_managers shim.
+missing = [
+    name for name in ("GR", "HYPE", "MESH", "NGEN", "PIHM", "RHESSYS")
+    if R.parameter_managers.get(name) is None
+]
+assert not missing, f"no parameter manager registered for {missing}"
+
+shim = "symfluence.optimization.parameter_managers"
+assert shim not in sys.modules, (
+    f"{shim} was imported — the registry is still being populated through the "
+    "deprecated path rather than by the packages' own declarations"
+)
+print("SHIM-FREE-SEEDING-OK")
+'''
+
+
+def test_parameter_managers_register_without_the_deprecated_shim():
+    """Six models' parameter managers must not depend on a 2.0-removal path.
+
+    ``_seed_model_optimizers`` imports ``optimization.model_optimizers``, which
+    auto-discovers only each package's ``calibration/optimizer`` module. The one
+    pass that reached ``calibration/parameter_manager`` lived inside
+    ``optimization.parameter_managers`` — a deprecated shim — so GR, HYPE, MESH,
+    NGEN, PIHM and RHESSYS had no parameter manager after a plain
+    ``import symfluence``, and ``component_factory.create_parameter_manager``
+    raised for them. They are declared and drained now; this fails if that
+    regresses, or if the shim quietly becomes load-bearing again.
+
+    Runs in a subprocess because the assertion is about what a FRESH
+    interpreter registers — in-process, any earlier test that touched the shim
+    would mask it.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", _SHIM_FREE_SEEDING],
+        capture_output=True, text=True, timeout=300,
+    )
+    assert result.returncode == 0, (
+        f"parameter-manager seeding regressed.\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert "SHIM-FREE-SEEDING-OK" in result.stdout

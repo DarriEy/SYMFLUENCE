@@ -71,6 +71,12 @@ def bootstrap() -> None:
     # service liftoff), so first lookup triggers the import.
     R.acquisition_handlers.set_seeder(_seed_acquisition_handlers)
     R.observation_handlers.set_seeder(_seed_observation_handlers)
+    # Deferred: build instructions register by decorator when a package's
+    # build_instructions module is imported, and packages DECLARE that module
+    # rather than the framework hunting for it on disk. Without a seeder the
+    # entries appear only once some consumer happens to drain the declarations,
+    # which made `R.build_instructions.get(...)` depend on what ran first.
+    R.build_instructions.set_seeder(_seed_build_instructions)
     _discover_plugins()
 
 
@@ -86,6 +92,13 @@ def _seed_observation_handlers() -> None:
     import importlib
 
     importlib.import_module("symfluence.data.observation")
+
+
+def _seed_build_instructions() -> None:
+    """Drain the build-instruction modules packages have declared."""
+    from symfluence.core.registries import R
+
+    R.build_instructions.load_modules()
 
 
 def _seed_delineation_strategies() -> None:
@@ -121,6 +134,18 @@ def _seed_model_optimizers() -> None:
         "symfluence.core.calibration.coupled.worker",
     ):
         importlib.import_module(module)
+
+    # Parameter managers register by decorator when their module is imported,
+    # and importing model_optimizers above does not reach them: that pass
+    # discovers only calibration/optimizer modules. The one pass that DID reach
+    # them lives in symfluence.optimization.parameter_managers, a deprecated
+    # shim due for removal at 2.0 — so six models had no parameter manager
+    # registered after a plain `import symfluence`, and the registry's only
+    # population path was a module scheduled for deletion. Drain the packages'
+    # own declarations instead, which works for external plugins too.
+    from symfluence.core.registries import R
+
+    R.parameter_managers.load_modules()
 
 
 def _bootstrap_delineation_aliases(R: type) -> None:  # noqa: N803

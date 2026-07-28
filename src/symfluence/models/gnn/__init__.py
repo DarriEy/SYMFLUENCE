@@ -41,6 +41,8 @@ from .extractor import GNNResultExtractor
 
 def register() -> None:
     """Register GNN components with the unified registry."""
+    from symfluence.core.registries import Registries as R
+
     model_manifest(
         "GNN",
         config_adapter=GNNConfigAdapter,
@@ -50,6 +52,15 @@ def register() -> None:
         # skip it rather than reporting a failure.
         self_training=True,
     )
+    # GNN had never registered these, so R.runners.get('GNN') was None and its
+    # runner/preprocessor/postprocessor (~1275 lines, all importable, with
+    # GNNRunner subclassing BaseModelRunner) were unreachable — the model could
+    # not be executed through the registry at all. Not a self-training
+    # exemption: LSTM is equally self_training=True and registers all three.
+    base = 'symfluence.models.gnn'
+    R.preprocessors.add_lazy("GNN", f"{base}.preprocessor.GNNPreProcessor")
+    R.runners.add_lazy("GNN", f"{base}.runner.GNNRunner")
+    R.postprocessors.add_lazy("GNN", f"{base}.postprocessor.GNNPostProcessor")
 
     from symfluence.core.modeling.spatial_modes import (
         ModelSpatialCapability,

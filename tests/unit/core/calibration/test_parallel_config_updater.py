@@ -10,13 +10,20 @@ special cases in the file-manager rewriter. Those values now live on each
 model's registered ``ModelConfigSchema.parallel_calibration``.
 
 This module pins the *generated control-file settings*, per model, line for
-line — not merely that the code runs. The values asserted are the ones core
-produced before the move, including the ones known to disagree with what the
-model actually writes (GR's ``hru``/``hruId`` and ``3600``; HYPE's
-``*_timestep.nc``). Those are recorded as-is and tracked separately: an
-extraction pass must not change a calibration artifact mid-campaign, and a
-value that quietly "improves" here is exactly the kind of regression that is
+line — not merely that the code runs. The values started as exactly what core
+produced before the move, so the extraction was a provable no-op: a value that
+quietly "improves" during a refactor is the kind of regression that is
 expensive to attribute.
+
+GR's have since been corrected deliberately, in their own change: its
+``hru``/``hruId``, ``3600`` and 01:00/23:00 contradicted the daily
+``(time, gru)``/``gruId`` file its runner writes, and the non-parallel writer
+already had all three right. HYPE's ``*_timestep.nc`` is still recorded as-is —
+nothing in the HYPE package writes it, and HYPE is no longer a routable source,
+so the branch is reachable only through a hand-placed control file.
+
+An assertion here is therefore a decision. Change one only alongside the
+declaration it mirrors, and say why.
 """
 from __future__ import annotations
 
@@ -147,16 +154,17 @@ _EXPECTED_CONTROL = {
     ],
     # GR keeps its runoff-declaration filename with NO proc_ prefix — correct,
     # because GRRunner writes it into the per-process sim dir, which is what
-    # <input_dir> points at. The hru/hruId, 3600 and 01:00/23:00 below are the
-    # preserved-as-is values that disagree with GR's daily (time, gru) output.
+    # <input_dir> points at. CORRECTED: these were hru/hruId, 3600 and
+    # 01:00/23:00, carried verbatim out of core's table and disagreeing with
+    # GR's daily (time, gru)/'gruId' output on every count.
     'GR': [
         '<fname_qsim>            testdom_run_1_runs_def.nc    ! netCDF name for GR runoff',
         '<vname_qsim>            q_routed    ! Variable name for GR runoff',
-        '<dt_qsim>               3600    ! Time interval of input runoff in seconds',
-        '<dname_hruid>           hru     ! Dimension name for HM_HRU ID',
-        '<vname_hruid>           hruId   ! Variable name for HM_HRU ID',
-        '<sim_start>             2010-01-01 01:00    ! Time of simulation start',
-        '<sim_end>               2011-12-31 23:00    ! Time of simulation end',
+        '<dt_qsim>               86400    ! Time interval of input runoff in seconds',
+        '<dname_hruid>           gru     ! Dimension name for HM_HRU ID',
+        '<vname_hruid>           gruId   ! Variable name for HM_HRU ID',
+        '<sim_start>             2010-01-01 00:00    ! Time of simulation start',
+        '<sim_end>               2011-12-31 00:00    ! Time of simulation end',
     ],
     # HYPE: preserved verbatim although nothing in the HYPE package writes a
     # '*_timestep.nc'. See the schema comment — reachable only via a hand-placed
@@ -405,7 +413,7 @@ def test_routing_var_sentinels_fall_back_to_the_declared_default(
 @pytest.mark.parametrize('model,expected', [
     ('SUMMA', '7200'),
     ('FUSE', '86400'),
-    ('GR', '7200'),
+    ('GR', '86400'),  # was '7200': GR's cadence is pinned now, like FUSE's
     ('HYPE', '86400'),
     ('NGEN', '7200'),
 ])

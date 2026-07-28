@@ -14,22 +14,42 @@ from symfluence.core.registry import Registry
 
 @pytest.fixture(autouse=True)
 def _clean_registries():
-    """Save and restore all registries around each test."""
+    """Save and restore all registries around each test.
+
+    Registries populate lazily: a one-shot ``_seeder`` fires on first READ, and
+    declared modules are imported on ``load_modules()``. Both must be spent
+    before snapshotting, for two reasons. Snapshotting an unseeded registry
+    captures nothing, so the restore reinstates emptiness — and the entries
+    cannot come back, because their decorators only fire on a module's first
+    import and it is cached in ``sys.modules`` by then. Worse for this file: a
+    test that registers a fake and then READS it triggers the seeder mid-test,
+    which imports the real components over the top of the fake. That is what
+    made ``test_lowercase_delineation`` and ``test_lowercase_data_registries``
+    fail — the real LumpedWatershedDelineator replacing the fake between the
+    ``add`` and the ``get``.
+    """
     saved = {}
     for name, reg in Registries.all_registries().items():
+        reg._ensure_seeded()
+        reg.load_modules()
         saved[name] = (
             dict(reg._entries),
             dict(reg._meta),
             dict(reg._aliases),
+            list(reg._modules),
+            set(reg._loaded_modules),
         )
         reg.clear()
     yield
     for name, reg in Registries.all_registries().items():
         reg.clear()
-        entries, meta, aliases = saved[name]
+        entries, meta, aliases, modules, loaded = saved[name]
         reg._entries.update(entries)
         reg._meta.update(meta)
         reg._aliases.update(aliases)
+        reg._modules[:] = modules
+        reg._loaded_modules.clear()
+        reg._loaded_modules.update(loaded)
 
 
 class _FakePreprocessor:

@@ -281,23 +281,24 @@ def _create_gr_schema() -> ModelConfigSchema:
         # to the per-process sim_dir, and ConfigurationUpdater points
         # <input_dir> at that same directory, so the path already disambiguates.
         #
-        # KNOWN WRONG, preserved value-for-value from core's table and reported
-        # rather than fixed here. All three disagree with GR's actual daily,
-        # gru-dimensioned output, and the non-parallel writer
-        # (models/mizuroute/control_writer.py) gets each of them right:
-        #   * hru_dim/hru_var say hru/hruId; GR writes (time, gru) with 'gruId'.
-        #   * dt_qsim=None -> SETTINGS_MIZU_ROUTING_DT ('3600'); GR is daily
-        #     ('86400' in ``runoff`` above).
-        #   * sim times 01:00/23:00; GR's daily data needs midnight alignment.
+        # Corrected to match what GR writes, after being carried verbatim out of
+        # core's table. `_save_distributed_results_for_routing` (gr/runner.py)
+        # writes dims ('time', 'gru') with a 'gruId' variable in m/s, daily —
+        # so the previous hru/hruId, SETTINGS_MIZU_ROUTING_DT-derived '3600' and
+        # 01:00/23:00 window disagreed with the file on every count, while the
+        # non-parallel writer (models/mizuroute/control_writer.py) had all three
+        # right. Parallel GR + mizuRoute therefore emitted a control file naming
+        # hruId against a gru-dimensioned file; the values now match FUSE, which
+        # is likewise daily and gru-dimensioned.
         parallel_calibration=ParallelCalibrationConfig(
             fname_pattern='{domain_name}_{experiment_id}_runs_def.nc',
             runoff_var='q_routed',
             runoff_var_from_config=True,
-            dt_qsim=None,
-            sim_start_time='01:00',
-            sim_end_time='23:00',
-            hru_dim='hru',
-            hru_var='hruId',
+            dt_qsim='86400',
+            sim_start_time='00:00',
+            sim_end_time='00:00',
+            hru_dim='gru',
+            hru_var='gruId',
         ),
         spatial_mode_key='GR_SPATIAL_MODE',
         routing_key='GR_ROUTING_INTEGRATION',
