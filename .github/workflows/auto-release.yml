@@ -16,7 +16,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on the submission branch
+        id: guard
+        run: |
+          git fetch origin submission:refs/remotes/origin/submission
+          if git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/submission; then
+            echo "Tag commit is on submission branch — proceeding with release."
+            echo "on_submission=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag commit is NOT on the submission branch — skipping release creation."
+            echo "on_submission=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub Release
+        if: steps.guard.outputs.on_submission == 'true'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
