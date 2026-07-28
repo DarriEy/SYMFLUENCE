@@ -29,6 +29,10 @@
       "orcid": "0000-0003-0452-0284"
     },
     {
+      "name": "Clark, Martyn P.",
+      "orcid": "0000-0002-2186-2625"
+    },
+    {
       "name": "Gautier, Camille"
     },
     {
@@ -73,11 +77,6 @@
     }
   ],
   "contributors": [
-    {
-      "name": "Clark, Martyn P.",
-      "orcid": "0000-0002-2186-2625",
-      "type": "Supervisor"
-    },
     {
       "name": "Pietroniro, Alain",
       "orcid": "0000-0001-5792-9177",
