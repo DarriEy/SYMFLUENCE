@@ -232,3 +232,80 @@ class TestTauDEMIntegration:
 
                 # Run the TauDEM workflow (this will fail at gagewatershed but we test the setup)
                 # Note: This is a partial test - full integration requires TauDEM installation
+
+
+class TestGagewatershedSelection:
+    """Tests for selecting the outlet drainage area from gagewatershed regions.
+
+    ``gagewatershed`` writes one *nested* region per gauge, labelled with that
+    gauge's 0-based id. Two failure modes are covered here: the id-0 labelling that
+    used to make the pixel-exact path raise (sending every lumped delineation down
+    the streamnet fallback, which overshoots downstream of the gauge), and the
+    multi-gauge case where dissolving every region would fuse unrelated watersheds.
+    """
+
+    @staticmethod
+    def _delineator(mock_config_dict, mock_logger, tmp_path):
+        mock_config_dict['PROJECT_DIR'] = str(tmp_path)
+        with patch('symfluence.geospatial.geofabric.delineators.lumped_delineator.TauDEMExecutor'):
+            with patch('symfluence.geospatial.geofabric.delineators.lumped_delineator.GDALProcessor'):
+                from symfluence.geospatial.geofabric.delineators.lumped_delineator import (
+                    LumpedWatershedDelineator,
+                )
+                return LumpedWatershedDelineator(mock_config_dict, mock_logger)
+
+    @staticmethod
+    def _regions(ids):
+        from shapely.geometry import box
+        return gpd.GeoDataFrame(
+            {'ID': list(ids)},
+            geometry=[box(i, 0, i + 1, 1) for i in range(len(ids))],
+            crs='EPSG:4326',
+        )
+
+    def test_reads_id_tree(self, mock_config_dict, mock_logger, tmp_path):
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        p = tmp_path / "watershed_id.txt"
+        p.write_text("id iddown\n0 -1\n1 0\n2 1\n")
+
+        assert d._read_gagewatershed_id_tree(p) == {0: -1, 1: 0, 2: 1}
+
+    def test_missing_id_tree_returns_none(self, mock_config_dict, mock_logger, tmp_path):
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        assert d._read_gagewatershed_id_tree(tmp_path / "absent.txt") is None
+
+    def test_single_gauge_region_is_kept(self, mock_config_dict, mock_logger, tmp_path):
+        """The single-gauge case is labelled id 0 and must survive untouched."""
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        regions = self._regions([0])
+
+        out = d._select_gagewatershed_basin(regions, {0: -1})
+
+        assert out['ID'].tolist() == [0]
+
+    def test_keeps_only_regions_draining_to_outlet(self, mock_config_dict, mock_logger, tmp_path):
+        """Gauges 0<-1<-2 drain to the outlet; gauges 7,8 are a separate network."""
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        regions = self._regions([0, 1, 2, 7, 8])
+        id_tree = {0: -1, 1: 0, 2: 1, 7: 8, 8: 7}  # 7/8 form a cycle, no outlet
+
+        out = d._select_gagewatershed_basin(regions, id_tree)
+
+        assert sorted(out['ID'].tolist()) == [0, 1, 2]
+
+    def test_falls_back_to_all_regions_without_topology(self, mock_config_dict, mock_logger, tmp_path):
+        """No id file: keep everything rather than silently dropping drainage area."""
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        regions = self._regions([0, 1, 2])
+
+        out = d._select_gagewatershed_basin(regions, None)
+
+        assert sorted(out['ID'].tolist()) == [0, 1, 2]
+
+    def test_falls_back_when_no_outlet_in_topology(self, mock_config_dict, mock_logger, tmp_path):
+        d = self._delineator(mock_config_dict, mock_logger, tmp_path)
+        regions = self._regions([0, 1])
+
+        out = d._select_gagewatershed_basin(regions, {0: 1, 1: 0})
+
+        assert sorted(out['ID'].tolist()) == [0, 1]

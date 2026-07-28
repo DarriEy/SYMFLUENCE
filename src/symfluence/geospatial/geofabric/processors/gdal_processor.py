@@ -191,16 +191,26 @@ class GDALProcessor:
 
     def raster_to_polygon(self, raster_path: Path, output_shp_path: Path):
         """
-        Convert a raster to a polygon shapefile.
+        Convert a watershed raster to a polygon shapefile.
 
-        Used by lumped delineation. Filters to keep only polygon with ID = 1.
+        Keeps every polygon covering valid (non-nodata) cells, carrying the cell
+        value through in the ``ID`` field so callers can select by basin ID.
+
+        This used to filter to ``ID == 1``, which silently broke the pixel-exact
+        lumped path: TauDEM's ``gagewatershed`` labels each basin with the *gauge's*
+        id from ``moveoutletstostreams``, and that id is 0-based — a single-gauge
+        run produces a watershed of value 0, never 1. The filter therefore raised on
+        every lumped delineation and the caller fell back to dissolving streamnet
+        sub-watersheds, whose outlet polygon extends downstream past the gauge
+        (Bow at Banff: 2248 km^2 instead of 2208 km^2, gauge 3.7 km inside the
+        boundary rather than on it).
 
         Args:
             raster_path: Path to the input raster file
             output_shp_path: Path to save the output shapefile
 
         Raises:
-            ValueError: If no polygon with ID = 1 is found
+            ValueError: If the raster contains no valid (non-nodata) cells
         """
         gdal.UseExceptions()
         ogr.UseExceptions()
@@ -208,6 +218,8 @@ class GDALProcessor:
         # Open the raster
         raster = gdal.Open(str(raster_path))
         band = raster.GetRasterBand(1)
+        nodata = band.GetNoDataValue()
+        raster_wkt = raster.GetProjection()
 
         # Create a temporary shapefile
         temp_shp_path = output_shp_path.with_name(output_shp_path.stem + "_temp.shp")
@@ -219,8 +231,9 @@ class GDALProcessor:
         field_def = ogr.FieldDefn("ID", ogr.OFTInteger)
         temp_layer.CreateField(field_def)
 
-        # Polygonize the raster
-        gdal.Polygonize(band, None, temp_layer, 0, [], callback=None)
+        # Polygonize the raster. The band's own validity mask excludes nodata
+        # cells, so only real watershed cells become polygons.
+        gdal.Polygonize(band, band.GetMaskBand(), temp_layer, 0, [], callback=None)
 
         # Close the temporary datasource
         temp_ds = None
@@ -229,13 +242,21 @@ class GDALProcessor:
         # Read the temporary shapefile with geopandas
         gdf = gpd.read_file(temp_shp_path)
 
-        # Filter to keep only the shape with ID = 1
-        filtered_gdf = gdf[gdf['ID'] == 1]
-        filtered_gdf = filtered_gdf.set_crs('epsg:4326')
+        # Drop anything that slipped through as nodata (older GDAL builds hand back
+        # a mask band that does not honour the nodata value on every driver).
+        if nodata is not None:
+            gdf = gdf[gdf['ID'] != int(nodata)]
+        filtered_gdf = gdf.sort_values('ID').reset_index(drop=True)
+        filtered_gdf = filtered_gdf.set_crs(raster_wkt or 'epsg:4326')
 
         if filtered_gdf.empty:
-            self.logger.error("No polygon with ID = 1 found in the watershed shapefile.")
-            raise ValueError("No polygon with ID = 1 found in the watershed shapefile.")
+            self.logger.error(f"No valid (non-nodata) cells found in watershed raster: {raster_path}")
+            raise ValueError(f"No valid (non-nodata) cells found in watershed raster: {raster_path}")
+
+        self.logger.debug(
+            f"Polygonized {raster_path.name} to {len(filtered_gdf)} polygon(s) "
+            f"with ID(s): {sorted(filtered_gdf['ID'].unique().tolist())[:10]}"
+        )
 
         # Save the filtered GeoDataFrame to the final shapefile
         filtered_gdf.to_file(output_shp_path)

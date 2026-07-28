@@ -629,11 +629,112 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
         return selected
 
+    def _read_gagewatershed_id_tree(self, id_path: Path) -> Optional[Dict[int, int]]:
+        """Parse TauDEM gagewatershed's ``-id`` file into an ``{id: iddown}`` map.
+
+        The file is a two-column table (``id iddown``) describing how the gauge
+        watersheds nest: ``iddown`` is the id of the next gauge downstream, or -1
+        for an outlet. Returns None when the file is missing or unparseable.
+        """
+        if not id_path.exists() or id_path.stat().st_size == 0:
+            return None
+
+        try:
+            tree: Dict[int, int] = {}
+            with open(id_path, "r") as handle:
+                for line in handle:
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    try:
+                        tree[int(parts[0])] = int(parts[1])
+                    except ValueError:
+                        continue  # header row ("id iddown")
+            return tree or None
+        except (OSError, UnicodeDecodeError) as e:
+            # open()/read can fail on permissions or a mid-read IO error, and a
+            # binary file raises UnicodeDecodeError. The int() ValueError from a
+            # header row is handled inline above; anything else is a real bug and
+            # should surface rather than silently degrade to 'no topology'.
+            self.logger.warning(f"Could not parse gagewatershed id file {id_path}: {e}")
+            return None
+
+    def _select_gagewatershed_basin(
+        self,
+        watershed_gdf: gpd.GeoDataFrame,
+        id_tree: Optional[Dict[int, int]],
+    ) -> gpd.GeoDataFrame:
+        """Reduce polygonized gagewatershed regions to the outlet's drainage area.
+
+        ``gagewatershed`` writes one region per gauge, and those regions are
+        *nested*: an upstream gauge's area is carved out of the downstream gauge's
+        region rather than included in it. Dissolving every region would therefore
+        be correct only when the pour-point file holds a single gauge. Domains with
+        several gauges (e.g. Bow at Calgary carries 10) would otherwise fuse
+        unrelated watersheds into one bogus "lumped" basin.
+
+        Select the outlet gauge (``iddown == -1``) plus everything that drains
+        through it, then dissolve. Falls back to keeping every region — the old
+        behaviour — when the id topology is unavailable, which is correct for the
+        single-gauge case that dominates lumped delineation.
+        """
+        if 'ID' not in watershed_gdf.columns or len(watershed_gdf) <= 1:
+            return watershed_gdf
+
+        if not id_tree:
+            self.logger.warning(
+                f"gagewatershed id topology unavailable; keeping all "
+                f"{len(watershed_gdf)} watershed region(s) for the lumped basin"
+            )
+            return watershed_gdf
+
+        roots = [gid for gid, downstream in id_tree.items() if downstream == -1]
+        if not roots:
+            self.logger.warning(
+                "gagewatershed id topology has no outlet (no iddown == -1); "
+                "keeping all watershed regions"
+            )
+            return watershed_gdf
+        if len(roots) > 1:
+            self.logger.warning(
+                f"gagewatershed id topology has {len(roots)} independent outlets "
+                f"{sorted(roots)}; the lumped basin will span all of them"
+            )
+
+        # Walk upstream from each outlet: ids whose iddown points at something
+        # already selected drain through it.
+        selected_ids = set(roots)
+        pending = list(roots)
+        while pending:
+            current = pending.pop()
+            for gid, downstream in id_tree.items():
+                if downstream == current and gid not in selected_ids:
+                    selected_ids.add(gid)
+                    pending.append(gid)
+
+        selected = watershed_gdf[watershed_gdf['ID'].isin(selected_ids)].copy()
+        if selected.empty:
+            self.logger.warning(
+                f"No gagewatershed polygon matched the outlet id set {sorted(selected_ids)}; "
+                "keeping all watershed regions"
+            )
+            return watershed_gdf
+
+        dropped = len(watershed_gdf) - len(selected)
+        if dropped:
+            self.logger.info(
+                f"Selected {len(selected)} gagewatershed region(s) draining to outlet "
+                f"gauge(s) {sorted(roots)}; excluded {dropped} region(s) belonging to "
+                "gauges outside that drainage network"
+            )
+        return selected
+
     def _warn_if_fallback_area_looks_inconsistent(
         self,
         watershed_gdf: gpd.GeoDataFrame,
         gauges_shp: Path,
-        ad8_raster: Path
+        ad8_raster: Path,
+        tolerance: float = 0.05
     ) -> None:
         """
         Compare fallback gagewatershed polygon area against outlet aread8 contributing area.
@@ -714,7 +815,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
                 area_ratio = fallback_polygon_area / expected_area_from_ad8
                 relative_diff = abs(fallback_polygon_area - expected_area_from_ad8) / expected_area_from_ad8
 
-                if relative_diff > 0.25:
+                if relative_diff > tolerance:
                     self.logger.warning(
                         "gagewatershed fallback area differs materially from outlet aread8 contributing area: "
                         f"fallback_area={fallback_polygon_area:.6f}, "
@@ -809,6 +910,13 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
                         if watershed_gdf.crs is None:
                             watershed_gdf = watershed_gdf.set_crs("EPSG:4326")
 
+                        # Keep only the regions that drain through the outlet gauge
+                        # before dissolving — see _select_gagewatershed_basin.
+                        watershed_gdf = self._select_gagewatershed_basin(
+                            watershed_gdf,
+                            self._read_gagewatershed_id_tree(self.interim_dir / "watershed_id.txt"),
+                        )
+
                         if len(watershed_gdf) > 1:
                             self.logger.info(
                                 f"Dissolving {len(watershed_gdf)} gagewatershed polygons into single lumped basin"
@@ -870,6 +978,16 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
                         raise RuntimeError(
                             "All lumped basin delineation strategies failed: gagewatershed, streamnet, and valid-mask."
                         ) from e
+
+                # Every fallback dissolves whole streamnet sub-watersheds, and the
+                # outlet sub-watershed extends downstream past the gauge. Compare the
+                # result against the aread8 contributing area at the snapped outlet so
+                # an over-large basin is flagged instead of shipping silently.
+                self._warn_if_fallback_area_looks_inconsistent(
+                    watershed_gdf=watershed_gdf,
+                    gauges_shp=gauges_shp,
+                    ad8_raster=self.interim_dir / "elv-ad8.tif",
+                )
 
             if watershed_gdf.crs is None:
                 watershed_gdf = watershed_gdf.set_crs("EPSG:4326")
