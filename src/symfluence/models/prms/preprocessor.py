@@ -353,7 +353,8 @@ class PRMSPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
                     zz = np.where(m, z, np.nan)
                     dy, dx = np.gradient(zz, ym, xm)
                     slope = np.degrees(np.arctan(np.hypot(dx, dy)))
-                    asp = (np.degrees(np.arctan2(-dy, dx)) + 360.0) % 360.0
+                    # Compass bearing of the downslope direction (0=N, 90=E).
+                    asp = np.degrees(np.arctan2(-dx, dy)) % 360.0
                     props['slope'] = float(np.nanmean(slope[m]))
                     a = np.radians(asp[m])
                     props['aspect'] = float(

@@ -470,9 +470,10 @@ class DataPreProcessor(ConfigMixin):
             if n_clipped > 0:
                 print(f"Clipped {n_clipped} DEM cells to max tan_slope {max_tan_slope:.3f} to suppress artifacts")
 
-            aspect_rad = np.arctan2(-dy, dx)
-            aspect_deg = np.degrees(aspect_rad)
-            aspect_deg = (90 - aspect_deg) % 360
+            # Compass bearing of the downslope direction: rows increase
+            # southwards and columns eastwards, so that direction is
+            # (-dx, +dy) in (east, north) and the bearing is atan2(east, north).
+            aspect_deg = np.degrees(np.arctan2(-dx, dy)) % 360
 
             flat_threshold = 1e-6
             flat_mask = slope_magnitude < flat_threshold

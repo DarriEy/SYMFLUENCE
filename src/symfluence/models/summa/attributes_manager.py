@@ -462,12 +462,11 @@ class SummaAttributesManager(ConfigurableMixin):
                 # Calculate gradients
                 dy, dx = np.gradient(dem.astype(np.float64), cell_size_y, cell_size_x)
 
-                # Calculate aspect in radians (-π to π)
-                aspect_rad = np.arctan2(-dy, dx)  # Note: -dy because aspect is measured from North
-
-                # Convert to degrees (0 to 360, where 0/360 = North, 90 = East, 180 = South, 270 = West)
-                aspect_deg = np.degrees(aspect_rad)
-                aspect_deg = (90 - aspect_deg) % 360  # Convert from math convention to compass bearing
+                # Aspect is the compass bearing of the downslope direction. Rows
+                # increase southwards and columns eastwards, so that direction is
+                # (-dx, +dy) in (east, north) and the bearing is atan2(east, north),
+                # already measured clockwise from north (0/360 = N, 90 = E, 180 = S).
+                aspect_deg = np.degrees(np.arctan2(-dx, dy)) % 360
 
                 # Handle flat areas (where both dx and dy are near zero)
                 flat_mask = (np.abs(dx) < 1e-8) & (np.abs(dy) < 1e-8)
