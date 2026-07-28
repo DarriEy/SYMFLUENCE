@@ -301,7 +301,7 @@ class NgenPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             return
 
         self.logger.debug("Copying Noah-OWP parameter tables")
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
 
         try:
             noah_base_dir = get_base_settings_dir('NOAH')

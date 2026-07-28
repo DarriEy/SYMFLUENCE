@@ -79,7 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   core.base_parameter_manager,core.parameter_bounds_registry,
   parameter_managers}`, `symfluence.evaluation.metrics*`,
   `symfluence.cli.services.build_snippets*`,
-  `symfluence.geospatial.geometry_utils`): external packages should migrate
+  `symfluence.geospatial.geometry_utils`,
+  `symfluence.resources.{get_base_settings_dir,copy_base_settings_to_project}`):
+  external packages should migrate
   to the canonical `symfluence.core.*` / `symfluence.project.*` paths. The
   shims will be removed at 2.0. In-tree code no longer uses them
   (guard-enforced).
@@ -90,6 +92,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first time.
 
 ### Changed
+- **Base-settings resolution promoted to `core/modeling/base_settings.py`**,
+  breaking the `resources` <-> `core` cycle: `symfluence.resources` reached into
+  `core.registries` to pick a model's settings anchor while
+  `core/modeling/base/base_preprocessor.py` imported the resolver straight back.
+  `resources` is now data-only (it exposes `get_bundled_base_settings_dir` for
+  its OWN bundled fallback and imports nothing from `symfluence.core`), and the
+  seven model modules that read settings through `symfluence.resources`
+  (clm, fuse, mizuroute, ngen, noahmp, summa, troute) go through the core
+  contract instead. `symfluence.resources` is now a forbidden import prefix for
+  `models` in the layering guard, so the models distribution depends on
+  `symfluence.core` alone. Resolution order (registry first, bundled fallback,
+  `FileNotFoundError` otherwise) is unchanged.
 - **Forcing-adapter base promoted to `core/modeling/adapters/`** (completes
   the adapter contract tier; the per-model `forcing_adapter` modules keep
   registering through it). In-tree code and tests no longer import any

@@ -393,7 +393,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             return super().copy_base_settings(source_dir, file_patterns)
 
         self.logger.info("Copying mizuRoute base settings")
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
         base_settings_path = get_base_settings_dir('mizuRoute')
         self.setup_dir.mkdir(parents=True, exist_ok=True)
 

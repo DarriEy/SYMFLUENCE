@@ -22,75 +22,51 @@ else:
     from importlib_resources import files
 
 
-def get_base_settings_dir(model_name: str) -> Path:
+def get_bundled_base_settings_dir(model_name: str) -> Path:
     """
-    Get path to base settings directory for a specific model.
+    Get path to the *bundled* base settings directory for a model.
 
-    Works in both development and installed modes by using importlib.resources
-    to locate package data.
+    This locates only this package's OWN data — the framework-owned
+    ``symfluence/resources/base_settings/<model_name>`` directory that ships
+    fixtures (``TEST``) and the legacy central layout for models whose package
+    has not registered a ``R.base_settings`` anchor.
+
+    It is deliberately NOT the general resolver: choosing between a model
+    package's registered anchor and this bundled fallback is contract-tier
+    policy and lives in :func:`symfluence.core.modeling.base_settings.
+    get_base_settings_dir`. Keeping the policy out of here is what lets this
+    package stay data-only and stop importing ``symfluence.core`` (the two
+    packages used to import each other).
 
     Args:
-        model_name: Model name (e.g., 'FUSE', 'SUMMA', 'mizuRoute', 'troute', 'NOAH')
+        model_name: Directory name under ``resources/base_settings`` (used
+            literally, no normalization).
 
     Returns:
-        Path to base settings directory for the model
+        Path to the bundled base settings directory for the model
 
     Raises:
-        FileNotFoundError: If model base settings don't exist
-
-    Examples:
-        >>> fuse_dir = get_base_settings_dir('FUSE')
-        >>> summa_dir = get_base_settings_dir('SUMMA')
+        FileNotFoundError: If the bundled directory doesn't exist
     """
-    # Registry first: each model package registers the anchor package whose
-    # ``base_settings/`` data directory ships its template settings (in-tree
-    # packages and external plugins use the same path).
-    try:
-        from symfluence.core.registries import R
+    base_settings_root = files('symfluence.resources.base_settings')
+    model_settings = base_settings_root / model_name
 
-        anchor = R.base_settings.get(model_name)
-    except Exception:  # noqa: BLE001 — registry unavailable in stripped contexts
-        anchor = None
-    if anchor is not None:
-        try:
-            model_settings = files(anchor) / 'base_settings'
-            path = Path(model_settings) if hasattr(model_settings, '__fspath__') \
-                else Path(str(model_settings))
-            if path.exists():
-                return path
-        except (ModuleNotFoundError, AttributeError):
-            pass
+    # Convert Traversable to Path
+    # In editable mode, this is already a Path
+    # In installed mode, this is a Traversable that we convert
+    if hasattr(model_settings, '__fspath__'):
+        path = Path(model_settings)
+    else:
+        # For Traversable objects, convert to string then Path
+        path = Path(str(model_settings))
 
-    try:
-        # Central fallback (framework-owned fixtures such as TEST, and any
-        # model whose package has not registered a base_settings anchor).
-        base_settings_root = files('symfluence.resources.base_settings')
-        model_settings = base_settings_root / model_name
-
-        # Convert Traversable to Path
-        # In editable mode, this is already a Path
-        # In installed mode, this is a Traversable that we convert
-        if hasattr(model_settings, '__fspath__'):
-            path = Path(model_settings)
-        else:
-            # For Traversable objects, convert to string then Path
-            path = Path(str(model_settings))
-
-        # Verify the directory exists
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Base settings directory for model '{model_name}' not found at: {path}"
-            )
-
-        return path
-
-    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as e:
+    # Verify the directory exists
+    if not path.exists():
         raise FileNotFoundError(
-            f"Base settings for model '{model_name}' not found. It is served "
-            f"from the model package registered in R.base_settings (is the "
-            f"model package installed and registered?), with "
-            f"symfluence.resources.base_settings as the legacy fallback."
-        ) from e
+            f"Base settings directory for model '{model_name}' not found at: {path}"
+        )
+
+    return path
 
 
 def get_config_template(template_name: str = 'config_template.yaml') -> Path:
@@ -190,49 +166,6 @@ def list_config_templates() -> list[Path]:
 
     except (FileNotFoundError, ModuleNotFoundError):
         return []
-
-
-def copy_base_settings_to_project(model_name: str, destination: Path) -> None:
-    """
-    Copy base settings files from package data to a project directory.
-
-    This is used during project initialization to copy template files
-    from the package to the user's project workspace.
-
-    Args:
-        model_name: Model name (e.g., 'FUSE', 'SUMMA')
-        destination: Destination directory path
-
-    Raises:
-        FileNotFoundError: If model base settings don't exist
-        PermissionError: If destination is not writable
-
-    Examples:
-        >>> from pathlib import Path
-        >>> dest = Path('./my_project/settings/FUSE')
-        >>> copy_base_settings_to_project('FUSE', dest)
-    """
-    source_dir = get_base_settings_dir(model_name)
-
-    # Create destination directory
-    destination.mkdir(parents=True, exist_ok=True)
-
-    # Copy all files from source to destination
-    if not source_dir.is_dir():
-        raise FileNotFoundError(f"Base settings directory not found: {source_dir}")
-
-    # Recursively copy all files and subdirectories
-    for item in source_dir.rglob('*'):
-        if item.is_file():
-            # Compute relative path from source_dir
-            rel_path = item.relative_to(source_dir)
-            dest_file = destination / rel_path
-
-            # Create parent directories if needed
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-
-            # Copy file
-            shutil.copy2(item, dest_file)
 
 
 def get_system_deps_registry_path() -> Path:

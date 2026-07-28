@@ -350,11 +350,12 @@ class CLMSurfaceGenerator:
         """Copy default clm5_params.nc to the project parameters directory.
 
         Resolution order:
-        1. Bundled resource (symfluence/resources/base_settings/CLM/)
+        1. Packaged base settings (resolved via the core contract; served from
+           this package's own base_settings/ directory)
         2. CLM install path (<install>/share/clm5_params.nc)
         3. Error with download URL
         """
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
 
         params_file = self.pp._get_config_value(
             lambda: self.pp.config.model.clm.params_file,

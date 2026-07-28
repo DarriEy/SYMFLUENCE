@@ -428,6 +428,15 @@ BOUNDARY_RULES: List[BoundaryRule] = [
             "symfluence.agent",
             "symfluence.fews",
             "symfluence.geospatial",
+            # Bundled assets. Seven model modules used to import
+            # ``symfluence.resources.get_base_settings_dir`` for their own
+            # settings data; the resolution now lives in
+            # ``core.modeling.base_settings`` (which also broke the
+            # resources <-> core cycle). ``resources`` deliberately stays OUT
+            # of UPPER_LAYERS -- core reading bundled data is a downward edge --
+            # but models must reach settings through the core contract so the
+            # models distribution depends on ``symfluence.core`` alone.
+            "symfluence.resources",
             # ModelManager was promoted to project/; the shim left behind at
             # models/model_manager.py imported it at module level, so importing
             # the models package pulled in the orchestration layer. Forbidding
