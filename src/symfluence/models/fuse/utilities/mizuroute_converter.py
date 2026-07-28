@@ -201,10 +201,16 @@ class FuseToMizurouteConverter:
         if target_units in ('default', None, ''):
             target_units = 'm/s'
 
-        # Use FUSE-specific output timestep if available, otherwise fall back to FORCING_TIME_STEP_SIZE
-        # FUSE typically outputs daily values even with hourly forcing
-        timestep_seconds = int(config.get('FUSE_OUTPUT_TIMESTEP_SECONDS',
-                                          config.get('FORCING_TIME_STEP_SIZE', 86400)))
+        # FUSE writes daily output regardless of forcing cadence, so the divisor
+        # is FUSE's own output timestep and never the forcing one. This used to
+        # fall back to FORCING_TIME_STEP_SIZE, contradicting the sentence above
+        # it: with hourly forcing that divides mm/day by 3600 instead of 86400
+        # and inflates routed runoff 24-fold. Unreachable through the typed
+        # config — FUSE_OUTPUT_TIMESTEP_SECONDS carries a schema default of
+        # 86400, so the fallback never fired — but it sat one raw dict away from
+        # firing, and the parity of the two `config.get` defaults (86400 vs the
+        # forcing step) is exactly the kind of detail a later edit gets wrong.
+        timestep_seconds = int(config.get('FUSE_OUTPUT_TIMESTEP_SECONDS') or 86400)
 
         self.logger.debug(f"Converting FUSE runoff to {target_units} (timestep={timestep_seconds}s)")
 
