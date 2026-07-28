@@ -33,7 +33,6 @@ Two corrections the raw wall-clock numbers require:
 """
 from __future__ import annotations
 
-import csv
 import os
 import re
 from pathlib import Path
@@ -49,8 +48,35 @@ FIR_LOGS = Path(os.getenv(
     str(Path.home() / "Desktop/symfluence_papers_final_rev/Frank_repro/Fir-repeat-0716-2026"),
 ))
 
-_DURATION = re.compile(r"Calibrating model parameters \(Duration: ([0-9.]+)s\)")
+# The step duration ("Calibrating model parameters (Duration: ...s)") is NOT the
+# right measurement: it also contains the final evaluation, a single full-period
+# model run appended after calibration that does not parallelise. That fixed tail
+# is ~140 s on Fir and ~20 s locally — negligible against a 30-minute run, but
+# 45% of a 3.4-minute one, so including it collapses speedup exactly where
+# scaling is being tested. Timing the calibration loop instead reproduces the
+# reference Fir figure to within 0.3 min at all eight points.
+_TS = re.compile(r"(?:\d{4}-\d{2}-\d{2} )?(\d{2}):(\d{2}):(\d{2})")
+_LOOP_START = re.compile(r"Evaluating initial (?:pool|population)")
+_LOOP_END = "RUNNING FINAL EVALUATION"
 _EVALS = re.compile(r"Total evaluations: (\d+)")
+
+
+def _calibration_loop_seconds(text: str):
+    """Wall-clock of the calibration loop only, excluding the final evaluation."""
+    start = end = None
+    for line in text.splitlines():
+        m = _TS.match(line.strip())
+        if not m:
+            continue
+        t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+        if start is None and _LOOP_START.search(line):
+            start = t
+        if end is None and _LOOP_END in line:
+            end = t
+    if start is None or end is None:
+        return None
+    delta = end - start
+    return delta + 86400 if delta < 0 else delta   # run crossed midnight
 
 # Two hues, validated for colour-vision separation on all pairs (dE 24.7 under
 # protanopia); marker shape repeats the distinction so the panels survive
@@ -64,13 +90,35 @@ IDEAL = {"color": "#777777", "ls": "--", "lw": 1.1}
 FS_TITLE, FS_LABEL, FS_TICK, FS_LEGEND, FS_NOTE = 10.5, 9.5, 8.5, 8.5, 7.5
 
 
+LOCAL_LOGS = Path(os.getenv("P3_LOCAL_LOG_DIR", str(_HERE.parent / "local_logs")))
+
+
 def load_local() -> dict:
-    """Local laptop timings, keyed by strategy -> {processes: seconds}."""
+    """Local timings: calibration loop and evaluation count, per run log.
+
+    Same basis as the Fir row — the loop only, and the evaluation count, because
+    the local runs do not all execute exactly 100 evaluations either (the
+    10-process run did 103).
+    """
     out: dict = {}
-    with open(LOCAL_CSV) as fh:
-        for row in csv.DictReader(fh):
-            out.setdefault(row["strategy"], {})[int(row["num_processes"])] = \
-                float(row["wall_clock_seconds"])
+    for path in sorted(LOCAL_LOGS.glob("calib_summa_*_100evals_np*.log")):
+        m = re.search(r"calib_summa_(pp|mpi)_100evals_np(\d+)", path.name)
+        if not m:
+            continue
+        text = path.read_text(errors="ignore")
+        secs = _calibration_loop_seconds(text)
+        if secs is None:
+            continue
+        used_mpi = "Starting persistent MPI workers" in text
+        label = "MPI" if used_mpi else "ProcessPool"
+        # np=1 spawns no pool in either leg; it is the shared serial baseline, so
+        # attribute it by filename rather than by which backend appeared.
+        if int(m.group(2)) == 1:
+            label = "MPI" if m.group(1) == "mpi" else "ProcessPool"
+        evals = _EVALS.findall(text)
+        out.setdefault(label, {})[int(m.group(2))] = (
+            float(secs), int(evals[-1]) if evals else None,
+        )
     return out
 
 
@@ -89,13 +137,13 @@ def load_fir() -> dict:
             continue
         algo, cores = m.group(1), int(m.group(2))
         text = path.read_text(errors="ignore")
-        durations = _DURATION.findall(text)
-        if not durations:
+        secs = _calibration_loop_seconds(text)
+        if secs is None:
             continue
         evals = _EVALS.findall(text)
         label = "Async-DDS" if algo == "dds" else "DE"
         out.setdefault(label, {})[cores] = (
-            float(durations[-1]), int(evals[-1]) if evals else None,
+            float(secs), int(evals[-1]) if evals else None,
         )
     return out
 
@@ -153,11 +201,7 @@ def _draw_row(axes, series, baseline_units, time_scale, time_label, xlabel, pref
 
 
 def main() -> None:
-    local, fir = load_local(), load_fir()
-    # Local runs all execute the same 100-evaluation budget, so work is constant
-    # and None here means "no normalisation needed".
-    local_series = {k: {n: (t, None) for n, t in v.items()}
-                    for k, v in local.items() if k in ("ProcessPool", "MPI")}
+    local_series, fir = load_local(), load_fir()
 
     fig, axes = plt.subplots(2, 3, figsize=(13.4, 7.6))
     # Short prefixes: the evaluation-cost regime is already named in the
@@ -167,13 +211,12 @@ def main() -> None:
     _draw_row(axes[1], fir, 10, 60.0, "Wall-clock time (min)",
               "Number of cores", "DRAC Fir")
 
-    fig.suptitle("Calibration scaling: local laptop (~15 s evaluations) vs DRAC Fir (~60 s evaluations)",
-                 fontsize=FS_TITLE + 1.5, fontweight="bold", y=0.985)
-    note = ("Async-DDS normalised to time per evaluation (its 25-core run executed 124 evaluations, not 100). "
-            "DDS ~100 and DE ~200 evaluations per run: each scales against its own baseline, "
-            "and the two are not comparable in absolute time.")
-    fig.text(0.5, 0.012, note, ha="center", va="bottom", fontsize=FS_NOTE, color="#555555")
-    fig.tight_layout(rect=(0, 0.035, 1, 0.955))
+    # No figure title and no footnote: both belong to the caption in the
+    # manuscript, and repeating them here duplicates the caption and eats panel
+    # area. The measurement basis they carried — calibration loop only, speedup
+    # normalised per evaluation, DDS ~100 vs DE ~200 evaluations — is stated in
+    # the caption text delivered alongside this figure.
+    fig.tight_layout()
 
     for ext in ("png", "pdf"):
         path = OUT / f"figure_11_parallel_scaling.{ext}"
