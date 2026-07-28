@@ -168,7 +168,14 @@ _EXPECTED_RUNOFF = {
         output_dir_key="EXPERIMENT_OUTPUT_SUMMA", output_dir_name="SUMMA",
         default_var="averageRoutedRunoff", default_units="m/s", default_dt="3600",
         output_file_pattern="{experiment_id}_timestep.nc",
-        hru_dim="hru", hru_var="hruId", comment_name="SUMMA",
+        # CORRECTED from hru/hruId. averageRoutedRunoff is a basin variable:
+        # SUMMA registers it in bvar_meta and defines every bvar with needGRU,
+        # so it is always (time, gru) — confirmed on real output files, which
+        # carry BOTH dimensions, which is what made 'hru' look plausible. The
+        # old value was patched at runtime by
+        # MizuRouteRunner.sync_control_file_dimensions, so the declaration being
+        # wrong never surfaced.
+        hru_dim="gru", hru_var="gruId", comment_name="SUMMA",
     ),
     "FUSE": dict(
         output_dir_key="EXPERIMENT_OUTPUT_FUSE", output_dir_name="FUSE",

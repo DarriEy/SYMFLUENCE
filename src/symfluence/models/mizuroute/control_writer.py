@@ -280,12 +280,22 @@ class ControlFileWriter(ConfigurableMixin):
             routing_units = model_config.default_units
             routing_dt = model_config.default_dt
 
-        # Determine HRU dimension/variable (can be overridden for distributed SUMMA)
+        # Straight from the model's runoff declaration. There used to be an
+        # override here: `if self.summa_uses_gru_runoff and hru_dim == 'hru'`,
+        # promoting hru/hruId to gru/gruId. It existed because SUMMA's
+        # declaration said hru/hruId while SUMMA in fact always writes
+        # averageRoutedRunoff on (time, gru) — so the override patched a wrong
+        # declaration, and only in the cases where a count-based heuristic
+        # (n_hrus > n_grus, in the topology generator) happened to notice. At
+        # 1 HRU per GRU it did not fire, and the control file went out naming
+        # hruId for a gru-dimensioned file.
+        #
+        # With SUMMA's declaration corrected the override is unnecessary — and
+        # it was never safe: the guard keys on `hru_dim == 'hru'`, not on the
+        # model, so a flag derived from SUMMA's attributes.nc also rewrote
+        # NGEN's dims, which legitimately declares hru.
         hru_dim = model_config.hru_dim
         hru_var = model_config.hru_var
-        if self.summa_uses_gru_runoff and model_config.hru_dim == 'hru':
-            hru_dim = 'gru'
-            hru_var = 'gruId'
 
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
         cf.write(f"<fname_qsim>            {output_file}    ! netCDF name for {model_config.comment_name} runoff \n")

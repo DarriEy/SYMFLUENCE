@@ -381,19 +381,44 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             import xarray as xr
             self.logger.debug(f"Syncing control file dimensions for {netcdf_path}")
 
+            # Which variable mizuRoute will read. Its dimensions are the only
+            # authoritative answer: a SUMMA file carries BOTH 'gru' and 'hru',
+            # so picking from the file's dimension list (as this did, gru
+            # first) is a guess that happens to be right for SUMMA and wrong
+            # for any model whose runoff sits on the other one.
+            qsim_var = None
+            try:
+                for line in control_path.read_text(encoding='utf-8').splitlines():
+                    if '<vname_qsim>' in line:
+                        parts = line.split('!')[0].split()
+                        if len(parts) > 1:
+                            qsim_var = parts[-1]
+                        break
+            except OSError:
+                pass
+
             with xr.open_dataset(netcdf_path, decode_times=False) as ds:
                 dname = None
-                # Detect dimension name
-                if 'gru' in ds.dims:
-                    dname = 'gru'
-                elif 'hru' in ds.dims:
-                    dname = 'hru'
-                else:
-                    self.logger.warning(f"Could not find 'gru' or 'hru' dimension in {netcdf_path}. Available: {list(ds.dims)}")
+                if qsim_var and qsim_var in ds.variables:
+                    spatial = [d for d in ds[qsim_var].dims if d != 'time']
+                    if len(spatial) == 1:
+                        dname = spatial[0]
+                if dname is None:
+                    # Fall back to the file's dimensions when the runoff
+                    # variable cannot be identified.
+                    if 'gru' in ds.dims:
+                        dname = 'gru'
+                    elif 'hru' in ds.dims:
+                        dname = 'hru'
+                    else:
+                        self.logger.warning(f"Could not find 'gru' or 'hru' dimension in {netcdf_path}. Available: {list(ds.dims)}")
 
                 # Detect ID variable
                 vname = None
-                if 'gruId' in ds.variables:
+                # Prefer the ID variable matching the dimension actually used.
+                if dname and f'{dname}Id' in ds.variables:
+                    vname = f'{dname}Id'
+                elif 'gruId' in ds.variables:
                     vname = 'gruId'
                 elif 'hruId' in ds.variables:
                     vname = 'hruId'
@@ -420,8 +445,17 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 modified = False
                 for line in lines:
                     if '<dname_hruid>' in line:
-                        # Check if update is needed
-                        if dname not in line:
+                        # Compare the VALUE, not the whole line. `dname not in
+                        # line` was a substring test against a line whose own
+                        # tag is '<dname_hruid>' — which contains 'hru'. So for
+                        # dname='hru' the test was always False and the sync
+                        # could never rewrite gru -> hru, while the vname test
+                        # below could (its tag is lowercase 'hruid' vs the value
+                        # 'hruId'). The result was a control file left
+                        # internally inconsistent — dimension 'gru', variable
+                        # 'hruId' — while logging that it had applied 'hru'.
+                        current = line.split('!')[0].split()[-1] if line.split('!')[0].split()[1:] else ''
+                        if current != dname:
                             parts = line.split('!')
                             comment = '!' + parts[1] if len(parts) > 1 else ''
                             new_lines.append(f"<dname_hruid>           {dname}    {comment}")
@@ -429,8 +463,9 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                         else:
                             new_lines.append(line)
                     elif '<vname_hruid>' in line:
-                         # Check if update is needed
-                        if vname not in line:
+                        # Value comparison, for the same reason as above.
+                        current = line.split('!')[0].split()[-1] if line.split('!')[0].split()[1:] else ''
+                        if current != vname:
                             parts = line.split('!')
                             comment = '!' + parts[1] if len(parts) > 1 else ''
                             new_lines.append(f"<vname_hruid>           {vname}    {comment}")

@@ -75,8 +75,15 @@ def _create_summa_schema() -> ModelConfigSchema:
             default_units='m/s',
             default_dt='3600',
             output_file_pattern='{experiment_id}_timestep.nc',
-            hru_dim='hru',
-            hru_var='hruId',
+            # gru/gruId, not hru/hruId. averageRoutedRunoff is a BASIN variable:
+            # SUMMA registers it in bvar_meta and def_output.f90 defines every
+            # bvar with needGRU, so it is dimensioned (time, gru) unconditionally
+            # -- every spatial mode, every HRU:GRU ratio, regardless of
+            # outputControl.txt. Confirmed against real output files, which carry
+            # BOTH hru and gru dimensions (that is what made 'hru' look
+            # plausible) with averageRoutedRunoff on gru.
+            hru_dim='gru',
+            hru_var='gruId',
             comment_name='SUMMA',
         ),
         # Parallel calibration writes the same content under a different name:
@@ -84,12 +91,14 @@ def _create_summa_schema() -> ModelConfigSchema:
         # and SUMMA appends '_timestep.nc'.
         # runoff_var_from_config=False: SETTINGS_MIZU_ROUTING_VAR is not read on
         # SUMMA's branch (unlike FUSE/GR); the name is fixed by SUMMA's output.
-        # KNOWN WRONG, preserved value-for-value from core's table and reported
-        # rather than fixed here: hru_dim/hru_var say gru/gruId while ``runoff``
-        # above says hru/hruId. The non-parallel writer starts from hru/hruId and
-        # switches to gru/gruId only when topology detects n_hrus > n_grus
-        # (``summa_uses_gru_runoff``), so for a 1-HRU-per-GRU domain the two
-        # paths disagree.
+        # These matched ``runoff`` above only after ``runoff`` was corrected --
+        # this declaration was right all along. An earlier comment here labelled
+        # it KNOWN WRONG on the assumption that the non-parallel writer was the
+        # reference; the polarity was inverted. The non-parallel writer starts
+        # from the (previously wrong) hru/hruId and upgrades to gru/gruId only
+        # when topology sees n_hrus > n_grus, so at 1 HRU per GRU it emitted
+        # hru/hruId for a gru-dimensioned file -- masked at runtime by
+        # MizuRouteRunner.sync_control_file_dimensions rewriting it back.
         parallel_calibration=ParallelCalibrationConfig(
             fname_pattern='proc_{proc_id:02d}_{experiment_id}_timestep.nc',
             runoff_var='averageRoutedRunoff',
