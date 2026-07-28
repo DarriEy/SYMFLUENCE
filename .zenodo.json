@@ -1,6 +1,6 @@
 {
   "title": "SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration",
-  "description": "<p>SYMFLUENCE is a computational environmental modeling platform that streamlines the hydrological modeling workflow from domain setup through data acquisition, model execution, calibration, and evaluation. A four-tier layered architecture governed by typed component registries integrates hydrological models spanning multiple programming languages and modeling paradigms, unified through declarative YAML configuration with provenance captured by default.</p><p>Described and evaluated in the three-part paper series &quot;Out-standing in Every Field&quot;, &quot;The Registry as Social Contract&quot;, and &quot;From Configuration to Prediction&quot; (Eythorsson et al., 2026, Water Resources Research).</p>",
+  "description": "<p>SYMFLUENCE is a computational environmental modeling platform that streamlines the hydrological modeling workflow from domain setup through data acquisition, model execution, calibration, and evaluation. A four-tier layered architecture governed by typed component registries integrates hydrological models spanning multiple programming languages and modeling paradigms, unified through declarative YAML configuration with provenance captured by default.</p><p>Described and evaluated in the three-part paper series &quot;Out-standing in Every Field&quot;, &quot;The Registry as Social Contract&quot;, and &quot;From Configuration to Prediction&quot; (Eythorsson et al., 2026, Water Resources Research).</p><p>Authorship of this software record follows the FORCE11 software citation principles: creators made substantial contributions to the software's design, implementation, or intellectual content; contributors are credited with typed roles. Authorship of the companion papers is determined separately.</p>",
   "upload_type": "software",
   "license": "GPL-3.0-or-later",
   "keywords": [
@@ -25,91 +25,127 @@
       "orcid": "0000-0003-3653-3936"
     },
     {
-      "name": "Knoben, Wouter J. M.",
-      "orcid": "0000-0001-8301-3787"
+      "name": "Casson, Dave R.",
+      "orcid": "0000-0003-0452-0284"
     },
     {
-      "name": "Van Beusekom, Ashley",
-      "orcid": "0000-0002-6996-978X"
+      "name": "Gautier, Camille"
     },
     {
       "name": "Keshavarz, Kasra",
       "orcid": "0000-0002-7093-3928"
     },
     {
-      "name": "Thébault, Cyril",
-      "orcid": "0000-0002-4259-0497"
-    },
-    {
-      "name": "Casson, Dave R.",
-      "orcid": "0000-0003-0452-0284"
-    },
-    {
-      "name": "Moghairib, Mohamed",
-      "orcid": "0000-0003-3423-7041"
-    },
-    {
-      "name": "Vásquez, Nicolás",
-      "orcid": "0000-0002-4651-8935"
-    },
-    {
-      "name": "Woldegiorgis, Befekadu Taddesse",
-      "orcid": "0000-0002-0576-4312"
-    },
-    {
-      "name": "Gautier, Camille"
-    },
-    {
-      "name": "Wagener, Peter",
-      "orcid": "0009-0005-5560-3698"
-    },
-    {
-      "name": "Aguirre, Ignacio",
-      "orcid": "0000-0002-7722-9677"
-    },
-    {
-      "name": "Reece, Katherine Hope",
-      "orcid": "0000-0003-2402-1386"
+      "name": "Knoben, Wouter J. M.",
+      "orcid": "0000-0001-8301-3787"
     },
     {
       "name": "Liu, Hongli",
       "orcid": "0000-0002-2756-3247"
     },
     {
+      "name": "Moghairib, Mohamed",
+      "orcid": "0000-0003-3423-7041"
+    },
+    {
+      "name": "Preucil, Anthony",
+      "affiliation": "RTI International"
+    },
+    {
+      "name": "Thébault, Cyril",
+      "orcid": "0000-0002-4259-0497"
+    },
+    {
+      "name": "Van Beusekom, Ashley",
+      "orcid": "0000-0002-6996-978X"
+    },
+    {
+      "name": "Vásquez, Nicolás",
+      "orcid": "0000-0002-4651-8935"
+    },
+    {
+      "name": "Wagener, Peter",
+      "orcid": "0009-0005-5560-3698"
+    },
+    {
+      "name": "Woldegiorgis, Befekadu Taddesse",
+      "orcid": "0000-0002-0576-4312"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Clark, Martyn P.",
+      "orcid": "0000-0002-2186-2625",
+      "type": "Supervisor"
+    },
+    {
       "name": "Pietroniro, Alain",
-      "orcid": "0000-0001-5792-9177"
+      "orcid": "0000-0001-5792-9177",
+      "type": "Supervisor"
     },
     {
-      "name": "Patel, Arpita",
-      "orcid": "0000-0003-1483-1078"
+      "name": "Aguirre, Ignacio",
+      "orcid": "0000-0002-7722-9677",
+      "type": "Other"
     },
     {
-      "name": "Cunningham, Josh",
-      "orcid": "0009-0004-1765-3574"
+      "name": "Reece, Katherine Hope",
+      "orcid": "0000-0003-2402-1386",
+      "type": "Other"
     },
     {
       "name": "Hut, Rolf",
-      "orcid": "0000-0002-5697-5697"
+      "orcid": "0000-0002-5697-5697",
+      "type": "Other"
+    },
+    {
+      "name": "Patel, Arpita",
+      "orcid": "0000-0003-1483-1078",
+      "type": "Other"
+    },
+    {
+      "name": "Cunningham, Josh",
+      "orcid": "0009-0004-1765-3574",
+      "type": "Other"
     },
     {
       "name": "Halgren, James",
-      "orcid": "0009-0005-1884-1638"
+      "orcid": "0009-0005-1884-1638",
+      "type": "Other"
     },
     {
       "name": "Spiteri, Raymond J.",
-      "orcid": "0000-0002-3513-6237"
+      "orcid": "0000-0002-3513-6237",
+      "type": "Other"
     },
     {
       "name": "Read, Jordan",
-      "orcid": "0000-0002-3888-6631"
+      "orcid": "0000-0002-3888-6631",
+      "type": "Other"
     },
     {
-      "name": "Tarboton, David G.",
-      "orcid": "0000-0002-1998-3479"
+      "name": "Han, Yanlai",
+      "type": "Other"
     },
     {
-      "name": "Clark, Martyn P.",
-      "orcid": "0000-0002-2186-2625"
+      "name": "Guo, Junwei",
+      "type": "Other"
+    },
+    {
+      "name": "Coderre, Paul",
+      "type": "Other"
+    },
+    {
+      "name": "Bhattarai, Neharika",
+      "type": "Other"
+    },
+    {
+      "name": "Hatami, Shadi",
+      "type": "Other"
+    },
+    {
+      "name": "Nassar, Ayman",
+      "type": "Other"
     }
   ]
 }

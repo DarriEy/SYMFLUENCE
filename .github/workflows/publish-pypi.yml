@@ -52,10 +52,34 @@ permissions:
 
 jobs:
   # ===========================================================================
+  # Release branch gate
+  #
+  # Everything below needs `build`, so gating `build` gates the whole graph.
+  # Non-tag events (workflow_dispatch dry runs) are allowed through.
+  # ===========================================================================
+  gate:
+    name: Verify release branch
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      allowed: ${{ steps.verify.outputs.allowed }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Verify release branch
+        id: verify
+        uses: ./.github/actions/verify-release-branch
+
+  # ===========================================================================
   # Build & Validate
   # ===========================================================================
   build:
     name: Build & Validate
+    needs: gate
+    if: needs.gate.outputs.allowed == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 
