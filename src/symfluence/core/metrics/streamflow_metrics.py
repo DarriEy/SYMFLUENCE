@@ -238,6 +238,50 @@ class StreamflowMetrics:
             logger.warning(f"Error getting catchment area from {source}: {e}. Using default {default_area} km2")
             return default_area
 
+    def _area_from_river_basin(
+        self,
+        project_dir: Path,
+        domain_name: str,
+    ) -> Optional[float]:
+        """Catchment area (km2) from the delineated river-basin shapefile.
+
+        Returns None when the shapefile is absent or carries no usable area,
+        so callers fall through to the catchment/HRU lookup.
+        """
+        try:
+            import geopandas as gpd
+
+            basin_dir = project_dir / 'shapefiles' / 'river_basins'
+            if not basin_dir.exists():
+                return None
+
+            candidates = sorted(basin_dir.glob('*.shp')) or sorted(basin_dir.glob('*.gpkg'))
+            preferred = [p for p in candidates if domain_name in p.name]
+            for path in (preferred or candidates):
+                gdf = gpd.read_file(path)
+                if 'GRU_area' in gdf.columns:
+                    if 'GRU_ID' in gdf.columns and gdf['GRU_ID'].nunique() < len(gdf):
+                        area_km2 = float(gdf.drop_duplicates('GRU_ID')['GRU_area'].sum()) / 1e6
+                    else:
+                        area_km2 = float(gdf['GRU_area'].sum()) / 1e6
+                else:
+                    projected = gdf if (gdf.crs and not gdf.crs.is_geographic) \
+                        else gdf.to_crs(gdf.estimate_utm_crs())
+                    area_km2 = float(projected.geometry.area.sum()) / 1e6
+                if area_km2 > 0:
+                    logger.debug(
+                        f"Catchment area from river-basin shapefile {path.name}: "
+                        f"{area_km2:.4f} km2"
+                    )
+                    return area_km2
+        except (ImportError, OSError, RuntimeError, ValueError, KeyError,
+                AttributeError, TypeError) as e:
+            # Named rather than bare: a missing/unreadable layer, an absent
+            # column or an unprojectable CRS should fall through to the
+            # catchment lookup, not abort scoring.
+            logger.debug(f"River-basin area lookup failed ({e}); using the catchment shapefile")
+        return None
+
     def _get_area_from_shapefile(
         self,
         config: Dict[str, Any],
@@ -247,6 +291,25 @@ class StreamflowMetrics:
     ) -> float:
         """Get catchment area from shapefile/geopackage."""
         import geopandas as gpd
+
+        # Priority 0: the river-basin shapefile written by define_domain.
+        #
+        # This is the delineated basin and the same source
+        # StreamflowEvaluator._get_catchment_area() resolves, so preferring it
+        # keeps the calibration objective and the final evaluation converting
+        # mm/day -> m3/s with one area. They previously did not: the catchment
+        # lookup below resolves an experiment-scoped HRU shapefile, and on the
+        # P3 Bow-at-Banff domain 108 of 130 of those carried a stale
+        # 2248.0606 km2 against the delineation's 2207.5038 km2 — a 1.837%
+        # scaling on every simulated discharge, which showed up as FUSE
+        # reporting a calibration KGE of 0.909638 for a run the final
+        # evaluation scored at 0.904377.
+        #
+        # The delineation is also self-checking: its GRU_area column and its
+        # recomputed geometry agree, which the stale HRU files do not.
+        basin_area = self._area_from_river_basin(project_dir, domain_name)
+        if basin_area is not None:
+            return basin_area
 
         # Resolve via the shared finder: handles the nested experiment-scoped
         # layout, the GRUs/GRUS casing drift, cross-experiment shapefiles
