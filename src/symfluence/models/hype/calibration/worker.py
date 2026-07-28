@@ -456,21 +456,37 @@ class HYPEWorker(BaseWorker):
             sim_series.index = sim_series.index.normalize()
             obs_daily.index = obs_daily.index.normalize()
 
-            # Apply calibration period if configured
-            calib_period = None
-            try:
-                calib_period = config.optimization.calibration_period
-            except (AttributeError, TypeError):
-                pass
+            # Restrict scoring to the calibration period.
+            #
+            # This used to read config.optimization.calibration_period, which
+            # does not exist — the field lives on the domain section
+            # (CALIBRATION_PERIOD). The AttributeError was swallowed silently,
+            # so every HYPE calibration scored the whole overlapping record,
+            # evaluation period included: the optimizer trained on held-out
+            # data and its reported score covered a different window than the
+            # Calib_* metrics written at final evaluation. Resolve it through
+            # the canonical key, exactly as _calculate_multi_gauge_metrics does.
+            calib_period = self._resolve_config_value('CALIBRATION_PERIOD', config)
+            if not calib_period:
+                try:
+                    calib_period = config.domain.calibration_period
+                except (AttributeError, TypeError):
+                    calib_period = None
             if calib_period:
                 try:
-                    start_str, end_str = [s.strip() for s in calib_period.split(',')]
+                    start_str, end_str = [s.strip() for s in str(calib_period).split(',')]
                     calib_start = pd.to_datetime(start_str)
                     calib_end = pd.to_datetime(end_str)
                     sim_series = sim_series[(sim_series.index >= calib_start) & (sim_series.index <= calib_end)]
                     obs_daily = obs_daily[(obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)]
                 except Exception as e:  # noqa: BLE001 — calibration resilience
                     self.logger.warning(f"Could not apply calibration period: {e}", exc_info=True)
+            else:
+                # Silence here is what hid the original bug; say so loudly.
+                self.logger.warning(
+                    "No CALIBRATION_PERIOD resolved for HYPE — scoring the whole "
+                    "overlapping record, which includes any evaluation period."
+                )
 
             # Find common dates
             common_idx = sim_series.index.intersection(obs_daily.index)
