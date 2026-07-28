@@ -339,6 +339,14 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             else:
                 raise KeyError("No suitable ID column found in basins shapefile ('DN', 'value', 'ID')")
 
+        # Drop TauDEM's zero-length connector links before anything derives
+        # topology or counts from the network. They are binary-tree placeholders
+        # at 3-way confluences, carry no catchment polygon, and would otherwise
+        # leave more river segments than GRUs (and a zero-length reach for the
+        # routing model). Runs before the ds-pointer graph is built in
+        # _subset_upstream_geofabric, so the rewired topology is what gets traced.
+        rivers = self.graph.drop_degenerate_reaches(rivers, logger=self.logger)
+
         river_id_col = self._get_fabric_config(rivers)['river_id_col']
         rivers['GRU_ID'] = rivers[river_id_col]
 
