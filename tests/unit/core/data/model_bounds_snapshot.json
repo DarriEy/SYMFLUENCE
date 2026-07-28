@@ -1,0 +1,1804 @@
+{
+ "DEPTH": {
+  "shape_factor": {
+   "max": 3.0,
+   "min": 0.1
+  },
+  "total_mult": {
+   "max": 5.0,
+   "min": 0.1
+  },
+  "total_soil_depth_multiplier": {
+   "max": 5.0,
+   "min": 0.1
+  }
+ },
+ "FUSE": {
+  "BASERTE": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "FRACTEN": {
+   "max": 0.9,
+   "min": 0.1
+  },
+  "LAPSE": {
+   "max": 10.0,
+   "min": 3.0
+  },
+  "MAXWATR_1": {
+   "max": 1000.0,
+   "min": 50.0
+  },
+  "MAXWATR_2": {
+   "max": 2000.0,
+   "min": 100.0
+  },
+  "MBASE": {
+   "max": 5.0,
+   "min": -5.0
+  },
+  "MFMAX": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "MFMIN": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "PERCEXP": {
+   "max": 20.0,
+   "min": 1.0
+  },
+  "PERCRTE": {
+   "max": 100.0,
+   "min": 0.01
+  },
+  "PXTEMP": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "QBRATE_2A": {
+   "max": 0.1,
+   "min": 0.001
+  },
+  "QBRATE_2B": {
+   "max": 0.01,
+   "min": 0.0001
+  },
+  "QB_POWR": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "RTFRAC1": {
+   "max": 0.9,
+   "min": 0.1
+  },
+  "RTFRAC2": {
+   "max": 0.9,
+   "min": 0.1
+  },
+  "TIMEDELAY": {
+   "max": 10.0,
+   "min": 0.0
+  }
+ },
+ "GR": {
+  "Albedo_diff": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "CTG": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "Gratio": {
+   "max": 200.0,
+   "min": 0.01
+  },
+  "Kf": {
+   "max": 20.0,
+   "min": 0.0
+  },
+  "X1": {
+   "max": 5000.0,
+   "min": 1.0
+  },
+  "X2": {
+   "max": 10.0,
+   "min": -10.0
+  },
+  "X3": {
+   "max": 500.0,
+   "min": 1.0
+  },
+  "X4": {
+   "max": 5.0,
+   "min": 0.5
+  }
+ },
+ "GSFLOW": {
+  "K": {
+   "max": 5000.0,
+   "min": 0.1
+  },
+  "SY": {
+   "max": 0.4,
+   "min": 0.01
+  },
+  "carea_max": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "gw_seep_coef": {
+   "max": 0.2,
+   "min": 0.001
+  },
+  "gwflow_coef": {
+   "max": 0.5,
+   "min": 0.001
+  },
+  "slowcoef_lin": {
+   "max": 0.5,
+   "min": 0.001
+  },
+  "smidx_coef": {
+   "max": 0.1,
+   "min": 0.001
+  },
+  "soil_moist_max": {
+   "max": 15.0,
+   "min": 1.0
+  },
+  "soil_rechr_max": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "ssr2gw_rate": {
+   "max": 0.5,
+   "min": 0.001
+  }
+ },
+ "HBV": {
+  "beta": {
+   "max": 6.0,
+   "min": 1.0
+  },
+  "cfmax": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "cfr": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "cwh": {
+   "max": 0.2,
+   "min": 0.0
+  },
+  "fc": {
+   "max": 700.0,
+   "min": 50.0
+  },
+  "k0": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "k1": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "k2": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "lp": {
+   "max": 1.0,
+   "min": 0.3
+  },
+  "maxbas": {
+   "max": 7.0,
+   "min": 1.0
+  },
+  "perc": {
+   "max": 20.0,
+   "min": 0.0
+  },
+  "sfcf": {
+   "max": 1.5,
+   "min": 0.5
+  },
+  "smoothing": {
+   "max": 50.0,
+   "min": 1.0
+  },
+  "tt": {
+   "max": 3.0,
+   "min": -3.0
+  },
+  "uzl": {
+   "max": 100.0,
+   "min": 0.0
+  }
+ },
+ "HECHMS": {
+  "ati_cold_rate_coeff": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "ati_meltrate_coeff": {
+   "max": 1.5,
+   "min": 0.5
+  },
+  "base_temp": {
+   "max": 3.0,
+   "min": -3.0
+  },
+  "cn": {
+   "max": 98.0,
+   "min": 30.0
+  },
+  "cold_limit": {
+   "max": 50.0,
+   "min": 0.0
+  },
+  "deep_perc_fraction": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "gw_storage_coeff": {
+   "max": 100.0,
+   "min": 1.0
+  },
+  "initial_abstraction_ratio": {
+   "max": 0.3,
+   "min": 0.05
+  },
+  "meltrate_max": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "meltrate_min": {
+   "max": 3.0,
+   "min": 0.0
+  },
+  "px_temp": {
+   "max": 4.0,
+   "min": -2.0
+  },
+  "r_coeff": {
+   "max": 20.0,
+   "min": 0.5
+  },
+  "tc": {
+   "max": 20.0,
+   "min": 0.5
+  },
+  "water_capacity": {
+   "max": 0.3,
+   "min": 0.0
+  }
+ },
+ "HYPE": {
+  "bcosby": {
+   "max": 15.0,
+   "min": 4.0
+  },
+  "bfroznsoil": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "cevp": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "cmlt": {
+   "max": 20.0,
+   "min": 0.5
+  },
+  "cmrefr": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "damp": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "deepmem": {
+   "max": 2000.0,
+   "min": 100.0
+  },
+  "deepperc": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "depthrel": {
+   "max": 3.0,
+   "min": 0.5
+  },
+  "epotdist": {
+   "max": 15.0,
+   "min": 1.0
+  },
+  "fepotsnow": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "fsceff": {
+   "max": 1.0,
+   "min": 0.5
+  },
+  "illdepth": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "ilratk": {
+   "max": 1000.0,
+   "min": 0.1
+  },
+  "ilratp": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "logsatmp": {
+   "max": 3.0,
+   "min": 0.5
+  },
+  "lp": {
+   "max": 1.0,
+   "min": 0.3
+  },
+  "qmean": {
+   "max": 1000.0,
+   "min": 10.0
+  },
+  "rcgrw": {
+   "max": 1.0,
+   "min": 1e-05
+  },
+  "rivvel": {
+   "max": 30.0,
+   "min": 0.2
+  },
+  "rrcs1": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "rrcs2": {
+   "max": 0.5,
+   "min": 0.0001
+  },
+  "rrcs3": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "sdnsnew": {
+   "max": 0.25,
+   "min": 0.05
+  },
+  "sfrost": {
+   "max": 3.0,
+   "min": 0.5
+  },
+  "snowdensdt": {
+   "max": 0.005,
+   "min": 0.0005
+  },
+  "srrcs": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "surfmem": {
+   "max": 50.0,
+   "min": 5.0
+  },
+  "treda": {
+   "max": 1.0,
+   "min": 0.5
+  },
+  "tredb": {
+   "max": 0.8,
+   "min": 0.1
+  },
+  "ttmp": {
+   "max": 5.0,
+   "min": -5.0
+  },
+  "ttpi": {
+   "max": 4.0,
+   "min": 0.5
+  },
+  "ttrig": {
+   "max": 5.0,
+   "min": -5.0
+  },
+  "wcep": {
+   "max": 0.7,
+   "min": 0.2
+  },
+  "wcfc": {
+   "max": 0.6,
+   "min": 0.1
+  },
+  "wcwp": {
+   "max": 0.3,
+   "min": 0.01
+  }
+ },
+ "IGNACIO": {
+  "curing": {
+   "max": 100.0,
+   "min": 0.0
+  },
+  "dc": {
+   "max": 800.0,
+   "min": 0.0
+  },
+  "dmc": {
+   "max": 200.0,
+   "min": 0.0
+  },
+  "ffmc": {
+   "max": 101.0,
+   "min": 0.0
+  },
+  "fmc": {
+   "max": 150.0,
+   "min": 50.0
+  },
+  "initial_radius": {
+   "max": 100.0,
+   "min": 1.0
+  }
+ },
+ "MESH": {
+  "BASEFLW": {
+   "max": 0.1,
+   "min": 0.001
+  },
+  "CMAS": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "DD": {
+   "max": 100.0,
+   "min": 1.0
+  },
+  "DRAINFRAC": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "DRN": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "DTMINUSR": {
+   "max": 600.0,
+   "min": 60.0
+  },
+  "FLZ": {
+   "max": 0.1,
+   "min": 0.001
+  },
+  "FRZTH": {
+   "max": 5.0,
+   "min": 0.0
+  },
+  "KSAT": {
+   "max": 500.0,
+   "min": 1.0
+  },
+  "LAMN": {
+   "max": 1.5,
+   "min": 0.1
+  },
+  "LAMX": {
+   "max": 6.0,
+   "min": 0.3
+  },
+  "MANN": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "MANN_CLASS": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "PSGA": {
+   "max": 2.0,
+   "min": 0.3
+  },
+  "PWR": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "QA50": {
+   "max": 100.0,
+   "min": 10.0
+  },
+  "R1N": {
+   "max": 2.0,
+   "min": 0.0
+  },
+  "R2N": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "RCHARG": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "ROOT": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "RSMIN": {
+   "max": 800.0,
+   "min": 100.0
+  },
+  "SDEP": {
+   "max": 1.5,
+   "min": 0.5
+  },
+  "VPDA": {
+   "max": 1.5,
+   "min": 0.3
+  },
+  "WF_R2": {
+   "max": 0.5,
+   "min": 0.1
+  },
+  "XDRAINH": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "XSLP": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "ZPLG": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "ZPLS": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "ZSNL": {
+   "max": 0.1,
+   "min": 0.001
+  }
+ },
+ "MIZUROUTE": {
+  "diff": {
+   "max": 5000.0,
+   "min": 100.0
+  },
+  "fshape": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "mann_n": {
+   "max": 0.1,
+   "min": 0.01
+  },
+  "tscale": {
+   "max": 172800.0,
+   "min": 3600.0
+  },
+  "velo": {
+   "max": 5.0,
+   "min": 0.1
+  },
+  "wscale": {
+   "max": 0.01,
+   "min": 0.0001
+  }
+ },
+ "NGEN": {
+  "ADIMP": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "Cgw": {
+   "max": 0.01,
+   "min": 1e-05
+  },
+  "DAYGM": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "DDF": {
+   "max": 10.0,
+   "min": 0.5
+  },
+  "K_lf": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "K_nash": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "Klf": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "Kn": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "LZFPM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZFSM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZPK": {
+   "max": 0.05,
+   "min": 0.001
+  },
+  "LZSK": {
+   "max": 0.25,
+   "min": 0.01
+  },
+  "LZTWM": {
+   "max": 500.0,
+   "min": 1.0
+  },
+  "MBASE": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "MFMAX": {
+   "max": 2.0,
+   "min": 0.5
+  },
+  "MFMIN": {
+   "max": 0.6,
+   "min": 0.05
+  },
+  "NMF": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "PCTIM": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "PFREE": {
+   "max": 0.8,
+   "min": 0.0
+  },
+  "PLWHC": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "PXTEMP": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "REXP": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "RIVA": {
+   "max": 0.2,
+   "min": 0.0
+  },
+  "RSERV": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "S0": {
+   "max": 2.0,
+   "min": 0.0
+  },
+  "SCF": {
+   "max": 1.4,
+   "min": 0.7
+  },
+  "SIDE": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "Sr0": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "Srmax": {
+   "max": 0.5,
+   "min": 0.005
+  },
+  "TIPM": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "T_melt": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "T_snow": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "UADJ": {
+   "max": 0.2,
+   "min": 0.01
+  },
+  "UZFWM": {
+   "max": 150.0,
+   "min": 1.0
+  },
+  "UZK": {
+   "max": 0.75,
+   "min": 0.15
+  },
+  "UZTWM": {
+   "max": 150.0,
+   "min": 10.0
+  },
+  "ZPERC": {
+   "max": 350.0,
+   "min": 1.0
+  },
+  "ZREF": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "alpha_fc": {
+   "max": 0.8,
+   "min": 0.3
+  },
+  "bb": {
+   "max": 6.0,
+   "min": 3.0
+  },
+  "bexp": {
+   "max": 14.0,
+   "min": 2.0
+  },
+  "dksat": {
+   "max": 0.0001,
+   "min": 1e-07
+  },
+  "expon": {
+   "max": 6.0,
+   "min": 1.0
+  },
+  "heat_transfer_roughness_length_m": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "humidity_measurement_height_m": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "k_route": {
+   "max": 200.0,
+   "min": 1.0
+  },
+  "lnTe": {
+   "max": 10.0,
+   "min": -7.0
+  },
+  "m": {
+   "max": 0.3,
+   "min": 0.001
+  },
+  "max_gw_storage": {
+   "max": 1.0,
+   "min": 0.05
+  },
+  "maxsmc": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "momentum_transfer_roughness_length": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "mult": {
+   "max": 2000.0,
+   "min": 500.0
+  },
+  "noah_czil": {
+   "max": 0.2,
+   "min": 0.02
+  },
+  "noah_frzk": {
+   "max": 10.0,
+   "min": 0.0
+  },
+  "noah_refdk": {
+   "max": 0.001,
+   "min": 1e-07
+  },
+  "noah_refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "noah_salp": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "noah_z0": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "pet_albedo": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "pet_d0": {
+   "max": 20.0,
+   "min": 0.0
+  },
+  "pet_veg_h": {
+   "max": 30.0,
+   "min": 0.1
+  },
+  "pet_z0_heat": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "pet_z0_mom": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "psisat": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "rain_snow_thresh": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "satdk": {
+   "max": 1e-05,
+   "min": 1e-06
+  },
+  "satpsi": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "slop": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "slope": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "smcmax": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "smcref": {
+   "max": 0.5,
+   "min": 0.1
+  },
+  "smcwlt": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "soil_depth": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "surface_longwave_emissivity": {
+   "max": 1.0,
+   "min": 0.9
+  },
+  "surface_shortwave_albedo": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "td": {
+   "max": 50.0,
+   "min": 0.1
+  },
+  "ti_std": {
+   "max": 10.0,
+   "min": 1.0
+  },
+  "vegetation_height_m": {
+   "max": 30.0,
+   "min": 0.1
+  },
+  "wind_speed_measurement_height_m": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "wltsmc": {
+   "max": 0.15,
+   "min": 0.02
+  },
+  "zero_plane_displacement_height_m": {
+   "max": 20.0,
+   "min": 0.0
+  }
+ },
+ "NGEN_CFE": {
+  "Cgw": {
+   "max": 0.01,
+   "min": 1e-05
+  },
+  "K_lf": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "K_nash": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "Klf": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "Kn": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "alpha_fc": {
+   "max": 0.8,
+   "min": 0.3
+  },
+  "bb": {
+   "max": 6.0,
+   "min": 3.0
+  },
+  "expon": {
+   "max": 6.0,
+   "min": 1.0
+  },
+  "max_gw_storage": {
+   "max": 1.0,
+   "min": 0.05
+  },
+  "maxsmc": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "mult": {
+   "max": 2000.0,
+   "min": 500.0
+  },
+  "refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "satdk": {
+   "max": 1e-05,
+   "min": 1e-06
+  },
+  "satpsi": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "slop": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "smcmax": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "soil_depth": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "wltsmc": {
+   "max": 0.15,
+   "min": 0.02
+  }
+ },
+ "NGEN_NOAH": {
+  "ZREF": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "bexp": {
+   "max": 14.0,
+   "min": 2.0
+  },
+  "dksat": {
+   "max": 0.0001,
+   "min": 1e-07
+  },
+  "noah_czil": {
+   "max": 0.2,
+   "min": 0.02
+  },
+  "noah_frzk": {
+   "max": 10.0,
+   "min": 0.0
+  },
+  "noah_refdk": {
+   "max": 0.001,
+   "min": 1e-07
+  },
+  "noah_refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "noah_salp": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "noah_z0": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "psisat": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "rain_snow_thresh": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "slope": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "smcmax": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "smcref": {
+   "max": 0.5,
+   "min": 0.1
+  },
+  "smcwlt": {
+   "max": 0.3,
+   "min": 0.01
+  }
+ },
+ "NGEN_PET": {
+  "heat_transfer_roughness_length_m": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "humidity_measurement_height_m": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "momentum_transfer_roughness_length": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "pet_albedo": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "pet_d0": {
+   "max": 20.0,
+   "min": 0.0
+  },
+  "pet_veg_h": {
+   "max": 30.0,
+   "min": 0.1
+  },
+  "pet_z0_heat": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "pet_z0_mom": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "surface_longwave_emissivity": {
+   "max": 1.0,
+   "min": 0.9
+  },
+  "surface_shortwave_albedo": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "vegetation_height_m": {
+   "max": 30.0,
+   "min": 0.1
+  },
+  "wind_speed_measurement_height_m": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "zero_plane_displacement_height_m": {
+   "max": 20.0,
+   "min": 0.0
+  }
+ },
+ "NGEN_SACSMA": {
+  "ADIMP": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "LZFPM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZFSM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZPK": {
+   "max": 0.05,
+   "min": 0.001
+  },
+  "LZSK": {
+   "max": 0.25,
+   "min": 0.01
+  },
+  "LZTWM": {
+   "max": 500.0,
+   "min": 1.0
+  },
+  "PCTIM": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "PFREE": {
+   "max": 0.8,
+   "min": 0.0
+  },
+  "REXP": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "RIVA": {
+   "max": 0.2,
+   "min": 0.0
+  },
+  "RSERV": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "SIDE": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "UZFWM": {
+   "max": 150.0,
+   "min": 1.0
+  },
+  "UZK": {
+   "max": 0.75,
+   "min": 0.15
+  },
+  "UZTWM": {
+   "max": 150.0,
+   "min": 10.0
+  },
+  "ZPERC": {
+   "max": 350.0,
+   "min": 1.0
+  }
+ },
+ "NGEN_SNOW17": {
+  "DAYGM": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "MBASE": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "MFMAX": {
+   "max": 2.0,
+   "min": 0.5
+  },
+  "MFMIN": {
+   "max": 0.6,
+   "min": 0.05
+  },
+  "NMF": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "PLWHC": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "PXTEMP": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "SCF": {
+   "max": 1.4,
+   "min": 0.7
+  },
+  "TIPM": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "UADJ": {
+   "max": 0.2,
+   "min": 0.01
+  }
+ },
+ "NGEN_TOPMODEL": {
+  "DDF": {
+   "max": 10.0,
+   "min": 0.5
+  },
+  "S0": {
+   "max": 2.0,
+   "min": 0.0
+  },
+  "Sr0": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "Srmax": {
+   "max": 0.5,
+   "min": 0.005
+  },
+  "T_melt": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "T_snow": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "k_route": {
+   "max": 200.0,
+   "min": 1.0
+  },
+  "lnTe": {
+   "max": 10.0,
+   "min": -7.0
+  },
+  "m": {
+   "max": 0.3,
+   "min": 0.001
+  },
+  "td": {
+   "max": 50.0,
+   "min": 0.1
+  },
+  "ti_std": {
+   "max": 10.0,
+   "min": 1.0
+  }
+ },
+ "NOAHMP": {
+  "ZREF": {
+   "max": 10.0,
+   "min": 2.0
+  },
+  "bexp": {
+   "max": 14.0,
+   "min": 2.0
+  },
+  "dksat": {
+   "max": 0.0001,
+   "min": 1e-07
+  },
+  "noah_czil": {
+   "max": 0.2,
+   "min": 0.02
+  },
+  "psisat": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "rain_snow_thresh": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "refkdt": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "route_k": {
+   "max": 40.0,
+   "min": 1.0
+  },
+  "slope": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "smcmax": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "smcref": {
+   "max": 0.5,
+   "min": 0.1
+  },
+  "smcwlt": {
+   "max": 0.3,
+   "min": 0.01
+  }
+ },
+ "RHESSYS": {
+  "Ksat_0": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "Ksat_0_v": {
+   "max": 0.5,
+   "min": 0.0001
+  },
+  "active_zone_z": {
+   "max": 3.0,
+   "min": 0.5
+  },
+  "epc.gl_c": {
+   "max": 0.001,
+   "min": 1e-05
+  },
+  "epc.gl_smax": {
+   "max": 0.02,
+   "min": 0.001
+  },
+  "epc.max_lai": {
+   "max": 8.0,
+   "min": 0.5
+  },
+  "epc.vpd_close": {
+   "max": 6.0,
+   "min": 2.0
+  },
+  "epc.vpd_open": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "gw_loss_coeff": {
+   "max": 0.5,
+   "min": 0.001
+  },
+  "gw_loss_fast_coeff": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "gw_loss_fast_threshold": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "m": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "m_z": {
+   "max": 3.0,
+   "min": 0.2
+  },
+  "max_snow_temp": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "maximum_snow_energy_deficit": {
+   "max": -100.0,
+   "min": -1500.0
+  },
+  "min_rain_temp": {
+   "max": 0.0,
+   "min": -6.0
+  },
+  "n_routing_power": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "pore_size_index": {
+   "max": 0.4,
+   "min": 0.05
+  },
+  "porosity_0": {
+   "max": 0.6,
+   "min": 0.3
+  },
+  "porosity_decay": {
+   "max": 0.8,
+   "min": 0.1
+  },
+  "precip_lapse_rate": {
+   "max": 1.5,
+   "min": 0.5
+  },
+  "psi_air_entry": {
+   "max": -1.0,
+   "min": -10.0
+  },
+  "sat_to_gw_coeff": {
+   "max": 0.1,
+   "min": 0.0001
+  },
+  "snow_melt_Tcoef": {
+   "max": 8.0,
+   "min": 0.5
+  },
+  "snow_water_capacity": {
+   "max": 1.5,
+   "min": 0.1
+  },
+  "soil_depth": {
+   "max": 15.0,
+   "min": 2.0
+  },
+  "theta_mean_std_p1": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "theta_mean_std_p2": {
+   "max": 0.3,
+   "min": 0.0
+  }
+ },
+ "SACSMA": {
+  "ADIMP": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "DAYGM": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "LZFPM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZFSM": {
+   "max": 1000.0,
+   "min": 1.0
+  },
+  "LZPK": {
+   "max": 0.05,
+   "min": 0.001
+  },
+  "LZSK": {
+   "max": 0.25,
+   "min": 0.01
+  },
+  "LZTWM": {
+   "max": 500.0,
+   "min": 1.0
+  },
+  "MBASE": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "MFMAX": {
+   "max": 2.0,
+   "min": 0.5
+  },
+  "MFMIN": {
+   "max": 0.6,
+   "min": 0.05
+  },
+  "NMF": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "PCTIM": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "PFREE": {
+   "max": 0.8,
+   "min": 0.0
+  },
+  "PLWHC": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "PXTEMP": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "REXP": {
+   "max": 5.0,
+   "min": 1.0
+  },
+  "RIVA": {
+   "max": 0.2,
+   "min": 0.0
+  },
+  "RSERV": {
+   "max": 0.4,
+   "min": 0.0
+  },
+  "SCF": {
+   "max": 1.4,
+   "min": 0.7
+  },
+  "SIDE": {
+   "max": 0.5,
+   "min": 0.0
+  },
+  "TIPM": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "UADJ": {
+   "max": 0.2,
+   "min": 0.01
+  },
+  "UZFWM": {
+   "max": 150.0,
+   "min": 1.0
+  },
+  "UZK": {
+   "max": 0.75,
+   "min": 0.15
+  },
+  "UZTWM": {
+   "max": 150.0,
+   "min": 10.0
+  },
+  "ZPERC": {
+   "max": 350.0,
+   "min": 1.0
+  }
+ },
+ "SNOW17": {
+  "DAYGM": {
+   "max": 0.3,
+   "min": 0.0
+  },
+  "MBASE": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "MFMAX": {
+   "max": 2.0,
+   "min": 0.5
+  },
+  "MFMIN": {
+   "max": 0.6,
+   "min": 0.05
+  },
+  "NMF": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "PLWHC": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "PXTEMP": {
+   "max": 2.0,
+   "min": -2.0
+  },
+  "SCF": {
+   "max": 1.4,
+   "min": 0.7
+  },
+  "TIPM": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "UADJ": {
+   "max": 0.2,
+   "min": 0.01
+  }
+ },
+ "TOPMODEL": {
+  "DDF": {
+   "max": 10.0,
+   "min": 0.5
+  },
+  "S0": {
+   "max": 2.0,
+   "min": 0.0
+  },
+  "Sr0": {
+   "max": 0.1,
+   "min": 0.0
+  },
+  "Srmax": {
+   "max": 0.5,
+   "min": 0.005
+  },
+  "T_melt": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "T_snow": {
+   "max": 3.0,
+   "min": -2.0
+  },
+  "k_route": {
+   "max": 200.0,
+   "min": 1.0
+  },
+  "lnTe": {
+   "max": 10.0,
+   "min": -7.0
+  },
+  "m": {
+   "max": 0.3,
+   "min": 0.001
+  },
+  "td": {
+   "max": 50.0,
+   "min": 0.1
+  },
+  "ti_std": {
+   "max": 10.0,
+   "min": 1.0
+  }
+ },
+ "VIC": {
+  "Ds": {
+   "max": 1.0,
+   "min": 0.0
+  },
+  "Dsmax": {
+   "max": 30.0,
+   "min": 0.1
+  },
+  "Ksat_vic": {
+   "max": 5000.0,
+   "min": 1.0
+  },
+  "Ws": {
+   "max": 1.0,
+   "min": 0.1
+  },
+  "bulk_density": {
+   "max": 1800.0,
+   "min": 1200.0
+  },
+  "c": {
+   "max": 4.0,
+   "min": 1.0
+  },
+  "depth1": {
+   "max": 0.5,
+   "min": 0.05
+  },
+  "depth2": {
+   "max": 1.5,
+   "min": 0.1
+  },
+  "depth3": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "expt_vic": {
+   "max": 30.0,
+   "min": 4.0
+  },
+  "infilt": {
+   "max": 0.9,
+   "min": 0.001
+  },
+  "snow_rough": {
+   "max": 0.01,
+   "min": 0.0001
+  }
+ },
+ "WATFLOOD": {
+  "AK": {
+   "max": 100.0,
+   "min": 1.0
+  },
+  "AK2": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "AK2FS": {
+   "max": 1.0,
+   "min": 0.001
+  },
+  "AKF": {
+   "max": 100.0,
+   "min": 1.0
+  },
+  "BASE": {
+   "max": 2.0,
+   "min": -3.0
+  },
+  "DS": {
+   "max": 20.0,
+   "min": 0.0
+  },
+  "FLZCOEF": {
+   "max": 0.01,
+   "min": 1e-06
+  },
+  "FM": {
+   "max": 0.5,
+   "min": 0.01
+  },
+  "FPET": {
+   "max": 5.0,
+   "min": 0.5
+  },
+  "FTALL": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "PWR": {
+   "max": 4.0,
+   "min": 0.5
+  },
+  "R2N": {
+   "max": 0.3,
+   "min": 0.01
+  },
+  "R3": {
+   "max": 100.0,
+   "min": 1.0
+  },
+  "REESSION": {
+   "max": 1.0,
+   "min": 0.01
+  },
+  "RETN": {
+   "max": 500.0,
+   "min": 10.0
+  },
+  "SUBLIM_FACTOR": {
+   "max": 0.5,
+   "min": 0.0
+  }
+ },
+ "XINANJIANG": {
+  "B": {
+   "max": 2.0,
+   "min": 0.1
+  },
+  "C": {
+   "max": 0.2,
+   "min": 0.0
+  },
+  "CG": {
+   "max": 0.998,
+   "min": 0.98
+  },
+  "CI": {
+   "max": 0.9,
+   "min": 0.0
+  },
+  "DM": {
+   "max": 200.0,
+   "min": 50.0
+  },
+  "EX": {
+   "max": 2.0,
+   "min": 0.5
+  },
+  "IM": {
+   "max": 0.1,
+   "min": 0.01
+  },
+  "K": {
+   "max": 1.5,
+   "min": 0.1
+  },
+  "KG": {
+   "max": 0.7,
+   "min": 0.0
+  },
+  "KI": {
+   "max": 0.7,
+   "min": 0.0
+  },
+  "LM": {
+   "max": 120.0,
+   "min": 50.0
+  },
+  "SM": {
+   "max": 200.0,
+   "min": 1.0
+  },
+  "UM": {
+   "max": 50.0,
+   "min": 5.0
+  }
+ }
+}

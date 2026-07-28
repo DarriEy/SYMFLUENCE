@@ -11,9 +11,12 @@ This module provides build configurations for external tools required by SYMFLUE
 Architecture:
     - Infrastructure tools (sundials, taudem, gistool, datatool, ngiab) are defined
       directly in this file and registered via R.build_instructions.add()
-    - Model-specific tools (summa, fuse, mizuroute, etc.) are defined in their
-      respective model directories (e.g., src/symfluence/models/summa/build_instructions.py)
-      and registered via the @R.build_instructions.add() decorator
+    - Model-specific tools (summa, fuse, mizuroute, ... and any external plugin
+      model) are owned by the model package.  The package declares its build
+      instructions when it registers itself — ``model_manifest(
+      build_instructions_module="<pkg>.build_instructions")`` — and plugin
+      discovery runs that registration for every installed model at startup.
+      This module never enumerates model packages or looks for them on disk.
 
 Public API:
     get_external_tools_definitions() -> Dict[str, Dict[str, Any]]
@@ -27,16 +30,6 @@ Tools Defined Here (Infrastructure):
     - Datatool: Meteorological data processing tool
     - NGIAB: NextGen In A Box deployment system
     - Enzyme AD: Automatic differentiation via LLVM (used by cFUSE)
-
-Tools Defined in Model Directories:
-    - SUMMA: src/symfluence/models/summa/build_instructions.py
-    - FUSE: src/symfluence/models/fuse/build_instructions.py
-    - mizuRoute: src/symfluence/models/mizuroute/build_instructions.py
-    - t-route: src/symfluence/models/troute/build_instructions.py
-    - NGEN: src/symfluence/models/ngen/build_instructions.py
-    - HYPE: src/symfluence/models/hype/build_instructions.py
-    - MESH: src/symfluence/models/mesh/build_instructions.py
-    - RHESSys: src/symfluence/models/rhessys/build_instructions.py
 """
 from __future__ import annotations
 
@@ -309,146 +302,114 @@ def _register_infrastructure_tools() -> None:
     _register_enzyme()
 
 
-def _load_build_module_directly(module_name: str, pkg_root: object) -> None:
-    """Load a build_instructions module without triggering parent __init__.py.
+def _resolve_registered_build_instructions() -> None:
+    """Resolve every registered build-instruction entry, dropping broken ones.
 
-    When a model's ``__init__.py`` has broken imports (missing deps, protocol
-    errors, etc.), the normal ``importlib.import_module`` call fails because
-    Python must execute every parent ``__init__.py`` first.  This helper
-    bypasses that by injecting lightweight parent-package stubs into
-    ``sys.modules``, loading the target ``.py`` file directly via
-    ``importlib.util``, then cleaning up the stubs so that later real
-    imports of the parent package still work normally.
+    Model-specific build instructions are *declared*, not discovered: a model
+    package registers the dotted path of its build-instructions module when it
+    registers itself, via ``model_manifest(build_instructions_module=...)``
+    (or ``R.build_instructions.add_lazy(...)``/an eager import in its
+    ``register()``).  Plugin discovery calls every ``symfluence.plugins``
+    ``register()`` at startup, so by the time the CLI asks for tool
+    definitions the registry already holds an entry for every installed model —
+    in-tree or external — and there is nothing left to go looking for on disk.
+
+    This replaces a hardcoded list of in-tree ``<model>.build_instructions``
+    module paths that were imported by joining a filesystem path relative to
+    this file.  That list could not see external plugin packages at all, and it
+    hardcoded the location of the models package, which is being extracted into
+    its own distribution.
+
+    All this pass does is force each lazy entry to resolve *here*, so that a
+    single unresolvable entry is reported and skipped (the behaviour the old
+    per-module ``try/except`` gave) rather than propagating out of
+    ``BuildInstructionsRegistry.get_all_instructions()`` and taking the whole
+    ``symfluence binary`` listing down with it.
     """
-    import importlib.util
-    import os
-    import sys
-    import types
-
-    parts = module_name.split('.')
-    # e.g. ['symfluence', 'models', 'summa', 'build_instructions']
-    rel_parts = parts[1:]  # ['models', 'summa', 'build_instructions']
-    file_path = pkg_root.joinpath(*rel_parts[:-1]) / (rel_parts[-1] + '.py')
-
-    if not file_path.exists():
-        raise ImportError(f"Cannot find {file_path}")
-
-    # Track which parent packages we replaced so we can restore them.
-    replaced: dict[str, types.ModuleType | None] = {}
-
-    try:
-        # Ensure every parent package exists in sys.modules with a valid
-        # __path__.  A previous failed import may have left a partially-
-        # initialised module whose __path__ points nowhere — replace it
-        # with a lightweight stub so that sibling imports (e.g.
-        # rhessys.build_script) still resolve during exec.
-        for i in range(1, len(parts)):
-            parent_name = '.'.join(parts[:i])
-            expected_dir = str(pkg_root.joinpath(*parts[1:i]))
-            existing = sys.modules.get(parent_name)
-
-            needs_stub = existing is None or not any(
-                os.path.isdir(p) for p in getattr(existing, '__path__', [])
-            )
-            if needs_stub:
-                replaced[parent_name] = existing  # save for restore
-                stub = types.ModuleType(parent_name)
-                stub.__path__ = [expected_dir]
-                stub.__package__ = parent_name
-                stub.__spec__ = None
-                sys.modules[parent_name] = stub
-
-        # Load and execute the target module.
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = mod
-        spec.loader.exec_module(mod)
-        # The @R.build_instructions.add decorator has now fired.
-
-    finally:
-        # Restore original sys.modules state for parent packages so that
-        # future imports of the real package still execute __init__.py.
-        for name, original in replaced.items():
-            if original is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = original
-
-
-def _import_model_build_instructions() -> None:
-    """Import model build instructions to trigger registration.
-
-    Build-instruction modules are lightweight — they only depend on
-    ``symfluence.cli.services``.  However, ``importlib.import_module``
-    also executes the parent package's ``__init__.py`` (e.g.
-    ``symfluence/models/summa/__init__.py``), which eagerly loads heavy
-    model components.  If *any* of those components fail to import the
-    build instructions are silently lost and the tool disappears from
-    ``symfluence binary install``.
-
-    Strategy: try the normal import first (fast path).  If it fails for
-    any reason, fall back to loading the ``.py`` file directly via
-    ``_load_build_module_directly``, which bypasses ``__init__.py``.
-    """
-    import importlib
     import logging
-    import sys
-    from pathlib import Path
 
     logger = logging.getLogger(__name__)
 
-    # Resolve package root: this file is  src/symfluence/cli/external_tools_config.py
-    _pkg_root = Path(__file__).resolve().parent.parent  # -> src/symfluence/
+    for tool_name in R.build_instructions.keys():
+        try:
+            R.build_instructions.get(tool_name)
+        except Exception as exc:  # noqa: BLE001 - a broken tool must not hide the rest
+            logger.warning(
+                "Failed to load build instructions for %s: %s", tool_name, exc
+            )
+            try:
+                R.build_instructions.remove(tool_name)
+            except RuntimeError:  # frozen registry — leave the entry in place
+                logger.debug("Could not drop unresolvable entry %s", tool_name)
 
-    # NOTE: cfuse and droute are no longer bundled in-tree — they were extracted
-    # to standalone pip packages ("Remove duplicate model code — delegate fully
-    # to pip packages").  They now register their own build instructions via the
-    # ``symfluence.plugins`` entry-point group, so they must NOT be listed here;
-    # doing so logged a spurious "Failed to load build instructions" warning on
-    # every ``symfluence binary`` invocation.
-    model_modules = [
-        'symfluence.models.summa.build_instructions',
-        'symfluence.models.fuse.build_instructions',
-        'symfluence.models.mizuroute.build_instructions',
-        'symfluence.models.troute.build_instructions',
-        'symfluence.models.ngen.build_instructions',
-        'symfluence.models.hype.build_instructions',
-        'symfluence.models.mesh.build_instructions',
-        'symfluence.models.wmfire.build_instructions',
-        'symfluence.models.rhessys.build_instructions',
-        'symfluence.models.ignacio.build_instructions',
-        'symfluence.models.vic.build_instructions',
-        'symfluence.models.clm.build_instructions',
-        'symfluence.models.swat.build_instructions',
-        'symfluence.models.mhm.build_instructions',
-        'symfluence.models.crhm.build_instructions',
-        'symfluence.models.prms.build_instructions',
-        'symfluence.models.modflow.build_instructions',
-        'symfluence.models.gsflow.build_instructions',
-        'symfluence.models.watflood.build_instructions',
-        'symfluence.models.wflow.build_instructions',
-        'symfluence.models.lisflood.build_instructions',
-        'symfluence.models.parflow.build_instructions',
-        'symfluence.models.clmparflow.build_instructions',
-        'symfluence.models.wrfhydro.build_instructions',
-        'symfluence.models.pihm.build_instructions',
-    ]
 
-    for module_name in model_modules:
-        if module_name in sys.modules:
+def _recover_build_instructions_from_failed_plugins() -> None:
+    """Recover build instructions for packages whose ``register()`` never ran.
+
+    Declaration-based discovery has one gap, and it is the gap that matters
+    most: a model package declares ``build_instructions_module`` from inside
+    ``register()``, so if the package's ``__init__.py`` raises on import, the
+    declaration never happens and the tool disappears from
+    ``symfluence binary install`` — precisely when the user most needs it,
+    because *building the binary is often what fixes the broken import*.
+
+    Recovery is narrow by construction. It runs only for entry points that
+    actually failed during discovery, and for each one it stubs a single
+    module: the failing leaf package. Its parents import fine (only the leaf
+    ``__init__`` raised), so giving the stub a correct ``__path__`` is enough
+    for ``<pkg>.build_instructions`` and any relative import inside it to
+    resolve, without executing the broken ``__init__``.
+
+    The predecessor of this function ran the same trick unconditionally for a
+    hardcoded list of in-tree models — bypassing every package's ``__init__``
+    on every invocation, and unable to see external plugins at all.
+    """
+    import importlib
+    import importlib.util
+    import logging
+    import sys
+    import types
+    from pathlib import Path
+
+    from symfluence.core._bootstrap import failed_plugin_entry_points
+
+    logger = logging.getLogger(__name__)
+
+    for name, value in failed_plugin_entry_points():
+        module_name = value.split(":", 1)[0]
+        target = f"{module_name}.build_instructions"
+        if target in sys.modules:
             continue
         try:
-            importlib.import_module(module_name)
-        except Exception:  # noqa: BLE001
-            # Normal import failed — the model's __init__.py likely has a
-            # broken import chain.  Fall back to loading the file directly.
-            try:
-                _load_build_module_directly(module_name, _pkg_root)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "Failed to load build instructions from %s: %s",
-                    module_name, exc,
-                )
+            spec = importlib.util.find_spec(module_name)
+        except (ImportError, ValueError, AttributeError):
+            spec = None
+        if spec is None or not spec.origin:
+            continue
+
+        package_dir = Path(spec.origin).parent
+        if not (package_dir / "build_instructions.py").exists():
+            continue
+
+        previous = sys.modules.get(module_name)
+        stub = types.ModuleType(module_name)
+        stub.__path__ = [str(package_dir)]
+        stub.__package__ = module_name
+        sys.modules[module_name] = stub
+        try:
+            importlib.import_module(target)
+            logger.info(
+                "Recovered build instructions for plugin %r whose package failed "
+                "to import; its binary can still be built.", name,
+            )
+        except Exception as exc:  # noqa: BLE001 - recovery is best-effort by definition
+            logger.debug("No build-instruction recovery for %r: %s", name, exc)
+            sys.modules.pop(target, None)
+        finally:
+            if previous is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = previous
 
 
 # Register infrastructure tools on module load
@@ -481,8 +442,15 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
         - verify_install: Installation verification criteria
         - order: Installation order (lower numbers first)
     """
-    # Trigger lazy loading of model build instructions
-    _import_model_build_instructions()
+    # Resolve the model build instructions declared by registered plugins, then
+    # make a best-effort recovery for any plugin whose package failed to import
+    # (its register() never ran, so it declared nothing).
+    # Drain the modules packages declared: importing each fires its
+    # @R.build_instructions.add('<tool>') decorator. Declaration-based, so it
+    # works identically for in-tree and external packages.
+    R.build_instructions.load_modules()
+    _recover_build_instructions_from_failed_plugins()
+    _resolve_registered_build_instructions()
 
     # Return all aggregated instructions
     return BuildInstructionsRegistry.get_all_instructions()

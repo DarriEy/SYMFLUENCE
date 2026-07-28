@@ -144,7 +144,13 @@ class MizuRouteProcessComponent(ProcessComponent):
             raise RuntimeError("MizuRouteRunner not initialized")
         try:
             self._runner.fix_time_precision()
-            self._runner.sync_control_file_dimensions()
+            # No sync_control_file_dimensions() call here: it takes
+            # (control_path, netcdf_path), so calling it bare raised TypeError
+            # on every invocation — swallowed by the handler below, which then
+            # reported "mizuRoute execution failed" and returned 1. This
+            # adapter's mizuRoute path therefore never ran at all. The call was
+            # redundant as well as wrong: run_mizuroute() performs the same
+            # sync itself (models/mizuroute/runner.py), with paths it resolves.
             success = self._runner.run_mizuroute()
             return 0 if success else 1
         except Exception as e:  # noqa: BLE001 — must-not-raise contract

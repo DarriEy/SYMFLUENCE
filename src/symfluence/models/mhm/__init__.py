@@ -132,6 +132,24 @@ def register() -> None:
     R.workers.add_lazy("MHM", f"{base}.calibration.worker.MHMWorker")
     R.parameter_managers.add_lazy("MHM", f"{base}.calibration.parameter_manager.MHMParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "MHM",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={SpatialMode.LUMPED: False},
+            warning_message=(
+                "mHM is a mesoscale hydrological model. Lumped mode uses "
+                "a single-cell domain with multiscale parameter regionalization."
+            ),
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .calibration import MHMModelOptimizer

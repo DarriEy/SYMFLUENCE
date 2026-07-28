@@ -123,11 +123,38 @@ def register() -> None:
         config_adapter=RHESSysConfigAdapter,
         result_extractor=RHESSysResultExtractor,
         build_instructions_module="symfluence.models.rhessys.build_instructions",
+        aliases=["RHESS"],
     )
     base = 'symfluence.models.rhessys'
     R.preprocessors.add_lazy("RHESSys", f"{base}.preprocessor.RHESSysPreProcessor")
     R.runners.add_lazy("RHESSys", f"{base}.runner.RHESSysRunner")
     R.postprocessors.add_lazy("RHESSys", f"{base}.postprocessor.RHESSysPostProcessor")
+
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    # RHESSys is inherently hierarchical/distributed but can operate with a
+    # single aggregate hillslope/patch for lumped experiments.
+    register_model_spatial_capability(
+        "RHESSYS",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: False,  # Internal hillslope routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "RHESSys performs best with distributed landscape hierarchy. "
+                "Lumped mode is supported when world/flow files are pre-aggregated."
+            ),
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

@@ -4,8 +4,9 @@
 """
 MizuRoute Control File Writer
 
-Unified control file generation for different source models (SUMMA, FUSE, GR).
-Eliminates code duplication by using configuration-driven templates.
+Unified control file generation for every source model that declares a runoff
+artifact on its registered ``ModelConfigSchema``. Eliminates code duplication
+by using configuration-driven templates.
 """
 from __future__ import annotations
 
@@ -13,94 +14,25 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, TextIO, Union
 
-from symfluence.core.exceptions import ConfigValidationError
+from symfluence.core.exceptions import ConfigurationError, ConfigValidationError
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.core.modeling.utilities.runoff_loader import (
+    MODEL_CONFIGS,
+    ModelRunoffConfig,
+    get_model_config,
+)
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-
-
-class ModelRunoffConfig:
-    """Configuration for model-specific runoff settings."""
-
-    def __init__(
-        self,
-        output_dir_key: str,
-        output_dir_name: str,
-        default_var: str,
-        default_units: str,
-        default_dt: str,
-        output_file_pattern: str,
-        hru_dim: str = 'gru',
-        hru_var: str = 'gruId',
-        comment_name: str = 'model'
-    ):
-        self.output_dir_key = output_dir_key
-        self.output_dir_name = output_dir_name
-        self.default_var = default_var
-        self.default_units = default_units
-        self.default_dt = default_dt
-        self.output_file_pattern = output_file_pattern
-        self.hru_dim = hru_dim
-        self.hru_var = hru_var
-        self.comment_name = comment_name
-
-
-# Pre-defined configurations for each source model
-MODEL_CONFIGS = {
-    'summa': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_SUMMA',
-        output_dir_name='SUMMA',
-        default_var='averageRoutedRunoff',
-        default_units='m/s',
-        default_dt='3600',
-        output_file_pattern='{experiment_id}_timestep.nc',
-        hru_dim='hru',  # Can be overridden to 'gru' for distributed
-        hru_var='hruId',
-        comment_name='SUMMA'
-    ),
-    'fuse': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_FUSE',
-        output_dir_name='FUSE',
-        default_var='q_routed',
-        default_units='m/s',
-        default_dt='86400',  # FUSE outputs daily timesteps
-        output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
-        hru_dim='gru',
-        hru_var='gruId',
-        comment_name='FUSE'
-    ),
-    'gr': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_GR',
-        output_dir_name='GR',
-        default_var='q_routed',
-        default_units='m/s',
-        default_dt='86400',  # GR is daily
-        output_file_pattern='{domain_name}_{experiment_id}_runs_def.nc',
-        hru_dim='gru',
-        hru_var='gruId',
-        comment_name='GR4J'
-    ),
-    'ngen': ModelRunoffConfig(
-        output_dir_key='EXPERIMENT_OUTPUT_NGEN',
-        output_dir_name='NGEN',
-        default_var='runoff',
-        default_units='m/s',
-        default_dt='3600',
-        output_file_pattern='{experiment_id}_runoff.nc',
-        hru_dim='hru',
-        hru_var='hruId',
-        comment_name='NGEN'
-    ),
-}
 
 
 class ControlFileWriter(ConfigurableMixin):
     """
     Unified mizuRoute control file writer.
 
-    Handles control file generation for SUMMA, FUSE, and GR source models
-    using a template-based approach with model-specific configurations.
+    Handles control file generation for any source model with a registered
+    runoff declaration, using a template-based approach with model-specific
+    configurations served by ``runoff_loader.get_model_config``.
     """
 
     def __init__(
@@ -138,7 +70,8 @@ class ControlFileWriter(ConfigurableMixin):
         Write a mizuRoute control file for the specified source model.
 
         Args:
-            model_type: Source model type ('summa', 'fuse', or 'gr')
+            model_type: Source model type ('summa', 'fuse', 'gr', 'ngen', ...
+                — any model with a registered runoff declaration)
             control_file_name: Override control file name (default from config)
             mizu_config: MizuRoute-specific config values (topology file, remap file, etc.)
 
@@ -146,10 +79,14 @@ class ControlFileWriter(ConfigurableMixin):
             Path to the generated control file
         """
         model_type = model_type.lower()
-        if model_type not in MODEL_CONFIGS:
-            raise ConfigValidationError(f"Unknown model type: {model_type}. Expected one of: {list(MODEL_CONFIGS.keys())}")
+        try:
+            model_config = get_model_config(model_type)
+        except ConfigurationError as exc:
+            raise ConfigValidationError(
+                f"Unknown model type: {model_type}. Expected one of: "
+                f"{sorted(MODEL_CONFIGS)}"
+            ) from exc
 
-        model_config = MODEL_CONFIGS[model_type]
         mizu_config = mizu_config or {}
 
         # Determine control file name
@@ -185,6 +122,9 @@ class ControlFileWriter(ConfigurableMixin):
             'EXPERIMENT_OUTPUT_FUSE': lambda: self.config.model.fuse.experiment_output,
             'EXPERIMENT_OUTPUT_GR': lambda: self.config.model.gr.experiment_output,
             'EXPERIMENT_OUTPUT_NGEN': lambda: self.config.model.ngen.experiment_output if self.config.model.ngen else None,
+            # No HYPE entry: it is not a routable source, so no HYPE runoff
+            # declaration exists to carry EXPERIMENT_OUTPUT_HYPE as its
+            # output_dir_key and this map is never asked for it.
         }
         getter = key_to_config.get(model_config.output_dir_key)
         if getter:
@@ -340,12 +280,22 @@ class ControlFileWriter(ConfigurableMixin):
             routing_units = model_config.default_units
             routing_dt = model_config.default_dt
 
-        # Determine HRU dimension/variable (can be overridden for distributed SUMMA)
+        # Straight from the model's runoff declaration. There used to be an
+        # override here: `if self.summa_uses_gru_runoff and hru_dim == 'hru'`,
+        # promoting hru/hruId to gru/gruId. It existed because SUMMA's
+        # declaration said hru/hruId while SUMMA in fact always writes
+        # averageRoutedRunoff on (time, gru) — so the override patched a wrong
+        # declaration, and only in the cases where a count-based heuristic
+        # (n_hrus > n_grus, in the topology generator) happened to notice. At
+        # 1 HRU per GRU it did not fire, and the control file went out naming
+        # hruId for a gru-dimensioned file.
+        #
+        # With SUMMA's declaration corrected the override is unnecessary — and
+        # it was never safe: the guard keys on `hru_dim == 'hru'`, not on the
+        # model, so a flag derived from SUMMA's attributes.nc also rewrote
+        # NGEN's dims, which legitimately declares hru.
         hru_dim = model_config.hru_dim
         hru_var = model_config.hru_var
-        if self.summa_uses_gru_runoff and model_config.hru_dim == 'hru':
-            hru_dim = 'gru'
-            hru_var = 'gruId'
 
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
         cf.write(f"<fname_qsim>            {output_file}    ! netCDF name for {model_config.comment_name} runoff \n")

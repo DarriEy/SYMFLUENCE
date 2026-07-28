@@ -222,13 +222,8 @@ _LEGACY_PRESETS = {
 # This allows existing code that accesses init_presets.PRESETS to continue working
 def _get_merged_presets():
     """Get all presets from both registry and legacy definitions."""
-    # Ensure model preset modules are imported to trigger registration
-    from symfluence.models import model_packages_with
-    for model_name in model_packages_with('init_preset'):
-        try:
-            __import__(f'symfluence.models.{model_name}.init_preset', fromlist=['init_preset'])
-        except ImportError:
-            pass
+    # Ensure declared preset modules are imported to trigger registration
+    R.presets.load_modules()
 
     # Start with registry presets (from unified registry)
     merged = {}

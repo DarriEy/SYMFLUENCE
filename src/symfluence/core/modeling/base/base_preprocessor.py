@@ -342,7 +342,7 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
         Returns:
             Path to base settings directory for this model
         """
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
 
         # Check for code_dir in typed config
         code_dir_value = self._get_config_value(

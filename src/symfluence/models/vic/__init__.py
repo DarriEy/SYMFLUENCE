@@ -129,6 +129,33 @@ def register() -> None:
     R.workers.add_lazy("VIC", f"{base}.calibration.worker.VICWorker")
     R.parameter_managers.add_lazy("VIC", f"{base}.calibration.parameter_manager.VICParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    # VIC is designed for grid-based distributed modeling but can operate with
+    # a single-cell domain for lumped experiments.
+    register_model_spatial_capability(
+        "VIC",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                # VIC outputs cell runoff, needs external routing.
+                SpatialMode.DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "VIC is designed for distributed grid-based modeling. "
+                "For lumped mode, a single-cell domain will be created."
+            ),
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .calibration import VICModelOptimizer

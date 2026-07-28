@@ -122,8 +122,11 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
           fi
-          # Run tests in parallel with pytest-xdist for 2-3x speedup
-          pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/
+          # Run tests in parallel with pytest-xdist for 2-3x speedup.
+          # tests/conformance/ carries the decomposition proofs (models-absent,
+          # contract extraction-readiness) and must run on every platform for
+          # the same reason as ci.yml — see the note there.
+          pytest --timeout=300 -v --tb=short -m "unit" -n auto --cov --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=25 tests/unit/ tests/conformance/
 
       - name: Core coverage gate
         # Single shared definition (scope, omits, threshold rationale) lives in

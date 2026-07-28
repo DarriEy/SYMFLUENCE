@@ -126,6 +126,28 @@ def register() -> None:
     R.visualizers.add_lazy("GR", f"{base}.visualizer.visualize_gr")
     R.result_extractors.add_lazy("GR", f"{base}.extractor.GRResultExtractor")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "GR",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: True,
+                SpatialMode.SEMI_DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .extractor import GRResultExtractor

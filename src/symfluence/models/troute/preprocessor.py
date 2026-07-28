@@ -53,7 +53,7 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, TRouteConf
     def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """Copies base settings for t-route from package data."""
         self.logger.info("Copying t-route base settings...")
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
 
         if source_dir:
             return super().copy_base_settings(source_dir, file_patterns)

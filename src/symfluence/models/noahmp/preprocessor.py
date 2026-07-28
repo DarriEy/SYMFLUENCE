@@ -57,7 +57,7 @@ class NoahMPPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         resources/base_settings/NOAH — with the NGEN NOAH BMI module; there is
         no separate ``NOAHMP`` resource directory. Override the default lookup
         (which keys on MODEL_NAME) to use ``NOAH``."""
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
         code_dir_value = self._get_config_value(
             lambda: self.config.system.code_dir, default=None)
         if code_dir_value:

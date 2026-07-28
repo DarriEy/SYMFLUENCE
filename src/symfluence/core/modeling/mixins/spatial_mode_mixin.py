@@ -14,8 +14,8 @@ import logging
 from typing import Optional
 
 from symfluence.core.modeling.spatial_modes import (
-    MODEL_SPATIAL_CAPABILITIES,
     SpatialMode,
+    get_model_capabilities,
     validate_spatial_mode,
 )
 
@@ -43,7 +43,15 @@ class SpatialModeDetectionMixin:
                 self.spatial_mode = self.detect_spatial_mode('HBV')
 
     Supported Models:
-        HBV, GR, FUSE, LSTM, GNN, SUMMA, HYPE, MESH, NGEN, RHESSYS
+        Any model with a ``model.<name>`` config section — the section is
+        looked up by lowercased model name, so a model (in-tree or external)
+        needs no edit here to have its configured spatial mode honoured. A
+        model without a section resolves ``None`` and falls through to
+        domain-based inference.
+
+        Capability validation (step 3) is likewise per-model and declared
+        through :func:`~symfluence.core.modeling.spatial_modes.register_model_spatial_capability`;
+        a model that declares nothing is permitted any mode.
     """
 
     def detect_spatial_mode(
@@ -99,13 +107,17 @@ class SpatialModeDetectionMixin:
         Extract configured spatial mode from typed config.
 
         Safely accesses the model-specific spatial_mode attribute from the
-        typed configuration object, returning None if not available.
+        typed configuration object, returning None if not available. The
+        config section is resolved purely by lowercasing the model name, so
+        every model that declares a ``spatial_mode`` field is served — no
+        per-model registration in this file.
 
         Args:
-            model_name: Uppercase model name (e.g., 'HBV', 'GR', 'FUSE')
+            model_name: Model name in any case (e.g., 'HBV', 'GR', 'FUSE')
 
         Returns:
-            Configured spatial mode string or None if not configured
+            Configured spatial mode string, or None when the model has no
+            config section or the section declares no spatial mode.
         """
         config = getattr(self, 'config', None)
         if config is None or not hasattr(config, 'model'):
@@ -115,27 +127,13 @@ class SpatialModeDetectionMixin:
         if model_config is None:
             return None
 
-        # Map model names to their config attribute names
-        model_attr_map = {
-            'HBV': 'hbv',
-            'GR': 'gr',
-            'FUSE': 'fuse',
-            'CFUSE': 'cfuse',
-            'JFUSE': 'jfuse',
-            'LSTM': 'lstm',
-            'GNN': 'gnn',
-            'SUMMA': 'summa',
-            'HYPE': 'hype',
-            'MESH': 'mesh',
-            'NGEN': 'ngen',
-            'RHESSYS': 'rhessys',
-        }
-
-        attr_name = model_attr_map.get(model_name)
-        if attr_name is None:
-            return None
-
-        model_specific_config = getattr(model_config, attr_name, None)
+        # Config sections are named after the model in lowercase, without
+        # exception. A hand-maintained allow-list used to sit here whose every
+        # entry was just ``model_name.lower()``, so the ~20 models absent from
+        # it silently resolved None for a spatial mode they had configured.
+        # ``getattr(..., None)`` already yields None for a model with no
+        # section, which is the only thing the allow-list ever contributed.
+        model_specific_config = getattr(model_config, model_name.lower(), None)
         if model_specific_config is None:
             return None
 
@@ -269,12 +267,11 @@ class SpatialModeDetectionMixin:
             True if the mode/model combination requires routing
         """
         mode = spatial_mode or getattr(self, 'spatial_mode', SpatialMode.LUMPED)
-        model_name_upper = model_name.upper()
 
-        if model_name_upper not in MODEL_SPATIAL_CAPABILITIES:
+        capability = get_model_capabilities(model_name)
+        if capability is None:
+            # No declaration -> core makes no routing claim for this model.
             return False
-
-        capability = MODEL_SPATIAL_CAPABILITIES[model_name_upper]
 
         if isinstance(mode, SpatialMode):
             mode_enum = mode

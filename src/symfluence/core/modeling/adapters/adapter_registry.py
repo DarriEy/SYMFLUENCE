@@ -113,23 +113,16 @@ class ForcingAdapterRegistry:
     @classmethod
     def _import_adapters(cls) -> None:
         """
-        Import model adapter modules to trigger registration.
+        Import declared adapter modules to trigger their registration decorators.
 
-        This method attempts to import the forcing_adapter module
-        from each known model package.
+        Model packages declare where their adapter lives — via
+        ``model_manifest(forcing_adapter_module=...)`` or directly with
+        ``R.forcing_adapters.add_module(...)``; draining those declarations is
+        all core does.  Core no longer reaches up into the models package to
+        glob its source tree for ``forcing_adapter.py``, so this works with the
+        model suite installed, absent, or supplied by external plugins.
         """
-        from symfluence.models import model_packages_with
-
-        for model_name in model_packages_with('forcing_adapter'):
-            try:
-                __import__(
-                    f'symfluence.models.{model_name}.forcing_adapter',
-                    fromlist=['forcing_adapter']
-                )
-            except ImportError:
-                logging.getLogger(__name__).debug(
-                    f"Forcing adapter for '{model_name}' not available"
-                )
+        R.forcing_adapters.load_modules()
 
 
 def transform_cfif_to_model(

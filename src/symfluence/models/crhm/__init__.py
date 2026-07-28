@@ -129,6 +129,24 @@ def register() -> None:
     R.workers.add_lazy("CRHM", f"{base}.calibration.worker.CRHMWorker")
     R.parameter_managers.add_lazy("CRHM", f"{base}.calibration.parameter_manager.CRHMParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "CRHM",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={SpatialMode.LUMPED: False},
+            warning_message=(
+                "CRHM is a cold-region hydrological model. Lumped mode uses "
+                "a single-HRU configuration with blowing snow and frozen soil."
+            ),
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .calibration import CRHMModelOptimizer

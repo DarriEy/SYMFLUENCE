@@ -65,6 +65,27 @@ def register() -> None:
     R.workers.add_lazy("PCRGLOBWB", f"{base}.calibration.worker.PCRGLOBWBWorker")
     R.parameter_managers.add_lazy("PCRGLOBWB", f"{base}.calibration.parameter_manager.PCRGLOBWBParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "PCRGLOBWB",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                # Internal accuTravelTime routing.
+                SpatialMode.DISTRIBUTED: False,
+            },
+            warning_message=(
+                "PCR-GLOBWB is inherently grid-based with internal "
+                "accuTravelTime routing. Lumped mode uses a 3x3 grid."
+            ),
+        ),
+    )
+
 
 if TYPE_CHECKING:
     from .calibration import PCRGLOBWBModelOptimizer

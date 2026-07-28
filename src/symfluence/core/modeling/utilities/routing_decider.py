@@ -13,7 +13,105 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from symfluence.core.modeling.config_schema import schema_key_table
+
 logger = logging.getLogger(__name__)
+
+
+#: Spatial-mode values that carry no mode of their own and defer to
+#: ``DOMAIN_DEFINITION_METHOD``. ``spatial_orchestrator.get_spatial_config``
+#: resolves exactly these (plus an absent key) the same way.
+DEFERRED_SPATIAL_MODES = frozenset({'auto', 'default'})
+
+
+def _deferring_spatial_mode_keys() -> Dict[str, str]:
+    """Model -> ``<MODEL>_SPATIAL_MODE`` for typed configs that DEFER by default.
+
+    A model's typed config (``R.config_schemas``) is where ``<MODEL>_SPATIAL_MODE``
+    is actually declared, so it — not a table in core, and not a
+    ``f"{model}_SPATIAL_MODE"`` convention — is the authority on the key's name
+    *and* on the value a user who never set it gets.
+
+    Only models whose declared default is a deferral sentinel are served here,
+    and that restriction is the whole point. ``config_dict`` is
+    ``flatten_nested_config``'s output, which dumps with ``exclude_none=True``
+    rather than ``exclude_unset=True``: a config that never mentions
+    ``SWAT_SPATIAL_MODE`` still yields ``config_dict['SWAT_SPATIAL_MODE'] ==
+    'lumped'``. At this seam an unset key is therefore indistinguishable from an
+    explicit one — unless the declared default is ``auto``/``default``, in which
+    case resolving it reproduces the ``DOMAIN_DEFINITION_METHOD`` decision the
+    model gets today. So for these models participation is a provable no-op
+    until a user writes the key, which is the "only when explicitly set"
+    property, obtained without provenance the decider cannot see.
+
+    Models whose typed default is a concrete mode (``lumped`` for SWAT/CRHM/MHM/
+    CLM/…, ``distributed`` for WRFHYDRO/CWATM/…) are deliberately absent: their
+    default would silently veto — or force — routing for users who never chose
+    it. Such a model joins only by declaring ``spatial_mode_key`` on its
+    ``ModelConfigSchema``, which is a reviewed, per-model decision (SUMMA and
+    FUSE below are exactly that).
+    """
+    from symfluence.core.registries import R
+
+    schemas = getattr(R, 'config_schemas', None)
+    if schemas is None:
+        return {}
+
+    table: Dict[str, str] = {}
+    for name, schema_cls in dict(schemas).items():
+        field = getattr(schema_cls, 'model_fields', {}).get('spatial_mode')
+        if field is None:
+            continue
+        # No alias means the model never declared a flat ``<MODEL>_SPATIAL_MODE``
+        # key (HBV), so there is nothing for a dict-shaped config to carry.
+        alias = getattr(field, 'alias', None)
+        if not alias:
+            continue
+        default = getattr(field, 'default', None)
+        if isinstance(default, str) and default.strip().lower() in DEFERRED_SPATIAL_MODES:
+            table[str(name).upper()] = alias
+    return table
+
+
+class _SchemaKeyTable:
+    """Serve a model -> config-key table derived from the registered schemas.
+
+    A descriptor so the table reads the same whether reached through the class
+    (``RoutingDecider.SPATIAL_MODE_KEYS``) or an instance, while staying live:
+    a model package registering its schema later — plugin discovery, an
+    external distribution — is picked up without re-import.
+    """
+
+    def __init__(self, attribute: str) -> None:
+        self._attribute = attribute
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.__doc__ = f"{name}: {{model: config key}} from the registered schemas."
+
+    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Dict[str, str]:
+        return schema_key_table(self._attribute)
+
+
+class _SpatialModeKeyTable(_SchemaKeyTable):
+    """``SPATIAL_MODE_KEYS``: explicit declarations plus safe auto-joiners.
+
+    Two model-owned sources, never a convention:
+
+    * ``ModelConfigSchema.spatial_mode_key`` — an explicit, reviewed
+      declaration. SUMMA lives here and only here: there is no
+      ``SUMMA_SPATIAL_MODE`` field anywhere, SUMMA's spatial mode *is*
+      ``DOMAIN_DEFINITION_METHOD``, and deriving the key by convention would
+      silently change the decision for the most-used model.
+    * the typed config's ``spatial_mode`` field, but only where its declared
+      default defers (see :func:`_deferring_spatial_mode_keys`).
+
+    Explicit declarations win, so a model can always override the rule.
+    """
+
+    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Dict[str, str]:
+        table = _deferring_spatial_mode_keys()
+        table.update(schema_key_table(self._attribute))
+        return table
 
 
 class RoutingDecider:
@@ -30,20 +128,13 @@ class RoutingDecider:
     - Existence of mizuRoute control files
     """
 
-    # Model-specific config keys for spatial mode
-    SPATIAL_MODE_KEYS: Dict[str, str] = {
-        'SUMMA': 'DOMAIN_DEFINITION_METHOD',
-        'FUSE': 'FUSE_SPATIAL_MODE',
-        'HYPE': 'HYPE_SPATIAL_MODE',
-        'GR': 'GR_SPATIAL_MODE',
-        'MESH': 'MESH_SPATIAL_MODE',
-        'NGEN': 'NGEN_SPATIAL_MODE',
-    }
-
-    # Model-specific routing integration config keys
-    ROUTING_INTEGRATION_KEYS: Dict[str, str] = {
-        'FUSE': 'FUSE_ROUTING_INTEGRATION',
-    }
+    # Model-specific config keys, declared by each model on its registered
+    # ModelConfigSchema (spatial_mode_key / routing_integration_key) rather
+    # than tabulated here. A model absent from a table simply does not declare
+    # that key -- which is a per-model decision the model owns.
+    # Both serve a ``Dict[str, str]`` on access.
+    SPATIAL_MODE_KEYS = _SpatialModeKeyTable('spatial_mode_key')
+    ROUTING_INTEGRATION_KEYS = _SchemaKeyTable('routing_integration_key')
 
     def needs_routing(
         self,
@@ -130,19 +221,23 @@ class RoutingDecider:
             diagnostics['checks']['domain_method'] = domain_method
             return False, diagnostics
 
+        # The model's own spatial mode, with 'auto'/'default' resolved from
+        # DOMAIN_DEFINITION_METHOD exactly as spatial_orchestrator does.
+        # Resolved once and used for both the veto below and the spatial checks
+        # further down, so the two can never read the same key differently.
+        model_spatial = self._resolve_model_spatial_mode(config, model, domain_method)
+        if model_spatial:
+            diagnostics['checks']['model_spatial_mode'] = model_spatial
+
         # Check model-specific spatial mode BEFORE ROUTING_MODEL.
         # ROUTING_MODEL may be a global template setting, but if the model
         # explicitly declares itself lumped, routing is not meaningful.
-        if model in self.SPATIAL_MODE_KEYS:
-            spatial_key = self.SPATIAL_MODE_KEYS[model]
-            model_spatial = config.get(spatial_key, '').lower()
-            if model_spatial == 'lumped':
-                routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
-                if routing_delineation == 'lumped':
-                    diagnostics['reason'] = 'model_spatial_mode_lumped'
-                    diagnostics['checks']['model_spatial_mode'] = model_spatial
-                    diagnostics['checks']['routing_delineation'] = routing_delineation
-                    return False, diagnostics
+        if model_spatial == 'lumped':
+            routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
+            if routing_delineation == 'lumped':
+                diagnostics['reason'] = 'model_spatial_mode_lumped'
+                diagnostics['checks']['routing_delineation'] = routing_delineation
+                return False, diagnostics
 
         # If explicitly set to a routing model, enable routing (for non-point domains)
         if routing_model in ['mizuroute', 'mizu_route', 'mizu']:
@@ -166,13 +261,7 @@ class RoutingDecider:
         # 3. Spatial configuration check (The primary driver)
         # Use model-specific spatial mode key when available (e.g., FUSE_SPATIAL_MODE)
         # to override the generic DOMAIN_DEFINITION_METHOD.
-        spatial_mode = domain_method
-        if model in self.SPATIAL_MODE_KEYS:
-            spatial_key = self.SPATIAL_MODE_KEYS[model]
-            model_spatial = config.get(spatial_key, '').lower()
-            if model_spatial:
-                spatial_mode = model_spatial
-                diagnostics['checks']['model_spatial_mode'] = model_spatial
+        spatial_mode = model_spatial or domain_method
 
         routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
 
@@ -206,6 +295,52 @@ class RoutingDecider:
 
         diagnostics['reason'] = 'no_spatial_routing_conditions_met'
         return False, diagnostics
+
+    def _resolve_model_spatial_mode(
+        self,
+        config: Dict[str, Any],
+        model: str,
+        domain_method: str,
+    ) -> str:
+        """The model's declared spatial mode, lowercased and resolved.
+
+        Returns ``''`` when the model declares no spatial-mode key or the
+        configuration carries no value for it — the caller then falls back to
+        ``DOMAIN_DEFINITION_METHOD``, as before.
+
+        ``auto``/``default`` are resolved from ``DOMAIN_DEFINITION_METHOD``
+        rather than compared as literals. Without this the comprehensive
+        template's ``VIC_SPATIAL_MODE: auto`` (and GR's / MESH's typed default)
+        matched neither the lumped test nor the distributed one and silently
+        fell through, while ``spatial_orchestrator`` — reading the same key —
+        resolved it and acted on the answer.
+        """
+        keys = self.SPATIAL_MODE_KEYS
+        if model not in keys:
+            return ''
+        raw = config.get(keys[model], '')
+        mode = str(raw).strip().lower() if raw is not None else ''
+        if not mode:
+            return ''
+        if mode in DEFERRED_SPATIAL_MODES:
+            return self._spatial_mode_from_domain_method(domain_method)
+        return mode
+
+    @staticmethod
+    def _spatial_mode_from_domain_method(domain_method: str) -> str:
+        """Map ``DOMAIN_DEFINITION_METHOD`` onto a spatial mode.
+
+        The typed config normalises ``delineate`` to ``semidistributed``
+        (``DomainConfig.normalize_definition_method``), so only a raw dict can
+        still spell it the old way; both land in the distributed trigger set
+        below, which is the same outcome ``spatial_orchestrator`` produces when
+        it maps ``delineate`` to ``distributed``. Every other value passes
+        through unchanged, so resolving a deferral is exactly the decision a
+        model that declares no key gets.
+        """
+        if domain_method == 'delineate':
+            return 'semidistributed'
+        return domain_method
 
     def _check_mizuroute_control_exists(
         self,

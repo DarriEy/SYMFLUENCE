@@ -17,6 +17,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Sobol and RBD-FAST support is installed with `symfluence[sensitivity]`.
   Importing the evaluation/analysis manager remains safe without SALib, while
   invoking either SALib-backed method raises an actionable install message.
+- **Models contract advanced to 0.4.0**: adds `parallel_calibration` to the
+  per-model declarations a registered `ModelConfigSchema` carries (the new
+  `ParallelCalibrationConfig`: the settings-file dialect — quoted values vs
+  tab-separated directives — and the mizuRoute control values a model needs
+  when calibration runs in parallel). This is deliberately a sibling of
+  `runoff`, not more fields on it: for models whose calibration path converts
+  output the two describe genuinely different files (FUSE's converter writes
+  `proc_NN_<exp>_timestep.nc` from its `runs_def.nc`), and HYPE needs the
+  settings half while having no runoff declaration at all. The last per-model
+  branching in `core/calibration/mixins/parallel/config_updater.py` is gone,
+  enforced by an AST guard against model-name comparisons. Equivalence was
+  proven differentially against the previous implementation across 288
+  scenarios with zero byte-level mismatches.
+- **Models contract advanced to 0.3.0**: the additive model surface now
+  includes the per-model declarations a registered `ModelConfigSchema`
+  carries for core to read instead of tabulating per model — `runoff`
+  (the new `RunoffConfig`: the runoff artifact mizuRoute/tRoute consume,
+  with its directory, filename pattern, variable, units, timestep, spatial
+  dimension/id names, control-file label and source-name aliases),
+  `spatial_mode_key`, and `routing_integration_key`. `RoutingDecider` and
+  `runoff_loader` now read those declarations, so a model package — in-tree
+  or external — becomes routable by registering a schema and nothing else.
+  No served value changed: where the schema and the deleted tables
+  disagreed, the table's value was preserved verbatim, since that is what
+  routing consumes today.
 - **Models and calibration contracts advanced to 0.2.0**: the additive model
   surface now includes canonical forcing-artifact selection and model-output
   location, canonical model-ready forcing and attribute reads/CF conventions,
@@ -48,16 +73,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - **Back-compat shim import paths** left by the service-decomposition
   promotions (`symfluence.models.{base,mixins,execution,state,templates,
-  utilities,adapters,spatial_modes}`, `symfluence.optimization.{optimizers,
+  utilities,adapters,spatial_modes,model_manager,coupled.calibration.*}`,
+  `symfluence.optimization.{optimizers,
   mixins,workers.base_worker,workers.inmemory_worker,workers.summa,
   core.base_parameter_manager,core.parameter_bounds_registry,
   parameter_managers}`, `symfluence.evaluation.metrics*`,
   `symfluence.cli.services.build_snippets*`,
-  `symfluence.geospatial.geometry_utils`): external packages should migrate
-  to the canonical `symfluence.core.*` paths. The shims will be removed at
-  2.0. In-tree code no longer uses them (guard-enforced).
+  `symfluence.geospatial.geometry_utils`,
+  `symfluence.resources.{get_base_settings_dir,copy_base_settings_to_project}`):
+  external packages should migrate
+  to the canonical `symfluence.core.*` / `symfluence.project.*` paths. The
+  shims will be removed at 2.0. In-tree code no longer uses them
+  (guard-enforced).
+
+  Note `symfluence.optimization.core.parameter_bounds_registry` was listed
+  here as a shim while actually being a 1185-line stale duplicate that
+  predated #368; it is now genuinely a shim, so the entry is true for the
+  first time.
 
 ### Changed
+- **Base-settings resolution promoted to `core/modeling/base_settings.py`**,
+  breaking the `resources` <-> `core` cycle: `symfluence.resources` reached into
+  `core.registries` to pick a model's settings anchor while
+  `core/modeling/base/base_preprocessor.py` imported the resolver straight back.
+  `resources` is now data-only (it exposes `get_bundled_base_settings_dir` for
+  its OWN bundled fallback and imports nothing from `symfluence.core`), and the
+  seven model modules that read settings through `symfluence.resources`
+  (clm, fuse, mizuroute, ngen, noahmp, summa, troute) go through the core
+  contract instead. `symfluence.resources` is now a forbidden import prefix for
+  `models` in the layering guard, so the models distribution depends on
+  `symfluence.core` alone. Resolution order (registry first, bundled fallback,
+  `FileNotFoundError` otherwise) is unchanged.
 - **Forcing-adapter base promoted to `core/modeling/adapters/`** (completes
   the adapter contract tier; the per-model `forcing_adapter` modules keep
   registering through it). In-tree code and tests no longer import any

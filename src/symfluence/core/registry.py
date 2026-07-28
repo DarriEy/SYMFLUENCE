@@ -16,6 +16,9 @@ Design choices
 * **Always stores classes** — the caller instantiates.
 * **Metadata per entry** — handles ``runner_method`` and future extensibility.
 * **Lazy imports** — native ``add_lazy`` for the BMI-registry pattern.
+* **Declared side-effect modules** — ``add_module()`` records a module whose
+  *import* performs the registration (decorator-style), so a package can
+  declare "my presets live here" without the framework globbing a source tree.
 * **Aliases** — native ``alias()`` for the delineation-registry pattern.
 * **Advisory protocol validation** — ``warnings.warn`` on registration when
   a class doesn't match the declared protocol; never blocks.
@@ -35,6 +38,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -64,18 +68,20 @@ class _LazyEntry:
             # Fall back to importing the full dotted path as a module.
             attr = importlib.import_module(self.import_path)
 
-        # If the resolved attribute is a sub-module (e.g. build_instructions_module
-        # pointed to "pkg.build_instructions" rather than "pkg.build_instructions.func"),
-        # search inside it for a single callable provider and invoke it.
         if isinstance(attr, types.ModuleType):
-            for obj in vars(attr).values():
-                if callable(obj) and not isinstance(obj, type):
-                    try:
-                        result = obj()
-                        if isinstance(result, dict):
-                            return result
-                    except Exception:  # noqa: BLE001
-                        continue
+            # A module is not a registry value. This used to fall back to
+            # calling every module-level callable with no arguments, swallowing
+            # exceptions, and returning the first result that happened to be a
+            # dict -- so an unrelated helper returning a dict would silently
+            # become the registered entry, and a module with no such callable
+            # was cached as the value itself. Modules whose *import* performs
+            # the registration belong in add_module()/load_modules(), which is
+            # what build_instructions (the only user of that fallback) now uses.
+            raise TypeError(
+                f"{self.import_path!r} resolves to a module, not a registry "
+                f"value. If importing it performs the registration, declare it "
+                f"with add_module() instead of add_lazy()."
+            )
         return attr
 
 
@@ -113,6 +119,8 @@ class Registry(Generic[T]):
         self._aliases: Dict[str, str] = {}        # alias_key -> canonical_key
         self._frozen = False
         self._seeder: Optional[Callable[[], None]] = None  # deferred population hook
+        self._modules: List[str] = []             # declared side-effect modules
+        self._loaded_modules: set[str] = set()    # already imported by load_modules()
 
     # ------------------------------------------------------------------
     # Registration
@@ -163,6 +171,50 @@ class Registry(Generic[T]):
         self._entries[nkey] = _LazyEntry(import_path)
         if meta:
             self._meta[nkey] = meta
+
+    def add_module(self, module_path: str) -> None:
+        """Declare a module whose *import* registers entries in this registry.
+
+        Some components register themselves as a decorator side effect when a
+        per-package submodule is imported (``@R.presets.add('fuse-basic')`` in
+        ``<pkg>.init_preset``).  The registry cannot see them until something
+        imports that module, and the framework must not go looking for it on
+        disk — that is a filesystem dependency on a package that may live in a
+        separate distribution (or not be installed at all).
+
+        Instead the owning package *declares* the module here, and the
+        consumer drains the declarations with :meth:`load_modules`.
+
+        Declarations are idempotent; importing happens at most once per
+        module path.
+        """
+        self._check_frozen()
+        if module_path not in self._modules:
+            self._modules.append(module_path)
+
+    def declared_modules(self) -> Tuple[str, ...]:
+        """Return the module paths declared via :meth:`add_module`."""
+        return tuple(self._modules)
+
+    def load_modules(self) -> None:
+        """Import every declared module not yet imported, for its side effects.
+
+        Deliberately *not* wired into read access (``get``/``keys``/...): a
+        consumer opts in by calling this, which keeps the set of entries a
+        plain registry read returns exactly what it returns today.  Modules
+        that cannot be imported are skipped with a debug log, matching the
+        tolerance the per-consumer import loops had.
+        """
+        for module_path in list(self._modules):
+            if module_path in self._loaded_modules:
+                continue
+            self._loaded_modules.add(module_path)
+            try:
+                importlib.import_module(module_path)
+            except ImportError:
+                logger.debug(
+                    "%s: declared module %r is not importable", self._name, module_path
+                )
 
     def alias(self, alias_key: str, canonical_key: str) -> None:
         """Create *alias_key* as an alias for *canonical_key*.
@@ -367,6 +419,18 @@ class Registry(Generic[T]):
 # model_manifest() — declarative per-model registration
 # ======================================================================
 
+#: Models whose calibration is internal training rather than an external
+#: parameter search, declared via ``model_manifest(self_training=True)``.
+#: Owned by the declaring package: core cannot know which models an installed
+#: plugin trains internally, and the hardcoded list this replaced could only
+#: ever describe the in-tree suite.
+_SELF_TRAINING_MODELS: set[str] = set()
+
+
+def self_training_models() -> frozenset[str]:
+    """Canonical keys of models that train internally during the run step."""
+    return frozenset(_SELF_TRAINING_MODELS)
+
 
 def model_manifest(
     model_name: str,
@@ -390,7 +454,11 @@ def model_manifest(
     koopman_analyzer: Optional[Type] = None,
     plotter: Optional[Type] = None,
     forcing_adapter: Optional[Type] = None,
+    forcing_adapter_module: Optional[str] = None,
+    init_preset_module: Optional[str] = None,
     build_instructions_module: Optional[str] = None,
+    aliases: Optional[Sequence[str]] = None,
+    self_training: bool = False,
 ) -> None:
     """Declaratively register all components for a single model.
 
@@ -418,9 +486,34 @@ def model_manifest(
         Plotter class.
     forcing_adapter : type, optional
         Forcing adapter class.
+    forcing_adapter_module : str, optional
+        Dotted import path to a module whose import registers this model's
+        forcing adapter (``@R.forcing_adapters.add(...)``).  Declared into
+        ``R.forcing_adapters`` via ``add_module``; imported when a consumer
+        drains the declarations.  Use this *instead of* ``forcing_adapter``
+        when the adapter class pulls heavy dependencies that must not load at
+        plugin-discovery time.
+    init_preset_module : str, optional
+        Dotted import path to a module whose import registers this model's
+        ``symfluence init`` presets (``@R.presets.add(...)``).  Declared into
+        ``R.presets`` via ``add_module``.
     build_instructions_module : str, optional
         Dotted import path to the build instructions module — will be
         registered as a lazy import in ``R.build_instructions``.
+    aliases : sequence of str, optional
+        Alternate spellings that should resolve to *model_name* across every
+        component registry — hyphenated forms (``"HEC-HMS"`` for ``HECHMS``),
+        short names (``"RHESS"`` for ``RHESSYS``), or a legacy key. Declaring
+        them here keeps the mapping with the package that owns the canonical
+        name; core previously carried a hardcoded table it could not know was
+        complete.
+    self_training : bool, default False
+        True for models whose "calibration" is internal training during the run
+        step (gradient descent) rather than an external DDS/PSO parameter
+        search. They register no optimizer or worker and have no calibrated
+        parameters, so the calibration and sensitivity-analysis paths skip them
+        instead of reporting a failure. Read back via
+        ``SupportedModels.SELF_TRAINING``.
     """
     # Deferred import to avoid circular dependency at module-parse time.
     from symfluence.core.registries import Registries as R
@@ -468,5 +561,38 @@ def model_manifest(
         if value is not None:
             registry.add(key, value, **meta)
 
+    # Capability modules: the model declares *where* a decorator-registered
+    # capability lives; the framework imports it only when a consumer asks.
+    if forcing_adapter_module is not None:
+        R.forcing_adapters.add_module(forcing_adapter_module)
+
+    if init_preset_module is not None:
+        R.presets.add_module(init_preset_module)
+
     if build_instructions_module is not None:
-        R.build_instructions.add_lazy(model_name, build_instructions_module)
+        # Declared, not lazily keyed. Every build-instructions module registers
+        # itself with @R.build_instructions.add('<tool>'), so importing it is
+        # what produces the entry -- and the tool name is not always the model
+        # name. Keying a lazy sentinel under model_name instead used to collide
+        # with the decorator's entry on the same (lower-cased) key, and resolving
+        # that sentinel invoked a heuristic that called every module-level
+        # callable until one returned a dict.
+        R.build_instructions.add_module(build_instructions_module)
+
+    # Alternate spellings resolve to the canonical key in the five registries a
+    # model is looked up BY NAME in -- not in all eighteen a manifest populates,
+    # so e.g. R.result_extractors and R.config_schemas are reachable only under
+    # the canonical key. That matches what core/_bootstrap did before aliases
+    # became declarable; widening it is a deliberate change, not a tidy-up.
+    # Aliases resolve lazily at lookup time, so declaring one before the
+    # canonical registration is fine.
+    for alias in aliases or ():
+        for registry in (R.runners, R.preprocessors, R.postprocessors,
+                         R.optimizers, R.workers):
+            # Never let an alias shadow a real registration of the same name.
+            if alias.upper() in registry.keys():
+                continue
+            registry.alias(alias, model_name)
+
+    if self_training:
+        _SELF_TRAINING_MODELS.add(model_name.upper())

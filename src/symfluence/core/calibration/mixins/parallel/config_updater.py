@@ -5,6 +5,16 @@
 Configuration Updater
 
 Updates model configuration files for parallel process directories.
+
+The per-model specifics — the runoff file mizuRoute reads for a process, its
+variable/dimension names, the model's output cadence and midnight alignment,
+and the dialect of the model's own settings file — are **not** tabulated here.
+Each model declares them as ``ModelConfigSchema.parallel_calibration``
+(:class:`~symfluence.core.modeling.config_schema.ParallelCalibrationConfig`);
+this module is the read side. A model that declares nothing gets
+``DEFAULT_PARALLEL_CALIBRATION``, which is exactly the else-branch core used to
+apply, so an external model package becomes parallel-calibratable by
+registering a schema and editing nothing here.
 """
 from __future__ import annotations
 
@@ -16,6 +26,7 @@ from typing import Any, Dict, Optional
 
 from symfluence.core.calibration.optimizers.lifecycle import adjust_end_time_for_forcing
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.modeling.config_schema import parallel_calibration_config
 
 
 class ConfigurationUpdater(ConfigMixin):
@@ -155,6 +166,7 @@ class ConfigurationUpdater(ConfigMixin):
         cal_end: Optional[str]
     ) -> list:
         """Update file manager lines with process-specific paths."""
+        spec = parallel_calibration_config(model_name)
         updated_lines = []
 
         for line in lines:
@@ -174,7 +186,7 @@ class ConfigurationUpdater(ConfigMixin):
 
             # Find the value part (ignoring comments)
             value_match = re.search(r"'(.*?)'", line)
-            if not value_match and model_name.upper() != 'HYPE':
+            if not value_match and spec.settings_values_quoted:
                 updated_lines.append(line)
                 continue
 
@@ -193,9 +205,9 @@ class ConfigurationUpdater(ConfigMixin):
                 updated_lines.append(f"{key:20s} '{cal_start}'\n")
             elif key == 'simEndTime' and cal_end:
                 updated_lines.append(f"{key:20s} '{cal_end}'\n")
-            elif model_name.upper() == 'HYPE' and key == 'resultdir':
+            elif spec.output_dir_directive and key == spec.output_dir_directive:
                 new_val = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
-                updated_lines.append(f"resultdir\t{new_val}\n")
+                updated_lines.append(f"{spec.output_dir_directive}\t{new_val}\n")
             else:
                 # PRESERVE UNCHANGED
                 updated_lines.append(line)
@@ -263,57 +275,45 @@ class ConfigurationUpdater(ConfigMixin):
         proc_id: int,
         experiment_id: str
     ) -> Dict[str, str]:
-        """Get model-specific mizuRoute configuration."""
+        """Resolve the mizuRoute control settings for *model_name*.
+
+        The per-model values are declared by the model itself
+        (``ModelConfigSchema.parallel_calibration``); this reads that
+        declaration and applies the config overrides core owns. A model that
+        declares nothing gets ``DEFAULT_PARALLEL_CALIBRATION``.
+        """
+        spec = parallel_calibration_config(model_name)
+
+        # SETTINGS_MIZU_ROUTING_DT decides, unless the model's output cadence
+        # is fixed by construction (FUSE/HYPE write daily regardless).
         dt_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_dt, default='3600', dict_key='SETTINGS_MIZU_ROUTING_DT')
         if dt_qsim in ('default', None, ''):
             dt_qsim = '3600'
+        if spec.dt_qsim is not None:
+            dt_qsim = spec.dt_qsim
 
-        # Default times for hourly models
-        sim_start_time = '01:00'
-        sim_end_time = '23:00'
+        vname_qsim = spec.runoff_var
+        if spec.runoff_var_from_config:
+            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default=spec.runoff_var, dict_key='SETTINGS_MIZU_ROUTING_VAR')
+            if vname_qsim in ('default', None, ''):
+                vname_qsim = spec.runoff_var
 
-        model_upper = model_name.upper()
-
-        if model_upper == 'SUMMA':
-            fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = 'averageRoutedRunoff'
-            sim_start_time = '00:00'
-            sim_end_time = '00:00'
-        elif model_upper == 'FUSE':
-            fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
-            if vname_qsim in ('default', None, ''):
-                vname_qsim = 'q_routed'
-            # FUSE outputs daily data starting at midnight
-            dt_qsim = '86400'
-            sim_start_time = '00:00'
-            sim_end_time = '00:00'
-        elif model_upper == 'GR':
-            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
-            fname_qsim = f"{domain_name}_{experiment_id}_runs_def.nc"
-            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
-            if vname_qsim in ('default', None, ''):
-                vname_qsim = 'q_routed'
-        elif model_upper == 'HYPE':
-            fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
-            if vname_qsim in ('default', None, ''):
-                vname_qsim = 'q_routed'
-            # HYPE outputs daily data
-            dt_qsim = '86400'
-            sim_start_time = '00:00'
-            sim_end_time = '00:00'
-        else:
-            fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = 'q_routed'
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        fname_qsim = spec.fname_pattern.format(
+            proc_id=proc_id,
+            experiment_id=experiment_id,
+            domain_name=domain_name,
+        )
 
         return {
             'fname_qsim': fname_qsim,
             'vname_qsim': vname_qsim,
             'dt_qsim': dt_qsim,
-            'sim_start_time': sim_start_time,
-            'sim_end_time': sim_end_time,
+            'sim_start_time': spec.sim_start_time,
+            'sim_end_time': spec.sim_end_time,
             'model_name': model_name,
+            'hru_dim': spec.hru_dim,
+            'hru_var': spec.hru_var,
         }
 
     def _update_mizuroute_lines(
@@ -367,15 +367,15 @@ class ConfigurationUpdater(ConfigMixin):
                     f"! Time interval of input runoff in seconds\n"
                 )
             elif '<dname_hruid>' in line:
-                # averageRoutedRunoff is on the 'gru' dimension for distributed SUMMA
-                dim_name = 'gru' if mizu_config['model_name'].upper() in ('FUSE', 'SUMMA') else 'hru'
+                # Model-declared: averageRoutedRunoff is on the 'gru' dimension
+                # for distributed SUMMA, and FUSE's converted parallel artifact
+                # is (time, gru) too.
                 updated_lines.append(
-                    f"<dname_hruid>           {dim_name}     ! Dimension name for HM_HRU ID\n"
+                    f"<dname_hruid>           {mizu_config['hru_dim']}     ! Dimension name for HM_HRU ID\n"
                 )
             elif '<vname_hruid>' in line:
-                var_name = 'gruId' if mizu_config['model_name'].upper() in ('FUSE', 'SUMMA') else 'hruId'
                 updated_lines.append(
-                    f"<vname_hruid>           {var_name}   ! Variable name for HM_HRU ID\n"
+                    f"<vname_hruid>           {mizu_config['hru_var']}   ! Variable name for HM_HRU ID\n"
                 )
             elif '<seg_outlet>' in line:
                 # Check if multi-gauge calibration is enabled

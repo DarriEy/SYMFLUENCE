@@ -14,22 +14,48 @@ from symfluence.core.registry import model_manifest
 
 @pytest.fixture(autouse=True)
 def _clean_registries():
-    """Save and restore all registries around each test."""
+    """Save and restore all registries around each test.
+
+    Entries are not the whole of a registry's state, and the rest is why this
+    fixture leaked into other files. A registry may also carry a one-shot
+    ``_seeder`` and a set of declared/loaded module paths, and ``clear()``
+    touches none of them. Reading a seeded registry inside a test therefore
+    burned its seeder, and because the modules were already in ``sys.modules``
+    their decorators could not fire a second time, so entries this fixture had
+    snapshotted as empty stayed empty for the rest of the session — the failure
+    showed up in an unrelated model's registration test, several files later.
+    """
     saved = {}
     for name, reg in Registries.all_registries().items():
+        # Populate before snapshotting. A lazily-seeded registry is empty until
+        # first read, so snapshotting it as-is captures nothing and "restores"
+        # emptiness — and the entries cannot come back, because their decorators
+        # only fire on the first import of a module that is by then cached in
+        # sys.modules. Registries whose entries are registered eagerly at import
+        # time hid this; build instructions are declared and drained, so they
+        # did not.
+        reg._ensure_seeded()
+        reg.load_modules()
         saved[name] = (
             dict(reg._entries),
             dict(reg._meta),
             dict(reg._aliases),
+            reg._seeder,
+            list(reg._modules),
+            set(reg._loaded_modules),
         )
         reg.clear()
     yield
     for name, reg in Registries.all_registries().items():
         reg.clear()
-        entries, meta, aliases = saved[name]
+        entries, meta, aliases, seeder, modules, loaded = saved[name]
         reg._entries.update(entries)
         reg._meta.update(meta)
         reg._aliases.update(aliases)
+        reg._seeder = seeder
+        reg._modules[:] = modules
+        reg._loaded_modules.clear()
+        reg._loaded_modules.update(loaded)
 
 
 class _MockPreprocessor:
@@ -146,11 +172,43 @@ class TestModelManifest:
         assert R.runners.get("MOCK") is None
         assert R.postprocessors.get("MOCK") is None
 
-    def test_build_instructions_lazy(self):
-        model_manifest("MOCK", build_instructions_module="math.log")
-        # Should resolve lazily
-        import math
-        assert R.build_instructions.get("MOCK") is math.log
+    def test_build_instructions_module_is_declared_not_keyed(self, tmp_path, monkeypatch):
+        """The module is declared for import; its own decorator supplies the key.
+
+        It used to be registered as a lazy entry keyed on the MODEL name. That
+        was wrong twice: the tool name is not always the model name (modflow
+        registers COUPLED_GW), and resolving such an entry ran a heuristic that
+        called every module-level callable until one returned a dict — so an
+        unrelated helper could become the tool definition, and the sentinel
+        collided with the decorator's own entry on the same lower-cased key.
+        """
+        import sys
+
+        monkeypatch.syspath_prepend(str(tmp_path))
+        (tmp_path / "symfluence_probe_build_instructions.py").write_text(
+            "from symfluence.core.registries import R\n"
+            "R.build_instructions.add('probe-tool', {'description': 'probe'})\n",
+            encoding="utf-8",
+        )
+        monkeypatch.delitem(
+            sys.modules, "symfluence_probe_build_instructions", raising=False
+        )
+
+        model_manifest(
+            "MOCK",
+            build_instructions_module="symfluence_probe_build_instructions",
+        )
+
+        # Declared, not imported, and not keyed under the model name.
+        assert "symfluence_probe_build_instructions" in R.build_instructions.declared_modules()
+        assert "symfluence_probe_build_instructions" not in sys.modules
+        assert R.build_instructions.get("MOCK") is None
+
+        R.build_instructions.load_modules()
+
+        # The module's own decorator supplied the key.
+        assert R.build_instructions.get("probe-tool") == {"description": "probe"}
+        R.build_instructions.remove("probe-tool")
 
     def test_case_insensitive(self):
         model_manifest("mock", preprocessor=_MockPreprocessor)

@@ -10,6 +10,7 @@ improve maintainability across the codebase.
 from __future__ import annotations
 
 import logging
+from collections.abc import Set as AbstractSet
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -440,16 +441,56 @@ class SupportedModels:
     an entry point / ``model_manifest`` (RTI review item 18). Registration is
     therefore the whitelist: this no longer hardcodes a model list. The former
     sibling lists (models with a forcing adapter / plotter / preset) were
-    likewise hardcoded and drifted from reality; those call sites now derive the
-    set directly (``symfluence.models.model_packages_with`` for submodule-based
-    discovery, or ``R.plotters`` for already-registered plotters).
+    likewise hardcoded and drifted from reality; those call sites now read the
+    registry instead (``R.plotters`` for already-registered plotters;
+    ``R.forcing_adapters`` / ``R.presets`` for capabilities a package declares
+    with ``model_manifest(forcing_adapter_module=..., init_preset_module=...)``
+    and a consumer drains with ``Registry.load_modules()``).
     """
 
     #: Models whose "calibration" is internal training (gradient descent during
     #: the run step), not an external DDS/PSO parameter search. They register no
     #: optimizer/worker and have no calibrated parameters, so both the calibration
     #: and sensitivity-analysis paths skip them rather than reporting a failure.
-    SELF_TRAINING = frozenset({'LSTM', 'GNN'})
+    #:
+    #: Declared by the owning package via ``model_manifest(self_training=True)``
+    #: rather than hardcoded here: core cannot know which models an installed
+    #: plugin trains internally, and a hardcoded list could only ever describe
+    #: the in-tree suite.
+    class _SelfTraining(AbstractSet):
+        """Live set view over the models that declared ``self_training``.
+
+        A real ``collections.abc.Set`` rather than a hand-rolled stand-in, so
+        set algebra (``-``, ``&``, ``|``) works against it as callers expect.
+        Deliberately UNHASHABLE: the contents come from plugin registration, so
+        a hash taken before discovery would not match one taken after.
+        """
+
+        @classmethod
+        def _from_iterable(cls, iterable):
+            # Set operations build their result through this hook, which
+            # defaults to cls(iterable); this class is a live view and takes no
+            # arguments, so results come back as plain frozensets.
+            return frozenset(iterable)
+
+        def _resolved(self) -> frozenset:
+            from symfluence.core.registry import self_training_models
+
+            return self_training_models()
+
+        def __contains__(self, item: object) -> bool:
+            return isinstance(item, str) and item.upper() in self._resolved()
+
+        def __iter__(self):
+            return iter(self._resolved())
+
+        def __len__(self) -> int:
+            return len(self._resolved())
+
+        def __repr__(self) -> str:
+            return f"SELF_TRAINING({sorted(self._resolved())})"
+
+    SELF_TRAINING = _SelfTraining()
 
     @classmethod
     def is_valid(cls, model_name: str) -> bool:

@@ -80,6 +80,30 @@ def register() -> None:
     R.workers.add_lazy("GSFLOW", f"{base}.calibration.worker.GSFLOWWorker")
     R.parameter_managers.add_lazy("GSFLOW", f"{base}.calibration.parameter_manager.GSFLOWParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "GSFLOW",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED},
+            default_mode=SpatialMode.SEMI_DISTRIBUTED,
+            requires_routing={
+                SpatialMode.SEMI_DISTRIBUTED: False,  # Internal SFR routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "GSFLOW couples PRMS surface processes with MODFLOW-NWT groundwater. "
+                "Internal SFR/UZF packages handle GW-SW exchange."
+            ),
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .calibration import GSFLOWModelOptimizer

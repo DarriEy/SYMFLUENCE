@@ -65,12 +65,39 @@ def register() -> None:
         "LSTM",
         config_adapter=LSTMConfigAdapter,
         result_extractor=LSTMResultExtractor,
+        # Trained by gradient descent during the run step, not by an external
+        # DDS/PSO parameter search, so calibration and sensitivity analysis
+        # skip it rather than reporting a failure.
+        self_training=True,
     )
     base = 'symfluence.models.lstm'
     R.preprocessors.add_lazy("LSTM", f"{base}.preprocessor.LSTMPreProcessor")
     R.runners.add_lazy("LSTM", f"{base}.runner.LSTMRunner")
     R.postprocessors.add_lazy("LSTM", f"{base}.postprocessor.LSTMPostProcessor")
     R.plotters.add_lazy("LSTM", f"{base}.plotter.LSTMPlotter")
+
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "LSTM",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.LUMPED,
+            requires_routing={
+                # LSTM handles routing internally.
+                SpatialMode.DISTRIBUTED: False,
+                SpatialMode.SEMI_DISTRIBUTED: False,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "LSTM works best in lumped mode for streamflow prediction. "
+                "Consider using GNN for spatially-distributed graph-based modeling."
+            ),
+        ),
+    )
 
 
 if TYPE_CHECKING:

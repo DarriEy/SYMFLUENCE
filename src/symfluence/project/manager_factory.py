@@ -71,7 +71,7 @@ class LazyManagerDict:
              return DataManager(self._config, self._logger)
 
         elif key == 'model':
-             from symfluence.models.model_manager import ModelManager
+             from symfluence.project.model_manager import ModelManager
              return ModelManager(self._config, self._logger, self._get_reporting_manager())
 
         elif key == 'analysis':

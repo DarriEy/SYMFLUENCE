@@ -247,7 +247,10 @@ INCOMPLETE_MODELS: dict[str, str] = {
     "CFUSE_ROUTED": "routed variant; reuses CFUSE runner/preprocessor",
     "HBV_ROUTED": "routed variant; reuses HBV runner/preprocessor",
     "JFUSE_ROUTED": "routed variant; reuses JFUSE runner/preprocessor",
-    "GNN": "ML model; runs via adapter (config_adapter + result_extractor only)",
+    # GNN was here, described as running "via adapter". It did not run at all:
+    # it had never registered a runner, so R.runners.get('GNN') was None while
+    # its runner/preprocessor/postprocessor sat importable and unreachable.
+    # Registered now, matching LSTM, which is equally self-training.
     "SNOW17": "conceptual/BMI model; runs via NGEN/BMI coupling, not standalone",
     "MIZUROUTE": "routing model; output handled by coupled postprocessing",
     "WMFIRE": "wildfire model; postprocessor-only registration",

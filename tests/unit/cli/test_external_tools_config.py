@@ -9,33 +9,78 @@ release) so that accidental reversions to floating HEAD are caught in CI.
 """
 from __future__ import annotations
 
+import types
+
 import pytest
 
-from symfluence.cli.external_tools_config import (
-    _import_model_build_instructions,
-    get_external_tools_definitions,
-)
+from symfluence.cli.external_tools_config import get_external_tools_definitions
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
 
-def test_extracted_models_not_in_hardcoded_build_instructions_list():
-    """cfuse and droute were extracted to standalone pip packages (issue #150).
+def _compiled_string_constants(source: str, filename: str) -> set[str]:
+    """Every string constant in *source*, recursively through code objects.
 
-    They register their build instructions via the ``symfluence.plugins``
-    entry-point group, not the in-tree ``model_modules`` list.  Listing the
-    removed in-tree modules made every ``symfluence binary`` invocation log a
-    spurious "Failed to load build instructions" warning.  Pin them out.
+    A source-text grep for a dotted path is defeated by writing it as
+    ``'symfluence.' + 'models'``. Compiling first defeats that back: CPython's
+    peephole optimiser folds adjacent literal concatenation into a single
+    constant, so the reassembled path shows up here.
+    """
+    def walk(code: types.CodeType) -> set[str]:
+        found: set[str] = set()
+        for constant in code.co_consts:
+            if isinstance(constant, str):
+                found.add(constant)
+            elif isinstance(constant, types.CodeType):
+                found |= walk(constant)
+        return found
+
+    return walk(compile(source, filename, 'exec'))
+
+
+def test_no_model_packages_are_hardcoded():
+    """Model build instructions are declared by the model, never enumerated here.
+
+    Supersedes the narrower cfuse/droute pin (issue #150): those two were
+    extracted to standalone pip packages and left behind in a hardcoded
+    ``model_modules`` list, which logged a spurious "Failed to load build
+    instructions" warning on every ``symfluence binary`` invocation.  The list
+    is gone — a model package registers ``build_instructions_module`` through
+    ``model_manifest`` and the CLI reads ``R.build_instructions`` — so the
+    failure mode cannot recur, for in-tree or external packages alike.
+
+    Scanned twice: the source text (so prose in that module says "the models
+    package" rather than spelling the dotted name) and the compiled string
+    constants (so a path split across literals cannot slip past the grep).
     """
     import inspect
 
-    src = inspect.getsource(_import_model_build_instructions)
-    for removed in ('symfluence.models.cfuse.build_instructions',
-                    'symfluence.models.droute.build_instructions'):
-        assert removed not in src, (
-            f"{removed} was removed in-tree; it must not be hardcoded in the "
-            "model_modules list (it registers via the symfluence.plugins group)."
-        )
+    from symfluence.cli import external_tools_config
+
+    src = inspect.getsource(external_tools_config)
+    assert 'symfluence.models' not in src, (
+        "external_tools_config must not name model packages; build instructions "
+        "are declared by the model package via model_manifest("
+        "build_instructions_module=...) and read from R.build_instructions."
+    )
+    offenders = sorted(
+        constant
+        for constant in _compiled_string_constants(
+            src, external_tools_config.__file__)
+        if 'symfluence.models' in constant
+    )
+    assert not offenders, (
+        f"external_tools_config assembles model-package paths from string "
+        f"fragments: {offenders}"
+    )
+
+
+def test_model_build_instructions_are_discovered_from_the_registry():
+    """In-tree models still surface in `symfluence binary`, via the registry."""
+    tools = get_external_tools_definitions()
+    for tool in ('summa', 'fuse', 'mizuroute', 'wmfire', 'rhessys'):
+        assert tool in tools, f"{tool} disappeared from the build-tool catalogue"
+        assert tools[tool].get('description')
 
 
 def test_taudem_pinned_to_release_tag():

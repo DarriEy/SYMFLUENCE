@@ -19,6 +19,10 @@ import pandas as pd
 
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.modeling.base import BaseModelRunner
+from symfluence.core.modeling.utilities.runoff_loader import (
+    MODEL_CONFIGS,
+    resolve_runoff_file,
+)
 from symfluence.core.registries import R
 
 
@@ -90,73 +94,66 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
 
         self.logger.debug(f"Detected active models for time precision fix: {active_models}")
 
-        # For FUSE, check if it has already converted its output
-        if 'FUSE' in active_models:
-            self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_fuse = self._get_config_value(
-                lambda: self.config.model.fuse.experiment_output, default='default'
-            )
-            if experiment_output_fuse == 'default' or not experiment_output_fuse:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'FUSE'
-            else:
-                experiment_output_dir = Path(experiment_output_fuse)
-            fuse_file_id = self._get_config_value(
-                lambda: self.config.model.fuse.file_id, default=None
-            )
-            if not fuse_file_id:
-                fuse_file_id = self.experiment_id or 'fuse'
-                # Replicate FUSE preprocessor's 6-char truncation for Fortran compatibility
-                if len(fuse_file_id) > 6:
-                    import hashlib
-                    fuse_file_id = hashlib.md5(fuse_file_id.encode(), usedforsecurity=False).hexdigest()[:6]
-            runoff_filename = f"{self.domain_name}_{fuse_file_id}_runs_def.nc"
-        elif 'GR' in active_models:
-            self.logger.info("Fixing GR time precision for mizuRoute compatibility")
-            experiment_output_gr = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_GR')
-            if experiment_output_gr == 'default' or not experiment_output_gr:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'GR'
-            else:
-                experiment_output_dir = Path(experiment_output_gr)
-            runoff_filename = f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
-        elif 'HYPE' in active_models:
-            self.logger.info("Fixing HYPE time precision for mizuRoute compatibility")
-            experiment_output_hype = self._get_config_value(lambda: None, default='default', dict_key='EXPERIMENT_OUTPUT_HYPE')
-            if experiment_output_hype == 'default' or not experiment_output_hype:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'HYPE'
-            else:
-                experiment_output_dir = Path(experiment_output_hype)
-            runoff_filename = f"{self.experiment_id}_timestep.nc"
-        elif 'NGEN' in active_models:
-            self.logger.info("NGEN runoff NetCDF for mizuRoute — checking time precision")
-            experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'NGEN'
-            runoff_filename = f"{self.experiment_id}_runoff.nc"
-        else:
-            self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
-            experiment_output_summa = self._get_config_value(
-                lambda: self.config.model.summa.experiment_output, default='default'
-            )
-            if experiment_output_summa == 'default' or not experiment_output_summa:
-                experiment_output_dir = self.project_dir / f"simulations/{self.experiment_id}" / 'SUMMA'
-            else:
-                experiment_output_dir = Path(experiment_output_summa)
-            runoff_filename = f"{self.experiment_id}_timestep.nc"
+        # Which source model's output to route: the routable active models, in
+        # the alphabetical order ``active_models`` is already sorted into, first
+        # match wins. The routable set comes from the registered runoff
+        # declarations rather than a literal tuple, so an external model package
+        # becomes selectable by registering a schema -- and a model that cannot
+        # feed a routing model (HYPE: its 'cout' is already routed discharge) is
+        # excluded by not declaring one, instead of by a name in a list here.
+        #
+        # Alphabetical reproduces the precedence this method has always applied
+        # (FUSE > GR > NGEN > SUMMA), but only incidentally: a future routable
+        # model sorting before FUSE would take precedence over it. Precedence
+        # only bites when two source models are active at once, which is not a
+        # supported configuration -- pin an explicit order here if it becomes
+        # one.
+        routable = {name.upper() for name in MODEL_CONFIGS}
+        candidates = [m for m in active_models if m in routable]
 
-        runoff_filepath = experiment_output_dir / runoff_filename
-        self.logger.info(f"Resolved runoff filepath: {runoff_filepath} (Exists: {runoff_filepath.exists()})")
+        # KNOWN GAP, behaviour preserved: with no routable active model this
+        # still falls back to SUMMA, re-introducing the silent default that
+        # get_model_config() deliberately dropped (it now raises rather than
+        # resolving SUMMA paths for an unroutable model). A HYPE-only or
+        # MESH-only run therefore resolves SUMMA paths, and can pick up a stale
+        # SUMMA file through resolve_runoff_file's *.nc fallback. Made loud
+        # rather than changed, because the fallback is pinned by
+        # tests/unit/models/test_mizuroute_runner_source_resolution.py.
+        source_model = candidates[0] if candidates else 'SUMMA'
+        if not candidates:
+            self.logger.warning(
+                f"No active model declares a routable runoff artifact "
+                f"(active models: {active_models}; routable: {sorted(routable)}). "
+                f"Falling back to SUMMA — any file found is a guess, not a "
+                f"resolved output of the model that was run."
+            )
 
-        if not runoff_filepath.exists():
-            self.logger.warning(f"Model output file not found: {runoff_filepath}. Checking if any other output files exist in {experiment_output_dir}...")
-            if experiment_output_dir.exists():
-                nc_files = [f for f in experiment_output_dir.glob("*.nc") if '_para_' not in f.name]
-                if nc_files:
-                    runoff_filepath = nc_files[0]
-                    self.logger.info(f"Using fallback output file: {runoff_filepath}")
-                else:
-                    self.logger.error(f"No NetCDF output files found in {experiment_output_dir}")
-                    return None
-            else:
-                self.logger.error(f"Output directory does not exist: {experiment_output_dir}")
-                return None
+        self.logger.info(
+            f"Fixing {source_model} time precision for mizuRoute compatibility "
+            f"(active models: {active_models})"
+        )
+
+        # Directory, filename pattern and the FUSE 6-char file-id truncation all
+        # come from the model's registered runoff declaration; this method used
+        # to carry its own if/elif copy, which is how it came to expect a HYPE
+        # file nothing produces.
+        runoff_filepath = resolve_runoff_file(
+            source_model=source_model,
+            project_dir=self.project_dir,
+            experiment_id=self.experiment_id,
+            domain_name=self.domain_name,
+            config=self.config,
+        )
+
+        if runoff_filepath is None:
+            self.logger.error(
+                f"No routable {source_model} output found for experiment "
+                f"'{self.experiment_id}'. mizuRoute needs a NetCDF runoff file "
+                f"from the source model before it can route."
+            )
+            return None
+
+        self.logger.info(f"Resolved runoff filepath: {runoff_filepath}")
 
         try:
             import os
@@ -384,19 +381,44 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
             import xarray as xr
             self.logger.debug(f"Syncing control file dimensions for {netcdf_path}")
 
+            # Which variable mizuRoute will read. Its dimensions are the only
+            # authoritative answer: a SUMMA file carries BOTH 'gru' and 'hru',
+            # so picking from the file's dimension list (as this did, gru
+            # first) is a guess that happens to be right for SUMMA and wrong
+            # for any model whose runoff sits on the other one.
+            qsim_var = None
+            try:
+                for line in control_path.read_text(encoding='utf-8').splitlines():
+                    if '<vname_qsim>' in line:
+                        parts = line.split('!')[0].split()
+                        if len(parts) > 1:
+                            qsim_var = parts[-1]
+                        break
+            except OSError:
+                pass
+
             with xr.open_dataset(netcdf_path, decode_times=False) as ds:
                 dname = None
-                # Detect dimension name
-                if 'gru' in ds.dims:
-                    dname = 'gru'
-                elif 'hru' in ds.dims:
-                    dname = 'hru'
-                else:
-                    self.logger.warning(f"Could not find 'gru' or 'hru' dimension in {netcdf_path}. Available: {list(ds.dims)}")
+                if qsim_var and qsim_var in ds.variables:
+                    spatial = [d for d in ds[qsim_var].dims if d != 'time']
+                    if len(spatial) == 1:
+                        dname = spatial[0]
+                if dname is None:
+                    # Fall back to the file's dimensions when the runoff
+                    # variable cannot be identified.
+                    if 'gru' in ds.dims:
+                        dname = 'gru'
+                    elif 'hru' in ds.dims:
+                        dname = 'hru'
+                    else:
+                        self.logger.warning(f"Could not find 'gru' or 'hru' dimension in {netcdf_path}. Available: {list(ds.dims)}")
 
                 # Detect ID variable
                 vname = None
-                if 'gruId' in ds.variables:
+                # Prefer the ID variable matching the dimension actually used.
+                if dname and f'{dname}Id' in ds.variables:
+                    vname = f'{dname}Id'
+                elif 'gruId' in ds.variables:
                     vname = 'gruId'
                 elif 'hruId' in ds.variables:
                     vname = 'hruId'
@@ -423,8 +445,17 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                 modified = False
                 for line in lines:
                     if '<dname_hruid>' in line:
-                        # Check if update is needed
-                        if dname not in line:
+                        # Compare the VALUE, not the whole line. `dname not in
+                        # line` was a substring test against a line whose own
+                        # tag is '<dname_hruid>' — which contains 'hru'. So for
+                        # dname='hru' the test was always False and the sync
+                        # could never rewrite gru -> hru, while the vname test
+                        # below could (its tag is lowercase 'hruid' vs the value
+                        # 'hruId'). The result was a control file left
+                        # internally inconsistent — dimension 'gru', variable
+                        # 'hruId' — while logging that it had applied 'hru'.
+                        current = line.split('!')[0].split()[-1] if line.split('!')[0].split()[1:] else ''
+                        if current != dname:
                             parts = line.split('!')
                             comment = '!' + parts[1] if len(parts) > 1 else ''
                             new_lines.append(f"<dname_hruid>           {dname}    {comment}")
@@ -432,8 +463,9 @@ class MizuRouteRunner(BaseModelRunner):  # type: ignore[misc]
                         else:
                             new_lines.append(line)
                     elif '<vname_hruid>' in line:
-                         # Check if update is needed
-                        if vname not in line:
+                        # Value comparison, for the same reason as above.
+                        current = line.split('!')[0].split()[-1] if line.split('!')[0].split()[1:] else ''
+                        if current != vname:
                             parts = line.split('!')
                             comment = '!' + parts[1] if len(parts) > 1 else ''
                             new_lines.append(f"<vname_hruid>           {vname}    {comment}")

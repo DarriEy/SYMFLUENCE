@@ -124,6 +124,30 @@ def register() -> None:
     R.visualizers.add_lazy("MESH", f"{base}.visualizer.visualize_mesh")
     R.result_extractors.add_lazy("MESH", f"{base}.extractor.MESHResultExtractor")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "MESH",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                # MESH has internal routing (WATFLOOD/PDMROF).
+                SpatialMode.DISTRIBUTED: False,
+                SpatialMode.SEMI_DISTRIBUTED: False,
+                # Lumped uses noroute mode (RFF+DRAINSOL proxy).
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,  # Lumped mode fully supported
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .extractor import MESHResultExtractor

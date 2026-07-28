@@ -79,6 +79,11 @@ def register() -> None:
     Execution and calibration classes are registered lazily — imported on
     first registry access rather than at plugin-discovery time.
     """
+    # Outside the try below, so an import failure there cannot turn into
+    # "IGNACIO has no calibration bounds".
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
     try:
         from symfluence.core.registries import Registries as R
         from symfluence.core.registry import model_manifest
@@ -96,8 +101,12 @@ def register() -> None:
         R.workers.add_lazy("IGNACIO", f"{base}.calibration.worker.IGNACIOWorker")
         R.parameter_managers.add_lazy("IGNACIO", f"{base}.calibration.parameter_manager.IGNACIOParameterManager")
         R.config_schemas.add_lazy("IGNACIO", f"{base}.config_schema.IGNACIOConfig")
-    except Exception:  # noqa: BLE001 — optional dependency
-        pass
+    except ImportError as exc:
+        # Every registration above is lazy (dotted strings), so the optional
+        # ``ignacio`` package is never imported here — only a core import can
+        # raise. Narrow deliberately: a bare ``except Exception`` made every
+        # typo in the block permanently invisible.
+        logger.warning(f"IGNACIO registration skipped: {exc}")
 
 
 if TYPE_CHECKING:

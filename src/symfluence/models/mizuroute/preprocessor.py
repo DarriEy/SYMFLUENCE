@@ -30,7 +30,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
     network topology file creation, remapping file generation, and control file writing.
     It supports multiple domain discretization strategies (lumped, semi-distributed,
     distributed, grid-based) and integrates with various hydrological models as runoff
-    sources (SUMMA, FUSE, GR, NextGen, HYPE).
+    sources (SUMMA, FUSE, GR, NextGen).
 
     Supported Domain Types:
         Lumped:
@@ -58,7 +58,6 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         - FUSE: Framework for Understanding Structural Errors
         - GR: Parsimonious hydrological models (GR4J, GR5J, GR6J)
         - NextGen (NGEN): NOAA modular BMI framework
-        - HYPE: Semi-distributed hydrological model
 
     Processing Workflow:
         1. **Initialization**: Set up directories, handle custom paths for parallel runs
@@ -394,7 +393,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             return super().copy_base_settings(source_dir, file_patterns)
 
         self.logger.info("Copying mizuRoute base settings")
-        from symfluence.resources import get_base_settings_dir
+        from symfluence.core.modeling.base_settings import get_base_settings_dir
         base_settings_path = get_base_settings_dir('mizuRoute')
         self.setup_dir.mkdir(parents=True, exist_ok=True)
 

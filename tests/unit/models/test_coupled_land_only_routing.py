@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from symfluence.models.coupled.calibration.worker import CoupledModelWorker
+from symfluence.core.calibration.coupled.worker import CoupledModelWorker
 from symfluence.models.summa.calibration.worker import SUMMAWorker
 
 

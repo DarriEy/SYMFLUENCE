@@ -29,6 +29,13 @@ def _catalog() -> dict[str, list[str]]:
     from symfluence.resources import list_config_templates
     from symfluence.workflow_steps import WORKFLOW_STEP_ITEMS
 
+    # Presets register as a side effect of importing each package's
+    # ``init_preset`` module, which packages declare rather than the framework
+    # discovering on disk. A plain ``R.presets.keys()`` therefore reported zero
+    # presets even though ``symfluence init --preset fuse-basic`` worked --
+    # listing is exactly the consumer that must drain the declarations first.
+    R.presets.load_modules()
+
     return {
         'models': sorted(R.runners.keys()),
         'forcings': sorted(R.acquisition_handlers.keys()),

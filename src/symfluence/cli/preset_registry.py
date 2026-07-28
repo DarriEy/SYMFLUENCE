@@ -110,22 +110,12 @@ class PresetRegistry:
     @classmethod
     def _import_model_presets(cls) -> None:
         """
-        Import preset modules from each model directory.
+        Import declared preset modules to trigger their registration decorators.
 
-        This method attempts to import the init_preset module from
-        each known model package.
+        Model packages declare where their presets live — via
+        ``model_manifest(init_preset_module=...)`` or directly with
+        ``R.presets.add_module(...)``; draining those declarations is all the
+        CLI does.  No source-tree globbing, so a preset shipped by an external
+        plugin package is discovered the same way an in-tree one is.
         """
-        import logging
-
-        from symfluence.models import model_packages_with
-
-        for model_name in model_packages_with('init_preset'):
-            try:
-                __import__(
-                    f'symfluence.models.{model_name}.init_preset',
-                    fromlist=['init_preset']
-                )
-            except ImportError:
-                logging.getLogger(__name__).debug(
-                    f"Preset module for '{model_name}' not available"
-                )
+        R.presets.load_modules()

@@ -427,6 +427,8 @@ cal_ensemble_hype_dds@HYPE,KGE,macos,0.849389,native_windows,0.849389,0.000000,O
 cal_ensemble_hype_de@HYPE,KGE,macos,0.806661,native_windows,0.806661,0.000000,OK
 cal_ensemble_hype_dream@HYPE,KGE,macos,0.371711,native_windows,0.371711,0.000000,OK
 cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,native_windows,0.826552,0.000000,OK
+cal_ensemble_hype_glue@HYPE,KGE,macos,0.316885,native_windows,0.316885,0.000000,OK
+cal_ensemble_hype_moead@HYPE,KGE,macos,0.554692,native_windows,0.627655,0.072963,DIFF
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -491,6 +493,8 @@ domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hy
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_dream/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_ga/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_glue/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_moead/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_nelder_mead/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_basins/Bow_at_Banff_lumped_calibration_ensemble_riverBasins_lumped.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_network/Bow_at_Banff_lumped_calibration_ensemble_riverNetwork_lumped.shp,n_features,macos,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_elev_aspect:catchment/lumped/Bow_at_Banff_lumped_elev_aspect/Bow_at_Banff_lumped_elev_aspect_HRUs_elevation_aspect.shp,n_features,macos,88.000000,native_windows,88.000000,0.000000,OK
@@ -720,6 +724,7 @@ run_1@GSFLOW,KGE,macos,0.797764,wsl,0.800698,0.002934,OK
 run_1@HBV,KGE,macos,0.887206,wsl,0.887254,0.000048,OK
 run_1@HECHMS,KGE,macos,0.820375,wsl,0.852517,0.032141,DIFF
 run_1@LSTM,KGE,macos,0.976788,wsl,0.950905,0.025883,DIFF
+run_1@MESH,KGE,macos,0.510675,wsl,0.512398,0.001723,OK
 run_1@MHM,KGE,macos,0.951193,wsl,0.951193,0.000000,OK
 run_1@PRMS,KGE,macos,0.923122,wsl,0.927834,0.004712,OK
 run_1@RHESSys,KGE,macos,0.839567,wsl,0.365187,0.474380,DIFF
@@ -764,6 +769,7 @@ run_1@GR,?,macos_dev,0.949379,wsl,0.946389,0.002991,OK
 run_1@GSFLOW,?,macos_dev,0.817654,wsl,0.800698,0.016956,DIFF
 run_1@HBV,?,macos_dev,0.936495,wsl,0.887254,0.049241,DIFF
 run_1@HECHMS,?,macos_dev,0.870889,wsl,0.852517,0.018372,DIFF
+run_1@MESH,?,macos_dev,0.551147,wsl,0.512398,0.038749,DIFF
 run_1@MHM,?,macos_dev,0.901851,wsl,0.951193,0.049342,DIFF
 run_1@PRMS,?,macos_dev,0.810249,wsl,0.927834,0.117585,DIFF
 run_1@RHESSys,?,macos_dev,0.820464,wsl,0.365187,0.455277,DIFF
@@ -830,6 +836,8 @@ cal_ensemble_hype_dds@HYPE,KGE,macos_p3repro,0.849389,native_windows,0.849389,0.
 cal_ensemble_hype_de@HYPE,KGE,macos_p3repro,0.806661,native_windows,0.806661,0.000000,OK
 cal_ensemble_hype_dream@HYPE,KGE,macos_p3repro,0.371711,native_windows,0.371711,0.000000,OK
 cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.741416,native_windows,0.826552,0.085136,DIFF
+cal_ensemble_hype_glue@HYPE,KGE,macos_p3repro,0.316885,native_windows,0.316885,0.000000,OK
+cal_ensemble_hype_moead@HYPE,KGE,macos_p3repro,0.592638,native_windows,0.627655,0.035017,DIFF
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,native_windows,2332.000000,0.000000,OK
@@ -894,6 +902,8 @@ domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hy
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_dream/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_ga/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_glue/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_moead/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_hype_nelder_mead/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_basins/Bow_at_Banff_lumped_calibration_ensemble_riverBasins_lumped.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_network/Bow_at_Banff_lumped_calibration_ensemble_riverNetwork_lumped.shp,n_features,macos_p3repro,1.000000,native_windows,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_elev_aspect:catchment/lumped/Bow_at_Banff_lumped_elev_aspect/Bow_at_Banff_lumped_elev_aspect_HRUs_elevation_aspect.shp,n_features,macos_p3repro,88.000000,native_windows,88.000000,0.000000,OK
@@ -1123,6 +1133,7 @@ run_1@GSFLOW,KGE,macos_p3repro,0.863662,wsl,0.800698,0.062965,DIFF
 run_1@HBV,KGE,macos_p3repro,0.891596,wsl,0.887254,0.004341,OK
 run_1@HECHMS,KGE,macos_p3repro,0.853200,wsl,0.852517,0.000684,OK
 run_1@LSTM,KGE,macos_p3repro,0.991877,wsl,0.950905,0.040972,DIFF
+run_1@MESH,KGE,macos_p3repro,0.506607,wsl,0.512398,0.005791,OK
 run_1@MHM,KGE,macos_p3repro,0.946660,wsl,0.951193,0.004533,OK
 run_1@PRMS,KGE,macos_p3repro,0.924675,wsl,0.927834,0.003159,OK
 run_1@RHESSys,KGE,macos_p3repro,0.836306,wsl,0.365187,0.471119,DIFF

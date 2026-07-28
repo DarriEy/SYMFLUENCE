@@ -38,8 +38,10 @@ def test_compatibility_semantics_match_acquisition_contract():
     # pre-1.0: older-or-equal minor accepted, forward skew declined,
     # major mismatch declined — per family, independently.
     assert is_compatible("models", "0.1.0")  # older additive surface
-    assert is_compatible("models", "0.2.0")  # current surface
-    assert not is_compatible("models", "0.3.0")  # forward skew
+    assert is_compatible("models", "0.2.0")  # older additive surface
+    assert is_compatible("models", "0.3.0")  # older additive surface
+    assert is_compatible("models", "0.4.0")  # current surface
+    assert not is_compatible("models", "0.5.0")  # forward skew
     assert not is_compatible("models", "1.0.0")  # major mismatch
     assert not is_compatible("no-such-family", "0.1.0")
     assert not is_compatible("models", "not-a-version")

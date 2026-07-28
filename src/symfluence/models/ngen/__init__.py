@@ -136,6 +136,28 @@ def register() -> None:
     R.result_extractors.add_lazy("NGEN", f"{base}.extractor.NGENResultExtractor")
     R.plotters.add_lazy("NGEN", f"{base}.plotter.NGENPlotter")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "NGEN",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.SEMI_DISTRIBUTED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: True,  # Uses t-route for routing
+                SpatialMode.SEMI_DISTRIBUTED: True,
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=None,
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .config_generator import NgenConfigGenerator

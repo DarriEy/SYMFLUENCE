@@ -8,6 +8,7 @@ from .base_parameter_manager import BaseParameterManager
 from .parameter_bounds_registry import (
     ParameterBoundsRegistry,
     ParameterInfo,
+    bounds_registration_conflicts,
     get_depth_bounds,
     get_fuse_bounds,
     get_mizuroute_bounds,
@@ -29,6 +30,7 @@ __all__ = [
     'get_model_bounds',
     'register_model_bounds',
     'registered_bound_models',
+    'bounds_registration_conflicts',
     'get_depth_bounds',
     'get_fuse_bounds',
     'get_mizuroute_bounds',

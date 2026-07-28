@@ -145,7 +145,7 @@ class HYPEWorker(BaseWorker):
                     return str(candidate)
 
         # Try PATH
-        resolved = shutil.which(exe_name)
+        resolved: Optional[str] = shutil.which(exe_name)
         if resolved:
             return resolved
 

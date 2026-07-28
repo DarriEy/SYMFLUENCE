@@ -3,6 +3,12 @@ Unit tests for Parameter Bounds Registry
 
 Tests that parameter bounds are correctly registered for all models
 and that config overrides preserve transform metadata.
+
+Since the three-tier split (service-decomposition item 2) HYPE's and MESH's
+bounds are defined in ``symfluence.models.{hype,mesh}.parameter_bounds`` and
+reach the catalogue through ``register_model_bounds()`` at plugin-discovery
+time. The assertions below are unchanged on purpose: they are what proves the
+move is invisible to a consumer of ``get_<model>_bounds()``.
 """
 from __future__ import annotations
 
@@ -18,6 +24,30 @@ from symfluence.core.calibration.parameters.parameter_bounds_registry import get
 
 class TestParameterBoundsRegistry:
     """Test that bounds are correctly registered."""
+
+    def test_hype_bounds_come_from_the_model_package(self):
+        """The definitions HYPE resolves are the ones its package registered."""
+        from symfluence.models.hype.parameter_bounds import PARAMS
+
+        bounds = get_hype_bounds()
+        for name, info in PARAMS.items():
+            assert bounds[name]['min'] == info.min
+            assert bounds[name]['max'] == info.max
+            assert bounds[name]['transform'] == info.transform
+        # ...and the one shared name it composes rather than owns.
+        assert 'lp' not in PARAMS
+        assert 'lp' in bounds
+
+    def test_mesh_shared_names_still_come_from_core(self):
+        """MESH's two colliding names keep the central definition."""
+        from symfluence.core.calibration.parameters import parameter_bounds_registry as pbr
+        from symfluence.models.mesh.parameter_bounds import PARAMS
+
+        bounds = get_mesh_bounds()
+        for name in ('PWR', 'R2N'):
+            assert name not in PARAMS, f"{name} must stay central (WATFLOOD serves it too)"
+            central = pbr.get_registry().get_bounds(name)
+            assert bounds[name] == central
 
     def test_hype_bounds_exist(self):
         """Test that all HYPE parameters have bounds."""

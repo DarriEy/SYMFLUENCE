@@ -2,14 +2,14 @@
 # Copyright (C) 2024-2026 SYMFLUENCE Team <dev@symfluence.org>
 
 """
-Parameter Bounds Registry - Centralized parameter bounds definitions.
+Parameter Bounds Registry - the SHARED parameter catalogue.
 
-This module provides a single source of truth for hydrological parameter bounds
-used across different models (SUMMA, FUSE, NGEN). Benefits:
+This module is the single source of truth for parameter bounds that more than
+one model resolves. Benefits:
 - Eliminates duplication between model-specific parameter managers
 - Provides consistent bounds for shared parameters (e.g., soil properties)
 - Documents parameter meanings and units
-- Allows easy modification of bounds without editing multiple files
+- Keeps cross-model name collisions visible in one file
 
 Architecture Decision:
     This module intentionally contains model-specific functions (get_fuse_bounds,
@@ -35,8 +35,49 @@ Architecture Decision:
     without editing core. ``register_model_bounds()`` is that seam: a model
     package (in-tree or external) registers its parameter definitions and/or
     the catalogue names composing its bound set, and ``get_model_bounds()``
-    serves them uniformly. The built-in ``get_<model>_bounds`` functions remain
-    the seed for in-tree models.
+    serves them uniformly.
+
+    REFINED (July 2026, service-decomposition item 2). The centralization
+    decision above is kept for what it was actually protecting -- *shared*
+    physics -- and dropped for what it was only accumulating: 200 of the 286
+    distinct parameter names were resolved by exactly one model, so "one place
+    to compare bounds" bought nothing for them while forcing a ``core`` release
+    for every model-local bound change. The catalogue is now three tiers:
+
+    * **Tier A -- bound-set composition.** The ``names=[...]`` list (and any
+      ``strip_prefix``) that says *which* parameters a model calibrates is
+      model identity, not shared physics. Every in-tree model registers its own
+      through ``register_model_bounds()`` from its package ``register()``.
+    * **Tier B -- solo parameter definitions.** A ``ParameterInfo`` only one
+      model ever resolves lives in that model's package and is contributed via
+      ``register_model_bounds(params=...)``. It still lands in the same runtime
+      catalogue, so ``get_registry().get_bounds(name)`` is unchanged.
+    * **Tier C -- shared parameter definitions.** The 86 names resolved by two
+      or more models stay HERE, unconditionally. These are shared formulations
+      (Snow-17, SAC-SMA, TOPMODEL, CFE/NOAH-OWP) reused by NGEN and by the JAX
+      plugin packages, plus every namespaced entry whose *served* name collides
+      with another model's. Keeping them together is what caught the
+      ``fuse_MBASE`` / Snow-17 ``MBASE`` collision fixed in #368 -- a model
+      package must never duplicate one of these locally.
+
+    Consequences worth knowing:
+    - ``register_model_bounds()`` keeps the CENTRAL definition when a package
+      contributes a name this module already defines, and now records the
+      disagreement in :func:`bounds_registration_conflicts` (and logs it), so a
+      new #368-style silent override is detectable rather than invisible.
+    - The ``get_<model>_bounds()`` helpers for migrated models are retained as
+      the stable public API but no longer hold data: they resolve whatever the
+      owning package registered. With that package absent they raise ``KeyError``
+      instead of serving a stale second copy -- deliberate, since a bound set
+      core cannot see is worse than an explicit failure.
+    - NGEN, its six ``NGEN_*`` sub-formulations, and the JAX-served SACSMA /
+      SNOW17 / TOPMODEL sets have zero solo parameters: they are composed
+      entirely from tier C and nothing of theirs moved.
+    - HBV, HECHMS, SACSMA, SNOW17, TOPMODEL and XINANJIANG are served by
+      EXTERNAL plugin packages (jhbv, jhechms, jsacsma, jsnow17, jtopmodel,
+      jxaj) that predate this seam and still import ``get_<model>_bounds()``.
+      Their definitions and compositions stay here as compatibility bounds
+      until those packages adopt ``register_model_bounds()``.
 
 Usage:
     from symfluence.core.calibration.parameters.parameter_bounds_registry import (
@@ -55,6 +96,7 @@ Usage:
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -89,6 +131,14 @@ class ParameterBoundsRegistry:
 
     Organizes parameters by category (snow, soil, baseflow, routing, ET)
     and provides lookups by parameter name or model type.
+
+    The class-level dictionaries below are TIER C only: every entry here is
+    resolved by two or more models, or is a namespaced entry whose served name
+    collides with another model's (``fuse_MBASE`` vs Snow-17 ``MBASE``). Model
+    -local (tier B) definitions live in the owning model package and reach this
+    catalogue at runtime through :func:`register_model_bounds`, so
+    ``get_bounds()`` still sees every parameter once plugin discovery has run.
+    Do not add a single-model parameter here -- put it in the model package.
     """
 
     # ========================================================================
@@ -104,8 +154,9 @@ class ParameterBoundsRegistry:
         'fuse_MBASE': ParameterInfo(-5.0, 5.0, '°C', 'Base melt temperature (FUSE)', 'snow'),
         'fuse_MFMAX': ParameterInfo(1.0, 10.0, 'mm/(°C·day)', 'Maximum melt factor (FUSE)', 'snow'),
         'fuse_MFMIN': ParameterInfo(0.5, 5.0, 'mm/(°C·day)', 'Minimum melt factor (FUSE)', 'snow'),
+        # Shared: FUSE, SAC-SMA and Snow-17 all calibrate a rain/snow threshold
+        # under this name with identical bounds (SACSMA_PARAMS repeats it).
         'PXTEMP': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow partition temperature', 'snow'),
-        'LAPSE': ParameterInfo(3.0, 10.0, '°C/km', 'Temperature lapse rate', 'snow'),
 
         # NGEN snow parameters
         'rain_snow_thresh': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow temperature threshold', 'snow'),
@@ -115,13 +166,6 @@ class ParameterBoundsRegistry:
     # SOIL PARAMETERS
     # ========================================================================
     SOIL_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE soil parameters
-        'MAXWATR_1': ParameterInfo(50.0, 1000.0, 'mm', 'Maximum storage upper layer', 'soil'),
-        'MAXWATR_2': ParameterInfo(100.0, 2000.0, 'mm', 'Maximum storage lower layer', 'soil'),
-        'FRACTEN': ParameterInfo(0.1, 0.9, '-', 'Fraction tension storage', 'soil'),
-        'PERCRTE': ParameterInfo(0.01, 100.0, 'mm/day', 'Percolation rate', 'soil'),
-        'PERCEXP': ParameterInfo(1.0, 20.0, '-', 'Percolation exponent', 'soil'),
-
         # NGEN CFE soil parameters
         # NOTE: Bounds tightened to reduce segfault rate during calibration.
         # Extreme parameter combinations (low satdk + high bb, high routing
@@ -153,69 +197,70 @@ class ParameterBoundsRegistry:
         'noah_frzk': ParameterInfo(0.0, 10.0, '-', 'NOAH frozen ground parameter', 'soil'),
         'noah_salp': ParameterInfo(-2.0, 2.0, '-', 'NOAH shape parameter', 'soil'),
         'refkdt': ParameterInfo(0.5, 5.0, '-', 'Reference surface runoff parameter (expanded for infiltration control)', 'soil'),
-        'route_k': ParameterInfo(1.0, 40.0, 'days', 'Nash-cascade routing time constant for post-model runoff routing (column LSMs emit unrouted runoff)', 'routing'),
+
+        # ---- Namespaced entries whose SERVED name collides across models ----
+        # RHESSys serves 'soil_depth' (prefix stripped) and CFE owns the bare
+        # key, deliberately tightened to 1-5 m to avoid solver segfaults; these
+        # two once collided and RHESSys' 2-15 m silently won (#368). Both live
+        # here so the collision stays visible in one file.
+        'rhessys_soil_depth': ParameterInfo(2.0, 15.0, 'm', 'Total soil depth (RHESSys)', 'soil'),
+        # 'm' means Ksat lateral decay to RHESSys and transmissivity decay to
+        # TOPMODEL (see 'topmodel_m'); different physics, same served name.
+        'm': ParameterInfo(0.5, 5.0, '-', 'Lateral decay of Ksat with depth (RHESSys)', 'soil'),
+        # GSFLOW serves 'K' (prefix stripped); Xinanjiang serves 'K' from
+        # 'xaj_K'. Namespaced on both sides so neither can override the other.
+        # Matches what GSFLOW calibration actually searches. This entry read
+        # 0.001-100 m/d (log) while GSFLOWParameterManager searched 0.1-5000
+        # (linear) from a package-local dict; the catalogue value was inert --
+        # nothing in-tree or in any plugin calls get_gsflow_bounds() -- which is
+        # precisely how it was free to drift. The in-use range is the documented
+        # one (MODFLOW-NWT UPW; Iceland basalt 1e2-1e4 m/d), and the old ceiling
+        # of 100 m/d excluded most of it.
+        'gsflow_K': ParameterInfo(0.1, 5000.0, 'm/d', 'Hydraulic conductivity (GSFLOW MODFLOW-NWT UPW); Iceland basalt 1e2-1e4 m/d', 'soil'),
     }
 
     # ========================================================================
     # BASEFLOW / GROUNDWATER PARAMETERS
     # ========================================================================
     BASEFLOW_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE baseflow parameters
-        'BASERTE': ParameterInfo(0.001, 1.0, 'mm/day', 'Baseflow rate', 'baseflow'),
-        'QB_POWR': ParameterInfo(1.0, 10.0, '-', 'Baseflow exponent', 'baseflow'),
-        'QBRATE_2A': ParameterInfo(0.001, 0.1, '1/day', 'Primary baseflow depletion', 'baseflow'),
-        'QBRATE_2B': ParameterInfo(0.0001, 0.01, '1/day', 'Secondary baseflow depletion', 'baseflow'),
-
         # NGEN CFE groundwater parameters
         'Cgw': ParameterInfo(1e-5, 0.01, 'm/h', 'Groundwater coefficient', 'baseflow', 'log'),
         'max_gw_storage': ParameterInfo(0.05, 1.0, 'm', 'Maximum groundwater storage', 'baseflow'),
+
+        # ---- Namespaced entries whose SERVED name collides across models ----
+        # 'PWR' is MESH's bare baseflow exponent; WATFLOOD serves the same name
+        # from 'watflood_PWR' with different bounds. Both stay central.
+        'PWR': ParameterInfo(1.0, 5.0, '-', 'Baseflow power exponent (MESH)', 'baseflow'),
+        'watflood_PWR': ParameterInfo(0.5, 4.0, '-', 'Power on lower zone function (WATFLOOD)', 'baseflow'),
     }
 
     # ========================================================================
     # ROUTING PARAMETERS
     # ========================================================================
     ROUTING_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE routing parameters
-        'TIMEDELAY': ParameterInfo(0.0, 10.0, 'days', 'Time delay in routing', 'routing'),
-
         # NGEN CFE routing parameters
         'K_lf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient', 'routing'),
         'K_nash': ParameterInfo(0.01, 0.5, '1/h', 'Nash cascade coefficient', 'routing'),
         'Klf': ParameterInfo(0.01, 0.5, '1/h', 'Lateral flow coefficient (alias)', 'routing'),
         'Kn': ParameterInfo(0.01, 0.5, '1/h', 'Nash cascade coefficient (alias)', 'routing'),
 
-        # mizuRoute parameters (SUMMA)
-        'velo': ParameterInfo(0.1, 5.0, 'm/s', 'Flow velocity', 'routing'),
-        'diff': ParameterInfo(100.0, 5000.0, 'm²/s', 'Diffusion coefficient', 'routing'),
-        'mann_n': ParameterInfo(0.01, 0.1, '-', 'Manning roughness coefficient', 'routing'),
-        'wscale': ParameterInfo(0.0001, 0.01, '-', 'Width scale parameter', 'routing'),
-        'fshape': ParameterInfo(1.0, 5.0, '-', 'Shape parameter', 'routing'),
-        'tscale': ParameterInfo(3600, 172800, 's', 'Time scale parameter', 'routing'),
+        # ---- Namespaced entries whose SERVED name collides across models ----
+        # 'R2N' is MESH's bare overland routing roughness; WATFLOOD serves the
+        # same name from 'watflood_R2N' with different bounds.
+        'R2N': ParameterInfo(0.01, 0.5, '-', 'Overland routing roughness, Manning n (MESH)', 'routing'),
+        'watflood_R2N': ParameterInfo(0.01, 0.30, '-', 'Channel Manning roughness multiplier (WATFLOOD)', 'routing'),
     }
 
     # NOTE: dRoute routing parameter bounds now live in the external ``droute`` package
     # (droute.calibration.bounds) — the model package owns its own bounds (JAX-model pattern).
-
-    # ========================================================================
-    # FIRE (IGNACIO FBP) PARAMETERS
-    # ========================================================================
-    FIRE_PARAMS: Dict[str, ParameterInfo] = {
-        'ffmc': ParameterInfo(0.0, 101.0, '-', 'Fine Fuel Moisture Code', 'fire'),
-        'dmc': ParameterInfo(0.0, 200.0, '-', 'Duff Moisture Code', 'fire'),
-        'dc': ParameterInfo(0.0, 800.0, '-', 'Drought Code', 'fire'),
-        'fmc': ParameterInfo(50.0, 150.0, '%', 'Foliar Moisture Content', 'fire'),
-        'curing': ParameterInfo(0.0, 100.0, '%', 'Grass curing percentage', 'fire'),
-        'initial_radius': ParameterInfo(1.0, 100.0, 'm', 'Initial fire radius', 'fire'),
-    }
+    # mizuRoute's six routing parameters followed the same pattern in July 2026:
+    # they are solo (only MIZUROUTE resolves them) and now live in
+    # ``symfluence.models.mizuroute.parameter_bounds``.
 
     # ========================================================================
     # EVAPOTRANSPIRATION PARAMETERS
     # ========================================================================
     ET_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE ET parameters
-        'RTFRAC1': ParameterInfo(0.1, 0.9, '-', 'Fraction roots upper layer', 'et'),
-        'RTFRAC2': ParameterInfo(0.1, 0.9, '-', 'Fraction roots lower layer', 'et'),
-
         # NGEN PET parameters (BMI config file key names)
         'vegetation_height_m': ParameterInfo(0.1, 30.0, 'm', 'Vegetation height', 'et'),
         'zero_plane_displacement_height_m': ParameterInfo(0.0, 20.0, 'm', 'Zero plane displacement height', 'et'),
@@ -240,246 +285,39 @@ class ParameterBoundsRegistry:
     # ========================================================================
     # DEPTH PARAMETERS (SUMMA-specific)
     # ========================================================================
+    # Kept central by decision, not by omission. 'DEPTH' is not a model: it is
+    # SUMMA's soil-depth calibration facet — the only consumers are
+    # models/summa/calibration/parameter_manager.py and
+    # models/summa/calibration/worker_impl/parameter_application.py, which
+    # rescale SUMMA's soil layer thicknesses. The three names are solo, so
+    # tier B would move them, but their owner is the SUMMA package (which has
+    # no bound set of its own — SUMMA bounds come from localParamInfo.txt), not
+    # any of the packages migrated in this pass. Moving them belongs with the
+    # SUMMA migration; parking them in another model's package would misattribute
+    # ownership. Tracked as a follow-up.
     DEPTH_PARAMS: Dict[str, ParameterInfo] = {
         'total_mult': ParameterInfo(0.1, 5.0, '-', 'Total soil depth multiplier', 'depth'),
         'total_soil_depth_multiplier': ParameterInfo(0.1, 5.0, '-', 'Total soil depth multiplier (alias)', 'depth'),
         'shape_factor': ParameterInfo(0.1, 3.0, '-', 'Soil depth shape factor', 'depth'),
     }
 
-    # ========================================================================
-    # HYPE PARAMETERS
-    # ========================================================================
-    HYPE_PARAMS: Dict[str, ParameterInfo] = {
-        # ==== SNOW PARAMETERS ====
-        # Threshold temperature for snowmelt - critical for timing of spring melt
-        'ttmp': ParameterInfo(-5.0, 5.0, '°C', 'Snowmelt threshold temperature', 'snow'),
-        # Degree-day melt factor - controls snowmelt rate; expanded for alpine basins
-        'cmlt': ParameterInfo(0.5, 20.0, 'mm/°C/day', 'Snowmelt degree-day coefficient', 'snow'),
-        # Temperature interval for rain/snow partition
-        'ttpi': ParameterInfo(0.5, 4.0, '°C', 'Temperature interval for mixed precipitation', 'snow'),
-        # Snow refreeze capacity (fraction of melt factor)
-        'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
-        # Fresh snow density - affects snow accumulation and SWE
-        'sdnsnew': ParameterInfo(0.05, 0.25, 'kg/dm³', 'Fresh snow density', 'snow'),
-        # Snow densification rate
-        'snowdensdt': ParameterInfo(0.0005, 0.005, '1/day', 'Snow densification parameter', 'snow'),
-        # Fractional snow cover efficiency for reducing melt/evap
-        'fsceff': ParameterInfo(0.5, 1.0, '-', 'Fractional snow cover efficiency', 'snow'),
-
-        # ==== EVAPOTRANSPIRATION PARAMETERS ====
-        # ET coefficient - CRITICAL: expanded to allow higher ET for water balance
-        'cevp': ParameterInfo(0.1, 2.0, '-', 'Evapotranspiration coefficient (expanded for alpine)', 'et'),
-        # Soil moisture threshold for ET reduction
-        'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
-        # PET depth dependency - controls root water uptake distribution
-        'epotdist': ParameterInfo(1.0, 15.0, '-', 'PET depth dependency coefficient', 'et'),
-        # Fraction of PET used for snow sublimation - important in alpine/cold regions
-        'fepotsnow': ParameterInfo(0.0, 1.0, '-', 'Fraction of PET for snow sublimation', 'et'),
-        # Soil temperature threshold for transpiration
-        'ttrig': ParameterInfo(-5.0, 5.0, '°C', 'Soil temperature threshold for transpiration', 'et'),
-        # Soil temperature response function coefficients
-        'treda': ParameterInfo(0.5, 1.0, '-', 'Soil temp response coefficient A', 'et'),
-        'tredb': ParameterInfo(0.1, 0.8, '-', 'Soil temp response coefficient B', 'et'),
-
-        # ==== SOIL HYDRAULIC PARAMETERS ====
-        # Recession coefficient upper soil layer - controls fast response
-        'rrcs1': ParameterInfo(0.001, 1.0, '1/day', 'Recession coefficient upper layer', 'soil'),
-        # Recession coefficient lower soil layer - controls slow response
-        'rrcs2': ParameterInfo(0.0001, 0.5, '1/day', 'Recession coefficient lower layer', 'soil'),
-        # Recession slope dependence
-        'rrcs3': ParameterInfo(0.0, 0.3, '1/°', 'Recession slope dependence', 'soil'),
-        # Wilting point - minimum soil water content for ET
-        'wcwp': ParameterInfo(0.01, 0.3, '-', 'Wilting point water content', 'soil'),
-        # Field capacity - soil water holding capacity
-        'wcfc': ParameterInfo(0.1, 0.6, '-', 'Field capacity', 'soil'),
-        # Effective porosity - maximum soil water storage
-        'wcep': ParameterInfo(0.2, 0.7, '-', 'Effective porosity', 'soil'),
-        # Surface runoff coefficient
-        'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
-        # Frozen soil infiltration parameter
-        'bfroznsoil': ParameterInfo(1.0, 10.0, '-', 'Frozen soil infiltration parameter', 'soil'),
-        # Saturated matric potential (log scale)
-        'logsatmp': ParameterInfo(0.5, 3.0, 'log(cm)', 'Saturated matric potential', 'soil'),
-        # Cosby B parameter for soil water retention
-        'bcosby': ParameterInfo(4.0, 15.0, '-', 'Cosby B parameter', 'soil'),
-        # Frost depth parameter
-        'sfrost': ParameterInfo(0.5, 3.0, 'cm/°C', 'Frost depth parameter', 'soil'),
-
-        # ==== GROUNDWATER PARAMETERS ====
-        # Regional GW recession - CRITICAL for baseflow and water balance
-        'rcgrw': ParameterInfo(0.00001, 1.0, '1/day', 'Regional groundwater recession coefficient', 'baseflow'),
-        # Deep groundwater loss coefficient (if model supports it)
-        'deepperc': ParameterInfo(0.0, 0.5, 'mm/day', 'Deep percolation loss rate', 'baseflow'),
-
-        # ==== SOIL TEMPERATURE PARAMETERS ====
-        # Deep soil temperature memory
-        'deepmem': ParameterInfo(100.0, 2000.0, 'days', 'Deep soil temperature memory', 'soil'),
-        # Upper soil temperature memory
-        'surfmem': ParameterInfo(5.0, 50.0, 'days', 'Upper soil temperature memory', 'soil'),
-        # Depth relation for soil temp memory
-        'depthrel': ParameterInfo(0.5, 3.0, '-', 'Depth relation for soil temperature', 'soil'),
-
-        # ==== ROUTING PARAMETERS ====
-        # River flow velocity
-        'rivvel': ParameterInfo(0.2, 30.0, 'm/s', 'River flow velocity', 'routing'),
-        # River damping fraction
-        'damp': ParameterInfo(0.0, 1.0, '-', 'River damping fraction', 'routing'),
-        # Initial mean flow estimate
-        'qmean': ParameterInfo(10.0, 1000.0, 'mm/yr', 'Initial mean flow', 'routing'),
-
-        # ==== LAKE PARAMETERS ====
-        # Internal lake rating curve coefficient
-        'ilratk': ParameterInfo(0.1, 1000.0, '-', 'Internal lake rating curve coefficient', 'routing'),
-        # Internal lake rating curve exponent
-        'ilratp': ParameterInfo(1.0, 10.0, '-', 'Internal lake rating curve exponent', 'routing'),
-        # Internal lake depth
-        'illdepth': ParameterInfo(0.1, 2.0, 'm', 'Internal lake depth', 'routing'),
-    }
-
-    # ========================================================================
-    # MESH PARAMETERS
-    # ========================================================================
-    MESH_PARAMS: Dict[str, ParameterInfo] = {
-        # CLASS.ini parameters - control runoff generation (most impactful)
-        # Bounds tightened Feb 2026: previous calibration found degenerate solutions
-        # (KSAT=0.6, DRN=0.24) that water-trapped the basin (60% flow underestimation).
-        # New lower bounds enforce physically reasonable values for a snowmelt-dominated
-        # mountain basin with permeable soils and steep slopes.
-        'KSAT': ParameterInfo(1.0, 500.0, 'mm/hr', 'Saturated hydraulic conductivity', 'soil', 'log'),
-        'DRN': ParameterInfo(0.5, 5.0, '-', 'Drainage parameter', 'soil'),
-        'SDEP': ParameterInfo(0.5, 1.5, 'm', 'Soil depth', 'soil'),
-        'DD': ParameterInfo(1.0, 100.0, '-', 'CLASS drainage density (line 12)', 'soil'),
-        'XSLP': ParameterInfo(0.01, 0.3, '-', 'Slope for overland flow', 'surface'),
-        'XDRAINH': ParameterInfo(0.01, 1.0, '-', 'Horizontal drainage coefficient', 'soil'),
-        'MANN_CLASS': ParameterInfo(0.01, 0.5, '-', 'Manning coefficient for overland flow', 'surface'),
-
-        # CLASS.ini vegetation parameters (control ET partitioning)
-        'LAMX': ParameterInfo(0.3, 6.0, 'm²/m²', 'Maximum LAI for primary vegetation class', 'et'),
-        'LAMN': ParameterInfo(0.1, 1.5, 'm²/m²', 'Minimum LAI for primary vegetation class (seasonal ET cycle)', 'et'),
-        'ROOT': ParameterInfo(0.1, 2.0, 'm', 'Root depth for primary vegetation class', 'et'),
-        'CMAS': ParameterInfo(1.0, 10.0, 'kg/m²', 'Annual maximum canopy mass (controls interception)', 'et'),
-        'RSMIN': ParameterInfo(100.0, 800.0, 's/m', 'Minimum stomatal resistance (controls max transpiration rate)', 'et'),
-        'QA50': ParameterInfo(10.0, 100.0, 'Pa', 'Reference VPD for half-maximum stomatal conductance', 'et'),
-        'VPDA': ParameterInfo(0.3, 1.5, '-', 'VPD slope parameter for stomatal conductance', 'et'),
-        'PSGA': ParameterInfo(0.3, 2.0, '-', 'Soil moisture stress parameter A for stomatal conductance', 'et'),
-
-        # Hydrology.ini parameters (snow/ponding)
-        'ZSNL': ParameterInfo(0.001, 0.1, 'm', 'Limiting snow depth', 'snow'),
-        'ZPLG': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (ground)', 'soil'),
-        'ZPLS': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (snow)', 'snow'),
-        'FRZTH': ParameterInfo(0.0, 5.0, 'm', 'Frozen soil infiltration threshold', 'soil'),
-        'MANN': ParameterInfo(0.01, 0.3, '-', 'Manning roughness coefficient', 'routing'),
-        'R2N': ParameterInfo(0.01, 0.5, '-', 'Overland routing roughness (Manning n)', 'routing'),
-        'R1N': ParameterInfo(0.0, 2.0, '-', 'River routing parameter', 'routing'),
-
-        # Baseflow parameters (hydrology.ini)
-        'FLZ': ParameterInfo(0.001, 0.1, '-', 'Baseflow recession coefficient', 'baseflow', 'log'),
-        'PWR': ParameterInfo(1.0, 5.0, '-', 'Baseflow power exponent', 'baseflow'),
-
-        # Legacy hydrology parameters
-        'RCHARG': ParameterInfo(0.0, 1.0, '-', 'Recharge fraction to groundwater', 'baseflow'),
-        'DRAINFRAC': ParameterInfo(0.0, 1.0, '-', 'Drainage fraction', 'soil'),
-        'BASEFLW': ParameterInfo(0.001, 0.1, 'm/day', 'Baseflow rate', 'baseflow'),
-
-        # Routing parameters (meshflow-generated files)
-        'WF_R2': ParameterInfo(0.1, 0.5, '-', 'Channel roughness coefficient for WATFLOOD routing', 'routing'),
-        'DTMINUSR': ParameterInfo(60.0, 600.0, 's', 'Routing time-step', 'routing'),
-    }
-
-    # ========================================================================
-    # RHESSYS PARAMETERS
-    # ========================================================================
-    RHESSYS_PARAMS: Dict[str, ParameterInfo] = {
-        # Groundwater/baseflow parameters (basin.def and soil.def)
-        # Log-space transform for parameters spanning orders of magnitude
-        'sat_to_gw_coeff': ParameterInfo(0.0001, 0.1, '1/day', 'Saturation to groundwater coefficient', 'baseflow', 'log'),
-        'gw_loss_coeff': ParameterInfo(0.001, 0.5, '-', 'Groundwater loss coefficient (controls slow baseflow)', 'baseflow', 'log'),
-        'gw_loss_fast_coeff': ParameterInfo(0.01, 1.0, '-', 'Fast groundwater loss coefficient', 'baseflow', 'log'),
-        'gw_loss_fast_threshold': ParameterInfo(0.05, 0.5, 'm', 'GW storage threshold for fast flow activation', 'baseflow'),
-
-        # Soil hydraulic parameters (soil.def)
-        'psi_air_entry': ParameterInfo(-10.0, -1.0, 'kPa', 'Air entry pressure (negative)', 'soil'),
-        'pore_size_index': ParameterInfo(0.05, 0.4, '-', 'Pore size distribution index', 'soil'),
-        'porosity_0': ParameterInfo(0.3, 0.6, 'm³/m³', 'Surface porosity', 'soil'),
-        'porosity_decay': ParameterInfo(0.1, 0.8, 'm³/m³', 'Porosity decay with depth', 'soil'),
-        # Ksat_0 in m/day: 0.0001-0.1 m/day = 0.1-100 mm/day
-        'Ksat_0': ParameterInfo(0.0001, 0.1, 'm/day', 'Surface saturated conductivity (lateral)', 'soil', 'log'),
-        # Ksat_0_v: Should be similar magnitude to Ksat_0 (ratio typically 1-10x)
-        'Ksat_0_v': ParameterInfo(0.0001, 0.5, 'm/day', 'Vertical saturated conductivity', 'soil', 'log'),
-        'm': ParameterInfo(0.5, 5.0, '-', 'Lateral decay of Ksat with depth', 'soil'),
-        'm_z': ParameterInfo(0.2, 3.0, '-', 'Vertical decay of Ksat with depth', 'soil'),
-        # Namespaced: CFE (NGEN) owns the bare 'soil_depth' key with bounds
-        # deliberately tightened to 1-5 m to avoid solver segfaults; this entry
-        # previously collided and silently overrode it with 2-15 m.
-        # get_rhessys_bounds() strips the prefix.
-        'rhessys_soil_depth': ParameterInfo(2.0, 15.0, 'm', 'Total soil depth (RHESSys)', 'soil'),
-        'active_zone_z': ParameterInfo(0.5, 3.0, 'm', 'Active zone depth', 'soil'),
-
-        # Subgrid variability parameters (soil.def) — critical for lumped mode peak flows
-        'theta_mean_std_p1': ParameterInfo(0.01, 0.5, '-', 'Std dev of saturation deficit (controls partial saturation area)', 'soil'),
-        'theta_mean_std_p2': ParameterInfo(0.0, 0.3, '-', 'Second parameter for saturation deficit variance', 'soil'),
-
-        # Snow parameters (soil.def for snow_melt_Tcoef, zone.def for temps)
-        'max_snow_temp': ParameterInfo(-2.0, 2.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
-        'min_rain_temp': ParameterInfo(-6.0, 0.0, '°C', 'Min temp for rain (all snow below this)', 'snow'),
-        'snow_melt_Tcoef': ParameterInfo(0.5, 8.0, 'mm/°C/day', 'Snow melt temperature coefficient', 'snow'),
-        'snow_water_capacity': ParameterInfo(0.1, 1.5, '-', 'Snow water holding capacity coefficient', 'snow'),
-        'maximum_snow_energy_deficit': ParameterInfo(-1500.0, -100.0, 'kJ/m²', 'Maximum snow energy deficit (must be negative)', 'snow'),
-
-        # Vegetation parameters (stratum.def)
-        'epc.max_lai': ParameterInfo(0.5, 8.0, 'm²/m²', 'Maximum LAI', 'et'),
-        'epc.gl_smax': ParameterInfo(0.001, 0.02, 'm/s', 'Maximum stomatal conductance', 'et', 'log'),
-        'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et', 'log'),
-        'epc.vpd_open': ParameterInfo(0.1, 2.0, 'kPa', 'VPD at stomatal opening', 'et'),
-        'epc.vpd_close': ParameterInfo(2.0, 6.0, 'kPa', 'VPD at stomatal closure', 'et'),
-
-        # Routing parameters (basin.def)
-        'n_routing_power': ParameterInfo(0.1, 1.0, '-', 'Routing power exponent', 'routing'),
-
-        # Forcing correction parameters (worldfile)
-        'precip_lapse_rate': ParameterInfo(0.5, 1.5, '-', 'Precipitation multiplier (corrects forcing bias)', 'forcing'),
-    }
-
-    # ========================================================================
-    # GR PARAMETERS
-    # ========================================================================
-    GR_PARAMS: Dict[str, ParameterInfo] = {
-        # GR4J parameters (bounds based on airGR defaults)
-        'X1': ParameterInfo(1.0, 5000.0, 'mm', 'Production store capacity', 'soil'),
-        'X2': ParameterInfo(-10.0, 10.0, 'mm/day', 'Groundwater exchange coefficient', 'baseflow'),
-        'X3': ParameterInfo(1.0, 500.0, 'mm', 'Routing store capacity', 'soil'),
-        'X4': ParameterInfo(0.5, 5.0, 'days', 'Unit hydrograph time constant', 'routing'),
-
-        # CemaNeige parameters (bounds based on airGR defaults)
-        'CTG': ParameterInfo(0.0, 1.0, '-', 'Snow process parameter', 'snow'),
-        'Kf': ParameterInfo(0.0, 20.0, 'mm/°C/day', 'Melt factor', 'snow'),
-        'Gratio': ParameterInfo(0.01, 200.0, '-', 'Thermal coefficient for snow pack thermal state', 'snow'),
-        'Albedo_diff': ParameterInfo(0.001, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
-    }
-
-    # ========================================================================
-    # VIC PARAMETERS
-    # ========================================================================
-    VIC_PARAMS: Dict[str, ParameterInfo] = {
-        # Variable infiltration curve parameter - controls infiltration nonlinearity
-        'infilt': ParameterInfo(0.001, 0.9, '-', 'Variable infiltration curve parameter', 'soil'),
-        # Baseflow parameters
-        'Ds': ParameterInfo(0.0, 1.0, '-', 'Fraction of Dsmax where nonlinear baseflow begins', 'baseflow'),
-        'Dsmax': ParameterInfo(0.1, 30.0, 'mm/day', 'Maximum baseflow velocity', 'baseflow'),
-        'Ws': ParameterInfo(0.1, 1.0, '-', 'Fraction of max soil moisture for nonlinear baseflow', 'baseflow'),
-        'c': ParameterInfo(1.0, 4.0, '-', 'Exponent in baseflow curve', 'baseflow'),
-        # Soil layer depths
-        'depth1': ParameterInfo(0.05, 0.5, 'm', 'Soil layer 1 depth', 'soil'),
-        'depth2': ParameterInfo(0.1, 1.5, 'm', 'Soil layer 2 depth', 'soil'),
-        'depth3': ParameterInfo(0.1, 2.0, 'm', 'Soil layer 3 depth', 'soil'),
-        # Soil hydraulic parameters
-        'Ksat_vic': ParameterInfo(1.0, 5000.0, 'mm/day', 'VIC saturated hydraulic conductivity', 'soil'),
-        'expt_vic': ParameterInfo(4.0, 30.0, '-', 'VIC soil layer exponent', 'soil'),
-        # Bulk density
-        'bulk_density': ParameterInfo(1200.0, 1800.0, 'kg/m³', 'Soil bulk density', 'soil'),
-        # Snow parameters
-        'snow_rough': ParameterInfo(0.0001, 0.01, 'm', 'Snow surface roughness', 'snow'),
-    }
+    # ------------------------------------------------------------------
+    # MIGRATED (July 2026, tier A+B): the per-model bound sets below moved
+    # to the packages that own them. Each package registers its solo
+    # ParameterInfo definitions and its bound-set composition from its
+    # register() via register_model_bounds(), so the runtime catalogue is
+    # unchanged once plugin discovery has run:
+    #
+    #   HYPE     -> symfluence.models.hype.parameter_bounds      (35 params)
+    #   MESH     -> symfluence.models.mesh.parameter_bounds      (27 params)
+    #   RHESSYS  -> symfluence.models.rhessys.parameter_bounds   (26 params)
+    #   GR       -> symfluence.models.gr.parameter_bounds         (8 params)
+    #   VIC      -> symfluence.models.vic.parameter_bounds       (12 params)
+    #
+    # Their SHARED names stayed behind (tier C): HYPE's "lp" (also HBV's),
+    # MESH's "PWR"/"R2N" (also WATFLOOD's), RHESSys' "m" and
+    # "rhessys_soil_depth" (also TOPMODEL's / CFE's).
+    # ------------------------------------------------------------------
 
     # ========================================================================
     # SAC-SMA + SNOW-17 PARAMETERS
@@ -629,76 +467,37 @@ class ParameterBoundsRegistry:
         'xaj_CG': ParameterInfo(0.98, 0.998, '-', 'Groundwater recession constant', 'routing'),
     }
 
-    # ========================================================================
-    # GSFLOW (PRMS + MODFLOW-NWT) PARAMETERS
-    # ========================================================================
-    GSFLOW_PARAMS: Dict[str, ParameterInfo] = {
-        # PRMS soil zone parameters
-        'gsflow_soil_moist_max': ParameterInfo(1.0, 15.0, 'inches', 'Max soil moisture storage', 'soil'),
-        'gsflow_soil_rechr_max': ParameterInfo(0.5, 5.0, 'inches', 'Max recharge zone storage', 'soil'),
-        'gsflow_ssr2gw_rate': ParameterInfo(0.001, 0.5, '1/day', 'Gravity reservoir to GW rate', 'baseflow'),
-        'gsflow_gwflow_coef': ParameterInfo(0.001, 0.5, '1/day', 'GW outflow coefficient', 'baseflow'),
-        'gsflow_gw_seep_coef': ParameterInfo(0.001, 0.2, '1/day', 'GW seepage coefficient', 'baseflow'),
-        # MODFLOW-NWT parameters
-        'gsflow_K': ParameterInfo(0.001, 100.0, 'm/d', 'Hydraulic conductivity', 'soil', 'log'),
-        'gsflow_SY': ParameterInfo(0.01, 0.4, '-', 'Specific yield', 'soil'),
-        # PRMS runoff parameters
-        'gsflow_slowcoef_lin': ParameterInfo(0.001, 0.5, '1/day', 'Linear gravity drainage coeff', 'baseflow'),
-        'gsflow_carea_max': ParameterInfo(0.1, 1.0, '-', 'Max contributing area fraction', 'soil'),
-        'gsflow_smidx_coef': ParameterInfo(0.001, 0.10, '-', 'Surface runoff equation coeff', 'soil'),
-        # Snow / climate parameters
-        'gsflow_jh_coef': ParameterInfo(0.005, 0.030, '-', 'Jensen-Haise PET coefficient', 'et'),
-        'gsflow_tmax_allrain': ParameterInfo(1.0, 7.0, 'degC', 'All-rain temperature threshold', 'snow'),
-        'gsflow_tmax_allsnow': ParameterInfo(-3.0, 2.0, 'degC', 'All-snow temperature threshold', 'snow'),
-        'gsflow_rain_adj': ParameterInfo(0.5, 2.0, '-', 'Rainfall adjustment multiplier', 'snow'),
-        'gsflow_snow_adj': ParameterInfo(0.5, 2.0, '-', 'Snowfall adjustment multiplier', 'snow'),
-    }
+    # ------------------------------------------------------------------
+    # MIGRATED (July 2026, tier A+B):
+    #   GSFLOW   -> symfluence.models.gsflow.parameter_bounds     (9 params
+    #               composing the bound set, plus 5 catalogue-only entries)
+    #   WATFLOOD -> symfluence.models.watflood.parameter_bounds  (14 params)
+    #   IGNACIO  -> symfluence.models.ignacio.parameter_bounds    (6 params)
+    #   FUSE     -> symfluence.models.fuse.parameter_bounds      (13 params)
+    #   MIZUROUTE-> symfluence.models.mizuroute.parameter_bounds  (6 params)
+    #   NOAHMP   -> symfluence.models.noahmp.parameter_bounds     (1 param)
+    #
+    # Shared names stayed above: "gsflow_K" (served "K", also Xinanjiang's),
+    # "watflood_PWR"/"watflood_R2N" (served "PWR"/"R2N", also MESH's),
+    # FUSE's "fuse_MBASE"/"fuse_MFMAX"/"fuse_MFMIN"/"PXTEMP", and all 11 of
+    # NOAH-MP's NOAH-OWP soil/snow names.
+    # ------------------------------------------------------------------
 
-    # ========================================================================
-    # WATFLOOD PARAMETERS
-    # ========================================================================
-    WATFLOOD_PARAMS: Dict[str, ParameterInfo] = {
-        'watflood_FLZCOEF': ParameterInfo(1e-6, 0.01, '-', 'Lower zone function coefficient', 'baseflow', transform='log'),
-        'watflood_PWR': ParameterInfo(0.5, 4.0, '-', 'Power on lower zone function', 'baseflow'),
-        'watflood_R2N': ParameterInfo(0.01, 0.30, '-', 'Channel Manning roughness multiplier', 'routing'),
-        'watflood_AK': ParameterInfo(1.0, 100.0, 'mm/h', 'Upper zone interflow coefficient', 'baseflow'),
-        'watflood_AKF': ParameterInfo(1.0, 100.0, 'mm/h', 'Interflow recession coefficient', 'baseflow'),
-        'watflood_REESSION': ParameterInfo(0.01, 1.0, '-', 'Baseflow recession coefficient', 'baseflow'),
-        'watflood_RETN': ParameterInfo(10.0, 500.0, 'h', 'Retention constant', 'routing'),
-        'watflood_AK2': ParameterInfo(0.001, 1.0, '-', 'Lower zone depletion coefficient', 'baseflow', transform='log'),
-        'watflood_AK2FS': ParameterInfo(0.001, 1.0, '-', 'Lower zone depletion (snow-covered)', 'baseflow', transform='log'),
-        'watflood_R3': ParameterInfo(1.0, 100.0, '-', 'Overbank roughness multiplier', 'routing'),
-        'watflood_DS': ParameterInfo(0.0, 20.0, 'mm', 'Surface depression storage', 'soil'),
-        'watflood_FPET': ParameterInfo(0.5, 5.0, '-', 'PET adjustment factor', 'et'),
-        'watflood_FTALL': ParameterInfo(0.01, 1.0, '-', 'Forest canopy adjustment', 'et'),
-        'watflood_FM': ParameterInfo(0.01, 0.50, 'mm/degC/h', 'Melt factor', 'snow'),
-        'watflood_BASE': ParameterInfo(-3.0, 2.0, 'degC', 'Base temperature for melt', 'snow'),
-        'watflood_SUBLIM_FACTOR': ParameterInfo(0.0, 0.5, '-', 'Sublimation fraction', 'snow'),
-    }
+    #: Tier-C category dictionaries, in merge order. Package-contributed
+    #: (tier-B) definitions are merged FIRST so a central definition always
+    #: wins a name clash — the single-source-of-truth rule for shared physics.
+    CATEGORY_ATTRS = (
+        'SNOW_PARAMS', 'SOIL_PARAMS', 'BASEFLOW_PARAMS', 'ROUTING_PARAMS',
+        'ET_PARAMS', 'DEPTH_PARAMS', 'HBV_PARAMS', 'HECHMS_PARAMS',
+        'TOPMODEL_PARAMS', 'SACSMA_PARAMS', 'XINANJIANG_PARAMS',
+    )
 
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
         self._all_params.update(_EXTENSION_PARAMS)
-        self._all_params.update(self.SNOW_PARAMS)
-        self._all_params.update(self.SOIL_PARAMS)
-        self._all_params.update(self.BASEFLOW_PARAMS)
-        self._all_params.update(self.ROUTING_PARAMS)
-        self._all_params.update(self.ET_PARAMS)
-        self._all_params.update(self.DEPTH_PARAMS)
-        self._all_params.update(self.HYPE_PARAMS)
-        self._all_params.update(self.MESH_PARAMS)
-        self._all_params.update(self.RHESSYS_PARAMS)
-        self._all_params.update(self.GR_PARAMS)
-        self._all_params.update(self.VIC_PARAMS)
-        self._all_params.update(self.HBV_PARAMS)
-        self._all_params.update(self.HECHMS_PARAMS)
-        self._all_params.update(self.TOPMODEL_PARAMS)
-        self._all_params.update(self.SACSMA_PARAMS)
-        self._all_params.update(self.FIRE_PARAMS)
-        self._all_params.update(self.XINANJIANG_PARAMS)
-        self._all_params.update(self.GSFLOW_PARAMS)
-        self._all_params.update(self.WATFLOOD_PARAMS)
+        for attr in self.CATEGORY_ATTRS:
+            self._all_params.update(getattr(self, attr))
 
     def get_bounds(self, param_name: str) -> Optional[Dict]:
         """
@@ -779,6 +578,13 @@ _EXTENSION_PARAMS: Dict[str, ParameterInfo] = {}
 _MODEL_PARAM_NAMES: Dict[str, List[str]] = {}
 _MODEL_NAME_PREFIXES: Dict[str, str] = {}
 
+# Contributions that disagreed with an already-known definition of the same
+# name. The central definition always wins (see register_model_bounds), so a
+# disagreement is silent by construction — this list is what makes it visible.
+_REGISTRATION_CONFLICTS: List[str] = []
+
+_logger = logging.getLogger(__name__)
+
 
 def get_registry() -> ParameterBoundsRegistry:
     """Get singleton registry instance."""
@@ -786,6 +592,30 @@ def get_registry() -> ParameterBoundsRegistry:
     if _registry is None:
         _registry = ParameterBoundsRegistry()
     return _registry
+
+
+def _central_definition(name: str) -> Optional[ParameterInfo]:
+    """The definition a new contribution would have to defer to, if any.
+
+    Mirrors the merge order in :meth:`ParameterBoundsRegistry.__init__`: a
+    tier-C (central) definition outranks anything a package contributed.
+    """
+    for attr in ParameterBoundsRegistry.CATEGORY_ATTRS:
+        info = getattr(ParameterBoundsRegistry, attr).get(name)
+        if info is not None:
+            return info
+    return _EXTENSION_PARAMS.get(name)
+
+
+def bounds_registration_conflicts() -> List[str]:
+    """Names a model package redefined with bounds that differ from the winner.
+
+    Empty in a healthy install. A non-empty entry means some package's
+    ``register_model_bounds(params=...)`` is being silently ignored — the same
+    failure mode as the ``fuse_MBASE`` / Snow-17 ``MBASE`` collision (#368),
+    but now across package boundaries rather than within this file.
+    """
+    return list(_REGISTRATION_CONFLICTS)
 
 
 def register_model_bounds(
@@ -798,7 +628,14 @@ def register_model_bounds(
 
     The extension seam for model packages (in-tree or external): call this from
     the package's ``register()`` so the model's bound set is servable through
-    :func:`get_model_bounds` without editing core.
+    :func:`get_model_bounds` without editing core. In-tree models use the same
+    path — ``params`` carries their tier-B (solo) definitions and ``names`` /
+    ``strip_prefix`` carry their tier-A composition.
+
+    Shared (tier-C) parameters must NOT be passed in ``params``: compose them
+    by listing their catalogue names in ``names``. A contribution that disagrees
+    with an existing definition is ignored (central wins) and recorded in
+    :func:`bounds_registration_conflicts`.
 
     Args:
         model: Model key, case-insensitive (e.g. ``'FUSE'``, ``'MYMODEL'``).
@@ -815,6 +652,20 @@ def register_model_bounds(
     key = model.upper()
     if params:
         for name, info in params.items():
+            existing = _central_definition(name)
+            if existing is not None and (
+                (existing.min, existing.max, existing.transform)
+                != (info.min, info.max, info.transform)
+            ):
+                message = (
+                    f"{key} redefined shared parameter '{name}' as "
+                    f"({info.min}, {info.max}, {info.transform}); the existing "
+                    f"definition ({existing.min}, {existing.max}, "
+                    f"{existing.transform}) wins. Namespace the entry "
+                    f"(e.g. '{key.lower()}_{name}' + strip_prefix) instead."
+                )
+                _REGISTRATION_CONFLICTS.append(message)
+                _logger.warning("parameter bounds conflict: %s", message)
             _EXTENSION_PARAMS.setdefault(name, info)
         if _registry is not None:
             for name, info in params.items():
@@ -824,6 +675,38 @@ def register_model_bounds(
         _MODEL_PARAM_NAMES[key] = bound_names
     if strip_prefix:
         _MODEL_NAME_PREFIXES[key] = strip_prefix
+
+
+def _registered_bound_set(key: str) -> Optional[Dict[str, Dict[str, float]]]:
+    """Resolve a registered composition, or None if the model never registered."""
+    names = _MODEL_PARAM_NAMES.get(key)
+    if names is None:
+        return None
+    bounds = get_registry().get_bounds_for_params(names)
+    prefix = _MODEL_NAME_PREFIXES.get(key, "")
+    if prefix:
+        bounds = {k[len(prefix):] if k.startswith(prefix) else k: v
+                  for k, v in bounds.items()}
+    return bounds
+
+
+def _owned_by_package(model: str, package: str) -> Dict[str, Dict[str, float]]:
+    """Serve a bound set whose definition lives in *package*.
+
+    Used by the retained ``get_<model>_bounds()`` helpers for models migrated
+    to tier A/B. Core holds no second copy of these values on purpose, so an
+    unregistered model is an explicit failure rather than stale bounds.
+    """
+    bounds = _registered_bound_set(model)
+    if bounds is None:
+        raise KeyError(
+            f"No parameter bounds registered for model '{model}'. Its bounds "
+            f"are owned by the '{package}' package, which contributes them via "
+            "register_model_bounds() when plugin discovery runs (on "
+            "`import symfluence`). Install/enable the package, or check the "
+            "plugin-discovery log for a failed registration."
+        )
+    return bounds
 
 
 def get_model_bounds(model: str) -> Dict[str, Dict[str, float]]:
@@ -836,13 +719,8 @@ def get_model_bounds(model: str) -> Dict[str, Dict[str, float]]:
         KeyError: If the model has neither registered nor built-in bounds.
     """
     key = model.upper()
-    names = _MODEL_PARAM_NAMES.get(key)
-    if names is not None:
-        bounds = get_registry().get_bounds_for_params(names)
-        prefix = _MODEL_NAME_PREFIXES.get(key, "")
-        if prefix:
-            bounds = {k[len(prefix):] if k.startswith(prefix) else k: v
-                      for k, v in bounds.items()}
+    bounds = _registered_bound_set(key)
+    if bounds is not None:
         return bounds
     getter = _BUILTIN_MODEL_BOUNDS.get(key)
     if getter is not None:
@@ -859,139 +737,106 @@ def registered_bound_models() -> List[str]:
 
 
 def get_fuse_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all FUSE parameter bounds.
+    """FUSE bound set (17 parameters).
 
-    Returns:
-        Dictionary mapping FUSE param_name -> {'min': float, 'max': float}
+    13 solo definitions live in ``symfluence.models.fuse.parameter_bounds``;
+    the four shared ones (``fuse_MBASE``/``fuse_MFMAX``/``fuse_MFMIN`` and
+    ``PXTEMP``) stay in this module because their SERVED names collide with
+    Snow-17's — the #368 defect. The ``fuse_`` prefix is stripped on the way out.
+
+    Owned by ``symfluence.models.fuse`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    fuse_params = [
-        # Snow (fuse_-namespaced: Snow-17 owns the bare MBASE/MFMAX/MFMIN keys)
-        'fuse_MBASE', 'fuse_MFMAX', 'fuse_MFMIN', 'PXTEMP', 'LAPSE',
-        # Soil
-        'MAXWATR_1', 'MAXWATR_2', 'FRACTEN', 'PERCRTE', 'PERCEXP',
-        # Baseflow
-        'BASERTE', 'QB_POWR', 'QBRATE_2A', 'QBRATE_2B',
-        # Routing
-        'TIMEDELAY',
-        # ET
-        'RTFRAC1', 'RTFRAC2',
-    ]
-    prefixed = get_registry().get_bounds_for_params(fuse_params)
-    return {k.replace('fuse_', ''): v for k, v in prefixed.items()}
+    return _owned_by_package('FUSE', 'symfluence.models.fuse')
 
 
 def get_ngen_cfe_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get CFE module parameter bounds.
+    """CFE module bound set (18 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping CFE param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    cfe_params = [
-        'maxsmc', 'wltsmc', 'satdk', 'satpsi', 'bb', 'mult', 'slop',
-        'smcmax', 'alpha_fc', 'expon', 'K_lf', 'K_nash', 'Klf', 'Kn',
-        'Cgw', 'max_gw_storage', 'refkdt', 'soil_depth',
-    ]
-    return get_registry().get_bounds_for_params(cfe_params)
+    return _owned_by_package('NGEN_CFE', 'symfluence.models.ngen')
 
 
 def get_ngen_noah_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get NOAH-OWP module parameter bounds.
+    """NOAH-OWP module bound set (16 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping NOAH param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    noah_params = [
-        'slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt', 'smcref',
-        'noah_refdk', 'noah_refkdt', 'noah_czil', 'noah_z0',
-        'noah_frzk', 'noah_salp', 'rain_snow_thresh', 'ZREF', 'refkdt',
-    ]
-    return get_registry().get_bounds_for_params(noah_params)
+    return _owned_by_package('NGEN_NOAH', 'symfluence.models.ngen')
 
 
 def get_ngen_pet_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get PET module parameter bounds.
+    """PET module bound set (13 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping PET param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    pet_params = [
-        # BMI config file key names (primary)
-        'vegetation_height_m', 'zero_plane_displacement_height_m',
-        'momentum_transfer_roughness_length', 'heat_transfer_roughness_length_m',
-        'surface_shortwave_albedo', 'surface_longwave_emissivity',
-        'wind_speed_measurement_height_m', 'humidity_measurement_height_m',
-        # Legacy/alias names
-        'pet_albedo', 'pet_z0_mom', 'pet_z0_heat', 'pet_veg_h', 'pet_d0',
-    ]
-    return get_registry().get_bounds_for_params(pet_params)
+    return _owned_by_package('NGEN_PET', 'symfluence.models.ngen')
 
 
 def get_ngen_topmodel_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get TOPMODEL module parameter bounds for NGEN.
+    """TOPMODEL module bound set for NGEN (11 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping TOPMODEL param_name -> {'min': float, 'max': float}
-        Keys use unprefixed names (m, lnTe, ...) matching TOPMODEL config conventions.
+    Composed from the same ``topmodel_*`` catalogue entries the standalone
+    TOPMODEL set uses, with the prefix stripped.
+
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    return get_topmodel_bounds()
+    return _owned_by_package('NGEN_TOPMODEL', 'symfluence.models.ngen')
 
 
 def get_ngen_sacsma_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get SAC-SMA module parameter bounds for NGEN.
+    """SAC-SMA module bound set for NGEN (16 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping SAC-SMA param_name -> {'min': float, 'max': float}
-        Only SAC-SMA soil moisture accounting params (not Snow-17).
+    Soil-moisture-accounting parameters only — Snow-17 is a separate module.
+
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    sacsma_only = [
-        'UZTWM', 'UZFWM', 'UZK', 'LZTWM', 'LZFPM', 'LZFSM', 'LZPK', 'LZSK',
-        'ZPERC', 'REXP', 'PFREE', 'PCTIM', 'ADIMP', 'RIVA', 'SIDE', 'RSERV',
-    ]
-    return get_registry().get_bounds_for_params(sacsma_only)
+    return _owned_by_package('NGEN_SACSMA', 'symfluence.models.ngen')
 
 
 def get_ngen_snow17_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get Snow-17 module parameter bounds for NGEN.
+    """Snow-17 module bound set for NGEN (10 parameters, all tier C).
 
-    Returns:
-        Dictionary mapping Snow-17 param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    return get_snow17_bounds()
+    return _owned_by_package('NGEN_SNOW17', 'symfluence.models.ngen')
 
 
 def get_ngen_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all NGEN parameter bounds (CFE + NOAH + PET + TOPMODEL + SACSMA + SNOW17).
+    """Full NGEN bound set: CFE + NOAH + PET + TOPMODEL + SAC-SMA + Snow-17.
 
-    Returns:
-        Dictionary mapping param_name -> {'min': float, 'max': float}
+    82 parameters, every one of them tier C — NGEN has no solo parameter, so
+    nothing of its own moved; only the composition did.
+
+    Owned by ``symfluence.models.ngen`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    bounds = {}
-    bounds.update(get_ngen_cfe_bounds())
-    bounds.update(get_ngen_noah_bounds())
-    bounds.update(get_ngen_pet_bounds())
-    bounds.update(get_ngen_topmodel_bounds())
-    bounds.update(get_ngen_sacsma_bounds())
-    bounds.update(get_ngen_snow17_bounds())
-    return bounds
+    return _owned_by_package('NGEN', 'symfluence.models.ngen')
 
 
 def get_mizuroute_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get mizuRoute parameter bounds.
+    """mizuRoute bound set (6 parameters, all solo).
 
-    Returns:
-        Dictionary mapping param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.mizuroute`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    mizu_params = ['velo', 'diff', 'mann_n', 'wscale', 'fshape', 'tscale']
-    return get_registry().get_bounds_for_params(mizu_params)
+    return _owned_by_package('MIZUROUTE', 'symfluence.models.mizuroute')
 
 
 def get_depth_bounds() -> Dict[str, Dict[str, float]]:
@@ -1000,100 +845,64 @@ def get_depth_bounds() -> Dict[str, Dict[str, float]]:
 
     Returns:
         Dictionary mapping param_name -> {'min': float, 'max': float}
+
+    NOT a model: this is SUMMA's soil-depth calibration facet, consumed only by
+    ``models/summa/calibration``. Its three parameters are solo, but their owner
+    is the SUMMA package (which has no bound set of its own — SUMMA reads
+    localParamInfo.txt), so they stay here until SUMMA itself migrates.
     """
     depth_params = ['total_mult', 'total_soil_depth_multiplier', 'shape_factor']
     return get_registry().get_bounds_for_params(depth_params)
 
 
 def get_hype_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all HYPE parameter bounds.
+    """HYPE bound set (36 parameters).
 
-    Returns:
-        Dictionary mapping HYPE param_name -> {'min': float, 'max': float}
+    35 solo definitions moved to the package; ``lp`` stays central (HBV
+    calibrates the same name).
+
+    Owned by ``symfluence.models.hype`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    hype_params = [
-        # Snow parameters
-        'ttmp', 'cmlt', 'ttpi', 'cmrefr', 'sdnsnew', 'snowdensdt', 'fsceff',
-        # Evapotranspiration parameters
-        'cevp', 'lp', 'epotdist', 'fepotsnow', 'ttrig', 'treda', 'tredb',
-        # Soil hydraulic parameters
-        'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',
-        'bfroznsoil', 'logsatmp', 'bcosby', 'sfrost',
-        # Groundwater parameters
-        'rcgrw', 'deepperc',
-        # Soil temperature parameters
-        'deepmem', 'surfmem', 'depthrel',
-        # Routing parameters
-        'rivvel', 'damp', 'qmean',
-        # Lake parameters
-        'ilratk', 'ilratp', 'illdepth',
-    ]
-    return get_registry().get_bounds_for_params(hype_params)
+    return _owned_by_package('HYPE', 'symfluence.models.hype')
 
 
 def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all MESH parameter bounds.
+    """MESH bound set (29 parameters).
 
-    Returns:
-        Dictionary mapping MESH param_name -> {'min': float, 'max': float}
+    27 solo definitions moved to the package; ``PWR`` and ``R2N`` stay central
+    (WATFLOOD serves the same two names from namespaced entries).
+
+    Owned by ``symfluence.models.mesh`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    mesh_params = [
-        # CLASS.ini parameters (runoff generation)
-        'KSAT', 'DRN', 'SDEP', 'DD', 'XSLP', 'XDRAINH', 'MANN_CLASS',
-        # CLASS.ini vegetation parameters (ET control)
-        'LAMX', 'LAMN', 'ROOT', 'CMAS', 'RSMIN',
-        'QA50', 'VPDA', 'PSGA',
-        # Hydrology.ini parameters (snow/ponding)
-        'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN', 'R2N', 'R1N',
-        # Baseflow parameters
-        'FLZ', 'PWR',
-        # Legacy hydrology
-        'RCHARG', 'DRAINFRAC', 'BASEFLW',
-        # Routing
-        'WF_R2', 'DTMINUSR',
-    ]
-    return get_registry().get_bounds_for_params(mesh_params)
+    return _owned_by_package('MESH', 'symfluence.models.mesh')
 
 
 def get_gr_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all GR parameter bounds.
+    """GR4J + CemaNeige bound set (8 parameters, all solo).
 
-    Returns:
-        Dictionary mapping GR param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.gr`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    gr_params = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
-    return get_registry().get_bounds_for_params(gr_params)
+    return _owned_by_package('GR', 'symfluence.models.gr')
 
 
 def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all RHESSys parameter bounds.
+    """RHESSys bound set (28 parameters).
 
-    Returns:
-        Dictionary mapping RHESSys param_name -> {'min': float, 'max': float}
+    26 solo definitions moved to the package; ``m`` (TOPMODEL serves the same
+    name) and ``rhessys_soil_depth`` (CFE owns the bare ``soil_depth``) stay
+    central. The ``rhessys_`` prefix is stripped on the way out.
+
+    Owned by ``symfluence.models.rhessys`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    rhessys_params = [
-        # Groundwater/baseflow
-        'sat_to_gw_coeff', 'gw_loss_coeff', 'gw_loss_fast_coeff', 'gw_loss_fast_threshold',
-        # Soil
-        'psi_air_entry', 'pore_size_index', 'porosity_0', 'porosity_decay',
-        'Ksat_0', 'Ksat_0_v', 'm', 'm_z', 'rhessys_soil_depth', 'active_zone_z',
-        # Subgrid variability (critical for lumped mode peak flows)
-        'theta_mean_std_p1', 'theta_mean_std_p2',
-        # Snow
-        'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'snow_water_capacity', 'maximum_snow_energy_deficit',
-        # Vegetation/ET
-        'epc.max_lai', 'epc.gl_smax', 'epc.gl_c', 'epc.vpd_open', 'epc.vpd_close',
-        # Routing
-        'n_routing_power',
-        # Forcing correction
-        'precip_lapse_rate',
-    ]
-    prefixed = get_registry().get_bounds_for_params(rhessys_params)
-    return {k.replace('rhessys_', ''): v for k, v in prefixed.items()}
+    return _owned_by_package('RHESSYS', 'symfluence.models.rhessys')
 
 
 def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
@@ -1102,6 +911,13 @@ def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
 
     Returns:
         Dictionary mapping HBV param_name -> {'min': float, 'max': float}
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). HBV is served
+    by the external ``jhbv`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though 14 of its 15 parameters are solo (only ``lp`` is shared, with HYPE). Upstream issue: have ``jhbv`` register its own bounds, then
+    delete this entry.
     """
     hbv_params = [
         # Snow
@@ -1124,6 +940,13 @@ def get_hechms_bounds() -> Dict[str, Dict[str, float]]:
 
     Returns:
         Dictionary mapping HEC-HMS param_name -> {'min': float, 'max': float}
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). HECHMS is served
+    by the external ``jhechms`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though all 14 of its parameters are solo. Upstream issue: have ``jhechms`` register its own bounds, then
+    delete this entry.
     """
     hechms_params = [
         # Snow (ATI)
@@ -1146,6 +969,13 @@ def get_topmodel_bounds() -> Dict[str, Dict[str, float]]:
     Returns:
         Dictionary mapping TOPMODEL param_name -> {'min': float, 'max': float}
         Keys use unprefixed names (m, lnTe, ...) matching TOPMODEL parameter conventions.
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). TOPMODEL is served
+    by the external ``jtopmodel`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though every one of its parameters is shared with NGEN_TOPMODEL, so nothing would move anyway. Upstream issue: have ``jtopmodel`` register its own bounds, then
+    delete this entry.
     """
     topmodel_params = [
         'topmodel_m', 'topmodel_lnTe', 'topmodel_Srmax', 'topmodel_Sr0', 'topmodel_td',
@@ -1159,36 +989,23 @@ def get_topmodel_bounds() -> Dict[str, Dict[str, float]]:
 
 
 def get_vic_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all VIC parameter bounds.
+    """VIC bound set (12 parameters, all solo).
 
-    Returns:
-        Dictionary mapping VIC param_name -> {'min': float, 'max': float}
+    Owned by ``symfluence.models.vic`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    vic_params = [
-        # Infiltration
-        'infilt',
-        # Baseflow parameters
-        'Ds', 'Dsmax', 'Ws', 'c',
-        # Soil layer depths
-        'depth1', 'depth2', 'depth3',
-        # Soil hydraulic parameters
-        'Ksat_vic', 'expt_vic',
-        # Other
-        'bulk_density', 'snow_rough',
-    ]
-    return get_registry().get_bounds_for_params(vic_params)
+    return _owned_by_package('VIC', 'symfluence.models.vic')
 
 
 def get_ignacio_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all IGNACIO FBP parameter bounds.
+    """IGNACIO FBP fire bound set (6 parameters, all solo).
 
-    Returns:
-        Dictionary mapping IGNACIO param_name -> {'min': float, 'max': float, 'transform': str}
+    Owned by ``symfluence.models.ignacio`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    fire_params = ['ffmc', 'dmc', 'dc', 'fmc', 'curing', 'initial_radius']
-    return get_registry().get_bounds_for_params(fire_params)
+    return _owned_by_package('IGNACIO', 'symfluence.models.ignacio')
 
 
 def get_sacsma_bounds() -> Dict[str, Dict[str, float]]:
@@ -1197,6 +1014,13 @@ def get_sacsma_bounds() -> Dict[str, Dict[str, float]]:
 
     Returns:
         Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). SACSMA is served
+    by the external ``jsacsma`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though every one of its parameters is shared with NGEN/Snow-17, so nothing would move anyway. Upstream issue: have ``jsacsma`` register its own bounds, then
+    delete this entry.
     """
     sacsma_params = [
         # Snow-17
@@ -1215,6 +1039,13 @@ def get_xinanjiang_bounds() -> Dict[str, Dict[str, float]]:
     Returns:
         Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
         Keys use unprefixed names (K, B, SM, ...) matching XAJ parameter conventions.
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). XINANJIANG is served
+    by the external ``jxaj`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though 12 of its 13 parameters are solo (only ``xaj_K``'s served name ``K`` is shared, with GSFLOW). Upstream issue: have ``jxaj`` register its own bounds, then
+    delete this entry.
     """
     xaj_params = [
         'xaj_K', 'xaj_B', 'xaj_IM', 'xaj_UM', 'xaj_LM', 'xaj_DM', 'xaj_C',
@@ -1231,58 +1062,72 @@ def get_snow17_bounds() -> Dict[str, Dict[str, float]]:
 
     Returns:
         Dictionary mapping Snow-17 param_name -> {'min': float, 'max': float, 'transform': str}
+
+    COMPATIBILITY BOUNDS (tier C by necessity, not by physics). SNOW17 is served
+    by the external ``jsnow17`` plugin package, which lives in its own repository
+    and predates the ``register_model_bounds()`` seam — it still imports this
+    helper directly. Its definitions and composition therefore stay in core even
+    though every one of its parameters is shared with SAC-SMA and NGEN, so nothing would move anyway. Upstream issue: have ``jsnow17`` register its own bounds, then
+    delete this entry.
     """
     names = ['SCF', 'PXTEMP', 'MFMAX', 'MFMIN', 'NMF', 'MBASE', 'TIPM', 'UADJ', 'PLWHC', 'DAYGM']
     return get_registry().get_bounds_for_params(names)
 
 
 def get_gsflow_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all GSFLOW (PRMS + MODFLOW-NWT) parameter bounds.
+    """GSFLOW (PRMS + MODFLOW-NWT) bound set (10 parameters).
 
-    Returns:
-        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
-        Keys use unprefixed names matching GSFLOW parameter conventions.
+    9 solo definitions moved to the package; ``gsflow_K`` stays central because
+    its served name ``K`` collides with Xinanjiang's. The ``gsflow_`` prefix is
+    stripped on the way out.
+
+    Owned by ``symfluence.models.gsflow`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    gsflow_params = [
-        'gsflow_soil_moist_max', 'gsflow_soil_rechr_max', 'gsflow_ssr2gw_rate',
-        'gsflow_gwflow_coef', 'gsflow_gw_seep_coef', 'gsflow_K', 'gsflow_SY',
-        'gsflow_slowcoef_lin', 'gsflow_carea_max', 'gsflow_smidx_coef',
-    ]
-    prefixed = get_registry().get_bounds_for_params(gsflow_params)
-    return {k.replace('gsflow_', ''): v for k, v in prefixed.items()}
+    return _owned_by_package('GSFLOW', 'symfluence.models.gsflow')
 
 
 def get_noahmp_bounds() -> Dict[str, Dict[str, Any]]:
-    noahmp_params = [
-        'slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt', 'smcref',
-        'refkdt', 'noah_czil', 'rain_snow_thresh', 'ZREF', 'route_k',
-    ]
-    return get_registry().get_bounds_for_params(noahmp_params)
+    """NOAH-MP bound set (12 parameters).
+
+    Only ``route_k`` is solo and moved to the package; the other 11 are the
+    shared NOAH-OWP soil/snow parameters NGEN also calibrates.
+
+    Owned by ``symfluence.models.noahmp`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
+    """
+    return _owned_by_package('NOAHMP', 'symfluence.models.noahmp')
 
 
 def get_watflood_bounds() -> Dict[str, Dict[str, float]]:
+    """WATFLOOD bound set (16 parameters).
+
+    14 solo definitions moved to the package; ``watflood_PWR``/``watflood_R2N``
+    stay central (MESH serves the same two names). The ``watflood_`` prefix is
+    stripped on the way out.
+
+    Owned by ``symfluence.models.watflood`` (tier A: composition; tier B: solo
+    definitions). Core keeps no second copy — this helper resolves what
+    the package registered, and raises ``KeyError`` if it never did.
     """
-    Get all WATFLOOD parameter bounds.
-
-    Returns:
-        Dictionary mapping param_name -> {'min': float, 'max': float, 'transform': str}
-        Keys use unprefixed names matching WATFLOOD parameter conventions.
-    """
-    watflood_params = [
-        'watflood_FLZCOEF', 'watflood_PWR', 'watflood_R2N',
-        'watflood_AK', 'watflood_AKF', 'watflood_REESSION',
-        'watflood_RETN', 'watflood_AK2', 'watflood_AK2FS',
-        'watflood_R3', 'watflood_DS', 'watflood_FPET',
-        'watflood_FTALL', 'watflood_FM', 'watflood_BASE',
-        'watflood_SUBLIM_FACTOR',
-    ]
-    prefixed = get_registry().get_bounds_for_params(watflood_params)
-    return {k.replace('watflood_', ''): v for k, v in prefixed.items()}
+    return _owned_by_package('WATFLOOD', 'symfluence.models.watflood')
 
 
-# Built-in bound sets for the in-tree model suite, served through
-# get_model_bounds(); external packages take the register_model_bounds() path.
+# The completeness ledger for the parity snapshot: every model the framework can
+# serve bounds for appears here, so one cannot silently stop being covered
+# (tests/unit/core/data/model_bounds_snapshot.json is checked against this set).
+#
+# It is NOT "what can be served without a registration" -- get_model_bounds()
+# consults the registered composition FIRST, so for the migrated in-tree models
+# (FUSE, NGEN + NGEN_*, MIZUROUTE, HYPE, MESH, GR, RHESSYS, VIC, IGNACIO,
+# GSFLOW, NOAHMP, WATFLOOD) this branch is only reached when the owning package
+# is ABSENT, and the delegate then raises a KeyError naming that package. Core
+# holds no data for them.
+#
+# Only DEPTH and the six external-plugin-served sets (HBV, HECHMS, TOPMODEL,
+# SACSMA, SNOW17, XINANJIANG) still resolve their values from this module.
 _BUILTIN_MODEL_BOUNDS = {
     'FUSE': get_fuse_bounds,
     'NGEN': get_ngen_bounds,

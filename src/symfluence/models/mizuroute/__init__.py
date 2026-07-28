@@ -24,7 +24,7 @@ Design Rationale:
     MizuRoute addresses the need for consistent routing across models:
     - Hydrological models often have inconsistent or simplified routing
     - MizuRoute provides unified routing for any runoff source
-    - Enables routing SUMMA, FUSE, GR, HYPE, or any model through same network
+    - Enables routing SUMMA, FUSE, GR, or any model through same network
     - Supports continental-scale applications (used in NWM, ISIMIP)
 
 Spatial Structure:
@@ -43,7 +43,7 @@ Configuration Parameters:
     SETTINGS_MIZU_WITHIN_BASIN: Within-basin routing option
     SETTINGS_MIZU_NEEDS_REMAP: Whether HRU remapping is required
     SETTINGS_MIZU_OUTPUT_VARS: Variables to output (streamflow, etc.)
-    MIZU_FROM_MODEL: Source model for runoff (SUMMA, FUSE, GR, HYPE, etc.)
+    MIZU_FROM_MODEL: Source model for runoff (SUMMA, FUSE, GR, NGEN)
 
 Typical Workflow:
     1. Generate river network topology from stream shapefile
@@ -125,6 +125,8 @@ def register() -> None:
     R.base_settings.add("MIZUROUTE", "symfluence.models.mizuroute")
     R.runners.add_lazy("MIZUROUTE", f"{base}.runner.MizuRouteRunner", runner_method='run_mizuroute')
     R.result_extractors.add_lazy("MIZUROUTE", f"{base}.extractor.MizuRouteResultExtractor")
+    from .parameter_bounds import register_bounds
+    register_bounds()
 
 
 if TYPE_CHECKING:

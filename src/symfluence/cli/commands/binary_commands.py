@@ -446,6 +446,10 @@ class BinaryCommands(BaseCommand):
             # process segfaults during cleanup before flushing its buffer.
             # stderr is piped separately so we can filter noisy WARN lines.
             pty_master_fd = None
+            # Bound together with pty_master_fd by openpty() below, but only on
+            # the success path; initialise it so the close() at the end of this
+            # block cannot reference an unbound name if openpty() raises.
+            pty_slave_fd = None
             stdout_target = sys.stdout
 
             if sys.platform != "win32":

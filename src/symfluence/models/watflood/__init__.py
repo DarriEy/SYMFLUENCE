@@ -86,6 +86,30 @@ def register() -> None:
     R.workers.add_lazy("WATFLOOD", f"{base}.calibration.worker.WATFLOODWorker")
     R.parameter_managers.add_lazy("WATFLOOD", f"{base}.calibration.parameter_manager.WATFLOODParameterManager")
 
+    from symfluence.core.modeling.spatial_modes import (
+        ModelSpatialCapability,
+        SpatialMode,
+        register_model_spatial_capability,
+    )
+    register_model_spatial_capability(
+        "WATFLOOD",
+        ModelSpatialCapability(
+            supported_modes={SpatialMode.LUMPED, SpatialMode.DISTRIBUTED},
+            default_mode=SpatialMode.DISTRIBUTED,
+            requires_routing={
+                SpatialMode.DISTRIBUTED: False,  # Internal channel routing
+                SpatialMode.LUMPED: False,
+            },
+            warning_message=(
+                "WATFLOOD uses GRU-grid distributed structure with internal "
+                "channel routing. Lumped mode uses a single-GRU configuration."
+            ),
+        ),
+    )
+
+    from .parameter_bounds import register_bounds
+    register_bounds()
+
 
 if TYPE_CHECKING:
     from .calibration import WATFLOODModelOptimizer

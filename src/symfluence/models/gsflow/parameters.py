@@ -17,31 +17,29 @@ variants:
 These are excluded from calibration to avoid wasting optimization budget
 on inert dimensions.
 
+Bounds are NOT defined here. ``PARAM_BOUNDS`` is re-exported from
+:mod:`symfluence.models.gsflow.parameter_bounds`, which is the single source of
+truth: the same definitions this package contributes to the central bounds
+catalogue via ``register_model_bounds()``. It used to be an independent literal
+dict, which is how ``K`` came to be calibrated against ``0.1..5000`` linear here
+while the catalogue said ``0.001..100`` log.
+
 References:
     Markstrom, S.L., et al. (2008): GSFLOW—Coupled Ground-Water and
     Surface-Water Flow Model. USGS Techniques and Methods 6-D1.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Dict
 
-PARAM_BOUNDS: Dict[str, Dict[str, float]] = {
-    # PRMS soil zone
-    'soil_moist_max': {'min': 1.0, 'max': 15.0},       # inches, max soil moisture storage
-    'ssr2gw_rate': {'min': 0.001, 'max': 0.5},           # 1/day, gravity reservoir to GW
-    # MODFLOW-NWT
-    'K': {'min': 0.1, 'max': 5000.0},                    # m/d, hydraulic conductivity (Iceland basalt: 1e2-1e4)
-    'SY': {'min': 0.01, 'max': 0.4},                     # -, specific yield
-    # PRMS runoff
-    'slowcoef_lin': {'min': 0.001, 'max': 0.5},          # 1/day, linear gravity drainage
-    'carea_max': {'min': 0.1, 'max': 1.0},               # -, max contributing area fraction
-    'smidx_coef': {'min': 0.001, 'max': 0.10},           # -, surface runoff equation coeff
-    # Snow / climate
-    'jh_coef': {'min': 0.005, 'max': 0.030},             # -, Jensen-Haise PET coefficient
-    'tmax_allsnow': {'min': -3.0, 'max': 2.0},           # °C, all-snow temperature threshold
-    'rain_adj': {'min': 0.5, 'max': 2.0},                # -, rainfall adjustment multiplier
-    'snow_adj': {'min': 0.5, 'max': 2.0},                # -, snowfall adjustment multiplier
-}
+from .parameter_bounds import CALIBRATION_BOUNDS
+
+#: Calibration bounds, keyed by served (unprefixed) name. A live view, not a
+#: dict: it resolves the centrally-owned half at lookup time rather than at
+#: import, when registration may not have run.
+#: Single source of truth: :mod:`symfluence.models.gsflow.parameter_bounds`.
+PARAM_BOUNDS: Mapping = CALIBRATION_BOUNDS
 
 DEFAULT_PARAMS: Dict[str, float] = {
     'soil_moist_max': 6.0,

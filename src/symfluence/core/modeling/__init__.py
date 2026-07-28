@@ -8,13 +8,18 @@ runner/preprocessor/postprocessor/extractor bases (``.base``), adapter mixins
 (``.mixins``), execution infrastructure (``.execution``), model state
 management (``.state``), scaffolding templates (``.templates``), shared
 adapter utilities (``.utilities``), spatial-mode validation
-(``.spatial_modes``), and the ConfigKey schema machinery
-(``.config_schema``). Historical ``symfluence.models.*`` import paths remain
-as shims.
+(``.spatial_modes``), base-settings resolution (``.base_settings``), and the
+ConfigKey schema machinery (``.config_schema``). Historical
+``symfluence.models.*`` / ``symfluence.resources.*`` import paths remain as
+shims.
 """
 from __future__ import annotations
 
 from symfluence.core.modeling.base import BaseModelRunner
+from symfluence.core.modeling.base_settings import (
+    copy_base_settings_to_project,
+    get_base_settings_dir,
+)
 from symfluence.core.modeling.config_schema import (
     ModelConfigSchema,
     get_model_schema,
@@ -32,6 +37,8 @@ __all__ = [
     'EvaluationRegistry',
     'INSTALL_SUGGESTION',
     'ModelConfigSchema',
+    'copy_base_settings_to_project',
+    'get_base_settings_dir',
     'get_model_schema',
     'register_model_schema',
     'create_minimal_encoding',

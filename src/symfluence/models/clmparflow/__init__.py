@@ -94,6 +94,7 @@ def register() -> None:
         "CLMPARFLOW",
         config_adapter=CLMParFlowConfigAdapter,
         build_instructions_module="symfluence.models.clmparflow.build_instructions",
+        aliases=["CLM-ParFlow"],
     )
     base = 'symfluence.models.clmparflow'
     R.preprocessors.add_lazy("CLMPARFLOW", f"{base}.preprocessor.CLMParFlowPreProcessor")
