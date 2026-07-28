@@ -125,6 +125,58 @@ class InMemoryModelWorker(BaseWorker):
         """Set warmup days."""
         self._warmup_days = value
 
+    def warmup_steps(self) -> int:
+        """Number of leading timesteps excluded as warmup.
+
+        Defaults to ``warmup_days``, which is correct for daily models.
+        Models running on a sub-daily timestep override this to convert
+        days into timesteps.
+        """
+        return self.warmup_days
+
+    def get_calibration_slice(self) -> Optional[Tuple[int, int]]:
+        """Start/end indices of the calibration period in post-warmup arrays.
+
+        Differentiable loss functions must score the same window the
+        optimizer is reported against. Without this, a gradient-based
+        optimizer trains on everything after warmup — including the
+        held-out evaluation period — while the final evaluation reports
+        calibration-period metrics, so the two numbers disagree and the
+        split-sample test is no longer honest.
+
+        Returns:
+            ``(start, end)`` for slicing arrays that already have warmup
+            removed, or None when no calibration period is configured or
+            it does not overlap the simulated record.
+        """
+        cal_period = self._cfg(
+            'CALIBRATION_PERIOD',
+            self._cfg('EXPERIMENT_CALIBRATION_PERIOD', '')
+        )
+        if not cal_period or self._time_index is None:
+            return None
+
+        try:
+            dates = [d.strip() for d in str(cal_period).split(',')]
+            if len(dates) < 2:
+                return None
+
+            start_date = pd.Timestamp(dates[0])
+            end_date = pd.Timestamp(dates[1])
+
+            time_after_warmup = self._time_index[self.warmup_steps():]
+            if not isinstance(time_after_warmup, pd.DatetimeIndex):
+                time_after_warmup = pd.DatetimeIndex(time_after_warmup)
+
+            cal_mask = (time_after_warmup >= start_date) & (time_after_warmup <= end_date)
+            indices = np.where(cal_mask)[0]
+            if len(indices) == 0:
+                return None
+
+            return int(indices[0]), int(indices[-1] + 1)
+        except (ValueError, TypeError):
+            return None
+
     # =========================================================================
     # Abstract methods - must be implemented by subclasses
     # =========================================================================
