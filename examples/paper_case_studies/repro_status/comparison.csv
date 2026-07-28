@@ -590,6 +590,8 @@ cal_ensemble_hbv_de@HBV,KGE,macos,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream@HBV,KGE,macos,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga@HBV,KGE,macos,0.916071,wsl,0.917801,0.001730,OK
 cal_ensemble_hbv_glue@HBV,KGE,macos,0.907066,wsl,0.907066,0.000000,OK
+cal_ensemble_hbv_moead@HBV,KGE,macos,0.936306,wsl,0.936404,0.000098,OK
+cal_ensemble_hbv_nelder_mead@HBV,KGE,macos,0.942249,wsl,0.942249,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,macos,0.355703,wsl,0.355705,0.000003,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos,0.474379,wsl,0.474379,0.000000,OK
@@ -1030,6 +1032,8 @@ cal_ensemble_hbv_de@HBV,KGE,macos_p3repro,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream@HBV,KGE,macos_p3repro,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga@HBV,KGE,macos_p3repro,0.917801,wsl,0.917801,0.000000,OK
 cal_ensemble_hbv_glue@HBV,KGE,macos_p3repro,0.907066,wsl,0.907066,0.000000,OK
+cal_ensemble_hbv_moead@HBV,KGE,macos_p3repro,0.938799,wsl,0.936404,0.002395,OK
+cal_ensemble_hbv_nelder_mead@HBV,KGE,macos_p3repro,0.942249,wsl,0.942249,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,macos_p3repro,0.355703,wsl,0.355705,0.000003,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos_p3repro,0.474379,wsl,0.474379,0.000000,OK
@@ -1205,6 +1209,8 @@ cal_ensemble_hbv_de@HBV,KGE,native_windows,0.909082,wsl,0.909082,0.000000,OK
 cal_ensemble_hbv_dream@HBV,KGE,native_windows,0.907862,wsl,0.907862,0.000000,OK
 cal_ensemble_hbv_ga@HBV,KGE,native_windows,0.916071,wsl,0.917801,0.001730,OK
 cal_ensemble_hbv_glue@HBV,KGE,native_windows,0.907066,wsl,0.907066,0.000000,OK
+cal_ensemble_hbv_moead@HBV,KGE,native_windows,0.936404,wsl,0.936404,0.000000,OK
+cal_ensemble_hbv_nelder_mead@HBV,KGE,native_windows,0.942249,wsl,0.942249,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,native_windows,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,native_windows,0.355705,wsl,0.355705,0.000000,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,native_windows,0.474379,wsl,0.474379,0.000000,OK
