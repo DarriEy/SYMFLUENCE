@@ -265,6 +265,30 @@ class TestExtractFuseStreamflow:
         with pytest.raises(EvaluationError, match="Unrecognized streamflow units"):
             streamflow_evaluator._extract_fuse_streamflow(path)
 
+    def test_mm_per_timestep_daily_converts_like_mm_per_day(
+        self, streamflow_evaluator, tmp_path
+    ):
+        """FUSE's native units string 'mm timestep-1' on a daily time axis."""
+        streamflow_evaluator.config_dict = {'FIXED_CATCHMENT_AREA': 8.64e7}
+        path = self._write_fuse(tmp_path, [1.0, 1.0], units='mm timestep-1')
+        result = streamflow_evaluator._extract_fuse_streamflow(path)
+        # 1 mm/day over 86.4 km² -> 1 m³/s
+        assert result.iloc[0] == pytest.approx(1.0)
+
+    def test_mm_per_timestep_hourly_uses_time_axis_spacing(
+        self, streamflow_evaluator, tmp_path
+    ):
+        streamflow_evaluator.config_dict = {'FIXED_CATCHMENT_AREA': 8.64e7}
+        ds = xr.Dataset({
+            'q_instnt': (['time'], np.asarray([1.0, 1.0], dtype=float)),
+        }, coords={'time': pd.date_range('2010-01-01', periods=2, freq='h')})
+        ds['q_instnt'].attrs['units'] = 'mm timestep-1'
+        path = tmp_path / 'fuse_hourly.nc'
+        ds.to_netcdf(path)
+        result = streamflow_evaluator._extract_fuse_streamflow(path)
+        # 1 mm/hour over 86.4 km² -> 24 m³/s
+        assert result.iloc[0] == pytest.approx(24.0)
+
     def test_mm_per_hour_raises_instead_of_daily_conversion(
         self, streamflow_evaluator, tmp_path
     ):
