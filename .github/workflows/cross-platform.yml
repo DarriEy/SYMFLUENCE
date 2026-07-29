@@ -32,7 +32,13 @@ jobs:
   unit-tests-matrix:
     name: Unit Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20  # Increased from 15min for safer margin
+    # The `-m "unit" -n auto` suite normally finishes in ~11 min here but
+    # intermittently balloons past 20 on slower runners, and a timeout kill
+    # cancels the leg and fails the summary job. ci.yml's unit-tests already
+    # carries 30 for exactly this reason; this copy kept 20 and drifted, so
+    # develop went red on a 20m16s cancellation with every test passing. Keep the
+    # two in step — same suite, same headroom.
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
