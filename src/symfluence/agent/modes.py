@@ -84,8 +84,8 @@ metrics."""
 _CODING_HOUSE_RULES = """\
 Coding-mode rules:
 - Before any non-trivial platform task, read the matching SYMFLUENCE skill \
-(explore-platform, run-workflow-locally, debug-calibration, add-model-handler, \
-add-data-handler, add-optimizer).
+(explore-platform, run-workflow-locally, debug-calibration, debug-delineation, \
+add-model-handler, add-data-handler, add-optimizer).
 - Discover capabilities by querying the live registry (`symfluence list`, or \
 the `symfluence` MCP tools) — never from memory; catalogs go stale.
 - Verify platform changes by driving the workflow CLI (run/step/status/\
