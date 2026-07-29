@@ -236,13 +236,52 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
 
     def _get_basin_area(self, sim_file: Path) -> Optional[float]:
         """
-        Retrieve basin area (m²) from the RHESSys worldfile used for this run.
+        Retrieve basin area (m²) for the mm/day → m³/s conversion.
 
-        Tries canonical location: <data_dir>/domain_<name>/settings/RHESSys/worldfiles/<name>.world
-        Falls back to sim_dir parents if needed.
+        Prefers the shared catchment-area lookup, which resolves the
+        delineated river basin — the same source RHESSysWorker uses to score
+        calibration trials. The worldfile is a *generated* input: it bakes in
+        whatever area preprocessing saw and is not rewritten when the domain
+        is re-discretised, so it drifts. On Bow_at_Banff_lumped_era5 it still
+        carried 2248.0606 km² against the delineation's 2207.5038 km² — 1.837%
+        — which made this target score a run at 0.835738 that the calibration
+        objective had scored 0.851883, the same simulation measured against
+        two different basins.
+
+        Falls back to the worldfile when the shared lookup finds nothing, so
+        domains without a delineated basin still convert.
         """
-        domain_name = self.config.domain.name
-        data_dir = Path(self.config.system.data_dir)
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+        )
+        data_dir_raw = self._get_config_value(
+            lambda: str(self.config.system.data_dir), dict_key='SYMFLUENCE_DATA_DIR'
+        )
+        if not domain_name or not data_dir_raw:
+            self.logger.debug("Cannot resolve domain/data dir for RHESSys basin area")
+            return None
+        data_dir = Path(str(data_dir_raw))
+
+        try:
+            from symfluence.evaluation.utilities import StreamflowMetrics
+
+            shared_km2 = StreamflowMetrics().get_catchment_area(
+                {'DOMAIN_NAME': domain_name, 'SYMFLUENCE_DATA_DIR': str(data_dir)},
+                data_dir / f"domain_{domain_name}",
+                domain_name,
+                # 0.0 sentinel: the lookup otherwise returns a 1 km2 default
+                # when it finds nothing, which would silently beat the
+                # worldfile fallback with a meaningless area.
+                default_area=0.0,
+            )
+            if shared_km2 and shared_km2 > 0:
+                return float(shared_km2) * 1e6
+        except (ImportError, OSError, RuntimeError, ValueError, KeyError,
+                AttributeError, TypeError) as e:
+            self.logger.debug(
+                f"Shared catchment-area lookup unavailable ({e}); reading the worldfile"
+            )
+
         candidates = [
             data_dir / f"domain_{domain_name}" / "settings" / "RHESSys" / "worldfiles" / f"{domain_name}.world",
             sim_file.parents[2] / "settings" / "RHESSys" / "worldfiles" / f"{domain_name}.world",
