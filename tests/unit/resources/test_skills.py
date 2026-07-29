@@ -13,6 +13,7 @@ EXPECTED_SKILLS = [
     'add-model-handler',
     'add-optimizer',
     'debug-calibration',
+    'debug-delineation',
     'explore-platform',
     'run-workflow-locally',
 ]
