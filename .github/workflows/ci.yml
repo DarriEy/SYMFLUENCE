@@ -213,6 +213,69 @@ jobs:
         run: |
           uv run --no-sync pytest --timeout=300 -m performance -n 0 tests/performance/
 
+  # The PR-time Windows leg.
+  #
+  # cross-platform.yml owns the full OS matrix, but it triggers only on push to
+  # develop/main and nightly — so nothing Windows-specific could ever fail a PR
+  # check. #385 merged green under exactly that gap and left develop red for two
+  # days on `AttributeError: module 'signal' has no attribute 'SIGKILL'`: a
+  # POSIX-only attribute evaluated unconditionally, which the ubuntu legs cannot
+  # catch by construction. This job closes that hole at PR time.
+  #
+  # Deliberately the *lean* Windows leg: uv and the universal lock, no conda and
+  # no GDAL. Its job is platform-conditional Python — signals, os.name branches,
+  # path separators, subprocess flags — which is where every Windows regression
+  # here has actually originated. Full-fidelity Windows coverage (GDAL via
+  # conda, binary validation, integration) stays in cross-platform.yml's
+  # post-merge tier, so this costs one runner rather than a matrix.
+  #
+  # Tests needing the GDAL C library skip themselves when it is absent; that is
+  # the intended outcome here, and the ubuntu legs above still exercise them.
+  unit-tests-windows:
+    name: Unit Tests (windows, Python 3.11)
+    runs-on: windows-latest
+    # The suite itself runs ~9-10 min on a Windows runner; the rest is
+    # dependency install. 30 mirrors the ubuntu leg's headroom.
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python 3.11
+        # No `cache: 'pip'` here — scripts/check_ci_dependency_policy.py forbids
+        # it in uv-managed jobs, since uv owns the package cache.
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6
+        with:
+          version: "0.10.4"
+
+      - name: Install Python dependencies
+        # GDAL is intentionally absent: the Windows wheel would have to build
+        # from source, and the tests that need it skip cleanly without it.
+        # No torch index override either — on Windows the default PyPI wheel is
+        # already CPU-only, unlike the Linux legs in cross-platform.yml.
+        run: uv sync --locked --extra test --extra gui
+
+      - name: Preflight runtime storage backends
+        run: uv run --no-sync python scripts/check_runtime_backends.py
+
+      - name: Run unit tests
+        # Same scope as the ubuntu legs: tests/conformance/ carries the
+        # decomposition proofs and is not optional here either — see the note on
+        # the unit-tests job. Coverage is a property of the codebase, not of the
+        # interpreter or the OS, so it stays gated once on ubuntu and this leg
+        # runs without it to keep the PR gate fast.
+        run: |
+          uv run --no-sync pytest --timeout=300 --tb=short -m "unit" -n auto \
+            tests/unit/ tests/conformance/
+
   # Build and install the wheel in a fresh environment so built-in backends
   # cannot rely on editable-install paths or undeclared transitive dependencies.
   runtime-backend-contract:
