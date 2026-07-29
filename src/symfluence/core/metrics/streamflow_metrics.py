@@ -238,6 +238,52 @@ class StreamflowMetrics:
             logger.warning(f"Error getting catchment area from {source}: {e}. Using default {default_area} km2")
             return default_area
 
+    @staticmethod
+    def _projected_area_km2(gdf: Any) -> Optional[float]:
+        """Area (km2) of a layer's geometry, projected off any geographic CRS."""
+        try:
+            projected = gdf if (gdf.crs is not None and not gdf.crs.is_geographic) \
+                else gdf.to_crs(gdf.estimate_utm_crs())
+            area = float(projected.geometry.area.sum()) / 1e6
+            return area if area > 0 else None
+        except (AttributeError, ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _reconcile_with_geometry(
+        column_km2: float,
+        geometry_km2: Optional[float],
+        path: Path,
+    ) -> float:
+        """Prefer the geometry when an area column disagrees with it wildly.
+
+        An area column is only trustworthy if it was written in m². It is not
+        always: the point delineator stored ``polygon.area`` straight off an
+        EPSG:4326 geometry, so paradise_snotel_wa carried 0.0004 square
+        degrees where consumers expected m². Divided by 1e6 that reads as
+        4e-10 km² for a 3.39 km² domain, and discharge conversion silently
+        fell back to the 1 km² default.
+
+        Geometry is self-describing — it carries a CRS — so it is the better
+        arbiter when the two disagree by more than an order of magnitude.
+        A modest disagreement is left alone: HRU columns legitimately differ
+        from the dissolved outline by small amounts.
+        """
+        if geometry_km2 is None or column_km2 <= 0:
+            return column_km2 if column_km2 > 0 else (geometry_km2 or 0.0)
+
+        ratio = column_km2 / geometry_km2
+        if 0.1 < ratio < 10.0:
+            return column_km2
+
+        logger.warning(
+            f"Area column in {path.name} gives {column_km2:.6g} km2 but its geometry "
+            f"gives {geometry_km2:.6g} km2 ({ratio:.3g}x apart) — using the geometry. "
+            f"A column written in the wrong units (square degrees rather than m2) "
+            f"looks exactly like this."
+        )
+        return geometry_km2
+
     def _area_from_river_basin(
         self,
         project_dir: Path,
@@ -259,15 +305,15 @@ class StreamflowMetrics:
             preferred = [p for p in candidates if domain_name in p.name]
             for path in (preferred or candidates):
                 gdf = gpd.read_file(path)
+                geometry_km2 = self._projected_area_km2(gdf)
                 if 'GRU_area' in gdf.columns:
                     if 'GRU_ID' in gdf.columns and gdf['GRU_ID'].nunique() < len(gdf):
                         area_km2 = float(gdf.drop_duplicates('GRU_ID')['GRU_area'].sum()) / 1e6
                     else:
                         area_km2 = float(gdf['GRU_area'].sum()) / 1e6
+                    area_km2 = self._reconcile_with_geometry(area_km2, geometry_km2, path)
                 else:
-                    projected = gdf if (gdf.crs and not gdf.crs.is_geographic) \
-                        else gdf.to_crs(gdf.estimate_utm_crs())
-                    area_km2 = float(projected.geometry.area.sum()) / 1e6
+                    area_km2 = geometry_km2 or 0.0
                 if area_km2 > 0:
                     logger.debug(
                         f"Catchment area from river-basin shapefile {path.name}: "

@@ -72,13 +72,21 @@ class PointDelineator(BaseGeofabricDelineator):
             gdf = gpd.GeoDataFrame(
                 {
                     "GRU_ID": [1],
-                    "GRU_area": [area_deg2],
                     "basin_name": [self.domain_name],
                     "method": ["point"],
                 },
                 geometry=[polygon],
                 crs="EPSG:4326",
             )
+
+            # GRU_area must be m², the unit every downstream consumer assumes
+            # when it divides by 1e6. Taking polygon.area on an EPSG:4326
+            # geometry yields square degrees instead: on paradise_snotel_wa
+            # that stored 0.0004, which read back as 4e-10 km² for a 3.39 km²
+            # domain, so unit conversion fell through to the 1 km² default and
+            # every discharge metric on that domain was meaningless.
+            gdf["GRU_area"] = gdf.to_crs(gdf.estimate_utm_crs()).geometry.area
+            area_m2 = float(gdf["GRU_area"].iloc[0])
 
             output_dir = self.project_dir / "shapefiles" / "river_basins"
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +99,9 @@ class PointDelineator(BaseGeofabricDelineator):
             self.logger.info(
                 f"Bounding box: lat_min={lat_min}, lat_max={lat_max}, lon_min={lon_min}, lon_max={lon_max}"
             )
-            self.logger.info(f"Area: {area_deg2:.6f} square degrees")
+            self.logger.info(
+                f"Area: {area_m2 / 1e6:.6f} km² ({area_deg2:.6f} square degrees)"
+            )
 
             return output_path
         except Exception as exc:  # noqa: BLE001 — preprocessing resilience
