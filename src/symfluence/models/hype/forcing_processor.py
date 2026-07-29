@@ -150,9 +150,11 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         except (AttributeError, OSError, ValueError) as e:
             self.logger.warning(f"CDO merge failed or CDO not available: {e}. Falling back to xarray...")
             try:
-                # Fallback to xarray (more portable but slower for huge files)
-                with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time', data_vars='minimal', coords='minimal', compat='override', engine='h5netcdf') as ds:
-                    ds.sortby('time').to_netcdf(merged_forcing_path, engine='h5netcdf')
+                # Portable, CDO-free fallback (required on native Windows, where CDO
+                # has no conda-forge win-64 build). See _merge_forcing_files_xarray
+                # for why this must be eager rather than a lazy open_mfdataset.
+                if self._merge_forcing_files_xarray(easymore_nc_files, merged_forcing_path) is None:
+                    return None
                 self.logger.info("Xarray merge successful")
             except Exception as xe:  # noqa: BLE001 — model execution resilience
                 self.logger.error(f"Xarray merge also failed: {xe}", exc_info=True)
@@ -172,6 +174,74 @@ class HYPEForcingProcessor(BaseForcingProcessor):
 
         os.replace(tmp_path, merged_forcing_path)
         return merged_forcing_path
+
+    def _merge_forcing_files_xarray(
+        self, files: List[Path], out_path: Path
+    ) -> Optional[Path]:
+        """Merge forcing NetCDFs with pure xarray/numpy (no CDO), eagerly.
+
+        This is the fallback used when the CDO binary is unavailable (notably on
+        native Windows, where CDO has no conda-forge win-64 build). It must
+        reproduce what ``cdo mergetime`` produces: all timesteps of all input
+        files, sorted by date, with duplicate/overlapping timesteps collapsed to
+        their first occurrence.
+
+        Why not ``xr.open_mfdataset(combine='nested', concat_dim='time').sortby('time')``:
+        that path is lazy (dask-backed). When two input files share the same
+        timestamps — which happens for the basin-averaged (hru=1) remapped store,
+        where sibling files (e.g. an ``_grus_`` variant) cover the identical
+        2002-2009 range — ``sortby`` computes a *fully interleaved* permutation
+        (0, N, 1, N+1, 2, N+2, ...). Applying that shuffled index to chunked dask
+        arrays produces a near-quadratic task graph (every output chunk depends on
+        every input chunk), which effectively never completes: on WSL this hung for
+        2+ hours. Installing CDO merely routed around the fallback; it did not fix
+        it.
+
+        The fix is to stay eager: load each (small, basin-averaged) file into
+        memory as plain NumPy, concatenate, then deduplicate/sort with a single
+        ``np.unique`` on the time values. ``np.unique(..., return_index=True)``
+        returns the unique times already in ascending order together with the
+        index of each value's first occurrence, so a single ``isel`` yields a
+        time-sorted, first-occurrence-wins dataset — identical to CDO mergetime —
+        with a trivial, dask-free computation that finishes in well under a second.
+        """
+        datasets: List[xr.Dataset] = []
+        try:
+            for f in files:
+                # .load() forces eager reads so concat/sort operate on NumPy
+                # arrays — no lazy dask graph, no interleaved-index blowup.
+                datasets.append(xr.open_dataset(f, engine='h5netcdf').load())
+
+            if len(datasets) == 1:
+                combined = datasets[0]
+            else:
+                combined = xr.concat(
+                    datasets,
+                    dim='time',
+                    data_vars='minimal',
+                    coords='minimal',
+                    compat='override',
+                    join='override',
+                )
+
+            # Sort by time and drop duplicate/overlapping timesteps, keeping the
+            # first occurrence (matches `cdo mergetime`). np.unique yields ascending
+            # unique times plus first-occurrence indices in one pass.
+            time_values = combined['time'].values
+            _, first_occurrence = np.unique(time_values, return_index=True)
+            if len(first_occurrence) != len(time_values):
+                self.logger.info(
+                    "Dropped %d duplicate/overlapping timesteps during xarray merge",
+                    len(time_values) - len(first_occurrence),
+                )
+            combined = combined.isel(time=first_occurrence)
+
+            combined.to_netcdf(out_path, engine='h5netcdf')
+        finally:
+            for ds in datasets:
+                ds.close()
+
+        return out_path if out_path.exists() else None
 
     def _convert_to_daily_obs(self, merged_forcing_path: Path) -> None:
         """Convert hourly merged data to HYPE daily observation files."""
