@@ -40,10 +40,6 @@
       "orcid": "0000-0002-7093-3928"
     },
     {
-      "name": "Knoben, Wouter J. M.",
-      "orcid": "0000-0001-8301-3787"
-    },
-    {
       "name": "Liu, Hongli",
       "orcid": "0000-0002-2756-3247"
     },
@@ -144,6 +140,11 @@
     },
     {
       "name": "Nassar, Ayman",
+      "type": "Other"
+    },
+    {
+      "name": "Knoben, Wouter J. M.",
+      "orcid": "0000-0001-8301-3787",
       "type": "Other"
     }
   ]
