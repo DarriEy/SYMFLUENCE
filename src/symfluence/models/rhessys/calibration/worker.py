@@ -428,13 +428,19 @@ class RHESSysWorker(BaseWorker):
         install_path = config.get('RHESSYS_INSTALL_PATH', 'default')
         exe_name = config.get('RHESSYS_EXE', 'rhessys')
         if install_path == 'default':
-            return data_dir / "installs" / "rhessys" / "bin" / exe_name
-        # If install_path is a directory, append exe_name
-        install_path = Path(install_path)
-        if install_path.is_dir():
-            return install_path / exe_name
-        # If it's already a full path to executable
-        return install_path
+            exe = data_dir / "installs" / "rhessys" / "bin" / exe_name
+        else:
+            # If install_path is a directory, append exe_name; else it's a full path
+            install_path = Path(install_path)
+            exe = install_path / exe_name if install_path.is_dir() else install_path
+        # Windows builds produce <name>.exe even when the config declares a bare
+        # name; fall back to the .exe variant when the bare path is absent (else
+        # every eval reports "executable not found" -> 100% crash rate).
+        if exe.suffix != '.exe':
+            exe_win = exe.with_suffix('.exe')
+            if exe_win.exists():
+                return exe_win
+        return exe
 
     def _build_command(
         self,

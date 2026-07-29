@@ -324,12 +324,18 @@ class MHMWorker(BaseWorker):
         exe_name = config.get('MHM_EXE', 'mhm')
 
         if install_path == 'default':
-            return data_dir / "installs" / "mhm" / "bin" / exe_name
-
-        install_path = Path(install_path)
-        if install_path.is_dir():
-            return install_path / exe_name
-        return install_path
+            exe = data_dir / "installs" / "mhm" / "bin" / exe_name
+        else:
+            install_path = Path(install_path)
+            exe = install_path / exe_name if install_path.is_dir() else install_path
+        # Windows builds produce <name>.exe even when the config declares a bare
+        # name; fall back to the .exe variant when the bare path is absent (else
+        # every eval reports "executable not found" -> 100% crash rate).
+        if exe.suffix != '.exe':
+            exe_win = exe.with_suffix('.exe')
+            if exe_win.exists():
+                return exe_win
+        return exe
 
     def _cleanup_stale_output(self, output_dir: Path) -> None:
         """Remove stale mHM output files."""

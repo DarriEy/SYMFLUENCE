@@ -289,12 +289,19 @@ class CRHMWorker(BaseWorker):
         exe_name = config.get('CRHM_EXE', 'crhm')
 
         if install_path == 'default':
-            return data_dir / "installs" / "crhm" / "bin" / exe_name
-
-        install_path = Path(install_path)
-        if install_path.is_dir():
-            return install_path / exe_name
-        return install_path
+            exe = data_dir / "installs" / "crhm" / "bin" / exe_name
+        else:
+            install_path = Path(install_path)
+            exe = install_path / exe_name if install_path.is_dir() else install_path
+        # Windows builds produce <name>.exe even when the config declares a bare
+        # name; the calibration worker (unlike the runner) looked only for the
+        # bare path, so every eval reported "executable not found" and returned a
+        # penalty -> 100% crash rate. Fall back to the .exe variant when present.
+        if exe.suffix != '.exe':
+            exe_win = exe.with_suffix('.exe')
+            if exe_win.exists():
+                return exe_win
+        return exe
 
     def _cleanup_stale_output(self, output_dir: Path) -> None:
         """Remove stale CRHM output files."""
