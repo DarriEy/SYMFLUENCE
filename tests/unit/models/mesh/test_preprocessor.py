@@ -185,6 +185,116 @@ class TestMESHConfigCreation:
                 assert key in config, f"Missing required key: {key}"
 
 
+class TestMESHForcingSelection:
+    """Tests for discretization-aware forcing selection handed to meshflow.
+
+    Regression guard for the native-Windows MESH exp-02 failure: when a
+    basin_averaged_data store holds two remapped forcing files of the SAME
+    domain (an untokened legacy remap beside a namespaced ``grus`` remap, both
+    overlapping in time), meshflow's ``core.forcing_files == 'single'`` merge
+    globbed both and ``xr.combine_by_coords`` died with "Could not find any
+    dimension coordinates to use to order the Dataset objects for
+    concatenation". ``_select_meshflow_forcing`` must narrow the input to the
+    single file matching the run's discretization so the merge never sees the
+    ambiguous pair.
+    """
+
+    def _make_ds(self):
+        import numpy as np
+        import xarray as xr
+
+        t = np.array(['2002-01-01', '2002-01-02'], dtype='datetime64[ns]')
+        return xr.Dataset(
+            {'air_temperature': (('time', 'hru'), np.ones((2, 1)))},
+            coords={'time': t, 'hru': [1]},
+        )
+
+    def test_two_mismatched_remaps_would_break_combine(self, temp_dir):
+        """Document the bug: combining both remaps raises the exact ValueError."""
+        import xarray as xr
+
+        # Two coherent hru=1 datasets that share time/hru coords: exactly the
+        # situation combine_by_coords cannot order.
+        ds1 = self._make_ds()
+        ds2 = self._make_ds()
+        with pytest.raises(ValueError, match="dimension coordinates"):
+            xr.combine_by_coords(
+                [ds1, ds2], data_vars='minimal', coords='minimal', compat='override'
+            )
+
+    def test_selects_single_discretization_file(
+        self, mesh_config, mock_logger, setup_mesh_directories, temp_dir
+    ):
+        """Two remaps present -> returns only the file matching discretization 'GRUs'."""
+        from symfluence.models.mesh.preprocessor import MESHPreProcessor
+
+        forcing_dir = temp_dir / 'basin_averaged_data'
+        forcing_dir.mkdir(parents=True, exist_ok=True)
+        # Untokened legacy remap (digit-initial hash -> no token) + grus remap.
+        legacy = forcing_dir / 'test_domain_ERA5_remapped_4ae454551262b9b7.nc'
+        grus = forcing_dir / 'test_domain_ERA5_remapped_grus_4ae454551262b9b7.nc'
+        self._make_ds().to_netcdf(legacy)
+        self._make_ds().to_netcdf(grus)
+
+        preprocessor = MESHPreProcessor(mesh_config, mock_logger)
+        result = preprocessor._select_meshflow_forcing(
+            forcing_dir, str(forcing_dir / '*.nc')
+        )
+
+        # A single explicit file path (not the ambiguous glob) is returned.
+        assert result == str(grus)
+
+        # And that single file opens as one coherent dataset (no concat needed).
+        import glob as _glob
+
+        import xarray as xr
+        matched = _glob.glob(result)
+        assert len(matched) == 1
+        with xr.open_dataset(matched[0]) as ds:
+            assert ds.sizes['hru'] == 1
+
+    def test_single_file_returns_glob_unchanged(
+        self, mesh_config, mock_logger, setup_mesh_directories, temp_dir
+    ):
+        """One file present -> nothing to disambiguate, glob passes through."""
+        from symfluence.models.mesh.preprocessor import MESHPreProcessor
+
+        forcing_dir = temp_dir / 'basin_averaged_data'
+        forcing_dir.mkdir(parents=True, exist_ok=True)
+        only = forcing_dir / 'test_domain_ERA5_remapped_grus_4ae454551262b9b7.nc'
+        self._make_ds().to_netcdf(only)
+
+        preprocessor = MESHPreProcessor(mesh_config, mock_logger)
+        glob_str = str(forcing_dir / '*.nc')
+        result = preprocessor._select_meshflow_forcing(forcing_dir, glob_str)
+
+        assert result == glob_str
+
+    def test_no_token_match_returns_glob_unchanged(
+        self, mesh_config, mock_logger, setup_mesh_directories, temp_dir
+    ):
+        """Two same-discretization time chunks (no token reduction) -> glob unchanged.
+
+        A single-discretization / pre-namespacing store whose files all lack the
+        run's token must pass through so meshflow can order them by time.
+        """
+        from symfluence.models.mesh.preprocessor import MESHPreProcessor
+
+        forcing_dir = temp_dir / 'basin_averaged_data'
+        forcing_dir.mkdir(parents=True, exist_ok=True)
+        # Legacy date-tag-only remaps: neither carries the 'grus' token.
+        a = forcing_dir / 'test_domain_RDRS_remapped_2002-01-01-00-00-00.nc'
+        b = forcing_dir / 'test_domain_RDRS_remapped_2002-02-01-00-00-00.nc'
+        self._make_ds().to_netcdf(a)
+        self._make_ds().to_netcdf(b)
+
+        preprocessor = MESHPreProcessor(mesh_config, mock_logger)
+        glob_str = str(forcing_dir / '*.nc')
+        result = preprocessor._select_meshflow_forcing(forcing_dir, glob_str)
+
+        assert result == glob_str
+
+
 class TestMESHPreprocessorHelpers:
     """Tests for MESH preprocessor helper methods."""
 

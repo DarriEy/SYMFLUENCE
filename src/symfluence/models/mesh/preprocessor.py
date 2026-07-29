@@ -9,6 +9,7 @@ Uses meshflow exclusively for all preprocessing - both lumped and distributed mo
 """
 from __future__ import annotations
 
+import glob
 import logging
 from datetime import timedelta
 from pathlib import Path
@@ -272,6 +273,71 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         self.parameter_fixer.configure_lumped_outputs()
         self.parameter_fixer.create_safe_forcing()
 
+    def _select_meshflow_forcing(
+        self, forcing_files_path: Path, forcing_files_glob: str
+    ) -> str:
+        """Scope the forcing input handed to meshflow to THIS run's discretization.
+
+        A model-ready forcing store can legitimately hold more than one spatial
+        discretization of the same domain side by side (issue #339): a lumped
+        ``hru=1`` remap next to a ``grus``/elevation remap, each stamped with a
+        discretization token in its filename. meshflow's ``core.forcing_files ==
+        'single'`` path merges every file matched by the ``*.nc`` glob with
+        ``combine_by_coords``; when the glob catches two remaps of the SAME
+        domain that overlap in time (e.g. ``..._remapped_<hash>.nc`` beside
+        ``..._remapped_grus_<hash>.nc``), xarray has no monotonic coordinate to
+        order them by and dies with "Could not find any dimension coordinates to
+        use to order the Dataset objects for concatenation" — the MESH exp-02
+        preprocessing failure on native Windows.
+
+        Narrow the glob to the files whose token matches the run's
+        discretization (read the SAME way the remap writer stamps it, so tokens
+        agree). Return an explicit single-file path when exactly one matches
+        (meshflow reads it directly, no concat), a token-scoped glob when a
+        subset of a larger multi-chunk store matches, or the original glob
+        unchanged when selection is a no-op (single-discretization stores, or
+        stores predating namespacing) so nothing regresses.
+        """
+        from symfluence.core.modeling.forcing_naming import (
+            discretization_token,
+            select_forcing_files,
+        )
+
+        resolved = sorted(glob.glob(forcing_files_glob))
+        if len(resolved) <= 1:
+            # 0 files: let meshflow raise its own "no forcing files" error.
+            # 1 file: nothing to disambiguate.
+            return forcing_files_glob
+
+        discretization = self._get_config_value(
+            lambda: self.config.domain.discretization,
+            dict_key='SUB_GRID_DISCRETIZATION',
+        )
+        selected = [str(p) for p in select_forcing_files(resolved, discretization)]
+
+        if len(selected) == len(resolved):
+            # No token matched — a single-discretization / pre-namespacing store.
+            # These are same-discretization time chunks meshflow can order by
+            # time; pass the glob through unchanged.
+            return forcing_files_glob
+
+        if len(selected) == 1:
+            self.logger.info(
+                f"Selected forcing file for discretization "
+                f"'{discretization}': {Path(selected[0]).name}"
+            )
+            return selected[0]
+
+        # A multi-chunk subset of one discretization: scope the glob to its token
+        # so meshflow re-globs only those chunks (orderable by time).
+        token = discretization_token(discretization)
+        scoped = str(forcing_files_path / f'*_remapped_{token}*.nc')
+        self.logger.info(
+            f"Scoped forcing glob to discretization '{discretization}' "
+            f"(token '{token}'): {len(selected)} file(s)"
+        )
+        return scoped
+
     def _create_meshflow_config(self) -> Dict[str, Any]:
         """
         Create configuration dictionary for meshflow library.
@@ -299,6 +365,9 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             )
         )
         forcing_files_glob = str(forcing_files_path / '*.nc')
+        forcing_files_value = self._select_meshflow_forcing(
+            forcing_files_path, forcing_files_glob
+        )
 
         # Landcover stats file
         landcover_path = self._get_landcover_path(_get_mesh_config_value)
@@ -348,7 +417,7 @@ class MESHPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
             'riv': str(self.rivers_path / self.rivers_name),
             'cat': str(self.catchment_path / self.catchment_name),
             'landcover': str(landcover_path),
-            'forcing_files': forcing_files_glob,
+            'forcing_files': forcing_files_value,
             'forcing_vars': _get_mesh_config_value('MESH_FORCING_VARS', MESHConfigDefaults.FORCING_VARS),
             'forcing_units': _get_mesh_config_value('MESH_FORCING_UNITS', MESHConfigDefaults.FORCING_UNITS),
             'forcing_to_units': _get_mesh_config_value('MESH_FORCING_TO_UNITS', MESHConfigDefaults.FORCING_TO_UNITS),
