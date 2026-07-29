@@ -29,6 +29,34 @@ from symfluence.core.registries import R
 from ..parameters import PARAM_CHANGE_METHOD, PARAM_FILE_MAP
 
 
+def _fsync_directory(target_dir: Path) -> None:
+    """Best-effort flush of a directory's entries to disk.
+
+    Opening a directory with ``os.open(..., O_RDONLY)`` and calling
+    ``os.fsync`` is a POSIX-only technique used to guarantee that files
+    freshly copied into ``target_dir`` are durable before the Fortran
+    executable reads them (this prevents a SIGBUS on arm64).
+
+    On Windows a directory cannot be opened this way — ``os.open`` raises
+    ``PermissionError`` ([Errno 13]) on a directory path — and the durability
+    concern does not apply, so this is a no-op there.  Any other platform
+    that cannot fsync a directory (e.g. some network filesystems) is also
+    tolerated silently.
+    """
+    if os.name == 'nt':
+        return
+    try:
+        fd = os.open(str(target_dir), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 @R.workers.add('SWAT')
 class SWATWorker(BaseWorker):
     """
@@ -478,11 +506,7 @@ class SWATWorker(BaseWorker):
 
                 # Fsync the working directory so all copied files are flushed
                 # before the Fortran executable reads them (prevents SIGBUS on arm64)
-                fd = os.open(str(work_dir), os.O_RDONLY)
-                try:
-                    os.fsync(fd)
-                finally:
-                    os.close(fd)
+                _fsync_directory(work_dir)
 
                 try:
                     with open(stdout_file, 'w', encoding='utf-8') as stdout_f, \
