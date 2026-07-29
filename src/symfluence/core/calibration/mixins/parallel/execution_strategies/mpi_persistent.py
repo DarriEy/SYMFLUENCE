@@ -33,6 +33,20 @@ from typing import Any, Callable, Dict, List, Optional
 from ..worker_environment import WorkerEnvironmentConfig
 from .base import ExecutionStrategy
 
+#: Signal used for the unblockable second-stage kill of the worker group.
+#:
+#: ``signal.SIGKILL`` is POSIX-only: on Windows the attribute does not exist, so
+#: merely *evaluating* ``signal.SIGKILL`` at a call site raises AttributeError —
+#: before any ``os.name`` guard downstream can help. Windows' equivalent of an
+#: unblockable kill is TerminateProcess, which ``Popen.kill()`` issues, so the
+#: signal value is irrelevant there and SIGTERM stands in as the sentinel.
+#:
+#: Escalation level is therefore carried by ``_signal_group(hard=True)``, NOT by
+#: comparing against this constant: on Windows it equals SIGTERM, so an equality
+#: test would treat the graceful first stage as a hard kill and collapse the two
+#: stages into one.
+HARD_KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
+
 
 class PersistentMPIExecutionStrategy(ExecutionStrategy):
     """Persistent MPI execution strategy.
@@ -292,7 +306,7 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
                         self._process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
                         self.logger.warning("Still alive after SIGTERM, killing")
-                        self._signal_group(signal.SIGKILL)
+                        self._signal_group(HARD_KILL_SIGNAL, hard=True)
                         try:
                             self._process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
@@ -332,7 +346,7 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
             return {'creationflags': flags} if flags else {}
         return {'start_new_session': True}
 
-    def _signal_group(self, sig: int) -> None:
+    def _signal_group(self, sig: int, *, hard: bool = False) -> None:
         """Signal the whole worker process group, falling back to the launcher.
 
         The ranks are children of the launcher, not of this process, so
@@ -350,7 +364,10 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
             except (ProcessLookupError, PermissionError, OSError) as exc:
                 self.logger.debug(f"killpg({pid}, {sig}) failed: {exc}; signalling pid")
         try:
-            if sig == signal.SIGKILL:
+            # Windows has no process-group signalling and no SIGKILL; the stage
+            # is selected by the caller rather than inferred from `sig`, which
+            # is SIGTERM for both stages here.
+            if hard:
                 self._process.kill()
             else:
                 self._process.terminate()
@@ -370,7 +387,7 @@ class PersistentMPIExecutionStrategy(ExecutionStrategy):
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self._signal_group(signal.SIGKILL)
+                self._signal_group(HARD_KILL_SIGNAL, hard=True)
 
         self._atexit_hook = _reap
         atexit.register(_reap)

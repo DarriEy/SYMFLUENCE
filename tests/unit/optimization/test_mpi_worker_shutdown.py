@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from symfluence.core.calibration.mixins.parallel.execution_strategies.mpi_persistent import (
+    HARD_KILL_SIGNAL,
     PersistentMPIExecutionStrategy,
 )
 from symfluence.core.calibration.optimizers.base_model_optimizer import BaseModelOptimizer
@@ -163,11 +164,16 @@ def test_shutdown_escalates_when_the_poison_file_is_ignored(tmp_path):
     poison_seen = []
 
     with patch.object(strat, "_signal_group",
-                      side_effect=lambda *_: poison_seen.append(
+                      side_effect=lambda *_, **__: poison_seen.append(
                           (comm / "shutdown").exists())) as sig:
         strat.shutdown()
 
-    assert [c.args[0] for c in sig.call_args_list] == [signal.SIGTERM, signal.SIGKILL]
+    assert [c.args[0] for c in sig.call_args_list] == [signal.SIGTERM, HARD_KILL_SIGNAL]
+    # The escalation stage is carried by hard=, not by the signal value:
+    # on Windows HARD_KILL_SIGNAL *is* SIGTERM (there is no SIGKILL), so
+    # asserting on the value alone would pass even if both stages were
+    # graceful.
+    assert [c.kwargs.get('hard', False) for c in sig.call_args_list] == [False, True]
     assert poison_seen[0] is True                     # graceful path tried first
     assert strat._process is None
     assert not comm.exists()                          # comm dir cleaned up
@@ -216,7 +222,8 @@ def test_atexit_reaper_kills_a_pool_that_ignores_sigterm(tmp_path):
     with patch.object(strat, "_signal_group") as sig:
         strat._atexit_hook()
 
-    assert [c.args[0] for c in sig.call_args_list] == [signal.SIGTERM, signal.SIGKILL]
+    assert [c.args[0] for c in sig.call_args_list] == [signal.SIGTERM, HARD_KILL_SIGNAL]
+    assert [c.kwargs.get('hard', False) for c in sig.call_args_list] == [False, True]
 
 
 def test_no_live_reaper_survives_this_module(tmp_path):
