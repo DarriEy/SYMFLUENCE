@@ -2,7 +2,12 @@ name: Cross-Platform Testing
 
 on:
   # Tiered: the full OS matrix runs after merge to develop/main, nightly, and on
-  # demand — NOT on every PR (the fast unit gate lives in ci.yml).
+  # demand — NOT on every PR. The fast unit gate lives in ci.yml, which also
+  # carries a lean windows-latest unit leg (uv, no conda/GDAL) so that
+  # platform-conditional Python fails a PR check rather than surfacing here
+  # after merge — the gap that left develop red on a POSIX-only signal.SIGKILL.
+  # What remains exclusive to this workflow is the fidelity that leg drops:
+  # macOS, GDAL via conda, binary validation, and integration tests.
   push:
     branches: [ main, develop ]
   schedule:
