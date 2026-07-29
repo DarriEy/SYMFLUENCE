@@ -87,7 +87,7 @@ cal_ensemble_sacsma_sceua@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_e
 cal_ensemble_summa_abc@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8461691663,0.8080917226,2,2026-07-29T04:40:43Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 cal_ensemble_summa_basin_hopping@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8592672118,0.830183383,7,2026-07-29T12:17:08Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 cal_ensemble_summa_bayesian_opt@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7421608307,0.7215961017,27,2026-07-29T12:36:41Z,0.9.2,759544df1,2026-07-29T14:00:04Z
-cal_ensemble_summa_cmaes@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7635101494,0.8364655415,5,2026-07-29T13:25:04Z,0.9.2,759544df1,2026-07-29T14:00:04Z
+cal_ensemble_summa_cmaes@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8500783156,0.8364655415,19,2026-07-29T14:10:51Z,0.9.2,759544df1,2026-07-29T14:32:01Z
 cal_ensemble_summa_dds@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.895249253,0.8579390546,989,2026-07-12T05:16:13Z,0.9.2,253a33c50,2026-07-22T03:50:50Z
 cal_ensemble_summa_de@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.908227156,0.8793413482,47,2026-07-12T09:30:57Z,0.9.2,253a33c50,2026-07-22T03:50:50Z
 cal_ensemble_summa_dream@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8664779957,0.8310319065,16,2026-07-14T14:40:01Z,0.9.2,253a33c50,2026-07-22T03:50:50Z
@@ -133,8 +133,8 @@ cal_ensemble_xinanjiang_pso@XINANJIANG,XINANJIANG,domain_Bow_at_Banff_lumped_cal
 cal_ensemble_xinanjiang_sa@XINANJIANG,XINANJIANG,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8522915621,0.6672962197,99,2026-07-29T07:46:36Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 cal_ensemble_xinanjiang_sceua@XINANJIANG,XINANJIANG,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7893743869,0.7416467074,4,2026-07-29T07:48:20Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 calib_summa_mpi_100evals_np10@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8529971528,0.8404142773,7,2026-07-28T03:40:53Z,0.9.2,759544df1,2026-07-29T14:00:04Z
-calib_summa_mpi_100evals_np1@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8523591222,0.8411241467,96,2026-07-28T04:09:54Z,0.9.2,759544df1,2026-07-29T14:03:20Z
-calib_summa_mpi_100evals_np2@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8350838943,0.8093548282,44,2026-07-28T04:38:59Z,0.9.2,759544df1,2026-07-29T14:03:20Z
+calib_summa_mpi_100evals_np1@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8523591222,0.8411241467,96,2026-07-28T04:09:54Z,0.9.2,759544df1,2026-07-29T14:32:01Z
+calib_summa_mpi_100evals_np2@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8350838943,0.8093548282,44,2026-07-28T04:38:59Z,0.9.2,759544df1,2026-07-29T14:32:01Z
 calib_summa_mpi_100evals_np3@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8529190052,0.8383502933,26,2026-07-28T02:59:12Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 calib_summa_mpi_100evals_np4@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.85544883,0.8430449867,23,2026-07-28T03:13:50Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 calib_summa_mpi_100evals_np6@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_era5,KGE,0.8414643469,0.8212346173,16,2026-07-28T04:35:53Z,0.9.2,759544df1,2026-07-29T14:00:04Z
@@ -436,7 +436,7 @@ gsflow_seed42@GSFLOW,GSFLOW,domain_Bow_at_Banff_lumped_era5,KGE,0.7612726691,,90
 gsflow_seed777@GSFLOW,GSFLOW,domain_Bow_at_Banff_lumped_era5,KGE,0.8488570679,,955,2026-07-28T02:45:23Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 gsflow_seed7@GSFLOW,GSFLOW,domain_Bow_at_Banff_lumped_era5,KGE,0.7825596415,,923,2026-07-28T02:24:27Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 gsflow_seed99@GSFLOW,GSFLOW,domain_Bow_at_Banff_lumped_era5,KGE,0.8606326823,,957,2026-07-28T02:57:18Z,0.9.2,759544df1,2026-07-29T14:00:04Z
-iceland_large_domain_carra@FUSE,FUSE,domain_Iceland_multivar,?,0.4980937938,,144,2026-02-18T19:30:39Z,0.9.2,759544df1,2026-07-29T14:03:20Z
+iceland_large_domain_carra@FUSE,FUSE,domain_Iceland_multivar,?,0.4980937938,,144,2026-02-18T19:30:39Z,0.9.2,759544df1,2026-07-29T14:32:01Z
 iceland_large_domain_jfuse_adam@JFUSE,JFUSE,domain_Iceland_multivar,?,-1.135630965,,124,2026-02-06T07:37:27Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 jfuse_adam_repro_1@JFUSE,JFUSE,domain_Iceland_multivar,KGE,-34.7881012,,0,2026-07-23T20:19:15Z,0.9.2,759544df1,2026-07-29T14:00:04Z
 jfuse_glac_fast@JFUSE,JFUSE,domain_Iceland_multivar,KGE,-1.341155291,,1,2026-06-25T13:39:48Z,0.9.2,759544df1,2026-07-29T14:00:04Z
