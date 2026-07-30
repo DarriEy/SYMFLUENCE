@@ -125,6 +125,15 @@ echo "FLEX_LDFLAGS: $FLEX_LDFLAGS"
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
 # Force gcc compiler (RHESSys Makefile defaults to clang which may not be available)
+# Drop a preset CC that names a compiler which is not installed. An inherited
+# CC=clang (common on machines where only gcc exists, e.g. native Windows/MSYS2)
+# would otherwise flow into "make CC=$CC" and die with
+# "clang: No such file or directory". ${CC%% *} takes the first word so wrappers
+# like "ccache gcc" are still validated correctly.
+if [ -n "$CC" ] && ! command -v "${CC%% *}" >/dev/null 2>&1; then
+    echo "Configured CC='$CC' is not on PATH; falling back to gcc"
+    CC=""
+fi
 # Use system gcc if CC not already set
 if [ -z "$CC" ]; then
     if [ -x /usr/bin/gcc ]; then
@@ -133,6 +142,7 @@ if [ -z "$CC" ]; then
         export CC=$(command -v gcc || echo gcc)
     fi
 fi
+export CC
 echo "Using C compiler: $CC"
 
 # Apply patches for compiler compatibility
@@ -533,6 +543,17 @@ fi
 # This allows building without glib-2.0 which is required only for tests
 echo "Patching makefile to skip test dependency..."
 sed -i.bak 's/^rhessys: \$(OBJECTS) test$/rhessys: $(OBJECTS)/' makefile
+
+# RHESSys' makefile hardcodes "CC = clang". clang is frequently absent (notably
+# on native Windows/MSYS2, where only gcc is installed), so any make invocation
+# that does not pass CC explicitly fails with
+# "make: clang: No such file or directory" ... Error 127. Rewrite the default to
+# gcc. Invocations that DO pass CC=... (this script's own build does) still
+# override it; on macOS gcc resolves to the system clang shim, so this is safe
+# cross-platform.
+echo "Patching makefile: CC = clang -> gcc..."
+sed -i.bak 's/^CC[[:space:]]*=[[:space:]]*clang/CC = gcc/' makefile
+grep -q '^CC = gcc' makefile && echo "Makefile CC default set to gcc" || echo "Warning: makefile CC patch may not have applied"
 
 # On Windows, python3 triggers the Microsoft Store stub; conda provides 'python'
 # Also add strndup polyfill (not in MinGW C runtime)
