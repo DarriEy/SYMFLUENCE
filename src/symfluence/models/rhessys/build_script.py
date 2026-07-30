@@ -702,23 +702,121 @@ if [ -z "$WMFIRE_FLAG" ]; then
 fi
 
 # Build RHESSys with optional WMFire support.
-# On Windows the build bash (Git Bash) and make (MSYS2) are different msys
-# runtimes; the cross-runtime spawn strips TMP/TEMP/TMPDIR from make's
-# environment, so the native gcc's assembler falls back to the unwritable
-# C:\Windows ("Cannot create temporary file ... Permission denied").
-# Exported values do not survive that spawn either — but make command-line
-# variables are placed in every recipe's environment by make itself, so
-# pass Windows-style temp paths on the command line.
+#
+# Select the make program and temp handling. On native Windows the MSYS2
+# /usr/bin/make POSIX-converts TMP/TEMP before spawning the native mingw64 gcc,
+# so the assembler falls back to the unwritable C:\Windows ("Cannot create
+# temporary file ... Permission denied", masked by the installer as "make
+# Error 1"). The native mingw32-make hands the Windows-style temp path straight
+# through, so prefer it on Windows. We still pass the temp dir as make
+# command-line variables (placed in every recipe's environment by make itself)
+# as a belt-and-braces measure for the plain-make path.
 MAKE_TMP_ARGS=()
+MAKE_CMD="make"
+IS_WINDOWS=0
 case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
+        IS_WINDOWS=1
         _wtmp="$(cygpath -m "${TMPDIR:-/tmp}" 2>/dev/null || echo '')"
         if [ -n "$_wtmp" ] && [ -d "$_wtmp" ]; then
             MAKE_TMP_ARGS=("TMPDIR=$_wtmp" "TMP=$_wtmp" "TEMP=$_wtmp")
         fi
+        if command -v mingw32-make >/dev/null 2>&1; then
+            MAKE_CMD="mingw32-make"
+            echo "Windows build: using native mingw32-make (avoids MSYS TMP POSIX-conversion)"
+        else
+            echo "Windows build: mingw32-make not found; falling back to make (TMP handling may fail)"
+        fi
         ;;
 esac
-make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG "${MAKE_TMP_ARGS[@]}" CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
+
+# Run the build. On Windows mingw32-make spawns the final link recipe through
+# cmd.exe, whose 8191-character command-line limit truncates the ~10k-char link
+# line (319 objects), silently dropping the tail objects and producing bogus
+# "undefined reference" errors for RHESSys's own functions. Do not let that
+# abort the script (set -e) -- every object still compiles fine, and we relink
+# below in bash (which has no such limit).
+set +e
+"$MAKE_CMD" V=1 CC="$CC" netcdf=T $WMFIRE_FLAG "${MAKE_TMP_ARGS[@]}" CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
+_make_rc=$?
+set -e
+echo "make ($MAKE_CMD) returned: $_make_rc"
+
+# Return success if ANY candidate binary exists. Note: `ls a b c` exits
+# nonzero when *any* argument is missing, so it cannot be used here -- it would
+# report failure whenever rhessys7* (etc.) has no match even though rhessys.exe
+# was produced. Test each candidate individually instead.
+_have_rhessys_bin() {
+    local f
+    for f in rhessys.exe rhessys rhessys7*.exe rhessys7*; do
+        [ -f "$f" ] && return 0
+    done
+    return 1
+}
+
+if [ "$IS_WINDOWS" = "1" ] && ! _have_rhessys_bin; then
+    echo "Windows: no binary from make (link truncated by cmd.exe 8191-char limit); relinking in bash..."
+
+    # Rewrite -L<posix> tokens to Windows paths so the native gcc/ld can resolve
+    # them (notably the MSYS libfl at /usr/lib -> C:/msys64/usr/lib, which a
+    # native gcc otherwise reads as C:/usr/lib and cannot find). -l and other
+    # tokens pass through unchanged.
+    _win_lflags() {
+        local out="" tok
+        for tok in $1; do
+            case "$tok" in
+                -L/*) out="$out -L$(cygpath -m "${tok#-L}" 2>/dev/null || echo "${tok#-L}")" ;;
+                *)    out="$out $tok" ;;
+            esac
+        done
+        printf '%s' "$out"
+    }
+
+    # execute_firespread_event.o is always compiled and references WMFire(), so
+    # libwmfire is required to link even without fire-spread support. Build it
+    # from ../FIRE if it is not already present.
+    if [ ! -f "../lib/libwmfire.dll" ] && [ -f "../FIRE/WMFire.cpp" ]; then
+        echo "Building libwmfire.dll for the link..."
+        ( cd ../FIRE
+          _cxx=${CXX:-g++}
+          _boost=""
+          _clp="${CONDA_LIB_PREFIX:-$CONDA_PREFIX}"
+          for d in "$_clp/include" "$CONDA_PREFIX/include" /mingw64/include /usr/include; do
+              [ -d "$d/boost" ] && { _boost="-I$d"; break; }
+          done
+          $_cxx -c -fPIC $_boost -O2 -o RanNums.o RanNums.cpp 2>/dev/null || true
+          $_cxx -c -fPIC $_boost -O2 -o WMFire.o WMFire.cpp 2>/dev/null || true
+          if [ -f RanNums.o ] && [ -f WMFire.o ]; then
+              mkdir -p ../lib
+              $_cxx -shared -fPIC -o libwmfire.dll RanNums.o WMFire.o && mv -f libwmfire.dll ../lib/
+          fi
+          rm -f RanNums.o WMFire.o
+        )
+    fi
+
+    _wmf=""
+    [ -f "../lib/libwmfire.dll" ] && _wmf="../lib/libwmfire.dll"
+
+    _link_libs="$(_win_lflags "$NETCDF_LDFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $FLEX_LDFLAGS")"
+    echo "relink libs: $_link_libs   wmfire: ${_wmf:-<none>}"
+
+    # Objects first, then libraries (ld resolves left-to-right).
+    set +e
+    "$CC" -Wall -std=c99 -fno-stack-protector -O2 $COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS \
+        objects/*.o -I include $_wmf $_link_libs -lm -o rhessys.exe
+    _relink_rc=$?
+    set -e
+    echo "bash relink exit: $_relink_rc"
+    if [ "$_relink_rc" -ne 0 ] || ! _have_rhessys_bin; then
+        echo "ERROR: Windows bash relink failed to produce rhessys.exe"
+        exit 1
+    fi
+    ls -la rhessys.exe 2>/dev/null || true
+elif [ "$IS_WINDOWS" != "1" ] && [ "$_make_rc" -ne 0 ]; then
+    # Non-Windows: a make failure is a real error.
+    echo "ERROR: make failed with code $_make_rc"
+    exit "$_make_rc"
+fi
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary (handles .exe and versioned names)
