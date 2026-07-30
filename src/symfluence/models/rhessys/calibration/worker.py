@@ -20,6 +20,7 @@ import pandas as pd
 
 from symfluence.core.calibration.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.exceptions import ModelExecutionError
 from symfluence.core.logging_utils import log_once
 from symfluence.core.metrics import StreamflowMetrics
 from symfluence.core.process_exec import run as run_subprocess
@@ -426,7 +427,9 @@ class RHESSysWorker(BaseWorker):
             # about flag support — do NOT treat that as "supported" (it would pass
             # the flag to a binary that then also fails at run time).
             if 'cannot open shared object' in stderr.lower() or 'error while loading' in stderr.lower():
-                raise RuntimeError(f"RHESSys probe could not load libraries: {stderr.strip()[:200]}")
+                raise ModelExecutionError(
+                    f"RHESSys probe could not load libraries: {stderr.strip()[:200]}"
+                )
             supported = not ('invalid' in stderr.lower() and 'subsurfacegw' in stderr.lower())
             if not supported:
                 self.logger.debug(
