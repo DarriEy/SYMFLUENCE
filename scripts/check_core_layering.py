@@ -65,6 +65,11 @@ UPPER_LAYERS: Set[str] = {
     # existing edge is a lazy IoC seam and stays legal, but a NEW one now has
     # to be a conscious decision, which is the whole point of the guard.
     "coupling",
+    # ``testing`` is the public test-support surface. It depends on core by
+    # design; core importing it would drag pytest-shaped helpers into the runtime
+    # import graph and invert the dependency. Listed here so that edge cannot be
+    # added by accident.
+    "testing",
 }
 
 # Accepted deferred (call-time) edges: (core-relative path, imported module prefix, reason).

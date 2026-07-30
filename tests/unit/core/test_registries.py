@@ -6,6 +6,7 @@ import pytest
 
 from symfluence.core.registries import R, Registries
 from symfluence.core.registry import Registry
+from symfluence.testing import registry_snapshot
 
 # ======================================================================
 # Fixtures — isolated registries (clear before and after each test)
@@ -16,40 +17,17 @@ from symfluence.core.registry import Registry
 def _clean_registries():
     """Save and restore all registries around each test.
 
-    Registries populate lazily: a one-shot ``_seeder`` fires on first READ, and
-    declared modules are imported on ``load_modules()``. Both must be spent
-    before snapshotting, for two reasons. Snapshotting an unseeded registry
-    captures nothing, so the restore reinstates emptiness — and the entries
-    cannot come back, because their decorators only fire on a module's first
-    import and it is cached in ``sys.modules`` by then. Worse for this file: a
-    test that registers a fake and then READS it triggers the seeder mid-test,
-    which imports the real components over the top of the fake. That is what
-    made ``test_lowercase_delineation`` and ``test_lowercase_data_registries``
-    fail — the real LumpedWatershedDelineator replacing the fake between the
+    The seed-then-snapshot ordering this depends on is subtle enough that it now
+    lives in ``symfluence.testing.registry_snapshot`` — a supported surface, so
+    the extracted models repo does not have to reimplement it against
+    ``Registry``'s private attributes. See that function for why spending the
+    lazy population first is load-bearing: it is what stopped
+    ``test_lowercase_delineation`` and ``test_lowercase_data_registries`` from
+    having the real ``LumpedWatershedDelineator`` replace their fake between the
     ``add`` and the ``get``.
     """
-    saved = {}
-    for name, reg in Registries.all_registries().items():
-        reg._ensure_seeded()
-        reg.load_modules()
-        saved[name] = (
-            dict(reg._entries),
-            dict(reg._meta),
-            dict(reg._aliases),
-            list(reg._modules),
-            set(reg._loaded_modules),
-        )
-        reg.clear()
-    yield
-    for name, reg in Registries.all_registries().items():
-        reg.clear()
-        entries, meta, aliases, modules, loaded = saved[name]
-        reg._entries.update(entries)
-        reg._meta.update(meta)
-        reg._aliases.update(aliases)
-        reg._modules[:] = modules
-        reg._loaded_modules.clear()
-        reg._loaded_modules.update(loaded)
+    with registry_snapshot(clear=True):
+        yield
 
 
 class _FakePreprocessor:
