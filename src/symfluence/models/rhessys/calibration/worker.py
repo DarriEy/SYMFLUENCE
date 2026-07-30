@@ -404,11 +404,29 @@ class RHESSysWorker(BaseWorker):
         if hasattr(self, cache_key):
             return getattr(self, cache_key)
         try:
+            # Put the install lib dir on the library path so a binary linked
+            # against libwmfire (the patched build) can load during this probe.
+            # Without it the probe fails with "libwmfire.so: cannot open shared
+            # object file", the flag is silently dropped, and calibration runs
+            # WITHOUT the subsurface-to-GW recharge pathway — silently capping
+            # skill (observed: KGE 0.365 instead of ~0.83, matching an unpatched
+            # binary). run_model already sets this path; the probe must too.
+            env = os.environ.copy()
+            lib_dir = exe.parent.parent / 'lib'
+            if lib_dir.is_dir():
+                for _var in ('LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH'):
+                    env[_var] = str(lib_dir) + (
+                        os.pathsep + env[_var] if env.get(_var) else '')
             result = run_subprocess(
                 [str(exe), '-subsurfacegw', '-w', '/dev/null'],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5, check=False, env=env,
             )
             stderr = result.stderr + result.stdout
+            # A binary that could not even load its shared libs tells us nothing
+            # about flag support — do NOT treat that as "supported" (it would pass
+            # the flag to a binary that then also fails at run time).
+            if 'cannot open shared object' in stderr.lower() or 'error while loading' in stderr.lower():
+                raise RuntimeError(f"RHESSys probe could not load libraries: {stderr.strip()[:200]}")
             supported = not ('invalid' in stderr.lower() and 'subsurfacegw' in stderr.lower())
             if not supported:
                 self.logger.debug(
