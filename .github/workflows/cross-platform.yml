@@ -788,7 +788,43 @@ jobs:
     if: always()
 
     steps:
+      # A whole-workflow cancellation is not a test result.
+      #
+      # `concurrency.cancel-in-progress` kills this run whenever a newer push
+      # lands on the same ref, leaving the in-flight matrix legs 'cancelled'. The
+      # strict check below then reported a RED summary for a run in which nothing
+      # had actually failed — every leg that finished was green. During a burst of
+      # pushes to develop that produced a string of false reds, which is worse
+      # than noise: it trains readers to discount this job, and at a glance it is
+      # indistinguishable from the real failure the next step catches.
+      #
+      # `cancelled()` is true only when the WORKFLOW was cancelled (superseded or
+      # cancelled by hand), so splitting on it isolates exactly the benign case.
+      # It is not available inside `run:` — only in a step `if:` — hence two steps
+      # rather than one branch.
+      - name: Report a cancelled run (not a failure)
+        if: cancelled()
+        run: |
+          echo "========================================="
+          echo "Cross-Platform Test Summary — CANCELLED"
+          echo "========================================="
+          echo "Unit Tests: ${{ needs.unit-tests-matrix.result }}"
+          echo "Binary Validation: ${{ needs.binary-validation-matrix.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests-matrix.result }}"
+          echo "========================================="
+          echo "⏭️  This run was cancelled — superseded by a newer push on this"
+          echo "    ref, or cancelled by hand. No test failure is implied."
+
+      # Everything else stays strict, and a 'cancelled' LEG still fails here.
+      #
+      # That distinction is load-bearing. With the workflow itself not cancelled, a
+      # cancelled matrix leg means it hit `timeout-minutes` and was killed — which
+      # IS a failure, and one this repository has actually had: the ubuntu unit leg
+      # was killed twice at 20m16s against a 20-minute limit while every test in it
+      # was passing (fixed by raising the headroom to 30). Treating 'cancelled' as
+      # benign across the board would have hidden that.
       - name: Check test results
+        if: ${{ !cancelled() }}
         run: |
           echo "========================================="
           echo "Cross-Platform Test Summary"
@@ -802,6 +838,10 @@ jobs:
              [[ "${{ needs.binary-validation-matrix.result }}" != "success" ]] || \
              [[ "${{ needs.integration-tests-matrix.result }}" != "success" ]]; then
             echo "❌ Some tests failed"
+            echo ""
+            echo "A 'cancelled' leg above means that leg exceeded its"
+            echo "timeout-minutes and was killed — the workflow itself was not"
+            echo "cancelled, or this step would not have run."
             exit 1
           else
             echo "✅ All cross-platform tests passed!"
