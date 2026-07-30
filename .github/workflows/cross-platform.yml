@@ -32,12 +32,16 @@ jobs:
   unit-tests-matrix:
     name: Unit Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    # The `-m "unit" -n auto` suite normally finishes in ~11 min here but
-    # intermittently balloons past 20 on slower runners, and a timeout kill
-    # cancels the leg and fails the summary job. ci.yml's unit-tests already
-    # carries 30 for exactly this reason; this copy kept 20 and drifted, so
-    # develop went red on a 20m16s cancellation with every test passing. Keep the
-    # two in step — same suite, same headroom.
+    # 30 rather than 20, matching ci.yml. Note the reason is NOT that the suite is
+    # slow: measured over 29 runs it completes in 9m24s-12m21s, a tight cluster
+    # that never came close to 20 minutes.
+    #
+    # The timeout kills this job has had were `apt-get` hanging in "Install
+    # minimal system dependencies" — see that step. Raising the ceiling was
+    # therefore never the fix, and the earlier version of this comment (which
+    # blamed a slow suite) was wrong: one kill happened at 30 minutes, after the
+    # raise. The ceiling stays at 30 as ordinary headroom for the ~12-minute
+    # worst case plus installation; the hang is bounded at the step instead.
     timeout-minutes: 30
 
     strategy:
@@ -81,8 +85,17 @@ jobs:
 
       - name: Install minimal system dependencies
         shell: bash
+        # See the matching step in ci.yml for the full account: three of this
+        # job's timeout kills were `apt-get` stalling here, not a slow test suite
+        # — zero pytest output in the logs, and one died at the 30-minute ceiling.
+        # apt has no default download timeout; the drop-in bounds and retries each
+        # connection, and the step timeout attributes any remaining stall to this
+        # step rather than to the tests. Normal completion is 1-2 minutes.
+        timeout-minutes: 8
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
+            printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+              | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
             sudo apt-get update
             sudo apt-get install -y gdal-bin libgdal-dev cdo
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
