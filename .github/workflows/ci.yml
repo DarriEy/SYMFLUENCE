@@ -110,8 +110,12 @@ jobs:
   unit-tests:
     name: Unit Tests (ubuntu, Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
-    # The `-m "unit" -n auto` suite runs right up against 20 min on slower
-    # runners (intermittent timeout-cancellations); 30 gives headroom.
+    # 30 minutes of headroom. The "intermittent timeout-cancellations" this was
+    # originally raised for were NOT a slow suite: every such kill investigated
+    # (four across this file and cross-platform.yml) was `apt-get` stalling in
+    # "Install system dependencies" — no pytest output in the log at all, and one
+    # died at this very 30-minute ceiling, so the raise did not help. The hang is
+    # now bounded at that step. This ceiling remains as ordinary headroom.
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -139,7 +143,24 @@ jobs:
           version: "0.10.4"
 
       - name: Install system dependencies
+        # Bounded and retried, and given its own timeout, because THIS step is
+        # what has actually been killing this job — not the test suite.
+        #
+        # Four job timeouts across ci.yml and cross-platform.yml were all
+        # `apt-get` stalling on a mirror: the last step entered was this one, the
+        # logs contain zero pytest output, and the job died at whatever ceiling
+        # was configured. Two of the four died at 30 minutes, which is why simply
+        # raising the ceiling did not help.
+        #
+        # apt has no default download timeout, so a stalled connection hangs
+        # forever. The drop-in bounds each connection and retries, converting an
+        # indefinite hang into a bounded failure. The step timeout then attributes
+        # any remaining stall to dependency installation instead of letting it
+        # masquerade as a slow test run — normal completion here is 1-2 minutes.
+        timeout-minutes: 8
         run: |
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
           sudo apt-get update
           sudo apt-get install -y gdal-bin libgdal-dev cdo
 
