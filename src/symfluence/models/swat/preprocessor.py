@@ -20,11 +20,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
+from symfluence.core.exceptions import FileOperationError
 from symfluence.core.modeling.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.core.registries import R
 
@@ -342,11 +345,79 @@ class SWATPreProcessor(BaseModelPreProcessor):  # type: ignore[misc]
         if not forcing_files:
             raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path}")
 
+        # The basin-averaged store is domain-shared and can hold several remaps
+        # (e.g. a 1-HRU lumped basin average beside a 12-band elevation split).
+        # open_canonical_forcing refuses to merge mixed spatial shapes and raises
+        # ("hru {1, 12}"), which the forcing generator would otherwise swallow and
+        # replace with FABRICATED synthetic weather -- silently calibrating on
+        # random precipitation. Pick the single spatially-compatible remap first
+        # (mirrors mHM/RHESSys #376).
+        forcing_files = self._select_forcing_files(forcing_files)
+
         logger.info(f"Loading forcing from {len(forcing_files)} files")
         from symfluence.core.modeling.model_ready.forcing_reader import open_canonical_forcing
         ds = open_canonical_forcing(forcing_files)
         ds = self.subset_to_simulation_time(ds, "Forcing")
         return ds
+
+    def _select_forcing_files(self, forcing_files: List[Path]) -> List[Path]:
+        """Deterministically choose the spatially-compatible forcing file(s).
+
+        SWAT basin-averages its forcing to a single gage, so the single-HRU
+        (1 spatial point) remap is always the correct representation. When the
+        shared store also holds a multi-HRU remap (a different discretization),
+        prefer the canonical ``{domain}_{dataset}_remapped_*`` name, then drop
+        multi-point candidates so ``open_canonical_forcing`` is handed one shape.
+
+        Raises:
+            FileOperationError: if incompatibly-shaped candidates remain.
+        """
+        files = sorted(forcing_files)
+        if len(files) <= 1:
+            return files
+
+        domain = self.domain_name.lower()
+        dataset = str(self.forcing_dataset or '').lower()
+
+        candidates = [f for f in files if f.name.lower().startswith(f"{domain}_{dataset}_remapped")]
+        if not candidates and dataset:
+            candidates = [f for f in files if dataset in f.name.lower()]
+        if not candidates:
+            candidates = [f for f in files if f.name.lower().startswith(domain)]
+        if not candidates:
+            candidates = files
+        if len(candidates) == 1:
+            return candidates
+
+        # SWAT basin-averages to one gage -> the 1-point remap is always correct.
+        sizes = {f: self._forcing_spatial_size(f) for f in candidates}
+        single = [f for f in candidates if sizes[f] == 1]
+        if single:
+            candidates = single
+
+        distinct = {sizes[f] for f in candidates}
+        if len(distinct) > 1:
+            listing = "\n".join(
+                f"  {f.name}: {sizes[f]} spatial point(s)" for f in candidates
+            )
+            raise FileOperationError(
+                f"Ambiguous SWAT forcing in {self.forcing_basin_path}: "
+                f"{len(candidates)} files match (domain={self.domain_name}, "
+                f"forcing={self.forcing_dataset}) but have incompatible spatial "
+                f"shapes; refusing to merge them.\n{listing}\n"
+                "Remove the stale/incompatible forcing file(s)."
+            )
+        return candidates
+
+    @staticmethod
+    def _forcing_spatial_size(path: Path) -> int:
+        """Return the number of spatial points (product of non-time dims)."""
+        with xr.open_dataset(path) as ds:
+            size = 1
+            for dim, length in ds.sizes.items():
+                if dim != 'time':
+                    size *= int(length)
+            return size
 
     def _extract_variable(self, ds, candidates, default_val=0.0):
         """Extract a variable from dataset by trying multiple candidate names."""
