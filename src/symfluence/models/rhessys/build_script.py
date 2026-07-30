@@ -145,6 +145,38 @@ fi
 export CC
 echo "Using C compiler: $CC"
 
+# Guarantee a writable temp directory (native Windows). The perl helpers below
+# are written with "cat > $TMPDIR/rhessys_*.pl", and native gcc/as write scratch
+# files to $TMP/$TEMP during compilation. On native Windows the inherited values
+# are unreliable: TMPDIR can arrive as a Windows path with backslashes (which the
+# msys bash mangles, so "cat >" writes to a broken path and the patch step dies),
+# and TMP/TEMP can be the unwritable C:\Windows (native gcc then fails with
+# "Cannot create temporary file in C:\Windows\: Permission denied", masked by the
+# installer as "make: *** Error 1"). Pin all three to a writable POSIX temp dir
+# (/tmp, or a build-local fallback) and hand native tools its Windows form. Only
+# on Windows — Linux/WSL/macOS/HPC keep their existing (working) TMPDIR.
+case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+        _symf_tmp=""
+        for _cand in /tmp "$(pwd)/.symfluence_build_tmp"; do
+            if mkdir -p "$_cand" 2>/dev/null && ( : > "$_cand/.symf_wtest.$$" ) 2>/dev/null; then
+                rm -f "$_cand/.symf_wtest.$$" 2>/dev/null
+                _symf_tmp="$_cand"
+                break
+            fi
+        done
+        if [ -n "$_symf_tmp" ]; then
+            export TMPDIR="$_symf_tmp"
+            _symf_wtmp="$(cygpath -m "$_symf_tmp" 2>/dev/null || echo "$_symf_tmp")"
+            export TMP="$_symf_wtmp"
+            export TEMP="$_symf_wtmp"
+            echo "Using writable temp dir: TMPDIR=$TMPDIR TMP=$TMP"
+        else
+            echo "WARNING: could not find a writable temp dir; build may fail on native gcc temp files"
+        fi
+        ;;
+esac
+
 # Apply patches for compiler compatibility
 
 # Fix types.h: GCC 15 (C23 default) makes bool/true/false keywords.
