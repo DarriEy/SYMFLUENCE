@@ -263,7 +263,13 @@ class RHESSysStreamflowTarget(StreamflowEvaluator):
         data_dir = Path(str(data_dir_raw))
 
         try:
-            from symfluence.evaluation.utilities import StreamflowMetrics
+            # Import from core, not from symfluence.evaluation.utilities: that
+            # path is a back-compat shim re-exporting this very class, and it
+            # lives in an upper layer, so models/ importing it is a layering
+            # violation (check_core_layering + its two mirrored tests). Same
+            # class either way — the shim's own docstring says new code should
+            # use core.
+            from symfluence.core.metrics import StreamflowMetrics
 
             shared_km2 = StreamflowMetrics().get_catchment_area(
                 {'DOMAIN_NAME': domain_name, 'SYMFLUENCE_DATA_DIR': str(data_dir)},
