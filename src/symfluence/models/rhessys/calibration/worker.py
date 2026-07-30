@@ -12,7 +12,7 @@ import logging
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -540,8 +540,10 @@ class RHESSysWorker(BaseWorker):
                 hdr_lines = hdr_content.split('\n')[:4]
             self.logger.debug(f"Header file content (first 4 lines): {hdr_lines}")
 
-            # CRITICAL: Verify header points to worker defs, not original defs
-            worker_defs_str = str(worker_defs_dir)
+            # CRITICAL: Verify header points to worker defs, not original defs.
+            # The header is written with forward-slash def paths (see
+            # _create_worker_header), so compare against the POSIX form.
+            worker_defs_str = worker_defs_dir.as_posix()
             if worker_defs_str in hdr_content:
                 self.logger.debug(f"Header CORRECTLY points to worker defs: {worker_defs_str}")
             else:
@@ -676,11 +678,25 @@ class RHESSysWorker(BaseWorker):
 
         for line in lines:
             stripped = line.strip()
-            # Match lines that are file paths ending in .def
-            if stripped.endswith('.def') and '/' in stripped:
-                # Extract just the filename (e.g. basin.def)
-                def_filename = Path(stripped).name
-                new_path = str(worker_defs_dir / def_filename)
+            # Match lines that are file paths ending in .def. Accept either path
+            # separator: on native Windows the preprocessor writes the header
+            # with backslash paths (C:\...\defs\basin.def), so a '/'-only check
+            # would never fire and the header would keep pointing at the original
+            # (non-worker) defs -- causing a HEADER MISMATCH and RHESSys reading
+            # the wrong def files.
+            if stripped.endswith('.def') and ('/' in stripped or '\\' in stripped):
+                # Extract just the filename (e.g. basin.def). PureWindowsPath
+                # splits on both separators so a POSIX or Windows path both work.
+                def_filename = PureWindowsPath(stripped).name
+                # Emit the def path with FORWARD slashes even on Windows. RHESSys
+                # (construct_*_defaults.c) derives the "<pre>_<name>.params" output
+                # filename by tokenising this path on '/' only; a backslash path is
+                # never split, so the whole "C:\...\soil.def" becomes the basename
+                # and RHESSys tries to open "rhessys_C:\...soil.params" -- an
+                # invalid name (embedded ':' / '\\') that aborts the run. A
+                # forward-slash path tokenises correctly and Windows fopen() still
+                # opens it.
+                new_path = (worker_defs_dir / def_filename).as_posix()
                 new_lines.append(new_path + '\n')
                 replacements += 1
                 self.logger.debug(f"Header path: {stripped} -> {new_path}")
