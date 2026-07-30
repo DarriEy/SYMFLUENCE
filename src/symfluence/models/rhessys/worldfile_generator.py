@@ -609,30 +609,40 @@ class RHESSysWorldfileGenerator:
         """
         header_file = world_file.with_suffix('.world.hdr')
 
+        # Emit every path with forward slashes, even on native Windows. RHESSys
+        # (construct_*_defaults.c) derives its "<prefix>_<name>.params" output
+        # filename by tokenising the header's .def path on '/' only; a backslash
+        # path (C:\...\soil.def) is never split, so the whole path becomes the
+        # basename and RHESSys aborts with "Error opening output parameter
+        # filename rhessys_C:\...soil.params" (an invalid name). Windows fopen()
+        # still opens forward-slash paths, so this is safe on every platform.
+        def _hp(name: str) -> str:
+            return (self.pp.defs_dir / name).as_posix()
+
         # Build header content with default file paths
         content = f"""1    num_basin_default_files
-{self.pp.defs_dir / 'basin.def'}
+{_hp('basin.def')}
 1    num_hillslope_default_files
-{self.pp.defs_dir / 'hillslope.def'}
+{_hp('hillslope.def')}
 1    num_zone_default_files
-{self.pp.defs_dir / 'zone.def'}
+{_hp('zone.def')}
 1    num_soil_default_files
-{self.pp.defs_dir / 'soil.def'}
+{_hp('soil.def')}
 1    num_landuse_default_files
-{self.pp.defs_dir / 'landuse.def'}
+{_hp('landuse.def')}
 1    num_stratum_default_files
-{self.pp.defs_dir / 'stratum.def'}
+{_hp('stratum.def')}
 """
 
         # Add fire defaults if WMFire is enabled
         if self.pp.wmfire_enabled:
             content += f"""1    num_fire_default_files
-{self.pp.defs_dir / 'fire.def'}
+{_hp('fire.def')}
 """
 
         # Add base stations
         content += f"""1    num_base_stations
-{self.pp.climate_dir / f'{self.pp.domain_name}_base'}
+{(self.pp.climate_dir / f'{self.pp.domain_name}_base').as_posix()}
 """
         header_file.write_text(content, encoding='utf-8')
 
