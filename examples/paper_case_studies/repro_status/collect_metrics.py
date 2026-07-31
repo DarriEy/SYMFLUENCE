@@ -28,12 +28,70 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import itertools
 import json
 import struct
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+
+# --- geospatial provenance -------------------------------------------------
+# The DEM and the GDAL/PROJ/GEOS stack decide delineation geometry, so a change
+# in either shifts discretization counts in a way that is otherwise
+# indistinguishable from a genuine platform difference — the same ambiguity
+# symfluence_version/code_commit were added to resolve for code.
+#
+# Hashing is done here with hashlib rather than via rasterio/GDAL to keep this
+# script dependency-free: every reproduction machine runs it outside any model
+# environment. Library versions cannot be read that way, so they are taken from
+# the run manifest, which the run itself wrote from inside its environment.
+
+_DEM_CACHE: dict = {}
+
+
+def dem_sha256(domain: Path):
+    """SHA-256 of a domain's source DEM, or None. Cached per domain."""
+    key = str(domain)
+    if key in _DEM_CACHE:
+        return _DEM_CACHE[key]
+    digest = None
+    dem_dir = domain / "data" / "attributes" / "elevation" / "dem"
+    try:
+        for dem in sorted(dem_dir.glob("*.tif")):
+            h = hashlib.sha256()
+            with dem.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+            digest = h.hexdigest()
+            break
+    except OSError:
+        digest = None
+    _DEM_CACHE[key] = digest
+    return digest
+
+
+_STACK_CACHE: dict = {}
+
+
+def geospatial_stack(domain: Path):
+    """{'gdal','proj','geos'} for a domain, read from its newest run manifest."""
+    key = str(domain)
+    if key in _STACK_CACHE:
+        return _STACK_CACHE[key]
+    stack = {}
+    try:
+        manifests = sorted(domain.glob("**/run_manifest.json"),
+                           key=lambda m: m.stat().st_mtime, reverse=True)
+        for m in manifests:
+            doc = json.loads(m.read_text())
+            if doc.get("geospatial"):
+                stack = doc["geospatial"]
+                break
+    except (OSError, json.JSONDecodeError):
+        stack = {}
+    _STACK_CACHE[key] = stack
+    return stack
 
 
 def code_provenance():
@@ -175,6 +233,7 @@ def scan_domain_counts(root: Path, version: str = "", commit: str = ""):
     """
     for domain in sorted(root.glob("domain_*")):
         shp_root = domain / "shapefiles"
+        stack = geospatial_stack(domain)
         for cat in GEOMETRY_DIRS:
             for shp in sorted((shp_root / cat).rglob("*.shp")):
                 if shp.stem.endswith("_temp"):
@@ -196,6 +255,10 @@ def scan_domain_counts(root: Path, version: str = "", commit: str = ""):
                     "symfluence_version": version,
                     "code_commit": commit,
                     "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "dem_sha256": (dem_sha256(domain) or "")[:16],
+                    "gdal_version": stack.get("gdal", ""),
+                    "proj_version": stack.get("proj", ""),
+                    "geos_version": stack.get("geos", ""),
                 }
 
 
@@ -209,7 +272,8 @@ def main():
     out = Path(__file__).parent / f"metrics_{args.platform}.csv"
     fields = ["experiment_id", "model", "domain", "metric", "best_score",
               "eval_score", "best_iteration", "run_completed",
-              "symfluence_version", "code_commit", "collected_at"]
+              "symfluence_version", "code_commit", "collected_at",
+              "dem_sha256", "gdal_version", "proj_version", "geos_version"]
     version, commit = code_provenance()
 
     existing = {}
@@ -233,7 +297,8 @@ def main():
         else:
             # value unchanged: keep the original collected_at, but backfill
             # provenance for rows written before those columns existed
-            for k in ("run_completed", "symfluence_version", "code_commit"):
+            for k in ("run_completed", "symfluence_version", "code_commit",
+                      "dem_sha256", "gdal_version", "proj_version", "geos_version"):
                 if not prev.get(k) and row.get(k):
                     prev[k] = row[k]
 

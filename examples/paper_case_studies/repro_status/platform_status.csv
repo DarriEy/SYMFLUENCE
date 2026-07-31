@@ -1,0 +1,7 @@
+platform,state,last_commit,note
+macos,frozen,bd61b1d1,"Original macOS box; machine wiped and returned 2026-07. Cannot be re-collected."
+macos_dev,frozen,ccd4888c,"Original macOS dev box; machine wiped and returned 2026-07. Cannot be re-collected."
+macos_p3repro,frozen,116501b0,"Original macOS paper-repro box; machine wiped and returned 2026-07. Cannot be re-collected."
+macos_devbox,live,,"Travel/light devbox; current macOS baseline."
+native_windows,live,,
+wsl,live,,
