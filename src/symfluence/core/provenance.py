@@ -102,6 +102,35 @@ def _executable_info(exe_path: Path) -> Dict[str, Any]:
     return info
 
 
+def _geospatial_versions() -> Dict[str, str]:
+    """Return GDAL/PROJ/GEOS versions.
+
+    These are recorded separately from ``dependencies`` because they are not
+    merely Python packages: they are the C libraries that decide delineation
+    geometry. A DEM conditioned by a different GDAL, or reprojected by a
+    different PROJ, can shift a basin boundary enough to change discretization
+    counts — a difference that is otherwise indistinguishable from a genuine
+    cross-platform divergence.
+    """
+    versions: Dict[str, str] = {}
+    try:
+        from osgeo import gdal
+        versions["gdal"] = gdal.__version__
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import pyproj
+        versions["proj"] = pyproj.proj_version_str
+    except (ImportError, AttributeError):
+        pass
+    try:
+        import shapely
+        versions["geos"] = shapely.geos_version_string
+    except (ImportError, AttributeError):
+        pass
+    return versions
+
+
 def _platform_info() -> Dict[str, str]:
     """Return OS, architecture, hostname, and Python version."""
     return {
@@ -141,6 +170,8 @@ class RunProvenance:
     elapsed_seconds: Optional[float] = None
     steps: List[Dict[str, Any]] = field(default_factory=list)
     executables: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    inputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    geospatial: Dict[str, str] = field(default_factory=dict)
     status: str = "running"
     errors: List[str] = field(default_factory=list)
 
@@ -160,6 +191,8 @@ class RunProvenance:
             "elapsed_seconds": self.elapsed_seconds,
             "steps": list(self.steps),
             "executables": dict(self.executables),
+            "inputs": dict(self.inputs),
+            "geospatial": dict(self.geospatial),
             "status": self.status,
             "errors": list(self.errors),
         }
@@ -191,6 +224,7 @@ def capture_provenance(
         git=git,
         platform=_platform_info(),
         dependencies=_dependency_versions(),
+        geospatial=_geospatial_versions(),
         start_utc=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -209,6 +243,43 @@ def record_executable(
     exe_path = Path(exe_path)
     if exe_path.exists():
         prov.executables[name] = _executable_info(exe_path)
+
+
+def _input_info(path: Path) -> Dict[str, Any]:
+    """Return size, SHA-256, and mtime for an input dataset."""
+    info: Dict[str, Any] = {"path": str(path)}
+    try:
+        stat = path.stat()
+        info["size_bytes"] = stat.st_size
+        info["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        sha = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                sha.update(chunk)
+        info["sha256"] = sha.hexdigest()
+    except OSError:
+        pass
+    return info
+
+
+def record_input(
+    prov: Optional[RunProvenance],
+    name: str,
+    path: Path,
+) -> None:
+    """Capture hash, size, and mtime for an input dataset such as the DEM.
+
+    Executables were already hashed; input *data* was not. Without this, a run
+    whose delineation shifted because the source DEM changed is
+    indistinguishable from one that shifted because the code did — the same
+    ambiguity ``symfluence_version``/``code_commit`` were added to resolve for
+    code. No-op when *prov* is ``None`` or the file does not exist.
+    """
+    if prov is None:
+        return
+    path = Path(path)
+    if path.is_file():
+        prov.inputs[name] = _input_info(path)
 
 
 def record_step(

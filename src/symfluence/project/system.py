@@ -31,7 +31,7 @@ from symfluence.core.config.models import SymfluenceConfig
 from symfluence.core.exceptions import SYMFLUENCEError
 from symfluence.core.mixins.project import resolve_data_subdir
 from symfluence.core.path_resolver import find_basin_shapefile, find_river_basins_shapefile
-from symfluence.core.provenance import capture_provenance
+from symfluence.core.provenance import capture_provenance, record_input
 from symfluence.core.provenance import finalize as finalize_provenance
 from symfluence.project.logging_manager import LoggingManager
 from symfluence.project.manager_factory import LazyManagerDict
@@ -344,11 +344,32 @@ class SYMFLUENCE:
                 errors=errors,
             )
             # Write provenance manifest
+            self._record_input_provenance()
             finalize_provenance(self.provenance, status,
                                 errors=[e.get("error", str(e)) for e in errors] if errors else None)
             if self.provenance is not None:
                 manifest = self.provenance.write(self.logging_manager.log_dir)
                 self.logger.info(f"Run manifest written to: {manifest}")
+
+
+    def _record_input_provenance(self) -> None:
+        """Hash the source DEM into the run manifest.
+
+        The DEM is the input that decides delineation geometry, so a change in
+        it shifts discretization counts in ways that otherwise look identical
+        to a code or platform difference. Best-effort: a missing DEM (a run
+        that never delineated) is simply not recorded.
+        """
+        if self.provenance is None:
+            return
+        try:
+            project_dir = Path(self.typed_config.paths.root_path) / f"domain_{self.typed_config.domain.name}"
+            dem_dir = project_dir / "data" / "attributes" / "elevation" / "dem"
+            for dem in sorted(dem_dir.glob("*.tif")):
+                record_input(self.provenance, "dem", dem)
+                break
+        except (AttributeError, OSError, TypeError):
+            pass
 
     def run_individual_steps(self, step_names: List[str]) -> None:
         """
@@ -395,6 +416,7 @@ class SYMFLUENCE:
                 errors=errors,
             )
             # Write provenance manifest
+            self._record_input_provenance()
             finalize_provenance(self.provenance, status,
                                 errors=[e.get("error", str(e)) for e in errors] if errors else None)
             if self.provenance is not None:
