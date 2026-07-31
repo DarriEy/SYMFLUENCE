@@ -619,7 +619,7 @@ grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully
 # that reference non-existent struct members (x, y, lat, lon in base_station_object)
 # IMPORTANT: Use CMD_OPTS for extra flags, NOT CFLAGS override - the makefile's CFLAGS
 # includes $(DEFINES) with -DLIU_NETCDF_READER which is required for is_approximately()
-COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
+COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration -Wno-error=parentheses"
 
 # Check for WMFire library and enable fire spread support if available
 WMFIRE_FLAG=""

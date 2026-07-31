@@ -123,6 +123,14 @@ if grep -q 'GDALGetRasterUnitType(fh)' src/tiffIO.cpp; then
     echo "Patched src/tiffIO.cpp: GDALGetRasterUnitType(fh) -> GDALGetRasterUnitType(bandh)"
 fi
 
+# Upstream TauDEM writes chained comparisons such as
+#   for(int i=0;i<toRecv->numCoords > 0;i++)        (src/linklib.h)
+# which parse as (i < numCoords) > 0 -- semantically the same loop, but Clang
+# (LLVM 16+) reports -Wparentheses "chained comparison" as an error by default,
+# so streamnet.cpp fails to compile and the whole build aborts. Downgrade it to
+# a warning rather than editing upstream source or silencing the diagnostic.
+export CXXFLAGS="${CXXFLAGS:-} -Wno-error=parentheses"
+
 rm -rf build && mkdir -p build
 cd build
 
