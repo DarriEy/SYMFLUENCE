@@ -70,3 +70,7 @@ evaluation:
 # Flat passthrough key: read via config.get() by the jTOPMODEL parameter manager (no typed nested field).
 _extra:
   TOPMODEL_INITIAL_PARAMS: m=0.1505,lnTe=1.5,Srmax=0.2525,Sr0=0.05,td=25.05,k_route=100.5,DDF=5.25,T_melt=0.5,T_snow=0.5,ti_std=5.5,S0=1.0
+
+# Pinned for reproducibility and to prevent the 'auto' fallback cascade
+# (OPeNDAP fail -> tiled fail -> full-domain daily files, ~720 MB/day).
+RDRS_ACQUISITION_METHOD: tiled

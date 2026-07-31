@@ -149,6 +149,27 @@ class ForcingConfig(BaseModel):
     # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
 
+    # RDRS/CaSR acquisition endpoint. Left unset ('auto'), the handler tries
+    # OPeNDAP, then the tiled archive, then a full-domain daily fallback — so
+    # which endpoint a run lands on, and therefore its exact forcing values,
+    # depends on runtime network conditions. Pin it for reproducible acquisition.
+    rdrs_acquisition_method: Optional[Literal['auto', 'opendap', 'pavics', 'tiled', 'http', 'gpsc']] = Field(
+        default=None, alias='RDRS_ACQUISITION_METHOD',
+        description=(
+            "RDRS/CaSR acquisition endpoint. 'opendap'/'pavics' and 'tiled'/'http'/'gpsc' "
+            "both subset server-side; 'auto' (default) falls back between them and, as a "
+            "last resort, to full-domain daily files."
+        )
+    )
+
+    # Allow the full-domain daily CaSR fallback for long date ranges. That path
+    # downloads the entire CaSR domain per day (~700 MB/file) and subsets
+    # locally, so its volume scales with the date range, not the catchment.
+    rdrs_allow_full_domain_daily: bool = Field(
+        default=False, alias='RDRS_ALLOW_FULL_DOMAIN_DAILY',
+        description="Permit the full-domain daily CaSR fallback beyond the built-in file-count guard."
+    )
+
     # CARRA-specific settings
     carra_domain: Optional[str] = Field(
         default=None, alias='CARRA_DOMAIN',
