@@ -81,3 +81,7 @@ evaluation:
   grace:
     download: true
     product: GRACE_JPL_RL06_mascon
+
+# Pinned for reproducibility and to prevent the 'auto' fallback cascade
+# (OPeNDAP fail -> tiled fail -> full-domain daily files, ~720 MB/day).
+RDRS_ACQUISITION_METHOD: tiled

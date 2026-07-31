@@ -67,3 +67,7 @@ evaluation:
 # Flat passthrough key: read via config.get() by the jXAJ parameter manager (no typed nested field).
 _extra:
   XINANJIANG_INITIAL_PARAMS: SCF=1.05,PXTEMP=0.0,MFMAX=1.25,MFMIN=0.325,NMF=0.275,MBASE=0.5,TIPM=0.505,UADJ=0.105,PLWHC=0.155,DAYGM=0.15,K=0.55,B=0.25,IM=0.055,UM=10.0,LM=75.0,DM=90.0,C=0.1,SM=50.5,EX=1.25,KI=0.35,KG=0.35,CS=0.5,L=5.5,CI=0.45,CG=0.989
+
+# Pinned for reproducibility and to prevent the 'auto' fallback cascade
+# (OPeNDAP fail -> tiled fail -> full-domain daily files, ~720 MB/day).
+RDRS_ACQUISITION_METHOD: tiled

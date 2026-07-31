@@ -63,3 +63,7 @@ evaluation:
 # Flat passthrough key: read via config.get() by the jHECHMS parameter manager (no typed nested field).
 _extra:
   HECHMS_INITIAL_PARAMS: px_temp=1.0,base_temp=0.0,ati_meltrate_coeff=1.0,meltrate_max=6.0,meltrate_min=1.5,cold_limit=25.0,ati_cold_rate_coeff=0.15,water_capacity=0.15,cn=64.0,initial_abstraction_ratio=0.175,tc=10.25,r_coeff=10.25,gw_storage_coeff=50.5,deep_perc_fraction=0.25
+
+# Pinned for reproducibility and to prevent the 'auto' fallback cascade
+# (OPeNDAP fail -> tiled fail -> full-domain daily files, ~720 MB/day).
+RDRS_ACQUISITION_METHOD: tiled

@@ -54,6 +54,14 @@ GPSCC_CASR_V32_TILE_BASE_URL = (
     "https://hpfx.collab.science.gc.ca/~scar700/rcas-casr/data/CaSRv3.2/netcdf_tile"
 )
 
+# Guard rails for the last-resort full-domain daily fallback (_download_http_daily).
+# Each daily file covers the whole CaSR domain (measured ~700-730 MB for v3.2), so
+# the download volume scales with the date range and NOT with catchment size.
+DAILY_FULL_DOMAIN_FILE_BYTES = 700 * 1024 ** 2
+# ~2 months. Enough for a short diagnostic fetch; anything longer is a multi-year
+# run that must use a server-side-subsetting endpoint instead.
+MAX_UNGUARDED_DAILY_FILES = 60
+
 # CaSR v3.2 rotated-pole grid geometry (fixed property of the dataset; read
 # from the dataset files themselves). Used only to decide which 35x35-cell
 # tiles to download — final cell selection always uses the 2-D lat/lon
@@ -567,7 +575,37 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         # Generate list of days (files are daily at 12 UTC)
         date_range = pd.date_range(start=self.start_date.normalize(), end=self.end_date.normalize(), freq='D')
         total_files = len(date_range)
-        self.logger.info(f"Downloading {total_files} daily CaSR files via HTTP fallback")
+
+        # Volume guard. Unlike OPeNDAP and the tiled archive, this path fetches
+        # the FULL CaSR domain for every day (~700 MB/file) and subsets locally,
+        # so its cost scales with the date range and is independent of how small
+        # the catchment is. A multi-year run reaches petabyte scale: an 8-year
+        # calibration is 2922 files ~ 2.1 PB, a 16-year one ~ 4.1 PB. Because
+        # 'auto' reaches this path after a *transient* network error on both
+        # OPeNDAP and the tiled archive, a momentary blip could otherwise commit
+        # a run to an impossible download that reports nothing but a progress
+        # line every 5% and silently fills the disk. Refuse instead, and name
+        # the two endpoints that do subset server-side.
+        est_bytes = total_files * DAILY_FULL_DOMAIN_FILE_BYTES
+        if total_files > MAX_UNGUARDED_DAILY_FILES and not self._get_config_value(
+            lambda: None, default=False, dict_key='RDRS_ALLOW_FULL_DOMAIN_DAILY'
+        ):
+            raise RuntimeError(
+                f"Refusing the full-domain daily CaSR fallback: {total_files} files "
+                f"x ~{DAILY_FULL_DOMAIN_FILE_BYTES / 1024**2:.0f} MB ~ "
+                f"{est_bytes / 1024**4:.1f} TB. This path downloads the entire CaSR "
+                "domain per day and subsets locally, so it does not shrink with the "
+                "catchment. Set RDRS_ACQUISITION_METHOD to 'opendap' or 'tiled' (both "
+                "subset server-side) — 'tiled' serves this basin as a handful of ~30 MB "
+                "files. It was reached only because both of those failed, which is "
+                "usually transient: retrying is normally the right fix. To override "
+                "deliberately, set RDRS_ALLOW_FULL_DOMAIN_DAILY: true."
+            )
+
+        self.logger.info(
+            f"Downloading {total_files} daily CaSR files via HTTP fallback "
+            f"(full-domain files, ~{est_bytes / 1024**3:.0f} GB estimated)"
+        )
 
         # Use robust session with connection pooling and retry logic
         session = create_robust_session(max_retries=3, backoff_factor=1.0)
