@@ -55,8 +55,12 @@ class SequentialExecutionStrategy(ExecutionStrategy):
         """
         results = []
 
+        from symfluence.core.calibration.eval_watchdog import get_watchdog
+        watchdog = get_watchdog()
+
         for task in tasks:
             try:
+                watchdog.beat()
                 result = worker_func(task)
                 results.append(result)
             except (ValueError, RuntimeError, IOError) as e:

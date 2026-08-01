@@ -1162,9 +1162,18 @@ class BaseModelOptimizer(
         Returns:
             Path to results JSON file
         """
+        # Arm the eval watchdog for the whole run: a single evaluation that
+        # wedges indefinitely (JAX/XLA compile or gc/finalizer deadlock, seen on
+        # Windows) would otherwise freeze the run for days. It self-terminates
+        # the process so the orchestrator re-spawns the config. beat()s come from
+        # the population evaluator on every evaluation.
+        from symfluence.core.calibration.eval_watchdog import get_watchdog
+        watchdog = get_watchdog(self.logger)
+        watchdog.arm()
         try:
             return self._run_optimization_impl(algorithm_name)
         finally:
+            watchdog.disarm()
             try:
                 self._shutdown_mpi_strategy()
             except Exception as exc:  # noqa: BLE001 — cleanup must not mask the run

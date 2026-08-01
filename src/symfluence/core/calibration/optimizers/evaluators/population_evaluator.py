@@ -333,6 +333,8 @@ class PopulationEvaluator:
 
         task = WorkerTask.from_legacy_dict(task_data)
 
+        from symfluence.core.calibration.eval_watchdog import get_watchdog
+        get_watchdog().beat()
         result = self.worker.evaluate(task)
         return result.score if result.score is not None else self.DEFAULT_PENALTY_SCORE
 
