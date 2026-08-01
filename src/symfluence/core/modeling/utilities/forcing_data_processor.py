@@ -126,7 +126,47 @@ class ForcingDataProcessor:
             for d in datasets:
                 d.close()
 
+        # combine='nested' concatenates in the order given and cannot detect that
+        # two files cover the same period, so a store holding duplicate coverage
+        # yields an axis that jumps backwards. Nothing downstream checks, and the
+        # symptom surfaces far away as "Index must be monotonic for resampling"
+        # in whichever model resamples first. Repair it here, loudly, so an
+        # already-polluted store is usable and the cause is named.
+        ds = self._ensure_monotonic_concat_axis(ds, concat_dim, forcing_files)
+
         return ds
+
+    def _ensure_monotonic_concat_axis(self, ds, concat_dim, source_files):
+        """Sort and de-duplicate *concat_dim* if concatenation left it disordered.
+
+        A no-op on the overwhelmingly common ordered case — the check is a single
+        comparison on an already-open coordinate, so multi-chunk stores (96 or
+        189 monthly files) pay nothing.
+        """
+        if concat_dim not in ds.coords and concat_dim not in ds.dims:
+            return ds
+        try:
+            axis = ds[concat_dim].values
+        except (KeyError, AttributeError):
+            return ds
+        if len(axis) < 2:
+            return ds
+
+        import numpy as np
+        if bool((np.diff(axis) > np.timedelta64(0, 'ns')).all()):
+            return ds  # already strictly increasing: nothing to do
+
+        unique, first_index = np.unique(axis, return_index=True)
+        n_dropped = len(axis) - len(unique)
+        self.logger.warning(
+            f"Forcing '{concat_dim}' axis was not strictly increasing after concatenating "
+            f"{len(source_files)} file(s); sorting and dropping {n_dropped} duplicate step(s). "
+            f"This normally means the store holds more than one file covering the same period "
+            f"— check for duplicates among: "
+            f"{', '.join(str(getattr(f, 'name', f)) for f in source_files[:6])}"
+            f"{' ...' if len(source_files) > 6 else ''}"
+        )
+        return ds.isel({concat_dim: np.sort(first_index)})
 
     def subset_to_time_window(
         self,

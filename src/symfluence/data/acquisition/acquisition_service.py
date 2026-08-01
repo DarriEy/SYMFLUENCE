@@ -687,6 +687,45 @@ class AcquisitionService(ConfigurableMixin):
         end = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
         return expected_forcing_times(dataset, start, end)
 
+    def _time_coverage(self, path: Path):
+        """Return (first, last, n) of a NetCDF's time axis, or None if unreadable."""
+        try:
+            with xr.open_dataset(path) as ds:
+                if "time" not in ds:
+                    return None
+                t = pd.to_datetime(ds["time"].values)
+                if len(t) == 0:
+                    return None
+                return (t[0], t[-1], len(t))
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return None
+
+    def _existing_raw_forcing_with_same_coverage(
+        self, raw_data_dir: Path, cached_file: Path
+    ):
+        """An existing raw file covering exactly what *cached_file* covers, or None.
+
+        Equivalence is time coverage rather than checksum: the same data written
+        by two paths differs in a few bytes of metadata, so hashes do not match
+        even when the payload is identical. Coverage is also precisely what
+        matters here — two files spanning the same period are what break a
+        concatenating reader.
+        """
+        target = self._time_coverage(cached_file)
+        if target is None:
+            return None
+        try:
+            candidates = sorted(p for p in raw_data_dir.glob("*.nc") if p.is_file())
+        except OSError:
+            return None
+        for candidate in candidates:
+            if candidate.name == cached_file.name:
+                # Already materialised under the cache name by an earlier run.
+                return candidate
+            if self._time_coverage(candidate) == target:
+                return candidate
+        return None
+
     def _cached_forcing_has_expected_times(
         self, cached_file: Path, expected_times: pd.DatetimeIndex
     ) -> bool:
@@ -1041,11 +1080,35 @@ class AcquisitionService(ConfigurableMixin):
 
             if cached_file and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
                 self.logger.info(f"✓ Using cached forcing data: {cache_key}")
-                # Copy from cache to project directory
-                import shutil
-                output_file = raw_data_dir / cached_file.name
-                shutil.copy(cached_file, output_file)
-                self.logger.info(f"✓ Copied cached file to: {output_file}")
+                # A cache hit must not add a SECOND copy of coverage the domain
+                # already has. The miss path names its output descriptively
+                # (e.g. domain_<domain>_ERA5_CDS_2002_2009.nc) while a hit would
+                # name it after the cache key (ERA5_<hash>.nc), so the two paths
+                # produce different names for identical data in the same
+                # directory. Consumers that glob the directory then concatenate
+                # both and get a non-monotonic time axis — the GR/MESH
+                # "Index must be monotonic for resampling" failure.
+                #
+                # This is reachable on a clean run: stage markers are keyed on
+                # the config, so a second *experiment* sharing a domain (02, 05
+                # and 08 all use Bow_at_Banff_lumped_era5) re-executes
+                # acquisition and lands here on a hit.
+                existing = self._existing_raw_forcing_with_same_coverage(
+                    raw_data_dir, cached_file
+                )
+                if existing is not None:
+                    output_file = existing
+                    self.logger.info(
+                        f"✓ Reusing raw forcing already present with identical coverage: "
+                        f"{output_file.name} (skipped writing a duplicate under the cache "
+                        f"name {cached_file.name})"
+                    )
+                else:
+                    # Copy from cache to project directory
+                    import shutil
+                    output_file = raw_data_dir / cached_file.name
+                    shutil.copy(cached_file, output_file)
+                    self.logger.info(f"✓ Copied cached file to: {output_file}")
             else:
                 # Cache miss - download from source
                 if cached_file:
