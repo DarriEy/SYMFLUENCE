@@ -36,6 +36,8 @@ src/symfluence/cli/services/tool_validator.py:ToolValidator.validate:except Exce
 src/symfluence/core/_bootstrap.py:_discover_plugins:except Exception:  # noqa: BLE001 — never let a broken plugin crash the framework
 src/symfluence/core/base_manager.py:BaseManager._safe_visualize:except Exception as e:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/coupled/worker.py:_evaluate_coupled_parameters_worker:except Exception as e:  # noqa: BLE001 -- calibration resilience
+src/symfluence/core/calibration/eval_watchdog.py:EvalWatchdog._fire:except Exception:  # noqa: BLE001
+src/symfluence/core/calibration/eval_watchdog.py:EvalWatchdog._fire:except Exception:  # noqa: BLE001 — never mask the kill
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e2:  # noqa: BLE001 — must-not-raise contract
 src/symfluence/core/calibration/mixins/parallel_execution.py:ParallelExecutionMixin.execute_batch:except Exception as e:  # noqa: BLE001 — must-not-raise contract
