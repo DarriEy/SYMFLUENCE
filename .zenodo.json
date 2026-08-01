@@ -32,10 +32,6 @@
       "name": "Gautier, Camille"
     },
     {
-      "name": "Keshavarz, Kasra",
-      "orcid": "0000-0002-7093-3928"
-    },
-    {
       "name": "Liu, Hongli",
       "orcid": "0000-0002-2756-3247"
     },
@@ -79,6 +75,11 @@
       "name": "Pietroniro, Alain",
       "orcid": "0000-0001-5792-9177",
       "type": "Supervisor"
+    },
+    {
+      "name": "Keshavarz, Kasra",
+      "orcid": "0000-0002-7093-3928",
+      "type": "Other"
     },
     {
       "name": "Aguirre, Ignacio",
