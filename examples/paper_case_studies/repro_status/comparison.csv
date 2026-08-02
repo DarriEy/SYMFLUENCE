@@ -640,6 +640,7 @@ cal_ensemble_hechms_dds@HECHMS,KGE,macos,0.906937,wsl,0.906937,0.000000,OK
 cal_ensemble_hechms_de@HECHMS,KGE,macos,0.912730,wsl,0.912730,0.000000,OK
 cal_ensemble_hechms_dream@HECHMS,KGE,macos,0.833018,wsl,0.833018,0.000000,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,macos,0.874822,wsl,0.874822,0.000000,OK
+cal_ensemble_hechms_glue@HECHMS,KGE,macos,0.741996,wsl,0.741996,0.000000,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,macos,0.900849,wsl,0.895658,0.005190,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos,0.813025,wsl,0.813025,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos,0.686033,wsl,0.686033,0.000000,OK
@@ -1191,6 +1192,7 @@ cal_ensemble_hechms_dds@HECHMS,KGE,macos_p3repro,0.900173,wsl,0.906937,0.006764,
 cal_ensemble_hechms_de@HECHMS,KGE,macos_p3repro,0.909539,wsl,0.912730,0.003191,OK
 cal_ensemble_hechms_dream@HECHMS,KGE,macos_p3repro,0.832495,wsl,0.833018,0.000523,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,macos_p3repro,0.871811,wsl,0.874822,0.003011,OK
+cal_ensemble_hechms_glue@HECHMS,KGE,macos_p3repro,0.735659,wsl,0.741996,0.006337,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,macos_p3repro,0.880696,wsl,0.895658,0.014962,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos_p3repro,0.888049,wsl,0.813025,0.075023,STALE?
 cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.832525,wsl,0.686033,0.146492,STALE?
@@ -1440,6 +1442,7 @@ cal_ensemble_hechms_dds@HECHMS,KGE,native_windows,0.906937,wsl,0.906937,0.000000
 cal_ensemble_hechms_de@HECHMS,KGE,native_windows,0.912730,wsl,0.912730,0.000000,OK
 cal_ensemble_hechms_dream@HECHMS,KGE,native_windows,0.833018,wsl,0.833018,0.000000,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,native_windows,0.874822,wsl,0.874822,0.000000,OK
+cal_ensemble_hechms_glue@HECHMS,KGE,native_windows,0.741996,wsl,0.741996,0.000000,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,native_windows,0.895658,wsl,0.895658,0.000000,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,native_windows,0.813025,wsl,0.813025,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,native_windows,0.686033,wsl,0.686033,0.000000,OK
