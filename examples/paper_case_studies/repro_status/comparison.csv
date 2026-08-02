@@ -831,6 +831,7 @@ domain_paradise_snotel_wa_era5:catchment/point/paradise_snotel_wa_era5/paradise_
 domain_paradise_snotel_wa_era5:river_basins/paradise_snotel_wa_era5_riverBasins_point.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 forcing_ensemble_aorc@SUMMA,RMSE,macos,-306.044308,wsl,-386.303051,80.258743,STALE?
 forcing_ensemble_conus404@SUMMA,RMSE,macos,-305.397516,wsl,-306.164913,0.767397,OK
+forcing_ensemble_era5@SUMMA,RMSE,macos,-609.494784,wsl,-611.374484,1.879700,OK
 forcing_ensemble_rdrs@SUMMA,RMSE,macos,-208.590593,wsl,-211.913747,3.323155,OK
 run_1@CRHM,KGE,macos,0.935546,wsl,0.935546,0.000000,OK
 run_1@FUSE,KGE,macos,0.940298,wsl,0.940298,0.000000,OK
@@ -1385,6 +1386,7 @@ domain_paradise_snotel_wa_era5:catchment/point/paradise_snotel_wa_era5/paradise_
 domain_paradise_snotel_wa_era5:river_basins/paradise_snotel_wa_era5_riverBasins_point.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 forcing_ensemble_aorc@SUMMA,RMSE,macos_p3repro,-386.547263,wsl,-386.303051,0.244212,OK
 forcing_ensemble_conus404@SUMMA,RMSE,macos_p3repro,-305.397508,wsl,-306.164913,0.767405,OK
+forcing_ensemble_era5@SUMMA,RMSE,macos_p3repro,-218.419136,wsl,-611.374484,392.955348,STALE?
 forcing_ensemble_rdrs@SUMMA,RMSE,macos_p3repro,-202.854354,wsl,-211.913747,9.059394,STALE?
 run_1@CRHM,KGE,macos_p3repro,0.935859,wsl,0.935546,0.000313,OK
 run_1@FUSE,KGE,macos_p3repro,0.945732,wsl,0.940298,0.005434,OK
