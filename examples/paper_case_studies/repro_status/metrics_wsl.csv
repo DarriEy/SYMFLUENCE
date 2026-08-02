@@ -37,6 +37,7 @@ cal_ensemble_hechms_abc@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ens
 cal_ensemble_hechms_adam@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8941685312,,142,2026-08-02T06:50:09Z,0.9.2,7beb301d,2026-08-02T06:56:48Z,,,,
 cal_ensemble_hechms_basin_hopping@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7995767336,,9,2026-08-02T07:03:04Z,0.9.2,b57e6f38,2026-08-02T07:07:38Z,,,,
 cal_ensemble_hechms_bayesian_opt@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.658403621,,42,2026-08-02T07:11:11Z,0.9.2,c6e34585,2026-08-02T07:18:27Z,,,,
+cal_ensemble_hechms_cmaes@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8794903533,,28,2026-08-02T07:20:48Z,0.9.2,c1349943,2026-08-02T07:29:18Z,,,,
 cal_ensemble_hechms_ga@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8748222766,,50,2026-07-28T22:39:47Z,0.9.2,deddc14e,2026-08-01T22:11:20Z,,,,
 cal_ensemble_hechms_moead@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8956582026,,20,2026-07-28T22:52:14Z,0.9.2,deddc14e,2026-08-01T22:11:20Z,,,,
 cal_ensemble_hechms_nsga2@HECHMS,HECHMS,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8130252411,,20,2026-07-28T23:03:05Z,0.9.2,deddc14e,2026-08-01T22:11:20Z,,,,
