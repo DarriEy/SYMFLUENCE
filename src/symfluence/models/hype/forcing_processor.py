@@ -108,12 +108,70 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         if merged_forcing_path.exists():
             merged_forcing_path.unlink()
 
+    def _select_forcing_for_banding(self, files: List[Path]) -> List[Path]:
+        """Scope the glob to the series HYPE's band expansion actually needs.
+
+        With elevation banding, HYPE consumes the SINGLE-column basin-averaged
+        series and lapse-expands it into one column per band itself --
+        ``_convert_to_daily_obs`` only expands when ``df.shape[1] == 1``. The
+        pre-remapped banded file is therefore the wrong input: it is already
+        multi-column, so the expansion silently does not run and the model gets
+        bands with no lapse correction.
+
+        Before #339 this could not arise: the lumped and banded remaps shared a
+        filename, so the store only ever held one. 5279dd49 namespaced them and
+        noted the store "must hold one discretization at a time until the reader
+        wiring passes discretization on every model's forcing-read path
+        (follow-up)"; d70c4c53 wired MESH, this path was missed. The glob then
+        takes both and CDO aborts with "Grid size of the input field 'latitude'
+        do not match!" (identical on CDO 2.4.4 and 2.6.3).
+
+        Measured on experiment 02 (Bow, ERA5): selecting the single-column
+        series scores KGE 0.9189 against the 0.9001 reference -- inside the
+        0.02 cross-platform bound. Feeding the banded file instead scores
+        0.8338, outside it.
+
+        A no-op without banding, or when the store holds one file, so
+        single-discretization and pre-namespacing layouts do not regress.
+        """
+        if not self._elevation_bands or len(files) < 2:
+            return files
+
+        single = []
+        for path in files:
+            try:
+                with xr.open_dataset(path) as ds:
+                    if ds.sizes.get('hru', 1) == 1:
+                        single.append(path)
+            except (OSError, ValueError):
+                continue
+
+        if not single:
+            # Nothing single-column to expand from: leave the glob alone and let
+            # the merge report whatever is actually wrong, rather than silently
+            # narrowing to an arbitrary subset.
+            self.logger.warning(
+                "Elevation banding is configured but no single-column forcing was "
+                "found in %s; the lapse expansion cannot run and bands will be "
+                "used as-is.", self.forcing_input_dir
+            )
+            return files
+
+        if len(single) != len(files):
+            self.logger.info(
+                "Elevation banding active: using the single-column basin-averaged "
+                "forcing %s (of %d file(s)) so the lapse expansion applies.",
+                [p.name for p in single], len(files)
+            )
+        return single
+
     def _merge_forcing_files(self) -> Optional[Path]:
         """Merge individual NetCDF files using CDO with xarray fallback."""
         easymore_nc_files = sorted(list(self.forcing_input_dir.glob('*.nc')))
         if not easymore_nc_files:
             self.logger.warning(f"No forcing files found in {self.forcing_input_dir}")
             return None
+        easymore_nc_files = self._select_forcing_for_banding(easymore_nc_files)
 
         merged_forcing_path = self.cache_path / 'merged_forcing.nc'
 
@@ -448,6 +506,19 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             # the obs files match the banded GeoData sub-basins.
             if self._elevation_bands and df.shape[1] == 1:
                 df = self._expand_columns_to_bands(df, variable_out)
+            elif self._elevation_bands:
+                # Banding was requested but the input is already multi-column, so
+                # the lapse correction cannot be applied. Say so: silently running
+                # unlapsed bands produces a plausible-looking but wrong result
+                # (measured KGE 0.8338 vs 0.9189 correctly expanded), which is
+                # far harder to notice than a failure.
+                self.logger.warning(
+                    "Elevation banding is configured (%d bands, lapse=%.4f K/m) but "
+                    "%s forcing has %d columns, not 1 — the lapse expansion will NOT "
+                    "be applied and the model will use these columns unchanged.",
+                    len(self._elevation_bands), self._lapse_rate,
+                    variable_out, df.shape[1]
+                )
 
             # Ensure time index is formatted as YYYY-MM-DD for HYPE
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
