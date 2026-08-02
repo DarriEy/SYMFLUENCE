@@ -595,6 +595,7 @@ run_1@MHM,KGE,macos,0.951193,native_windows,0.951193,0.000000,OK
 run_1@RHESSys,KGE,macos,0.839567,native_windows,0.372160,0.467407,STALE?
 run_1@SACSMA,KGE,macos,0.881687,native_windows,0.881684,0.000003,OK
 run_1@SUMMA,KGE,macos,0.892932,native_windows,0.893887,0.000954,OK
+run_1@SWAT,KGE,macos,0.784240,native_windows,0.785215,0.000975,OK
 run_1@TOPMODEL,KGE,macos,0.953393,native_windows,0.953393,0.000000,OK
 run_1@XINANJIANG,KGE,macos,0.914235,native_windows,0.914235,0.000000,OK
 bow_exp3_joint@SUMMA,KGE,macos,0.842957,wsl,0.851716,0.008759,OK
@@ -901,6 +902,7 @@ run_1@MHM,?,macos_dev,0.901851,native_windows,0.951193,0.049342,STALE?
 run_1@RHESSys,?,macos_dev,0.820464,native_windows,0.372160,0.448304,STALE?
 run_1@SACSMA,?,macos_dev,0.898095,native_windows,0.881684,0.016411,OK
 run_1@SUMMA,?,macos_dev,0.906350,native_windows,0.893887,0.012464,OK
+run_1@SWAT,?,macos_dev,0.811536,native_windows,0.785215,0.026321,STALE?
 run_1@TOPMODEL,?,macos_dev,0.921304,native_windows,0.953393,0.032090,EXPLAINED
 run_1@XINANJIANG,?,macos_dev,0.909171,native_windows,0.914235,0.005064,OK
 domain_Bow_at_Banff_lumped:river_basins/Bow_at_Banff_lumped_riverBasins_lumped.shp,n_features,macos_dev,1.000000,wsl,1.000000,0.000000,OK
@@ -1147,6 +1149,7 @@ run_1@MHM,KGE,macos_p3repro,0.947420,native_windows,0.951193,0.003773,OK
 run_1@RHESSys,KGE,macos_p3repro,0.851883,native_windows,0.372160,0.479723,STALE?
 run_1@SACSMA,KGE,macos_p3repro,0.893116,native_windows,0.881684,0.011432,OK
 run_1@SUMMA,KGE,macos_p3repro,0.893597,native_windows,0.893887,0.000289,OK
+run_1@SWAT,KGE,macos_p3repro,0.783466,native_windows,0.785215,0.001749,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.949035,native_windows,0.953393,0.004358,OK
 run_1@XINANJIANG,KGE,macos_p3repro,0.923822,native_windows,0.914235,0.009587,OK
 bow_exp3_joint@SUMMA,KGE,macos_p3repro,0.840768,wsl,0.851716,0.010948,OK
@@ -1621,5 +1624,6 @@ run_1@MHM,KGE,native_windows,0.951193,wsl,0.951193,0.000000,OK
 run_1@RHESSys,KGE,native_windows,0.372160,wsl,0.365187,0.006973,OK
 run_1@SACSMA,KGE,native_windows,0.881684,wsl,0.881684,0.000000,OK
 run_1@SUMMA,KGE,native_windows,0.893887,wsl,0.791400,0.102486,EXPLAINED
+run_1@SWAT,KGE,native_windows,0.785215,wsl,0.788872,0.003657,OK
 run_1@TOPMODEL,KGE,native_windows,0.953393,wsl,0.953393,0.000000,OK
 run_1@XINANJIANG,KGE,native_windows,0.914235,wsl,0.914235,0.000000,OK
