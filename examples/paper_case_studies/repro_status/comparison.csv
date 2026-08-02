@@ -631,6 +631,7 @@ cal_ensemble_hbv_nsga2@HBV,KGE,macos,0.890807,wsl,0.890807,0.000000,OK
 cal_ensemble_hbv_pso@HBV,KGE,macos,0.929163,wsl,0.929163,0.000000,OK
 cal_ensemble_hbv_sa@HBV,KGE,macos,0.915739,wsl,0.915739,0.000000,OK
 cal_ensemble_hbv_sceua@HBV,KGE,macos,0.916199,wsl,0.916199,0.000000,OK
+cal_ensemble_hechms_abc@HECHMS,KGE,macos,0.851098,wsl,0.851098,0.000000,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,macos,0.874822,wsl,0.874822,0.000000,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,macos,0.900849,wsl,0.895658,0.005190,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos,0.813025,wsl,0.813025,0.000000,OK
@@ -1174,6 +1175,7 @@ cal_ensemble_hbv_nsga2@HBV,KGE,macos_p3repro,0.939352,wsl,0.890807,0.048545,STAL
 cal_ensemble_hbv_pso@HBV,KGE,macos_p3repro,0.900913,wsl,0.929163,0.028250,STALE?
 cal_ensemble_hbv_sa@HBV,KGE,macos_p3repro,0.906402,wsl,0.915739,0.009337,OK
 cal_ensemble_hbv_sceua@HBV,KGE,macos_p3repro,0.908531,wsl,0.916199,0.007668,OK
+cal_ensemble_hechms_abc@HECHMS,KGE,macos_p3repro,0.864773,wsl,0.851098,0.013675,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,macos_p3repro,0.871811,wsl,0.874822,0.003011,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,macos_p3repro,0.880696,wsl,0.895658,0.014962,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos_p3repro,0.888049,wsl,0.813025,0.075023,STALE?
@@ -1415,6 +1417,7 @@ cal_ensemble_hbv_nsga2@HBV,KGE,native_windows,0.890807,wsl,0.890807,0.000000,OK
 cal_ensemble_hbv_pso@HBV,KGE,native_windows,0.929163,wsl,0.929163,0.000000,OK
 cal_ensemble_hbv_sa@HBV,KGE,native_windows,0.915739,wsl,0.915739,0.000000,OK
 cal_ensemble_hbv_sceua@HBV,KGE,native_windows,0.916199,wsl,0.916199,0.000000,OK
+cal_ensemble_hechms_abc@HECHMS,KGE,native_windows,0.851098,wsl,0.851098,0.000000,OK
 cal_ensemble_hechms_ga@HECHMS,KGE,native_windows,0.874822,wsl,0.874822,0.000000,OK
 cal_ensemble_hechms_moead@HECHMS,KGE,native_windows,0.895658,wsl,0.895658,0.000000,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,native_windows,0.813025,wsl,0.813025,0.000000,OK
