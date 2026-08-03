@@ -669,7 +669,7 @@ cal_ensemble_sacsma_abc@SACSMA,KGE,macos,0.419349,wsl,0.419349,0.000000,OK
 cal_ensemble_sacsma_adam@SACSMA,KGE,macos,0.844904,wsl,0.840631,0.004273,OK
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,macos,-0.917405,wsl,-0.913336,0.004069,OK
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,macos,-0.145077,wsl,-0.088012,0.057064,STALE?
-cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos,0.812063,wsl,0.543327,0.268736,STALE?
+cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos,0.812063,wsl,0.827533,0.015470,OK
 cal_ensemble_sacsma_dds@SACSMA,KGE,macos,0.847925,wsl,0.847905,0.000020,OK
 cal_ensemble_sacsma_de@SACSMA,KGE,macos,0.838476,wsl,0.838476,0.000000,OK
 cal_ensemble_sacsma_dream@SACSMA,KGE,macos,0.597119,wsl,0.597120,0.000001,OK
@@ -1231,7 +1231,7 @@ cal_ensemble_sacsma_abc@SACSMA,KGE,macos_p3repro,0.315820,wsl,0.419349,0.103529,
 cal_ensemble_sacsma_adam@SACSMA,KGE,macos_p3repro,0.888233,wsl,0.840631,0.047602,STALE?
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,macos_p3repro,-0.621106,wsl,-0.913336,0.292230,STALE?
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,macos_p3repro,-0.120234,wsl,-0.088012,0.032221,STALE?
-cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos_p3repro,0.830330,wsl,0.543327,0.287003,STALE?
+cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos_p3repro,0.830330,wsl,0.827533,0.002797,OK
 cal_ensemble_sacsma_dds@SACSMA,KGE,macos_p3repro,0.851648,wsl,0.847905,0.003743,OK
 cal_ensemble_sacsma_de@SACSMA,KGE,macos_p3repro,0.763154,wsl,0.838476,0.075322,STALE?
 cal_ensemble_sacsma_dream@SACSMA,KGE,macos_p3repro,0.555816,wsl,0.597120,0.041303,STALE?
@@ -1487,7 +1487,7 @@ cal_ensemble_sacsma_abc@SACSMA,KGE,native_windows,0.419349,wsl,0.419349,0.000000
 cal_ensemble_sacsma_adam@SACSMA,KGE,native_windows,0.844905,wsl,0.840631,0.004273,OK
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,native_windows,-0.913336,wsl,-0.913336,0.000000,OK
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,native_windows,-0.062743,wsl,-0.088012,0.025270,STALE?
-cal_ensemble_sacsma_cmaes@SACSMA,KGE,native_windows,0.827533,wsl,0.543327,0.284206,STALE?
+cal_ensemble_sacsma_cmaes@SACSMA,KGE,native_windows,0.827533,wsl,0.827533,0.000000,OK
 cal_ensemble_sacsma_dds@SACSMA,KGE,native_windows,0.847905,wsl,0.847905,0.000000,OK
 cal_ensemble_sacsma_de@SACSMA,KGE,native_windows,0.838476,wsl,0.838476,0.000000,OK
 cal_ensemble_sacsma_dream@SACSMA,KGE,native_windows,0.597120,wsl,0.597120,0.000000,OK
