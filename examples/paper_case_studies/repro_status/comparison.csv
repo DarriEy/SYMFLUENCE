@@ -665,7 +665,7 @@ cal_ensemble_hype_pso@HYPE,KGE,macos,0.591969,wsl,0.560051,0.031918,STALE?
 cal_ensemble_hype_sa@HYPE,KGE,macos,0.576021,wsl,0.720827,0.144806,STALE?
 cal_ensemble_hype_sceua@HYPE,KGE,macos,0.825445,wsl,0.797306,0.028139,STALE?
 cal_ensemble_sacsma_abc@SACSMA,KGE,macos,0.419349,wsl,0.419349,0.000000,OK
-cal_ensemble_sacsma_adam@SACSMA,KGE,macos,0.844904,wsl,0.837626,0.007279,OK
+cal_ensemble_sacsma_adam@SACSMA,KGE,macos,0.844904,wsl,0.838044,0.006861,OK
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,macos,-0.917405,wsl,-0.913336,0.004069,OK
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,macos,-0.145077,wsl,-0.052844,0.092233,STALE?
 cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos,0.812063,wsl,0.827533,0.015470,OK
@@ -1225,7 +1225,7 @@ cal_ensemble_hype_pso@HYPE,KGE,macos_p3repro,0.567920,wsl,0.560051,0.007869,OK
 cal_ensemble_hype_sa@HYPE,KGE,macos_p3repro,0.780156,wsl,0.720827,0.059329,STALE?
 cal_ensemble_hype_sceua@HYPE,KGE,macos_p3repro,0.774749,wsl,0.797306,0.022557,STALE?
 cal_ensemble_sacsma_abc@SACSMA,KGE,macos_p3repro,0.315820,wsl,0.419349,0.103529,STALE?
-cal_ensemble_sacsma_adam@SACSMA,KGE,macos_p3repro,0.888233,wsl,0.837626,0.050607,STALE?
+cal_ensemble_sacsma_adam@SACSMA,KGE,macos_p3repro,0.888233,wsl,0.838044,0.050189,STALE?
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,macos_p3repro,-0.621106,wsl,-0.913336,0.292230,STALE?
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,macos_p3repro,-0.120234,wsl,-0.052844,0.067390,STALE?
 cal_ensemble_sacsma_cmaes@SACSMA,KGE,macos_p3repro,0.830330,wsl,0.827533,0.002797,OK
@@ -1481,7 +1481,7 @@ cal_ensemble_hype_pso@HYPE,KGE,native_windows,0.591969,wsl,0.560051,0.031918,STA
 cal_ensemble_hype_sa@HYPE,KGE,native_windows,0.576021,wsl,0.720827,0.144806,STALE?
 cal_ensemble_hype_sceua@HYPE,KGE,native_windows,0.825445,wsl,0.797306,0.028139,STALE?
 cal_ensemble_sacsma_abc@SACSMA,KGE,native_windows,0.419349,wsl,0.419349,0.000000,OK
-cal_ensemble_sacsma_adam@SACSMA,KGE,native_windows,0.844905,wsl,0.837626,0.007279,OK
+cal_ensemble_sacsma_adam@SACSMA,KGE,native_windows,0.844905,wsl,0.838044,0.006861,OK
 cal_ensemble_sacsma_basin_hopping@SACSMA,KGE,native_windows,-0.913336,wsl,-0.913336,0.000000,OK
 cal_ensemble_sacsma_bayesian_opt@SACSMA,KGE,native_windows,-0.062743,wsl,-0.052844,0.009899,OK
 cal_ensemble_sacsma_cmaes@SACSMA,KGE,native_windows,0.827533,wsl,0.827533,0.000000,OK
