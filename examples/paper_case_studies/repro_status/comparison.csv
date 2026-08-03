@@ -646,6 +646,7 @@ cal_ensemble_hechms_lbfgs@HECHMS,KGE,macos,0.859116,wsl,0.789986,0.069130,STALE?
 cal_ensemble_hechms_moead@HECHMS,KGE,macos,0.900849,wsl,0.895658,0.005190,OK
 cal_ensemble_hechms_nelder_mead@HECHMS,KGE,macos,0.900696,wsl,0.900696,0.000000,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos,0.813025,wsl,0.813025,0.000000,OK
+cal_ensemble_hechms_pso@HECHMS,KGE,macos,0.890619,wsl,0.890619,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,macos,0.355703,wsl,0.355705,0.000003,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos,0.474379,wsl,0.474379,0.000000,OK
@@ -1203,6 +1204,7 @@ cal_ensemble_hechms_lbfgs@HECHMS,KGE,macos_p3repro,0.800955,wsl,0.789986,0.01096
 cal_ensemble_hechms_moead@HECHMS,KGE,macos_p3repro,0.880696,wsl,0.895658,0.014962,OK
 cal_ensemble_hechms_nelder_mead@HECHMS,KGE,macos_p3repro,0.881379,wsl,0.900696,0.019317,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,macos_p3repro,0.888049,wsl,0.813025,0.075023,STALE?
+cal_ensemble_hechms_pso@HECHMS,KGE,macos_p3repro,0.889410,wsl,0.890619,0.001209,OK
 cal_ensemble_hype_abc@HYPE,KGE,macos_p3repro,0.832525,wsl,0.686033,0.146492,STALE?
 cal_ensemble_hype_basin_hopping@HYPE,KGE,macos_p3repro,0.438559,wsl,0.355705,0.082853,STALE?
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,macos_p3repro,0.475402,wsl,0.474379,0.001023,OK
@@ -1456,6 +1458,7 @@ cal_ensemble_hechms_lbfgs@HECHMS,KGE,native_windows,0.797950,wsl,0.789986,0.0079
 cal_ensemble_hechms_moead@HECHMS,KGE,native_windows,0.895658,wsl,0.895658,0.000000,OK
 cal_ensemble_hechms_nelder_mead@HECHMS,KGE,native_windows,0.900696,wsl,0.900696,0.000000,OK
 cal_ensemble_hechms_nsga2@HECHMS,KGE,native_windows,0.813025,wsl,0.813025,0.000000,OK
+cal_ensemble_hechms_pso@HECHMS,KGE,native_windows,0.890619,wsl,0.890619,0.000000,OK
 cal_ensemble_hype_abc@HYPE,KGE,native_windows,0.686033,wsl,0.686033,0.000000,OK
 cal_ensemble_hype_basin_hopping@HYPE,KGE,native_windows,0.355705,wsl,0.355705,0.000000,OK
 cal_ensemble_hype_bayesian_opt@HYPE,KGE,native_windows,0.474379,wsl,0.474379,0.000000,OK
