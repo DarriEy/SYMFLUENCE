@@ -660,7 +660,7 @@ cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,wsl,0.474143,0.352409,STALE?
 cal_ensemble_hype_glue@HYPE,KGE,macos,0.316885,wsl,0.466006,0.149121,STALE?
 cal_ensemble_hype_moead@HYPE,KGE,macos,0.554692,wsl,0.849515,0.294824,STALE?
 cal_ensemble_hype_nelder_mead@HYPE,KGE,macos,0.707065,wsl,0.640307,0.066758,STALE?
-cal_ensemble_hype_nsga2@HYPE,KGE,macos,0.783433,wsl,0.752007,0.031426,STALE?
+cal_ensemble_hype_nsga2@HYPE,KGE,macos,0.783433,wsl,0.674497,0.108936,STALE?
 cal_ensemble_hype_pso@HYPE,KGE,macos,0.591969,wsl,0.591969,0.000000,OK
 cal_ensemble_hype_sa@HYPE,KGE,macos,0.576021,wsl,0.576021,0.000000,OK
 cal_ensemble_hype_sceua@HYPE,KGE,macos,0.825445,wsl,0.825445,0.000000,OK
@@ -1220,7 +1220,7 @@ cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.851173,wsl,0.474143,0.377030,STALE
 cal_ensemble_hype_glue@HYPE,KGE,macos_p3repro,0.457034,wsl,0.466006,0.008972,OK
 cal_ensemble_hype_moead@HYPE,KGE,macos_p3repro,0.849930,wsl,0.849515,0.000415,OK
 cal_ensemble_hype_nelder_mead@HYPE,KGE,macos_p3repro,0.651173,wsl,0.640307,0.010866,OK
-cal_ensemble_hype_nsga2@HYPE,KGE,macos_p3repro,0.823391,wsl,0.752007,0.071385,STALE?
+cal_ensemble_hype_nsga2@HYPE,KGE,macos_p3repro,0.823391,wsl,0.674497,0.148894,STALE?
 cal_ensemble_hype_pso@HYPE,KGE,macos_p3repro,0.567920,wsl,0.591969,0.024048,STALE?
 cal_ensemble_hype_sa@HYPE,KGE,macos_p3repro,0.780156,wsl,0.576021,0.204135,STALE?
 cal_ensemble_hype_sceua@HYPE,KGE,macos_p3repro,0.774749,wsl,0.825445,0.050696,STALE?
@@ -1476,7 +1476,7 @@ cal_ensemble_hype_ga@HYPE,KGE,native_windows,0.826552,wsl,0.474143,0.352409,STAL
 cal_ensemble_hype_glue@HYPE,KGE,native_windows,0.316885,wsl,0.466006,0.149121,STALE?
 cal_ensemble_hype_moead@HYPE,KGE,native_windows,0.627655,wsl,0.849515,0.221860,STALE?
 cal_ensemble_hype_nelder_mead@HYPE,KGE,native_windows,0.707144,wsl,0.640307,0.066837,STALE?
-cal_ensemble_hype_nsga2@HYPE,KGE,native_windows,0.752007,wsl,0.752007,0.000000,OK
+cal_ensemble_hype_nsga2@HYPE,KGE,native_windows,0.752007,wsl,0.674497,0.077509,STALE?
 cal_ensemble_hype_pso@HYPE,KGE,native_windows,0.591969,wsl,0.591969,0.000000,OK
 cal_ensemble_hype_sa@HYPE,KGE,native_windows,0.576021,wsl,0.576021,0.000000,OK
 cal_ensemble_hype_sceua@HYPE,KGE,native_windows,0.825445,wsl,0.825445,0.000000,OK
