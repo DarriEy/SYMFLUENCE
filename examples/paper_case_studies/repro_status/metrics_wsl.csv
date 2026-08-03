@@ -63,7 +63,7 @@ cal_ensemble_hype_moead@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensembl
 cal_ensemble_hype_nelder_mead@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.6403071175,0.7614198203,694,2026-08-03T07:08:30Z,0.9.2,9b969c28,2026-08-03T07:16:54Z,,,,
 cal_ensemble_hype_nsga2@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.7596381407,0.7409537775,20,2026-08-03T08:00:57Z,0.9.2,ef874b8d,2026-08-03T08:09:39Z,,,,
 cal_ensemble_hype_pso@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.5600508314,-0.100613152,45,2026-08-03T08:51:15Z,0.9.2,de0a7922,2026-08-03T08:52:35Z,,,,
-cal_ensemble_hype_sa@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,-0.1149524432,0.5474682606,9,2026-08-03T09:01:47Z,0.9.2,b9f0376f,2026-08-03T09:03:38Z,,,,
+cal_ensemble_hype_sa@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4836270945,0.5474682606,25,2026-08-03T09:10:42Z,0.9.2,a1b9be16,2026-08-03T09:14:37Z,,,,
 cal_ensemble_hype_sceua@HYPE,HYPE,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.825445421,0.7616629715,7,2026-07-29T10:09:39Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_abc@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4193490528,0.4126202606,4,2026-07-29T10:24:14Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_adam@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8449046846,0.7716558802,499,2026-07-29T11:14:17Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
