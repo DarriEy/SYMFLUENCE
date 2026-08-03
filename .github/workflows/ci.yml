@@ -157,12 +157,30 @@ jobs:
         # indefinite hang into a bounded failure. The step timeout then attributes
         # any remaining stall to dependency installation instead of letting it
         # masquerade as a slow test run — normal completion here is 1-2 minutes.
-        timeout-minutes: 8
+        #
+        # Acquire::Retries alone was not enough: it retries individual downloads
+        # *within* one apt run, so a run that wedges as a whole still burns the
+        # step budget and fails the job (this is what happened on run
+        # 30801386860, which hit the 8-minute ceiling). Hence the outer loop —
+        # a fresh run generally lands on a different mirror. Each attempt is
+        # capped by `timeout` so one stall cannot consume every attempt; the
+        # caps are ~5x normal completion, and the step ceiling sits above the
+        # worst case of 3 attempts (3 * 5m + backoff).
+        timeout-minutes: 17
         run: |
           printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
             | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev cdo
+          for attempt in 1 2 3; do
+            if timeout 2m sudo apt-get update \
+               && timeout 3m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+            sudo apt-get clean
+            sleep 15
+          done
+          echo "::error::apt-get failed after 3 attempts"
+          exit 1
 
       - name: Install Python dependencies
         run: |
