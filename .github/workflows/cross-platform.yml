@@ -91,13 +91,30 @@ jobs:
         # apt has no default download timeout; the drop-in bounds and retries each
         # connection, and the step timeout attributes any remaining stall to this
         # step rather than to the tests. Normal completion is 1-2 minutes.
-        timeout-minutes: 8
+        #
+        # Acquire::Retries only retries downloads within a single apt run, so a
+        # run that wedges as a whole still burns the budget; the outer loop gets
+        # a fresh run (usually a different mirror), with each attempt capped by
+        # `timeout` so one stall cannot eat every attempt. Kept in step with the
+        # matching step in ci.yml.
+        timeout-minutes: 17
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
             printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
               | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y gdal-bin libgdal-dev cdo
+            for attempt in 1 2 3; do
+              if timeout 2m sudo apt-get update \
+                 && timeout 3m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
+                break
+              fi
+              if [[ "${attempt}" == "3" ]]; then
+                echo "::error::apt-get failed after 3 attempts"
+                exit 1
+              fi
+              echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+              sudo apt-get clean
+              sleep 15
+            done
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
             brew install gdal cdo
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
