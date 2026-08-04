@@ -77,7 +77,7 @@ cal_ensemble_sacsma_dream@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_e
 cal_ensemble_sacsma_ga@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.2749778491,0.2315273959,50,2026-08-03T15:24:13Z,0.9.2,f122a7fb,2026-08-03T15:30:24Z,,,,
 cal_ensemble_sacsma_glue@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.1825893409,0.01386012369,6,2026-07-29T18:30:21Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_moead@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.2992236144,0.2751711469,20,2026-08-04T09:41:15Z,0.9.2,aa7edaa8,2026-08-04T09:45:41Z,,,,
-cal_ensemble_sacsma_nelder_mead@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.1489622136,0.05427220663,1000,2026-08-01T19:39:54Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
+cal_ensemble_sacsma_nelder_mead@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.07713862706,0.05427220663,719,2026-08-04T09:56:52Z,0.9.2,31ebc071,2026-08-04T09:56:45Z,,,,
 cal_ensemble_sacsma_nsga2@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8206007396,0.6811782554,19,2026-08-01T19:52:00Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_pso@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.3168283604,0.3340412298,50,2026-08-01T19:59:01Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_sa@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8116273828,0.6737366213,74,2026-08-01T20:05:37Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
