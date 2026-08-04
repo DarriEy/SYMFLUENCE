@@ -678,7 +678,7 @@ cal_ensemble_sacsma_ga@SACSMA,KGE,macos,0.274978,wsl,0.274978,0.000000,OK
 cal_ensemble_sacsma_glue@SACSMA,KGE,macos,0.182590,wsl,0.182589,0.000001,OK
 cal_ensemble_sacsma_moead@SACSMA,KGE,macos,0.811953,wsl,0.299224,0.512729,STALE?
 cal_ensemble_sacsma_nelder_mead@SACSMA,KGE,macos,0.130062,wsl,0.148962,0.018900,OK
-cal_ensemble_sacsma_nsga2@SACSMA,KGE,macos,0.820601,wsl,0.737050,0.083551,STALE?
+cal_ensemble_sacsma_nsga2@SACSMA,KGE,macos,0.820601,wsl,0.820601,0.000000,OK
 cal_ensemble_sacsma_pso@SACSMA,KGE,macos,0.316828,wsl,0.316828,0.000000,OK
 cal_ensemble_sacsma_sa@SACSMA,KGE,macos,0.811628,wsl,0.811627,0.000000,OK
 cal_ensemble_sacsma_sceua@SACSMA,KGE,macos,0.451409,wsl,0.482398,0.030989,STALE?
@@ -1242,7 +1242,7 @@ cal_ensemble_sacsma_ga@SACSMA,KGE,macos_p3repro,0.271049,wsl,0.274978,0.003928,O
 cal_ensemble_sacsma_glue@SACSMA,KGE,macos_p3repro,0.186526,wsl,0.182589,0.003936,OK
 cal_ensemble_sacsma_moead@SACSMA,KGE,macos_p3repro,0.824150,wsl,0.299224,0.524927,STALE?
 cal_ensemble_sacsma_nelder_mead@SACSMA,KGE,macos_p3repro,0.823611,wsl,0.148962,0.674648,STALE?
-cal_ensemble_sacsma_nsga2@SACSMA,KGE,macos_p3repro,0.798202,wsl,0.737050,0.061152,STALE?
+cal_ensemble_sacsma_nsga2@SACSMA,KGE,macos_p3repro,0.798202,wsl,0.820601,0.022399,STALE?
 cal_ensemble_sacsma_pso@SACSMA,KGE,macos_p3repro,0.288089,wsl,0.316828,0.028740,STALE?
 cal_ensemble_sacsma_sa@SACSMA,KGE,macos_p3repro,0.810433,wsl,0.811627,0.001194,OK
 cal_ensemble_sacsma_sceua@SACSMA,KGE,macos_p3repro,0.503955,wsl,0.482398,0.021557,STALE?
