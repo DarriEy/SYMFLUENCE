@@ -658,7 +658,7 @@ cal_ensemble_hype_cmaes@HYPE,KGE,macos,0.813324,wsl,0.690405,0.122919,EXPLAINED
 cal_ensemble_hype_dds@HYPE,KGE,macos,0.849389,wsl,0.849389,0.000000,OK
 cal_ensemble_hype_de@HYPE,KGE,macos,0.806661,wsl,0.806661,0.000000,OK
 cal_ensemble_hype_dream@HYPE,KGE,macos,0.371711,wsl,0.547847,0.176136,STALE?
-cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,wsl,0.474143,0.352409,STALE?
+cal_ensemble_hype_ga@HYPE,KGE,macos,0.826552,wsl,0.738077,0.088476,STALE?
 cal_ensemble_hype_glue@HYPE,KGE,macos,0.316885,wsl,0.466006,0.149121,STALE?
 cal_ensemble_hype_moead@HYPE,KGE,macos,0.554692,wsl,0.849515,0.294824,STALE?
 cal_ensemble_hype_nelder_mead@HYPE,KGE,macos,0.707065,wsl,0.640307,0.066758,STALE?
@@ -1222,7 +1222,7 @@ cal_ensemble_hype_cmaes@HYPE,KGE,macos_p3repro,0.845272,wsl,0.690405,0.154867,EX
 cal_ensemble_hype_dds@HYPE,KGE,macos_p3repro,0.853489,wsl,0.849389,0.004100,OK
 cal_ensemble_hype_de@HYPE,KGE,macos_p3repro,0.826110,wsl,0.806661,0.019449,OK
 cal_ensemble_hype_dream@HYPE,KGE,macos_p3repro,0.464558,wsl,0.547847,0.083289,STALE?
-cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.851173,wsl,0.474143,0.377030,STALE?
+cal_ensemble_hype_ga@HYPE,KGE,macos_p3repro,0.851173,wsl,0.738077,0.113097,STALE?
 cal_ensemble_hype_glue@HYPE,KGE,macos_p3repro,0.457034,wsl,0.466006,0.008972,OK
 cal_ensemble_hype_moead@HYPE,KGE,macos_p3repro,0.849930,wsl,0.849515,0.000415,OK
 cal_ensemble_hype_nelder_mead@HYPE,KGE,macos_p3repro,0.651173,wsl,0.640307,0.010866,OK
@@ -1479,7 +1479,7 @@ cal_ensemble_hype_cmaes@HYPE,KGE,native_windows,0.690405,wsl,0.690405,0.000000,O
 cal_ensemble_hype_dds@HYPE,KGE,native_windows,0.849389,wsl,0.849389,0.000000,OK
 cal_ensemble_hype_de@HYPE,KGE,native_windows,0.806661,wsl,0.806661,0.000000,OK
 cal_ensemble_hype_dream@HYPE,KGE,native_windows,0.371711,wsl,0.547847,0.176136,STALE?
-cal_ensemble_hype_ga@HYPE,KGE,native_windows,0.826552,wsl,0.474143,0.352409,STALE?
+cal_ensemble_hype_ga@HYPE,KGE,native_windows,0.826552,wsl,0.738077,0.088476,STALE?
 cal_ensemble_hype_glue@HYPE,KGE,native_windows,0.316885,wsl,0.466006,0.149121,STALE?
 cal_ensemble_hype_moead@HYPE,KGE,native_windows,0.627655,wsl,0.849515,0.221860,STALE?
 cal_ensemble_hype_nelder_mead@HYPE,KGE,native_windows,0.707144,wsl,0.640307,0.066837,STALE?
