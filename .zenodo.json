@@ -53,10 +53,6 @@
       "orcid": "0000-0002-6996-978X"
     },
     {
-      "name": "Vásquez, Nicolás",
-      "orcid": "0000-0002-4651-8935"
-    },
-    {
       "name": "Wagener, Peter",
       "orcid": "0009-0005-5560-3698"
     },
@@ -75,11 +71,6 @@
       "name": "Pietroniro, Alain",
       "orcid": "0000-0001-5792-9177",
       "type": "Supervisor"
-    },
-    {
-      "name": "Keshavarz, Kasra",
-      "orcid": "0000-0002-7093-3928",
-      "type": "Other"
     },
     {
       "name": "Aguirre, Ignacio",
@@ -148,6 +139,11 @@
     {
       "name": "Knoben, Wouter J. M.",
       "orcid": "0000-0001-8301-3787",
+      "type": "Other"
+    },
+    {
+      "name": "Vásquez, Nicolás",
+      "orcid": "0000-0002-4651-8935",
       "type": "Other"
     }
   ]
