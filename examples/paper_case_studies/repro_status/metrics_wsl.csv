@@ -82,6 +82,7 @@ cal_ensemble_sacsma_nsga2@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_e
 cal_ensemble_sacsma_pso@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.3168283604,0.3340412298,50,2026-08-04T10:45:26Z,0.9.2,099659e0,2026-08-04T10:52:57Z,,,,
 cal_ensemble_sacsma_sa@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8116273828,0.6737366213,74,2026-08-01T20:05:37Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
 cal_ensemble_sacsma_sceua@SACSMA,SACSMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.4823983118,0.4000335608,7,2026-08-01T20:11:08Z,0.9.2,deddc14e,2026-08-01T22:11:21Z,,,,
+cal_ensemble_summa_abc@SUMMA,SUMMA,domain_Bow_at_Banff_lumped_calibration_ensemble,KGE,0.8891896931,0.8621704389,16,2026-08-06T02:32:17Z,0.9.2,39bacb43,2026-08-06T02:38:42Z,,,,
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,geometry,domain_Bow_at_Banff_distributed,n_features,2332,,,2026-07-19T12:38:48Z,0.9.2,9d6bb65a,2026-07-21T14:31:29Z,e8bf6444c1b212b1,,,
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,geometry,domain_Bow_at_Banff_distributed,n_features,2332,,,2026-07-19T12:38:46Z,0.9.2,9d6bb65a,2026-07-21T14:31:29Z,e8bf6444c1b212b1,,,
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,geometry,domain_Bow_at_Banff_distributed,n_features,2332,,,2026-07-19T12:38:46Z,0.9.2,9d6bb65a,2026-07-21T14:31:29Z,e8bf6444c1b212b1,,,
