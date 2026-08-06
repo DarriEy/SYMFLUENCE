@@ -176,6 +176,14 @@ jobs:
               exit 0
             fi
             echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+            # When the cap fires mid-`Setting up`, dpkg is left half-configured
+            # and every later apt call aborts in seconds with "dpkg was
+            # interrupted, you must manually run 'sudo dpkg --configure -a'" —
+            # so without this the remaining attempts cannot succeed and the
+            # retry loop is decorative (run 31099033329). Configuring is also
+            # resumable: the next attempt keeps the packages the killed one
+            # already unpacked, so it finishes well inside the cap.
+            timeout 3m sudo dpkg --configure -a || true
             sudo apt-get clean
             sleep 15
           done

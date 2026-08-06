@@ -112,6 +112,10 @@ jobs:
                 exit 1
               fi
               echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+              # See ci.yml: a cap that fires mid-`Setting up` wedges dpkg, and
+              # every later apt call then aborts instantly until it is
+              # reconfigured. Resumable, so the retry picks up where this left off.
+              timeout 3m sudo dpkg --configure -a || true
               sudo apt-get clean
               sleep 15
             done
