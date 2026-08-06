@@ -162,20 +162,27 @@ jobs:
         # *within* one apt run, so a run that wedges as a whole still burns the
         # step budget and fails the job (this is what happened on run
         # 30801386860, which hit the 8-minute ceiling). Hence the outer loop —
-        # a fresh run generally lands on a different mirror. Each attempt is
-        # capped by `timeout` so one stall cannot consume every attempt; the
-        # caps are ~5x normal completion, and the step ceiling sits above the
-        # worst case of 3 attempts (3 * 5m + backoff).
-        timeout-minutes: 17
+        # a fresh run generally lands on a different mirror.
+        #
+        # Sizing the caps: this pulls 312 packages / 249 MB. A healthy mirror
+        # delivers that in ~22s, but mirror throughput varies by ~40x — run
+        # 31111560519 crawled at ~250 kB/s, which needs ~17 minutes. The install
+        # cap therefore has to cover a slow-but-progressing download, not just a
+        # healthy one; a cap sized off healthy runs (the old 3m) fails every
+        # attempt on a degraded mirror no matter how many attempts there are.
+        # Two attempts at 8m, since a third adds ceiling without adding much
+        # chance of success. Step ceiling sits above the worst case of
+        # 2 * (2m + 8m) + backoff.
+        timeout-minutes: 22
         run: |
           printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
             | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
-          for attempt in 1 2 3; do
+          for attempt in 1 2; do
             if timeout 2m sudo apt-get update \
-               && timeout 3m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
+               && timeout 8m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
               exit 0
             fi
-            echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+            echo "::warning::apt attempt ${attempt}/2 failed or stalled; retrying"
             # When the cap fires mid-`Setting up`, dpkg is left half-configured
             # and every later apt call aborts in seconds with "dpkg was
             # interrupted, you must manually run 'sudo dpkg --configure -a'" —
@@ -184,10 +191,14 @@ jobs:
             # resumable: the next attempt keeps the packages the killed one
             # already unpacked, so it finishes well inside the cap.
             timeout 3m sudo dpkg --configure -a || true
-            sudo apt-get clean
+            # Deliberately NOT `apt-get clean`: that deletes the partially
+            # downloaded .debs, so a retry restarts from zero. On run
+            # 31111560519 all three attempts logged an identical "Need to get
+            # 249 MB", re-fetching the same bytes and never converging. Keeping
+            # the cache lets attempt 2 resume where attempt 1 was cut off.
             sleep 15
           done
-          echo "::error::apt-get failed after 3 attempts"
+          echo "::error::apt-get failed after 2 attempts"
           exit 1
 
       - name: Install Python dependencies

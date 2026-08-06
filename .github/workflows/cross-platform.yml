@@ -95,28 +95,31 @@ jobs:
         # Acquire::Retries only retries downloads within a single apt run, so a
         # run that wedges as a whole still burns the budget; the outer loop gets
         # a fresh run (usually a different mirror), with each attempt capped by
-        # `timeout` so one stall cannot eat every attempt. Kept in step with the
+        # `timeout` so one stall cannot eat every attempt. The 8m install cap is
+        # sized to cover a slow-but-progressing mirror (249 MB at the ~250 kB/s
+        # seen on run 31111560519), not just a healthy one. Kept in step with the
         # matching step in ci.yml.
-        timeout-minutes: 17
+        timeout-minutes: 22
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
             printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
               | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
-            for attempt in 1 2 3; do
+            for attempt in 1 2; do
               if timeout 2m sudo apt-get update \
-                 && timeout 3m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
+                 && timeout 8m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
                 break
               fi
-              if [[ "${attempt}" == "3" ]]; then
-                echo "::error::apt-get failed after 3 attempts"
+              if [[ "${attempt}" == "2" ]]; then
+                echo "::error::apt-get failed after 2 attempts"
                 exit 1
               fi
-              echo "::warning::apt attempt ${attempt}/3 failed or stalled; retrying"
+              echo "::warning::apt attempt ${attempt}/2 failed or stalled; retrying"
               # See ci.yml: a cap that fires mid-`Setting up` wedges dpkg, and
               # every later apt call then aborts instantly until it is
               # reconfigured. Resumable, so the retry picks up where this left off.
               timeout 3m sudo dpkg --configure -a || true
-              sudo apt-get clean
+              # Deliberately NOT `apt-get clean` — see ci.yml: it deletes the
+              # partial downloads, forcing the retry to re-fetch 249 MB from zero.
               sleep 15
             done
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
