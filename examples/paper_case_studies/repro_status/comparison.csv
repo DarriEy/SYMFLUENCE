@@ -684,6 +684,7 @@ cal_ensemble_sacsma_pso@SACSMA,KGE,macos,0.316828,wsl,0.316828,0.000000,OK
 cal_ensemble_sacsma_sa@SACSMA,KGE,macos,0.811628,wsl,0.811627,0.000000,OK
 cal_ensemble_sacsma_sceua@SACSMA,KGE,macos,0.451409,wsl,0.482398,0.030989,STALE?
 cal_ensemble_summa_abc@SUMMA,KGE,macos,0.889229,wsl,0.889190,0.000039,OK
+cal_ensemble_summa_bayesian_opt@SUMMA,KGE,macos,0.701214,wsl,0.605515,0.095699,STALE?
 cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos,0.758922,wsl,0.758922,0.000000,OK
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos,0.720636,wsl,0.746068,0.025433,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos,0.697080,wsl,0.708419,0.011339,OK
@@ -1288,6 +1289,7 @@ cal_ensemble_sacsma_pso@SACSMA,KGE,macos_p3repro,0.288089,wsl,0.316828,0.028740,
 cal_ensemble_sacsma_sa@SACSMA,KGE,macos_p3repro,0.810433,wsl,0.811627,0.001194,OK
 cal_ensemble_sacsma_sceua@SACSMA,KGE,macos_p3repro,0.503955,wsl,0.482398,0.021557,STALE?
 cal_ensemble_summa_abc@SUMMA,KGE,macos_p3repro,0.846169,wsl,0.889190,0.043021,STALE?
+cal_ensemble_summa_bayesian_opt@SUMMA,KGE,macos_p3repro,0.742161,wsl,0.605515,0.136646,STALE?
 cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos_p3repro,0.772055,wsl,0.758922,0.013133,OK
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos_p3repro,0.796939,wsl,0.746068,0.050871,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos_p3repro,0.746297,wsl,0.708419,0.037879,STALE?
