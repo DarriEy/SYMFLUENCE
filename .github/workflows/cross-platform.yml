@@ -95,10 +95,11 @@ jobs:
         # Acquire::Retries only retries downloads within a single apt run, so a
         # run that wedges as a whole still burns the budget; the outer loop gets
         # a fresh run (usually a different mirror), with each attempt capped by
-        # `timeout` so one stall cannot eat every attempt. The 8m install cap is
-        # sized to cover a slow-but-progressing mirror (249 MB at the ~250 kB/s
-        # seen on run 31111560519), not just a healthy one. Kept in step with the
-        # matching step in ci.yml.
+        # `timeout` so one stall cannot eat every attempt. --no-install-recommends
+        # keeps the download small enough to finish on a degraded mirror (with
+        # recommends it was 249 MB, and runs 31111560519 / 31113143558 crawled at
+        # ~240 kB/s), and the 8m cap covers a slow-but-progressing fetch rather
+        # than just a healthy one. Kept in step with the matching step in ci.yml.
         timeout-minutes: 22
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
@@ -106,7 +107,8 @@ jobs:
               | sudo tee /etc/apt/apt.conf.d/99symfluence-timeouts > /dev/null
             for attempt in 1 2; do
               if timeout 2m sudo apt-get update \
-                 && timeout 8m sudo apt-get install -y gdal-bin libgdal-dev cdo; then
+                 && timeout 8m sudo apt-get install -y --no-install-recommends \
+                      gdal-bin libgdal-dev cdo; then
                 break
               fi
               if [[ "${attempt}" == "2" ]]; then
