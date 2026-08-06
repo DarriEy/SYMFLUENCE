@@ -600,6 +600,7 @@ run_1@SWAT,KGE,macos,0.784240,native_windows,0.785215,0.000975,OK
 run_1@TOPMODEL,KGE,macos,0.953393,native_windows,0.953393,0.000000,OK
 run_1@XINANJIANG,KGE,macos,0.914235,native_windows,0.914235,0.000000,OK
 bow_exp1_streamflow_only@SUMMA,KGE,macos,0.816604,wsl,0.870983,0.054379,STALE?
+bow_exp2_tws_only@SUMMA,CORRELATION,macos,0.921173,wsl,0.877452,0.043721,STALE?
 bow_exp3_joint@SUMMA,KGE,macos,0.842957,wsl,0.851716,0.008759,OK
 bow_exp4_moead_joint@SUMMA,KGE,macos,0.866988,wsl,0.741312,0.125676,STALE?
 cal_ensemble_fuse_abc@FUSE,KGE,macos,0.870525,wsl,0.870525,0.000000,OK
@@ -1186,6 +1187,7 @@ run_1@SWAT,KGE,macos_p3repro,0.783466,native_windows,0.785215,0.001749,OK
 run_1@TOPMODEL,KGE,macos_p3repro,0.949035,native_windows,0.953393,0.004358,OK
 run_1@XINANJIANG,KGE,macos_p3repro,0.923822,native_windows,0.914235,0.009587,OK
 bow_exp1_streamflow_only@SUMMA,KGE,macos_p3repro,0.872021,wsl,0.870983,0.001038,OK
+bow_exp2_tws_only@SUMMA,CORRELATION,macos_p3repro,0.847324,wsl,0.877452,0.030128,STALE?
 bow_exp3_joint@SUMMA,KGE,macos_p3repro,0.840768,wsl,0.851716,0.010948,OK
 bow_exp4_moead_joint@SUMMA,KGE,macos_p3repro,0.868438,wsl,0.741312,0.127126,STALE?
 cal_ensemble_fuse_abc@FUSE,KGE,macos_p3repro,0.885269,wsl,0.870525,0.014743,OK
