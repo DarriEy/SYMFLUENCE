@@ -687,6 +687,8 @@ cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos,0.758922,wsl,0.758922,0.000000,OK
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos,0.720636,wsl,0.746068,0.025433,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos,0.697080,wsl,0.708419,0.011339,OK
 cal_ensemble_topmodel_bayesian_opt@TOPMODEL,KGE,macos,0.581563,wsl,0.619867,0.038305,STALE?
+cal_ensemble_topmodel_cmaes@TOPMODEL,KGE,macos,0.851301,wsl,0.850379,0.000923,OK
+cal_ensemble_topmodel_dds@TOPMODEL,KGE,macos,0.837660,wsl,0.837660,0.000000,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos,2332.000000,wsl,2332.000000,0.000000,OK
@@ -785,6 +787,8 @@ domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_to
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_basin_hopping/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_bayesian_opt/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_cmaes/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_dds/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_de/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_basins/Bow_at_Banff_lumped_calibration_ensemble_riverBasins_lumped.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_network/Bow_at_Banff_lumped_calibration_ensemble_riverNetwork_lumped.shp,n_features,macos,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_elev_aspect:catchment/lumped/Bow_at_Banff_lumped_elev_aspect/Bow_at_Banff_lumped_elev_aspect_HRUs_elevation_aspect.shp,n_features,macos,88.000000,wsl,88.000000,0.000000,OK
@@ -1261,6 +1265,8 @@ cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos_p3repro,0.772055,wsl,0.758922,0.013
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos_p3repro,0.796939,wsl,0.746068,0.050871,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos_p3repro,0.746297,wsl,0.708419,0.037879,STALE?
 cal_ensemble_topmodel_bayesian_opt@TOPMODEL,KGE,macos_p3repro,0.563200,wsl,0.619867,0.056667,STALE?
+cal_ensemble_topmodel_cmaes@TOPMODEL,KGE,macos_p3repro,0.850295,wsl,0.850379,0.000084,OK
+cal_ensemble_topmodel_dds@TOPMODEL,KGE,macos_p3repro,0.845912,wsl,0.837660,0.008252,OK
 domain_Bow_at_Banff_distributed:catchment/distributed/Bow_at_Banff_distributed/Bow_at_Banff_distributed_HRUs_GRUs.shp,n_features,macos_p3repro,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_basins/Bow_at_Banff_distributed_riverBasins_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,wsl,2332.000000,0.000000,OK
 domain_Bow_at_Banff_distributed:river_network/Bow_at_Banff_distributed_riverNetwork_distributed_1000m.shp,n_features,macos_p3repro,2332.000000,wsl,2332.000000,0.000000,OK
@@ -1359,6 +1365,8 @@ domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_to
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_basin_hopping/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_bayesian_opt/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_cmaes/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_dds/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
+domain_Bow_at_Banff_lumped_calibration_ensemble:catchment/lumped/cal_ensemble_topmodel_de/Bow_at_Banff_lumped_calibration_ensemble_HRUs_GRUs.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_basins/Bow_at_Banff_lumped_calibration_ensemble_riverBasins_lumped.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_calibration_ensemble:river_network/Bow_at_Banff_lumped_calibration_ensemble_riverNetwork_lumped.shp,n_features,macos_p3repro,1.000000,wsl,1.000000,0.000000,OK
 domain_Bow_at_Banff_lumped_elev_aspect:catchment/lumped/Bow_at_Banff_lumped_elev_aspect/Bow_at_Banff_lumped_elev_aspect_HRUs_elevation_aspect.shp,n_features,macos_p3repro,88.000000,wsl,88.000000,0.000000,OK
