@@ -688,6 +688,7 @@ cal_ensemble_summa_bayesian_opt@SUMMA,KGE,macos,0.701214,wsl,0.605515,0.095699,S
 cal_ensemble_summa_cmaes@SUMMA,KGE,macos,0.879659,wsl,0.871771,0.007889,OK
 cal_ensemble_summa_dds@SUMMA,KGE,macos,0.884983,wsl,0.889402,0.004420,OK
 cal_ensemble_summa_de@SUMMA,KGE,macos,0.889582,wsl,0.889591,0.000009,OK
+cal_ensemble_summa_dream@SUMMA,KGE,macos,0.866497,wsl,0.866502,0.000005,OK
 cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos,0.758922,wsl,0.758922,0.000000,OK
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos,0.720636,wsl,0.746068,0.025433,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos,0.697080,wsl,0.708419,0.011339,OK
@@ -1297,6 +1298,7 @@ cal_ensemble_summa_bayesian_opt@SUMMA,KGE,macos_p3repro,0.742161,wsl,0.605515,0.
 cal_ensemble_summa_cmaes@SUMMA,KGE,macos_p3repro,0.850233,wsl,0.871771,0.021537,STALE?
 cal_ensemble_summa_dds@SUMMA,KGE,macos_p3repro,0.895249,wsl,0.889402,0.005847,OK
 cal_ensemble_summa_de@SUMMA,KGE,macos_p3repro,0.908227,wsl,0.889591,0.018636,OK
+cal_ensemble_summa_dream@SUMMA,KGE,macos_p3repro,0.866478,wsl,0.866502,0.000024,OK
 cal_ensemble_topmodel_abc@TOPMODEL,KGE,macos_p3repro,0.772055,wsl,0.758922,0.013133,OK
 cal_ensemble_topmodel_adam@TOPMODEL,KGE,macos_p3repro,0.796939,wsl,0.746068,0.050871,STALE?
 cal_ensemble_topmodel_basin_hopping@TOPMODEL,KGE,macos_p3repro,0.746297,wsl,0.708419,0.037879,STALE?
